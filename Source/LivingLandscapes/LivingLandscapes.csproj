@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>LivingLandscapes</RootNamespace>
+    <AssemblyName>LivingLandscapes</AssemblyName>
+
+    <!-- Build straight into the mod's 1.7/Assemblies folder (the repo root is the mod). -->
+    <OutputPath>..\..\1.7\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType>portable</DebugType>
+
+    <!-- Override per machine with an environment variable or /p:RimWorldDir=... -->
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">E:\SteamLibrary\steamapps\common\RimWorld</RimWorldDir>
+  </PropertyGroup>
+
+  <!-- Game assemblies: referenced from the install, never copied or committed. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RimWorldDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs">
+      <HintPath>$(RimWorldDir)\UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Waylith">
+      <HintPath>$(RimWorldDir)\Waylith.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Harmony 3 is provided at runtime by the Harmony mod, so compile against it only. -->
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="3.0.0-rc.2" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>

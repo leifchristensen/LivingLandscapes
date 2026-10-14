@@ -55,3 +55,19 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio
+.vs/
+*.user
+
+# Debug symbols stay local; the DLL in 1.7/Assemblies is committed so the mod works from a clone
+1.7/Assemblies/*.pdb
+
+# Local dev helper scripts (machine-specific paths)
+tools/
+Source/LivingLandscapes/Properties/launchSettings.json
+
+# Claude Code instructions (local developer notes)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
