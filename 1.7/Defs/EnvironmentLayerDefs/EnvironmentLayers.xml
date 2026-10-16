@@ -172,6 +172,9 @@
         <passHalfWidth>3</passHalfWidth>
         <passMaxDepth>12</passMaxDepth>
         <passMinOpen>0.25</passMinOpen>
+        <edgeCliffMaxThickness>12</edgeCliffMaxThickness>
+        <ravineHalfWidth>4</ravineHalfWidth>
+        <edgeCliffMinSlope>0.3</edgeCliffMinSlope>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -270,6 +273,8 @@
         <washAreaHumid>3.2</washAreaHumid>
         <washMaxClimate>0.6</washMaxClimate>
         <wetPatchNoise>0.2</wetPatchNoise>
+        <streamArea>2.8</streamArea>
+        <streamMaxHalfWidth>3</streamMaxHalfWidth>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

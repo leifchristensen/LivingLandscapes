@@ -355,6 +355,34 @@ public static class GridMath
         dz = (h[z1 * sizeX + x] - h[z0 * sizeX + x]) / (z1 - z0);
     }
 
+    /// <summary>Largest value within a square of the given radius (cells) around each cell (separable max filter).</summary>
+    public static float[] MaxFilter(float[] values, int sizeX, int sizeZ, int radius)
+    {
+        var rows = new float[values.Length];
+        for (int z = 0; z < sizeZ; z++)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                float m = float.MinValue;
+                for (int k = Math.Max(0, x - radius); k <= Math.Min(sizeX - 1, x + radius); k++)
+                    m = Math.Max(m, values[z * sizeX + k]);
+                rows[z * sizeX + x] = m;
+            }
+        }
+        var result = new float[values.Length];
+        for (int z = 0; z < sizeZ; z++)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                float m = float.MinValue;
+                for (int k = Math.Max(0, z - radius); k <= Math.Min(sizeZ - 1, z + radius); k++)
+                    m = Math.Max(m, rows[k * sizeX + x]);
+                result[z * sizeX + x] = m;
+            }
+        }
+        return result;
+    }
+
     /// <summary>Labels 4-connected regions where <paramref name="member"/> is true; -1 elsewhere. Returns the region count.</summary>
     public static int LabelRegions(Func<int, bool> member, int sizeX, int sizeZ, out int[] labels)
     {

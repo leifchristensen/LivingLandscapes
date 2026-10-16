@@ -63,6 +63,11 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
   ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
   rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
+- Edge cliffs (`SoilModelExtension` edgeCliff*, ravineHalfWidth): rock edges marking a height change (thin rock up to
+  12 m thick incl. pass sides; sides of narrow ravines between any rock) become cliff bands facing down LL_Aspect;
+  massive mountain edges stay rock walls.
+- `StreamWriter` (Plants prefix): narrow standing shallow water on drainage lines (log area >= `streamArea`) becomes
+  moving water, with flow from the smoothed downhill direction written into vanilla's river flow map.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
@@ -102,6 +107,8 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Soil type, wet ground and later plant density must read as indicators of moisture and drainage (owner, 2026-10-16).
   Vanilla ground is rank-mapped from our fields rather than replaced, to keep each biome's balance.
 - Ridges show height change as identifiable rock formations broken by passes, not continuous walls (owner).
+- Mountains for large rock masses; cliffs mark height changes (ridges, pass sides, ravines), oriented by the slope
+  vector field. Water that flows (drainage-line streams) is moving water; ponds and lakes stay still.
 - Moisture overlay is a heatmap (transparent dry to blue wet), no contours.
 - Scattered ruins are off by default until terrain generation is polished (setting; tile-mutator structures stay).
 - Erodibility raised 0.02 → 0.05 so erosion, not the uplift noise, shapes landforms (rock differences only show when

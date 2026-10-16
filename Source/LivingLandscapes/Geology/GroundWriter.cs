@@ -28,6 +28,13 @@ public class GroundWriterExtension : DefModExtension
     public float washAreaHumid = 3.2f;
     public float washMaxClimate = 0.6f;
 
+    /// <summary>
+    /// Streams: standing shallow water on a drainage line of at least this area (log10 cells), no more than
+    /// <see cref="streamMaxHalfWidth"/> cells from its bank, becomes moving water (<see cref="StreamWriter"/>).
+    /// </summary>
+    public float streamArea = 2.8f;
+    public float streamMaxHalfWidth = 3f;
+
     /// <summary>Noise mixed into wetness for the biome's wet patches (mud, marsh, ponds), so their edges look natural.</summary>
     public float wetPatchNoise = 0.2f;
 }

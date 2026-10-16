@@ -22,6 +22,11 @@ public static class Patch_GenStep_Plants
     {
         try
         {
+            if (Geology.GeologicalTerrain.AppliesTo(map))
+            {
+                var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<Geology.GroundWriterExtension>() ?? new Geology.GroundWriterExtension();
+                Geology.StreamWriter.Apply(map, ground);
+            }
             map.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)
