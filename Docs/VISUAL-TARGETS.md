@@ -44,3 +44,40 @@ the geological process behind it, and how our layers should produce it. Plans th
 - Surface water covers 30-70 % of the course, in 3 or more separate reaches.
 - Wet ground (marsh, mud or rich soil) runs unbroken along the whole course.
 - The course has no straight runs longer than about 20 cells.
+
+## 2. Desert river and delta among dunes
+
+**What it shows** (sand plain, rock massifs to the north and east, sea to the south)
+- The river leaves the mountains in a narrow canyon at the top left, then winds across the sand in wide bends.
+  One bend has been cut off: a curved, isolated stretch of water (an oxbow) lies beside the main channel.
+- Downstream the river splits into several channels that rejoin and split again, leaving islands between them.
+  At the coast it fans out into a delta: rounded sand islands and bars, shallow water between them, deep sea beyond.
+- Sand bars and islands also line the rest of the shore. Water gets darker (deeper) with distance from the shore.
+- Plants and dark wet ground make only a thin band along each channel. The rest is bare sand.
+- The sand has light, wavy streaks, roughly parallel, all at the same angle: dunes shaped by one prevailing wind.
+- Where the river runs beside the mountains it has cut into them: the rock edge follows the outside of the bends.
+  The mountain front is broken into bays and isolated blocks, and one block by the coast encloses a shallow lagoon.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Wide bends, oxbow | Meandering: on a low gradient with loose banks, the outer bank erodes and the inner bank builds a bar; bends grow until they cut off | Meander migration on the river's centre line (curvature-driven, a few hundred steps), cutoffs left as oxbow lakes |
+| Splitting channels, islands | Channel pattern depends on gradient, discharge and sediment: steep with lots of sediment braids, gentle meanders | Choose the channel pattern per reach from slope and discharge (confined, meandering, braided, delta) |
+| Delta, bars at the mouth | At sea level the river slows and drops its sediment; channels split around mouth bars | From where the gradient approaches zero near the coast, split the channel into a branching tree; build sand islands between branches |
+| Shore bars, deeper water offshore | Waves rework sediment into bars parallel to the shore; the seabed slopes away | Seabed depth from distance to shore (shelf); bars in a shallow depth band |
+| Thin wet band | Little rain: moisture comes only from the river and falls off within a few cells | Same moisture model as target 1, with the rainfall baseline from the tile making the band narrow |
+| Dune streaks | Wind piles sand into ridges across its direction | Wind direction from latitude (trade winds, westerlies); low dune ridges as oriented ripples in the heightmap and light sand on crests, only on dry sand |
+| River cut into the rock | Lateral erosion at the outside of bends | Meander migration may erode rock where rock strength is low; rock edge then follows the channel |
+
+**New or changed pieces** (beyond target 1)
+1. Channel pattern per reach from slope and discharge, reusing the river course from target 1.
+2. Meander migration with cutoffs; delta branching at the coast.
+3. Seabed depth and shore bars for coastal maps.
+4. Wind field from latitude, then dune ridges on dry sand (also usable later for snow drifts and plant shelter).
+
+**Checks on the exports** (a desert or arid tile with a river reaching the coast)
+- Sinuosity (channel length over straight distance) of 1.5 or more on the plain.
+- At least one cut-off bend left as standing water.
+- 3 or more channels reach the sea through the delta, with islands between them.
+- Wet ground and plants stay within about 6 cells of water on arid tiles.
+- Dune streaks share one orientation, at right angles to the wind direction.

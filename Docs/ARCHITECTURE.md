@@ -86,7 +86,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 
 ## Roadmap / open items
 Current focus: geological features that read well on the map, worked from the owner's reference maps in
-`Docs/VISUAL-TARGETS.md` (target 1: river valley through mountains). Collect the targets, then plan shared pieces.
+`Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes). Collect the targets, then plan shared pieces.
 
 1. Few cliffs: steep ground mostly becomes mountain rock, which is excluded. Decide whether mountain edges get cliffs;
    consider using the slope vector field for cliff placement and facing.
