@@ -22,7 +22,7 @@ public static class Patch_GenStep_Plants
     {
         try
         {
-            map.GetComponent<MapComponent_Environment>()?.ComputeLayers();
+            map.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)
         {
@@ -35,15 +35,40 @@ public static class Patch_GenStep_Plants
         int plants = map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).Count;
         Log.Message($"[LivingLandscapes] GenStep_Plants finished on {map} ({map.Biome?.defName}), {plants} plants on map.");
 
-        // Development aid: "-ll-export" writes every layer to PNG after generation, "-ll-quit" then closes the game.
-        if (GenCommandLine.CommandLineArgPassed("ll-export"))
+        RemoveCliffsInWater(map);
+        SpawnTalus(map);
+        TestRun.OnMapGenerated(map);
+    }
+
+    /// <summary>Lakes and ponds are still placed by vanilla after the cliffs; a cliff can't stand in water.</summary>
+    private static void RemoveCliffsInWater(Map map)
+    {
+        var drowned = new System.Collections.Generic.List<Thing>();
+        foreach (Thing thing in map.listerThings.AllThings)
         {
-            LongEventHandler.ExecuteWhenFinished(() =>
-            {
-                LayerImageExporter.ExportAll(map);
-                if (GenCommandLine.CommandLineArgPassed("ll-quit"))
-                    Root.Shutdown();
-            });
+            if (thing is Geology.Building_Cliff && thing.Position.GetTerrain(map).IsWater)
+                drowned.Add(thing);
         }
+        foreach (Thing thing in drowned)
+            thing.Destroy();
+    }
+
+    /// <summary>Scatters the rock chunks planned below cliff faces, where the ground is now dry and open.</summary>
+    private static void SpawnTalus(Map map)
+    {
+        var environment = map.GetComponent<MapComponent_Environment>();
+        var talus = environment?.PlannedTalus;
+        if (talus == null)
+            return;
+        environment.PlannedTalus = null;
+        int spawned = 0;
+        foreach ((IntVec3 cell, ThingDef chunk) in talus)
+        {
+            if (!cell.InBounds(map) || !cell.Standable(map) || cell.GetFirstItem(map) != null || cell.GetTerrain(map).IsWater)
+                continue;
+            GenSpawn.Spawn(chunk, cell, map);
+            spawned++;
+        }
+        Log.Message($"[LivingLandscapes] Scattered {spawned} talus chunks below cliffs on {map}.");
     }
 }

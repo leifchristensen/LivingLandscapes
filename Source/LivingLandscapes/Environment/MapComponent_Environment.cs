@@ -23,6 +23,18 @@ public class MapComponent_Environment : MapComponent
 
     public Map Map => map;
 
+    /// <summary>
+    /// The course a world river should take across this map, in map cells from upstream to downstream, planned by the
+    /// geology during generation. Not saved: only used while the river is placed.
+    /// </summary>
+    public System.Collections.Generic.List<UnityEngine.Vector2> PlannedRiverCourse { get; set; }
+
+    /// <summary>Cliffs planned by the geology during generation, spawned after vanilla places rock. Not saved.</summary>
+    public Geology.CliffPlan PlannedCliffs { get; set; }
+
+    /// <summary>Rock chunks to scatter below cliff faces once terrain and water are final. Not saved.</summary>
+    public System.Collections.Generic.List<(IntVec3 cell, ThingDef chunk)> PlannedTalus { get; set; }
+
     public EnvironmentOverlay Overlay { get; }
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
@@ -35,12 +47,17 @@ public class MapComponent_Environment : MapComponent
         return layers.TryGetValue(layer, out EnvironmentGrid grid) ? grid[map.cellIndices.CellToIndex(cell)] : fallback;
     }
 
-    /// <summary>Computes all layers in dependency order. A layer that fails or returns null keeps its stored values.</summary>
-    public void ComputeLayers()
+    /// <summary>
+    /// Computes, in dependency order, every layer whose worker runs at <paramref name="stage"/>.
+    /// A layer that fails or returns null keeps its stored values.
+    /// </summary>
+    public void ComputeLayers(GenerationStage stage)
     {
         var context = new EnvironmentContext(map, this);
         foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
         {
+            if (layer.Worker.StageFor(map) != stage)
+                continue;
             try
             {
                 float[] values = layer.Worker.Compute(context);
@@ -86,8 +103,10 @@ public class MapComponent_Environment : MapComponent
 
     public override void MapComponentUpdate()
     {
-        if (map == Find.CurrentMap)
-            Overlay.Update();
+        if (map != Find.CurrentMap)
+            return;
+        Overlay.Update();
+        DevTools.TestRun.Tick();
     }
 
     public override void MapComponentOnGUI()

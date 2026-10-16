@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using LivingLandscapes.Environment;
 using LudeonTK;
 using RimWorld;
@@ -6,7 +5,8 @@ using Verse;
 
 namespace LivingLandscapes.DevTools;
 
-/// <summary>Dev-mode actions under "Living Landscapes" in the debug actions menu.</summary>
+/// <summary>Dev-mode actions under "Living Landscapes" in the debug actions menu. Overlays are chosen with the
+/// map toggle in the lower right corner.</summary>
 public static class EnvironmentDebugActions
 {
     private static MapComponent_Environment CurrentEnvironment()
@@ -21,24 +21,6 @@ public static class EnvironmentDebugActions
         return environment;
     }
 
-    [DebugAction("Living Landscapes", "Show environment overlay...", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
-    private static void ShowOverlay()
-    {
-        MapComponent_Environment environment = CurrentEnvironment();
-        if (environment == null)
-            return;
-        var options = new List<DebugMenuOption> { new DebugMenuOption("None", DebugMenuOptionMode.Action, () => environment.Overlay.Select(null)) };
-        foreach (EnvironmentLayerDef layer in environment.Overlay.Available)
-            options.Add(new DebugMenuOption(layer.LabelCap, DebugMenuOptionMode.Action, () => environment.Overlay.Select(layer)));
-        Find.WindowStack.Add(new Dialog_DebugOptionListLister(options));
-    }
-
-    [DebugAction("Living Landscapes", "Cycle environment overlay", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
-    private static void CycleOverlay()
-    {
-        CurrentEnvironment()?.Overlay.Cycle();
-    }
-
     [DebugAction("Living Landscapes", "Export environment layers (PNG)", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
     private static void Export()
     {
@@ -49,6 +31,6 @@ public static class EnvironmentDebugActions
     [DebugAction("Living Landscapes", "Recompute environment layers", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
     private static void Recompute()
     {
-        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers();
+        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
     }
 }

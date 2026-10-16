@@ -17,7 +17,13 @@ In vanilla RimWorld, wild plants are chosen from the biome's plant list and scat
 ## Installation
 Subscribe on the Steam Workshop (link coming once published), or download this repository and place it in your `RimWorld/Mods` folder.
 
+## Settings
+Options → Mod options → Living Landscapes:
+- **Geologically driven terrain** (on by default): new maps are shaped by geology, so lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn it off if you use a mod that changes map terrain and isn't listed as supported; Living Landscapes then only reads the terrain that mod produces and places plants to match. *(In development: the option has no effect yet.)*
+
 ## Compatibility
+- **Supported:** [Realistic Planets 2](https://steamcommunity.com/sharedfiles/filedetails/?id=3776715150). It's optional, and Living Landscapes loads after it.
+- Mods that change map terrain generation are listed in the settings window. If maps look wrong with one of them, turn geologically driven terrain off.
 - Safe to add to an existing save. It only affects maps generated, and plants that spawn, after it is enabled.
 - Plants from other mods use sensible defaults. Mod authors can define habitat rules for their own plants in XML (documentation will follow once the format is stable).
 
