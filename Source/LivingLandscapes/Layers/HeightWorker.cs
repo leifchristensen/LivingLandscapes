@@ -27,7 +27,10 @@ public class HeightWorker : EnvironmentLayerWorker
 
         if (StageFor(map) == GenerationStage.Elevation)
         {
-            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world);
+            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse);
+            var environment = map.GetComponent<MapComponent_Environment>();
+            if (environment != null)
+                environment.PlannedRiverCourse = riverCourse;
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +

@@ -7,8 +7,8 @@ namespace LivingLandscapes.Geology;
 public static class GeologicalTerrain
 {
     /// <summary>
-    /// On when the setting is on and vanilla would generate natural surface terrain here: not underground, not a
-    /// sea tile, and no tile mutator that replaces natural elevation (e.g. space or cavern maps).
+    /// On when the setting is on and the map is natural surface terrain: not underground, not a sea tile, and any
+    /// tile mutator that replaces natural elevation is one the geology models (has a <see cref="LandformExtension"/>).
     /// </summary>
     public static bool AppliesTo(Map map)
     {
@@ -18,6 +18,6 @@ public static class GeologicalTerrain
             return false;
         if (map.TileInfo.WaterCovered)
             return false;
-        return !map.TileInfo.Mutators.Any(m => m.preventNaturalElevation);
+        return !map.TileInfo.Mutators.Any(m => m.preventNaturalElevation && !m.HasModExtension<LandformExtension>());
     }
 }

@@ -56,6 +56,15 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>River discharge entering the map, as a multiple of the map's own drainage area.</summary>
     public float riverInflow = 8f;
 
+    /// <summary>
+    /// The valley a world river runs in. A map is a slice of a tile that contains the river, so the river's valley
+    /// crosses it; this landform guides the river's channel through the map along the world flow direction.
+    /// </summary>
+    public LandformExtension riverValley = new LandformExtension
+    {
+        shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
+    };
+
     /// <summary>Small-scale roughness added after erosion (boulders, hummocks).</summary>
     public float microRelief = 0.3f;
     public float microWavelength = 6f;
@@ -89,8 +98,9 @@ public static class LandscapeGenerator
     private static readonly int[] DZ = { 0, 1, 1, 1, 0, -1, -1, -1 };
     private static readonly float[] Dist = { 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f };
 
-    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world)
+    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out List<Vector2> riverCourse)
     {
+        riverCourse = null;
         world = WorldContext.For(map, p.tileSpacingMetres);
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
@@ -102,13 +112,23 @@ public static class LandscapeGenerator
         float originX = (gx - 1) * 0.5f - sizeX * 0.5f / mapCellsPerModelCell;
         float originZ = (gz - 1) * 0.5f - sizeZ * 0.5f / mapCellsPerModelCell;
 
-        float[] uplift = UpliftField(world, p, gx, gz, metresPerModelCell);
+        var landforms = new Landforms(map, world, world.HasRiver ? p.riverValley : null);
+        float[] uplift = UpliftField(world, p, gx, gz, metresPerModelCell, out float[] erodibility,
+            landforms, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
+                                             ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
         bool[] outlet = Outlets(world, gx, gz, out int riverEntry);
         float[] inflow = new float[gx * gz];
         if (riverEntry >= 0)
             inflow[riverEntry] = p.riverInflow * gx * gz;
 
-        float[] h = Erode(uplift, outlet, inflow, gx, gz, p);
+        float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, out int[] receiver);
+        if (riverEntry >= 0)
+        {
+            // The river's course is the channel the model carved from its entry: follow the receivers downstream.
+            riverCourse = new List<Vector2>();
+            for (int c = riverEntry; c >= 0 && riverCourse.Count <= gx * gz; c = receiver[c])
+                riverCourse.Add(new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell));
+        }
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];
@@ -140,9 +160,14 @@ public static class LandscapeGenerator
         return result;
     }
 
-    /// <summary>Rock uplift rate per model cell: fractal noise at landform scale, sharper for mountains, stronger upslope.</summary>
-    private static float[] UpliftField(WorldContext world, GeologyGenerationExtension p, int gx, int gz, float metresPerModelCell)
+    /// <summary>
+    /// Rock uplift rate per model cell: fractal noise at landform scale, sharper for mountains, stronger upslope,
+    /// then adjusted by the tile's landforms (valleys, mountain fronts, plateaus...), which also set rock hardness.
+    /// </summary>
+    private static float[] UpliftField(WorldContext world, GeologyGenerationExtension p, int gx, int gz, float metresPerModelCell,
+        out float[] erodibility, Landforms landforms, System.Func<int, int, Vector2> mapFraction)
     {
+        erodibility = new float[gx * gz];
         double frequency = metresPerModelCell / p.landformWavelength;
         var swells = new Perlin(frequency, 2.0, 0.5, 4, Rand.Int, QualityMode.High);
         var ridges = new RidgedMultifractal(frequency, 2.0, 4, Rand.Int, QualityMode.High);
@@ -161,7 +186,12 @@ public static class LandscapeGenerator
                 float u = Mathf.Lerp(smooth, sharp, ridged);
                 float upslope = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) / half;
                 u *= Mathf.Max(0.1f, 1f + p.regionalUpliftBias * upslope);
-                uplift[z * gx + x] = Mathf.Lerp(0.15f, 1f, Mathf.Clamp01(u));
+                u = Mathf.Lerp(0.15f, 1f, Mathf.Clamp01(u));
+                float k = 1f;
+                if (landforms.Any)
+                    landforms.Apply(mapFraction(x, z), ref u, ref k);
+                uplift[z * gx + x] = Mathf.Max(0.02f, u);
+                erodibility[z * gx + x] = k;
             }
         }
         return uplift;
@@ -217,7 +247,8 @@ public static class LandscapeGenerator
         return last;
     }
 
-    private static float[] Erode(float[] uplift, bool[] outlet, float[] inflow, int gx, int gz, GeologyGenerationExtension p)
+    private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, int gx, int gz,
+        GeologyGenerationExtension p, out int[] receiverOut)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -315,13 +346,14 @@ public static class LandscapeGenerator
                 int r = receiver[c];
                 if (r < 0)
                     continue;
-                float f = p.erodibility * Mathf.Pow(area[c], p.areaExponent) / receiverDist[c];
+                float f = p.erodibility * erodibility[c] * Mathf.Pow(area[c], p.areaExponent) / receiverDist[c];
                 h[c] = (h[c] + f * h[r]) / (1f + f);
             }
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion);
         }
+        receiverOut = receiver;
         return h;
     }
 

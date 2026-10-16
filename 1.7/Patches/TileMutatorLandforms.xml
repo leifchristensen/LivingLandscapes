@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!--
+    What tile mutators mean geologically. With "Geologically driven terrain" on, the landscape model includes these
+    landforms as rock uplift and hardness, erodes and drains them with the rest of the terrain, and skips the
+    mutator's own elevation rewrite. Mutators not listed here run as in vanilla.
+    Sizes and offsets are fractions of the map width from the map centre. Uplift is relative to the strongest
+    background uplift (1). Orientation follows the region's downhill direction (towards lower ground or the sea).
+    Other mods can describe their own mutators the same way.
+  -->
+
+  <!-- Mountain: a mountain mass rising on the upslope side of the map. -->
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/TileMutatorDef[defName="Mountain"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.LandformExtension">
+        <shape>Ramp</shape>
+        <orientation>Upslope</orientation>
+        <offset>0.2</offset>
+        <size>0.15</size>
+        <edge>0.05</edge>
+        <upliftInside>1.0</upliftInside>
+        <warp>0.08</warp>
+      </li>
+    </value>
+  </Operation>
+
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Odyssey</li>
+    </mods>
+    <match Class="PatchOperationSequence">
+      <operations>
+
+        <!-- Valley: a valley floor running downhill between raised flanks; it drains along its axis. -->
+        <li Class="PatchOperationAddModExtension">
+          <xpath>Defs/TileMutatorDef[defName="Valley"]</xpath>
+          <value>
+            <li Class="LivingLandscapes.Geology.LandformExtension">
+              <shape>Axis</shape>
+              <orientation>Downhill</orientation>
+              <size>0.15</size>
+              <edge>0.1</edge>
+              <upliftInside>-0.5</upliftInside>
+              <upliftOutside>0.8</upliftOutside>
+              <warp>0.08</warp>
+            </li>
+          </value>
+        </li>
+
+        <!-- Cliffs: an escarpment of hard rock facing downhill (towards the sea on coasts). -->
+        <li Class="PatchOperationAddModExtension">
+          <xpath>Defs/TileMutatorDef[defName="Cliffs"]</xpath>
+          <value>
+            <li Class="LivingLandscapes.Geology.LandformExtension">
+              <shape>Ramp</shape>
+              <orientation>Upslope</orientation>
+              <size>0.02</size>
+              <edge>0.01</edge>
+              <upliftInside>1.2</upliftInside>
+              <erodibilityInside>0.4</erodibilityInside>
+              <warp>0.06</warp>
+            </li>
+          </value>
+        </li>
+
+        <!-- Plateau: a raised block capped by resistant rock, so its top stays flat and its edges stay steep. -->
+        <li Class="PatchOperationAddModExtension">
+          <xpath>Defs/TileMutatorDef[defName="Plateau"]</xpath>
+          <value>
+            <li Class="LivingLandscapes.Geology.LandformExtension">
+              <shape>Disk</shape>
+              <orientation>Random</orientation>
+              <offset>0.15</offset>
+              <size>0.35</size>
+              <edge>0.03</edge>
+              <upliftInside>0.9</upliftInside>
+              <erodibilityInside>0.15</erodibilityInside>
+              <warp>0.07</warp>
+            </li>
+          </value>
+        </li>
+
+      </operations>
+    </match>
+  </Operation>
+
+</Patch>

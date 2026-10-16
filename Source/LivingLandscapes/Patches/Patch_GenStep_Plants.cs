@@ -35,15 +35,6 @@ public static class Patch_GenStep_Plants
         int plants = map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).Count;
         Log.Message($"[LivingLandscapes] GenStep_Plants finished on {map} ({map.Biome?.defName}), {plants} plants on map.");
 
-        // Development aid: "-ll-export" writes every layer to PNG after generation, "-ll-quit" then closes the game.
-        if (GenCommandLine.CommandLineArgPassed("ll-export"))
-        {
-            LongEventHandler.ExecuteWhenFinished(() =>
-            {
-                LayerImageExporter.ExportAll(map);
-                if (GenCommandLine.CommandLineArgPassed("ll-quit"))
-                    Root.Shutdown();
-            });
-        }
+        TestRun.OnMapGenerated(map);
     }
 }

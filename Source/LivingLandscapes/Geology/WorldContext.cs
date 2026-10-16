@@ -40,7 +40,7 @@ public class WorldContext
         var context = new WorldContext
         {
             Elevation = tile.elevation,
-            Hilliness = tile.HillinessForElevationGen,
+            Hilliness = HillinessFor(tile),
         };
 
         PlanetTile here = map.Tile;
@@ -80,6 +80,20 @@ public class WorldContext
             }
         }
         return context;
+    }
+
+    /// <summary>
+    /// The tile's hilliness for terrain generation. Some mutators (plateau, cliffs) force vanilla's noise flat so it
+    /// can't disturb their shape; that doesn't apply to landforms the geology models, so those keep the world's value.
+    /// </summary>
+    private static Hilliness HillinessFor(Tile tile)
+    {
+        foreach (TileMutatorDef mutator in tile.Mutators)
+        {
+            if (mutator.hillinessForElevationGen != Hilliness.Undefined && !mutator.HasModExtension<LandformExtension>())
+                return mutator.hillinessForElevationGen;
+        }
+        return tile.hilliness;
     }
 
     /// <summary>World heading in degrees (0 = north, 90 = east) as a map-space unit vector.</summary>

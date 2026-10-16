@@ -23,6 +23,12 @@ public class MapComponent_Environment : MapComponent
 
     public Map Map => map;
 
+    /// <summary>
+    /// The course a world river should take across this map, in map cells from upstream to downstream, planned by the
+    /// geology during generation. Not saved: only used while the river is placed.
+    /// </summary>
+    public System.Collections.Generic.List<UnityEngine.Vector2> PlannedRiverCourse { get; set; }
+
     public EnvironmentOverlay Overlay { get; }
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
@@ -91,8 +97,10 @@ public class MapComponent_Environment : MapComponent
 
     public override void MapComponentUpdate()
     {
-        if (map == Find.CurrentMap)
-            Overlay.Update();
+        if (map != Find.CurrentMap)
+            return;
+        Overlay.Update();
+        DevTools.TestRun.Tick();
     }
 
     public override void MapComponentOnGUI()
