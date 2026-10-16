@@ -72,6 +72,49 @@ public class CliffPlan
     }
 
     /// <summary>
+    /// Makes every band 4-connected: linked cliff art only joins orthogonal neighbours, so two band cells touching only
+    /// at a corner would draw as separate pieces. A connector goes into one of the two cells between them (the higher
+    /// one, not rock, not already a cliff), facing like its neighbour, so diagonal bands become staircases.
+    /// Returns the number added.
+    /// </summary>
+    public int ConnectDiagonals(Map map, System.Func<int, bool> blocked, float[] height)
+    {
+        CellIndices indices = map.cellIndices;
+        int added = 0;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int i = 0; i < Kind.Length; i++)
+            {
+                if (!IsBandKind(Kind[i]))
+                    continue;
+                IntVec3 c = indices.IndexToCell(i);
+                foreach (IntVec3 diagonal in Diagonals)
+                {
+                    IntVec3 d = c + diagonal;
+                    if (!d.InBounds(map) || !IsBandKind(Kind[indices.CellToIndex(d)]))
+                        continue;
+                    IntVec3 a = new IntVec3(d.x, 0, c.z), b = new IntVec3(c.x, 0, d.z);
+                    int ai = indices.CellToIndex(a), bi = indices.CellToIndex(b);
+                    if (Kind[ai] != CliffKind.None || Kind[bi] != CliffKind.None)
+                        continue;
+                    bool aOk = !blocked(ai), bOk = !blocked(bi);
+                    if (!aOk && !bOk)
+                        continue;
+                    int pick = aOk && (!bOk || height[ai] >= height[bi]) ? ai : bi;
+                    Kind[pick] = Kind[i] == CliffKind.Steps ? CliffKind.Rim : Kind[i];
+                    Facing[pick] = Facing[i];
+                    added++;
+                }
+            }
+        }
+        return added;
+    }
+
+    private static readonly IntVec3[] Diagonals = { new IntVec3(1, 0, 1), new IntVec3(1, 0, -1), new IntVec3(-1, 0, 1), new IntVec3(-1, 0, -1) };
+
+    private static bool IsBandKind(CliffKind kind) => kind == CliffKind.Face || kind == CliffKind.Rim || kind == CliffKind.Steps;
+
+    /// <summary>
     /// Puts steps along every band, about every <paramref name="spacing"/> cells and at least once per band, on
     /// straight stretches where the drop is a single stage. Bands shorter than half the spacing (small knolls and
     /// hollows) get none: they are easier to walk around. Returns the number placed.

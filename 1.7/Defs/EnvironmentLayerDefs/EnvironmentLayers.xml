@@ -173,7 +173,6 @@
         <passMaxDepth>12</passMaxDepth>
         <passMinOpen>0.25</passMinOpen>
         <edgeCliffMaxThickness>12</edgeCliffMaxThickness>
-        <ravineHalfWidth>4</ravineHalfWidth>
         <edgeCliffMinSlope>0.3</edgeCliffMinSlope>
       </li>
     </modExtensions>

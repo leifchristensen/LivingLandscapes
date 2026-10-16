@@ -75,7 +75,8 @@ public static class VanillaTerrainWriter
         float[] steepness = Terraces.Steepness(landform, sizeX, sizeZ, cellSize, terraces);
         plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f);
         int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);
-        int edgeCliffs = aspect == null ? 0 : PlanEdgeCliffs(map, values, depthIntoRock, slope, aspect, cellSize, plan, p);
+        int edgeCliffs = aspect == null ? 0 : PlanRidgeCrests(map, values, depthIntoRock, slope, aspect, cellSize, plan, p);
+        int connectors = plan.ConnectDiagonals(map, i => values[i] > 0.7f, landform);
         int bands = 0;
         for (int i = 0; i < n; i++)
         {
@@ -113,7 +114,7 @@ public static class VanillaTerrainWriter
             else if (values[i] == Scree) scree++;
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
-                    $"{edgeCliffs} of them on rock edges; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
+                    $"{edgeCliffs} on ridge crests, {connectors} joining diagonals; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
                     $"soil {Percent(n - rock - floor - scree, n)}; {passCells} pass cells, {sizeable} walkable areas (largest holds " +
                     $"{Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
@@ -182,31 +183,36 @@ public static class VanillaTerrainWriter
     }
 
     /// <summary>
-    /// Replaces rock-wall edge cells that mark a height change with cliff bands facing down the slope vector field
-    /// (see <see cref="SoilModelExtension.edgeCliffMaxThickness"/>). Returns the number placed.
+    /// Ridge crests: a cliff is a climbable step, so it needs walkable ground on its high side. Thin rock (ridges and
+    /// fins no thicker than <see cref="SoilModelExtension.edgeCliffMaxThickness"/> metres, where the ground is steep)
+    /// becomes a walkable crest of rough stone, edged by cliffs facing down the slope vector field on every side that
+    /// drops away. Thick rock (mountains, pocket walls) stays solid rock with plain edges. Returns the edge cliffs placed.
     /// </summary>
-    private static int PlanEdgeCliffs(Map map, float[] values, float[] depthIntoRock, float[] slope, float[] aspect, float cellSize,
+    private static int PlanRidgeCrests(Map map, float[] values, float[] depthIntoRock, float[] slope, float[] aspect, float cellSize,
         CliffPlan plan, SoilModelExtension p)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = values.Length;
-        bool IsWall(int i) => values[i] > 0.7f;
-        // Thickness of the rock around each cell, and how wide the walkable ground around each cell is.
-        float[] wallDepth = new float[n];
+        var wasWall = new bool[n];
+        var wallDepth = new float[n];
         for (int i = 0; i < n; i++)
-            wallDepth[i] = IsWall(i) ? depthIntoRock[i] : 0f;
+        {
+            wasWall[i] = values[i] > 0.7f;
+            wallDepth[i] = wasWall[i] ? depthIntoRock[i] : 0f;
+        }
+        // Thickness of a rock mass around each cell: the deepest point within reach.
         float[] thickness = GridMath.MaxFilter(wallDepth, sizeX, sizeZ, Mathf.CeilToInt(p.edgeCliffMaxThickness / cellSize));
-        float[] toWall = GridMath.DistanceTo(IsWall, sizeX, sizeZ);
-        float[] gapHalfWidth = GridMath.MaxFilter(toWall, sizeX, sizeZ, Mathf.CeilToInt(p.ravineHalfWidth) + 1);
+        var crest = new bool[n];
+        for (int i = 0; i < n; i++)
+            crest[i] = wasWall[i] && thickness[i] * cellSize <= p.edgeCliffMaxThickness;
 
         var edges = new List<(int cell, Rot4 facing)>();
         for (int i = 0; i < n; i++)
         {
-            if (!IsWall(i) || slope[i] / cellSize < p.edgeCliffMinSlope)
+            if (!crest[i] || slope[i] / cellSize < p.edgeCliffMinSlope)
                 continue;
             IntVec3 c = map.cellIndices.IndexToCell(i);
-            bool thin = thickness[i] * cellSize <= p.edgeCliffMaxThickness;
             var downhill = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
-            // Cliffs only face downhill: a neighbour must lie at least partly down the slope.
+            // Cliffs only face downhill: towards open ground at least partly down the slope.
             Rot4 facing = Rot4.Invalid;
             float best = 0.2f;
             for (int d = 0; d < 4; d++)
@@ -215,9 +221,7 @@ public static class VanillaTerrainWriter
                 if (!nb.InBounds(map))
                     continue;
                 int ni = map.cellIndices.CellToIndex(nb);
-                if (IsWall(ni) || plan.Kind[ni] != CliffKind.None)
-                    continue;
-                if (!thin && gapHalfWidth[ni] > p.ravineHalfWidth)
+                if (wasWall[ni] || plan.Kind[ni] != CliffKind.None)
                     continue;
                 IntVec3 step = new Rot4(d).FacingCell;
                 float along = downhill.x * step.x + downhill.y * step.z;
@@ -230,11 +234,13 @@ public static class VanillaTerrainWriter
             if (facing.IsValid)
                 edges.Add((i, facing));
         }
-        foreach ((int cell, Rot4 facing) in edges)
+        for (int i = 0; i < n; i++)
         {
-            plan.PlanEdge(cell, facing);
-            values[cell] = RockFloor;
+            if (crest[i])
+                values[i] = RockFloor;
         }
+        foreach ((int cell, Rot4 facing) in edges)
+            plan.PlanEdge(cell, facing);
         return edges.Count;
     }
 

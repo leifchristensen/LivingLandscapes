@@ -58,14 +58,11 @@ public class SoilModelExtension : DefModExtension
     public float passMinOpen = 0.25f;
 
     /// <summary>
-    /// Edge cliffs: rock edges that mark a change in height get a cliff band instead of a plain rock wall, facing
-    /// down the slope vector field. They are the edges of thin rock (ridges and fins no thicker than
-    /// <see cref="edgeCliffMaxThickness"/> metres, including the sides of passes) and the sides of narrow walkable gaps
-    /// (ravines no wider than twice <see cref="ravineHalfWidth"/> cells) between any rock, where the ground is at least
-    /// <see cref="edgeCliffMinSlope"/> steep. Massive mountain edges stay rock walls.
+    /// Ridge crests: thin rock (no thicker than <see cref="edgeCliffMaxThickness"/> metres) becomes a walkable crest
+    /// edged by cliffs facing downhill, where the ground is at least <see cref="edgeCliffMinSlope"/> steep. A cliff must
+    /// lead up to walkable ground; thick rock (mountains, pocket walls) keeps plain rock edges.
     /// </summary>
     public float edgeCliffMaxThickness = 12f;
-    public float ravineHalfWidth = 4f;
     public float edgeCliffMinSlope = 0.3f;
 
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>

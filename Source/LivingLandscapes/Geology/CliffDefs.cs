@@ -5,17 +5,16 @@ using Verse;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// The cliff pieces the geology places. Bands are Decorative Cliffs' own stone cliffs (Mlie.DecorativeCliffs), so they
-/// link into continuous lines exactly as when a player builds them, made of the local rock's blocks; steps are ours.
-/// Which piece faces which way: lower ground south shows the face (bottom left), west and east show the face from the
-/// side (bottom left / bottom right), north shows only the top edge.
+/// The cliff pieces the geology places: our own climbable bands with Decorative Cliffs' art (linking with its pieces),
+/// tinted with the local rock, and our steps. Which piece faces which way: lower ground south shows the face (bottom
+/// left), west and east show the face from the side (bottom left / bottom right), north shows only the top edge.
 /// </summary>
 public static class CliffDefs
 {
-    public static ThingDef FacingSouth => DefDatabase<ThingDef>.GetNamedSilentFail("Stone_Cliff_Left");
-    public static ThingDef FacingWest => DefDatabase<ThingDef>.GetNamedSilentFail("Stone_Cliff_Left");
-    public static ThingDef FacingEast => DefDatabase<ThingDef>.GetNamedSilentFail("Stone_Cliff_Right");
-    public static ThingDef FacingNorth => DefDatabase<ThingDef>.GetNamedSilentFail("Stone_CliffTop_Left");
+    public static ThingDef FacingSouth => DefDatabase<ThingDef>.GetNamedSilentFail("LL_Cliff_Left");
+    public static ThingDef FacingWest => DefDatabase<ThingDef>.GetNamedSilentFail("LL_Cliff_Left");
+    public static ThingDef FacingEast => DefDatabase<ThingDef>.GetNamedSilentFail("LL_Cliff_Right");
+    public static ThingDef FacingNorth => DefDatabase<ThingDef>.GetNamedSilentFail("LL_CliffTop_Left");
     public static ThingDef Steps => DefDatabase<ThingDef>.GetNamedSilentFail("LL_CliffSteps");
 
     private static HashSet<ThingDef> all;

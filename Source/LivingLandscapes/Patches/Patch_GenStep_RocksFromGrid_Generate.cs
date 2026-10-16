@@ -10,8 +10,8 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Spawns the cliffs the geology planned, right after vanilla places mountain rock and before terrain is chosen: a
-/// Decorative Cliffs stone cliff on every band cell (piece by facing, linking into lines, made of the local rock's
-/// blocks) and our steps facing downhill. Rock fallen from the faces is planned as talus: chunks of the same rock just
+/// cliff band on every band cell (Decorative Cliffs art by facing, linking into lines, tinted with the local rock)
+/// and steps facing downhill. Rock fallen from the faces is planned as talus: chunks of the same rock just
 /// below them, spawned once the terrain and water are final.
 /// </summary>
 [HarmonyPatch(typeof(GenStep_RocksFromGrid), nameof(GenStep_RocksFromGrid.Generate))]

@@ -63,9 +63,7 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
   ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
   rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
-- Edge cliffs (`SoilModelExtension` edgeCliff*, ravineHalfWidth): rock edges marking a height change (thin rock up to
-  12 m thick incl. pass sides; sides of narrow ravines between any rock) become cliff bands facing down LL_Aspect;
-  massive mountain edges stay rock walls.
+- Ridge crests (`SoilModelExtension` edgeCliff*): see Cliffs.
 - `StreamWriter` (Plants prefix): narrow standing shallow water on drainage lines (log area >= `streamArea`) becomes
   moving water, with flow from the smoothed downhill direction written into vanilla's river flow map.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
@@ -73,14 +71,17 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
 ## Cliffs (`CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
-Bands are Decorative Cliffs' own stone cliffs (`Stone_Cliff_Left/Right`, `Stone_CliffTop_Left`; Mlie.DecorativeCliffs,
-hard dependency), spawned from the local rock's blocks so they link into continuous lines like player-built ones.
-Facing: lower ground south or west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Cliffs only face downhill.
-Our own `LL_CliffSteps` (passable) sit in the bands.
-**Open (next branch):** Decorative Cliffs' defs block movement and sight; cliffs must stay passable at a very high
-path cost and must not block sight. Their CornerFiller linking only joins orthogonal neighbours, so diagonal
-(stepped) bands break into separate pieces; cliffs need to link diagonally. Talus chunks below faces. Slopes get a stepped series of bands
-(terrace stages, `stagesAcrossRelief` 12). Must stay compatible with As Above So Below 2 (optional, later).
+A cliff is a climbable step between heights: it must have walkable ground on its high side (owner, 2026-10-16).
+- Defs: our own `LL_Cliff_Left/Right`, `LL_CliffTop_Left` with Decorative Cliffs' linked atlases (hard dependency,
+  textures referenced), tinted with the local rock; PassThroughOnly at path cost 400, fill 0.45 (cover, never blocks
+  sight); link flags Custom2 + MapEdge so they join Decorative Cliffs' own pieces. `LL_CliffSteps` in the bands.
+  Facing (lower ground): south/west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Downhill only.
+- Distribution: terrace bands on steep ground (12 stages across the relief) give slopes a stepped series of lines;
+  thin rock (<= `edgeCliffMaxThickness` 12 m) becomes a walkable rough-stone crest edged by cliffs facing down
+  LL_Aspect; thick rock (mountains, pocket walls) keeps plain rock edges. Sealed pockets are fine (fun to mine into).
+- `CliffPlan.ConnectDiagonals` makes every band 4-connected (linked art only joins orthogonal neighbours), so
+  diagonal bands render as staircases.
+- Talus chunks below faces. Must stay compatible with As Above So Below 2 (optional, later).
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
 One map toggle per layer with an `<overlay>` (lower right corner, `Patch_PlaySettings_DoPlaySettingsGlobalControls`);
