@@ -72,18 +72,19 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
-## Cliffs (`CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
-A cliff is a climbable step between heights: it must have walkable ground on its high side (owner, 2026-10-16).
-- Defs: our own `LL_Cliff_Left/Right`, `LL_CliffTop_Left` with Decorative Cliffs' linked atlases (hard dependency,
-  textures referenced), tinted with the local rock; PassThroughOnly at path cost 400, fill 0.45 (cover, never blocks
-  sight); link flags Custom2 + MapEdge so they join Decorative Cliffs' own pieces. `LL_CliffSteps` in the bands.
-  Facing (lower ground): south/west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Downhill only.
-- Distribution: terrace bands on steep ground (12 stages across the relief) give slopes a stepped series of lines;
-  thin rock (<= `edgeCliffMaxThickness` 12 m) becomes a walkable rough-stone crest edged by cliffs facing down
-  LL_Aspect; thick rock (mountains, pocket walls) keeps plain rock edges. Sealed pockets are fine (fun to mine into).
-- `CliffPlan.ConnectDiagonals` makes every band 4-connected (linked art only joins orthogonal neighbours), so
-  diagonal bands render as staircases.
-- Talus chunks below faces. Must stay compatible with As Above So Below 2 (optional, later).
+## Cliffs (`Building_Cliff`, `CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
+A cliff is a climbable step between heights with walkable ground on its high side. Own defs and own art (owner,
+2026-10-16); Decorative Cliffs is no longer used or required.
+- `LL_Cliff` (PassThroughOnly, path cost 400, fill 0.45: cover, never blocks sight) and `LL_CliffSteps` (standable).
+  One thing per band cell on the higher side; `CliffPlan.Lower` records every side that drops to lower ground.
+- Drawn as thin edges, not full-cell blocks (`Building_Cliff.Print`): south side a short stone face, north a thin lip,
+  east/west a thin column; steps draw stairs on their facing side. Greyscale, tinted with the local rock. A face's
+  apparent height must match the drop, so stacked cliffs read as nested lines; edges on cell sides join at corners.
+- Art: `Source/ArtTools/generate_cliff_art.py` (pure Python, `png_min.py`) writes
+  `Textures/Things/Building/LivingLandscapes/Cliff/`. Style reference: owner-supplied asset pack (not in the repo):
+  outlined rounded stones, short south faces, thin rims, grass overhang (not yet done).
+- Distribution: terrace bands where steep (12 stages across the relief); thin rock becomes a walkable crest with edges
+  on every lower side; thick rock keeps plain rock edges. Talus chunks below faces.
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
 One map toggle per layer with an `<overlay>` (lower right corner, `Patch_PlaySettings_DoPlaySettingsGlobalControls`);

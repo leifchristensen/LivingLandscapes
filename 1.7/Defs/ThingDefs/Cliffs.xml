@@ -2,15 +2,22 @@
 <Defs>
 
   <!--
-    Terrace steps: the quick way between height stages, in the gaps of the cliff bands. Made of the local rock and
-    taking its colour and name. Art: placeholder from Source/Tools/generate_cliff_art.py.
+    Cliffs: placed by the geology on the higher side of every height change, drawn as thin edges on the sides that drop
+    to lower ground (LivingLandscapes.Geology.Building_Cliff; art from Source/ArtTools/generate_cliff_art.py), tinted
+    with the local rock and named after it ("granite cliff"). Bands can be climbed, very slowly, and give cover without
+    blocking the view; steps are the quick way up.
   -->
 
-  <ThingDef Name="LL_TerraceBase" ParentName="BuildingNaturalBase" Abstract="True">
+  <ThingDef Name="LL_CliffBase" ParentName="BuildingNaturalBase" Abstract="True">
     <thingClass>LivingLandscapes.Geology.Building_Cliff</thingClass>
     <altitudeLayer>Building</altitudeLayer>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Cliff/Edge_South</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+    </graphicData>
     <useHitPoints>false</useHitPoints>
-    <saveCompressible>true</saveCompressible>
+    <saveCompressible>false</saveCompressible>
+    <rotatable>true</rotatable>
     <fertility>0</fertility>
     <canOverlapZones>false</canOverlapZones>
     <statBases>
@@ -25,77 +32,20 @@
     </building>
   </ThingDef>
 
-  <!--
-    Cliff bands. Art: Decorative Cliffs' linked atlases (Mlie.DecorativeCliffs, MIT; textures referenced, not copied),
-    tinted with the local rock's colour. Unlike Decorative Cliffs' buildable pieces they can be climbed (at a very high
-    path cost) and give cover without blocking sight. They link with Decorative Cliffs' own pieces (Custom2), so
-    players can extend them. Piece by facing (lower ground): south/west -> Cliff_Left, east -> Cliff_Right,
-    north -> CliffTop_Left. See LivingLandscapes.Geology.CliffDefs.
-  -->
-  <ThingDef Name="LL_CliffBandBase" ParentName="LL_TerraceBase" Abstract="True">
+  <ThingDef ParentName="LL_CliffBase">
+    <defName>LL_Cliff</defName>
     <label>cliff</label>
-    <description>A steep rise in the ground. It can be climbed, slowly, and gives some cover without blocking the view; steps along it are quicker.</description>
+    <description>A steep rise in the ground. It can be climbed, very slowly, and gives some cover without blocking the view; steps along it are quicker.</description>
     <passability>PassThroughOnly</passability>
     <pathCost>400</pathCost>
     <pathCostIgnoreRepeat>false</pathCostIgnoreRepeat>
     <fillPercent>0.45</fillPercent>
-    <castEdgeShadows>false</castEdgeShadows>
-    <staticSunShadowHeight>0.2</staticSunShadowHeight>
   </ThingDef>
 
-  <ThingDef ParentName="LL_CliffBandBase">
-    <defName>LL_Cliff_Left</defName>
-    <graphicData>
-      <texPath>Cliff_Left_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>MapEdge</li>
-        <li>Custom2</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffBandBase">
-    <defName>LL_Cliff_Right</defName>
-    <graphicData>
-      <texPath>Cliff_Right_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>MapEdge</li>
-        <li>Custom2</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffBandBase">
-    <defName>LL_CliffTop_Left</defName>
-    <label>cliff edge</label>
-    <graphicData>
-      <texPath>CliffTop_Left_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>MapEdge</li>
-        <li>Custom2</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <!-- Rough steps between stages; faces downhill. Registers the cliff link so bands join onto it. -->
-  <ThingDef ParentName="LL_TerraceBase">
+  <ThingDef ParentName="LL_CliffBase">
     <defName>LL_CliffSteps</defName>
     <label>rock steps</label>
     <description>Rough steps in the edge of a rise, the easy way between the higher and lower ground.</description>
-    <graphicData>
-      <texPath>Things/Building/LivingLandscapes/Terrace/CliffSteps</texPath>
-      <graphicClass>Graphic_Multi</graphicClass>
-      <linkFlags>
-        <li>Custom2</li>
-      </linkFlags>
-    </graphicData>
-    <rotatable>true</rotatable>
     <passability>Standable</passability>
     <pathCost>6</pathCost>
     <fillPercent>0</fillPercent>

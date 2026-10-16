@@ -76,7 +76,6 @@ public static class VanillaTerrainWriter
         plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f);
         int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);
         int edgeCliffs = aspect == null ? 0 : PlanRidgeCrests(map, values, depthIntoRock, slope, aspect, cellSize, plan, p);
-        int connectors = plan.ConnectDiagonals(map, i => values[i] > 0.7f, landform);
         int bands = 0;
         for (int i = 0; i < n; i++)
         {
@@ -114,7 +113,7 @@ public static class VanillaTerrainWriter
             else if (values[i] == Scree) scree++;
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
-                    $"{edgeCliffs} on ridge crests, {connectors} joining diagonals; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
+                    $"{edgeCliffs} on ridge crests; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
                     $"soil {Percent(n - rock - floor - scree, n)}; {passCells} pass cells, {sizeable} walkable areas (largest holds " +
                     $"{Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
@@ -205,16 +204,18 @@ public static class VanillaTerrainWriter
         for (int i = 0; i < n; i++)
             crest[i] = wasWall[i] && thickness[i] * cellSize <= p.edgeCliffMaxThickness;
 
-        var edges = new List<(int cell, Rot4 facing)>();
+        var edges = new List<(int cell, Rot4 facing, byte lower)>();
         for (int i = 0; i < n; i++)
         {
             if (!crest[i] || slope[i] / cellSize < p.edgeCliffMinSlope)
                 continue;
             IntVec3 c = map.cellIndices.IndexToCell(i);
             var downhill = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
-            // Cliffs only face downhill: towards open ground at least partly down the slope.
+            // The crest stands above all open ground around it: every such side gets an edge. The main facing (for
+            // talus) is the one most down the slope.
             Rot4 facing = Rot4.Invalid;
-            float best = 0.2f;
+            byte lower = 0;
+            float best = float.MinValue;
             for (int d = 0; d < 4; d++)
             {
                 IntVec3 nb = c + new Rot4(d).FacingCell;
@@ -223,6 +224,7 @@ public static class VanillaTerrainWriter
                 int ni = map.cellIndices.CellToIndex(nb);
                 if (wasWall[ni] || plan.Kind[ni] != CliffKind.None)
                     continue;
+                lower |= (byte)(1 << d);
                 IntVec3 step = new Rot4(d).FacingCell;
                 float along = downhill.x * step.x + downhill.y * step.z;
                 if (along > best)
@@ -232,15 +234,15 @@ public static class VanillaTerrainWriter
                 }
             }
             if (facing.IsValid)
-                edges.Add((i, facing));
+                edges.Add((i, facing, lower));
         }
         for (int i = 0; i < n; i++)
         {
             if (crest[i])
                 values[i] = RockFloor;
         }
-        foreach ((int cell, Rot4 facing) in edges)
-            plan.PlanEdge(cell, facing);
+        foreach ((int cell, Rot4 facing, byte lower) in edges)
+            plan.PlanEdge(cell, facing, lower);
         return edges.Count;
     }
 
