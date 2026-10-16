@@ -1,3 +1,4 @@
+using System.Linq;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
 using Verse;
@@ -5,27 +6,47 @@ using Verse;
 namespace LivingLandscapes.Layers;
 
 /// <summary>
-/// The geological height every downstream layer (drainage, slope, moisture, plants) reads.
-/// Off: inferred from the terrain vanilla placed (<see cref="HeightInference"/>).
-/// On: generated from geological principles before terrain placement; not built yet, so it falls back to inference.
+/// The geological height, metres above sea level, that every downstream layer (soil, drainage, slope, moisture,
+/// plants) reads.
+/// On (geological terrain): generated from geological principles right after vanilla's elevation step, and then
+/// drives where rock, scree and soil are placed (<see cref="LandscapeGenerator"/>).
+/// Off: inferred from the terrain vanilla placed, just before plants (<see cref="HeightInference"/>).
 /// </summary>
 public class HeightWorker : EnvironmentLayerWorker
 {
-    private static bool loggedFallback;
+    /// <summary>Typical spread of vanilla's elevation grid, used to turn inferred heights into metres.</summary>
+    private const float VanillaElevationSpread = 0.6f;
+
+    public override GenerationStage StageFor(Map map) =>
+        GeologicalTerrain.AppliesTo(map) ? GenerationStage.Elevation : GenerationStage.Plants;
 
     public override float[] Compute(EnvironmentContext context)
     {
+        Map map = context.Map;
+        var generation = def.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
+
+        if (StageFor(map) == GenerationStage.Elevation)
+        {
+            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world);
+            Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
+                        $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
+                        $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +
+                        $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
+                        $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}].");
+            return generated;
+        }
+
         float[] vanilla = context.Get(EnvironmentLayerDefOf.LL_Elevation);
         if (vanilla == null)
             return null;
+        var inference = def.GetModExtension<HeightInferenceExtension>() ?? new HeightInferenceExtension();
+        float[] inferred = HeightInference.Infer(map, vanilla, inference);
 
-        if (LivingLandscapesMod.Settings.geologicalTerrain && !loggedFallback)
-        {
-            loggedFallback = true;
-            Log.Message("[LivingLandscapes] Geological terrain generation is not built yet; height is inferred from vanilla terrain.");
-        }
-
-        var p = def.GetModExtension<HeightInferenceExtension>() ?? new HeightInferenceExtension();
-        return HeightInference.Infer(context.Map, vanilla, p);
+        // Inference works in vanilla's units; express it in metres around the tile's elevation so both modes agree.
+        float tileElevation = map.TileInfo.elevation;
+        float metresPerUnit = generation.ReliefFor(map.TileInfo.HillinessForElevationGen) / VanillaElevationSpread;
+        for (int i = 0; i < inferred.Length; i++)
+            inferred[i] = tileElevation + (inferred[i] - inference.rockThreshold * 0.5f) * metresPerUnit;
+        return inferred;
     }
 }

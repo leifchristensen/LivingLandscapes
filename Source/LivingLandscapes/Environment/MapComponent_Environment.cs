@@ -35,12 +35,17 @@ public class MapComponent_Environment : MapComponent
         return layers.TryGetValue(layer, out EnvironmentGrid grid) ? grid[map.cellIndices.CellToIndex(cell)] : fallback;
     }
 
-    /// <summary>Computes all layers in dependency order. A layer that fails or returns null keeps its stored values.</summary>
-    public void ComputeLayers()
+    /// <summary>
+    /// Computes, in dependency order, every layer whose worker runs at <paramref name="stage"/>.
+    /// A layer that fails or returns null keeps its stored values.
+    /// </summary>
+    public void ComputeLayers(GenerationStage stage)
     {
         var context = new EnvironmentContext(map, this);
         foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
         {
+            if (layer.Worker.StageFor(map) != stage)
+                continue;
             try
             {
                 float[] values = layer.Worker.Compute(context);

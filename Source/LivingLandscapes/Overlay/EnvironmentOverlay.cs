@@ -27,6 +27,7 @@ public class EnvironmentOverlay
     private readonly MapComponent_Environment environment;
 
     private EnvironmentLayerDef selected;
+    private OverlayProperties style;
     private float[] values;
     private CellBoolDrawer fill;
     private List<Mesh> minorLines;
@@ -81,7 +82,7 @@ public class EnvironmentOverlay
         }
 
         Map map = environment.Map;
-        OverlayProperties style = selected.overlay;
+        style = selected.overlay.ResolveFor(grid.Min, grid.Max);
         values = grid.ToArray();
         fill = new CellBoolDrawer(_ => true, () => Color.white, i => style.FillColor(values[i]),
             map.Size.x, map.Size.z, FillRenderQueue, style.fillOpacity);
@@ -146,7 +147,6 @@ public class EnvironmentOverlay
 
     private void DrawLegend()
     {
-        OverlayProperties style = selected.overlay;
         const float Row = 20f;
         const float Width = 170f;
         var rect = new Rect(UI.screenWidth - Width - 10f, 50f, Width, Row * (style.colors.Count + 1) + 10f);

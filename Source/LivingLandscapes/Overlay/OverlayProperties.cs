@@ -39,6 +39,44 @@ public class OverlayProperties
     /// <summary>Number format for legend and contour labels.</summary>
     public string labelFormat = "0.00";
 
+    /// <summary>Colour stop values are fractions (0..1) of the map's own min..max instead of absolute values.
+    /// For layers whose absolute range differs between maps, like height in metres.</summary>
+    public bool relativeColors;
+
+    /// <summary>When above 0, the contour interval is chosen per map as a round number (1, 2 or 5 x 10^n) giving
+    /// about this many contours; <see cref="contourInterval"/> is then ignored.</summary>
+    public int autoContourCount;
+
+    /// <summary>
+    /// The style for one map's value range: relative colour stops become absolute and an automatic contour interval
+    /// is picked. Returns this instance when nothing depends on the range.
+    /// </summary>
+    public OverlayProperties ResolveFor(float min, float max)
+    {
+        if (!relativeColors && autoContourCount <= 0)
+            return this;
+        var resolved = (OverlayProperties)MemberwiseClone();
+        if (relativeColors)
+        {
+            resolved.colors = new List<ColorStop>();
+            foreach (ColorStop stop in colors)
+                resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color });
+        }
+        if (autoContourCount > 0)
+            resolved.contourInterval = NiceInterval((max - min) / autoContourCount);
+        return resolved;
+    }
+
+    private static float NiceInterval(float raw)
+    {
+        if (raw <= 0f)
+            return 1f;
+        float magnitude = Mathf.Pow(10f, Mathf.Floor(Mathf.Log10(raw)));
+        float fraction = raw / magnitude;
+        float nice = fraction < 1.5f ? 1f : fraction < 3.5f ? 2f : fraction < 7.5f ? 5f : 10f;
+        return nice * magnitude;
+    }
+
     public void ResolveReferences()
     {
         colors.SortBy(s => s.value);
@@ -50,8 +88,8 @@ public class OverlayProperties
             yield return "overlay has no colors.";
         if (contourInterval < 0f)
             yield return "overlay contourInterval is negative.";
-        if (banded && contourInterval <= 0f)
-            yield return "overlay is banded but has no contourInterval.";
+        if (banded && contourInterval <= 0f && autoContourCount <= 0)
+            yield return "overlay is banded but has no contourInterval or autoContourCount.";
         if (indexEvery < 1)
             yield return "overlay indexEvery must be at least 1.";
     }

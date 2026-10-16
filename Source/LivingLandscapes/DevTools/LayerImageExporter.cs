@@ -31,7 +31,7 @@ public static class LayerImageExporter
             if (layer.overlay == null || !environment.TryGetGrid(layer, out EnvironmentGrid grid))
                 continue;
             string path = Path.Combine(Folder, $"{layer.defName}.png");
-            Export(map, grid, layer.overlay, path);
+            Export(map, grid, layer.overlay.ResolveFor(grid.Min, grid.Max), path);
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
         }
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());

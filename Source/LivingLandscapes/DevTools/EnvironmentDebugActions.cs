@@ -49,6 +49,6 @@ public static class EnvironmentDebugActions
     [DebugAction("Living Landscapes", "Recompute environment layers", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
     private static void Recompute()
     {
-        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers();
+        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
     }
 }

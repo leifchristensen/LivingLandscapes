@@ -139,11 +139,12 @@ public static class GridMath
     /// <summary>
     /// Priority-Flood with epsilon (Barnes et al. 2014): raises every depression to its spill level plus a tiny
     /// gradient, so each cell has a strictly downhill path to an outlet. Outlets are the map edge plus any cell
-    /// where <paramref name="isOutlet"/> is true (e.g. the sea).
+    /// where <paramref name="isOutlet"/> is true (e.g. the sea). With <paramref name="includeEdges"/> false only
+    /// <paramref name="isOutlet"/> cells drain, so closed edges behave like walls.
     /// </summary>
-    public static void FillDepressions(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon)
+    public static void FillDepressions(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool includeEdges = true)
     {
-        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: false);
+        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: false, includeEdges);
     }
 
     /// <summary>
@@ -155,13 +156,13 @@ public static class GridMath
     public static void BreachDepressions(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, float maxBreachDepth)
     {
         var filled = (float[])h.Clone();
-        Flood(filled, sizeX, sizeZ, isOutlet, epsilon, carve: false);
+        Flood(filled, sizeX, sizeZ, isOutlet, epsilon, carve: false, includeEdges: true);
         for (int i = 0; i < h.Length; i++)
             h[i] = Mathf.Max(h[i], filled[i] - maxBreachDepth);
-        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: true);
+        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: true, includeEdges: true);
     }
 
-    private static void Flood(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool carve)
+    private static void Flood(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool carve, bool includeEdges)
     {
         var closed = new bool[h.Length];
         var parent = new int[h.Length];
@@ -172,7 +173,7 @@ public static class GridMath
             {
                 int i = z * sizeX + x;
                 parent[i] = -1;
-                bool edge = x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1;
+                bool edge = includeEdges && (x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1);
                 if (edge || isOutlet(i))
                 {
                     closed[i] = true;

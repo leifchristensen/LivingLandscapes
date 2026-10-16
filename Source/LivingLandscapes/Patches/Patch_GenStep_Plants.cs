@@ -22,7 +22,7 @@ public static class Patch_GenStep_Plants
     {
         try
         {
-            map.GetComponent<MapComponent_Environment>()?.ComputeLayers();
+            map.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)
         {
