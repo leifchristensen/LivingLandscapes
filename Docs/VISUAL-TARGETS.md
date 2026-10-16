@@ -213,3 +213,34 @@ therefore runs parallel to the face or away from it.
 - Within about 20 cells of rock, the river's direction never points up the mountain's slope (LL_Aspect).
 - In most bends (80 % or more), the outer bank is steeper than the inner bank.
 - Terrace steps near the river run roughly parallel to it.
+
+## 7. River splitting in an open basin between narrows
+
+**What it shows** (mountains on all sides, a wide basin in the middle)
+- Where the mountains close in (top and bottom of the map), the river is one channel of steady width.
+- In the open basin it splits into two or three channels around large islands and rejoins before the next narrows.
+  Channel widths vary; small bars and islets sit inside the channels.
+- The large central island holds rock knobs, remnants the river has worn around.
+- Along one side the river runs against the mountain and has cut a straight, steep rock face.
+- The whole basin is green and wet. Caves branch into the mountains on both sides.
+
+**Owner's reading:** tight places near mountains constrain the flow and give less variation; in open areas the river
+is free to fan out. The river erodes the rock.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| One channel in the narrows, several in the basin | Confinement: in a narrow valley the flow stays fast and deep and keeps one channel; where the valley widens the flow spreads, slows, drops sediment as bars, and splits around them (anabranching) | Channel pattern per reach (target 2) also depends on confinement: the ratio of valley floor width to channel width. Split into several channels above a threshold, rejoin where the valley narrows again |
+| Large islands with rock knobs | Channels divide around stronger rock and old deposits | Islands form around high points and strong rock in the basin floor |
+| Straight steep face where the river touches rock | Lateral erosion undercuts the rock on the side the flow presses against | Bank erosion (target 6) cuts rock where the channel runs against it, leaving a steep face |
+| Green, wet basin | Water table near the surface across the whole floor | Moisture model (target 1) with several channels close together |
+| Caves on both sides | See target 4 | Caves guided by strata and drainage |
+
+**New or changed pieces** (beyond targets 1-6)
+1. Confinement as an input to the channel pattern, alongside slope and discharge.
+2. Splitting and rejoining channels, sharing the river's flow between them.
+
+**Checks on the exports** (a river tile with mountains and a wide basin)
+- Where the valley floor is less than about 3 channel widths wide, the river is a single channel.
+- Where it is more than about 6 channel widths wide, the river has 2 or more channels that rejoin downstream.
+- The combined width of split channels stays roughly that of the single channel.
