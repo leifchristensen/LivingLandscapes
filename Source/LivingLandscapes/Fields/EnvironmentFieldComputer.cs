@@ -30,6 +30,8 @@ public static class EnvironmentFieldComputer
         int sizeZ = map.Size.z;
         int count = map.cellIndices.NumGridCells;
 
+        CaptureElevation(map, target, sizeX, sizeZ, count);
+
         var distance = DistanceToWater(map, sizeX, sizeZ, count);
 
         float rainfall = map.TileInfo?.rainfall ?? 0f;
@@ -51,6 +53,53 @@ public static class EnvironmentFieldComputer
         }
 
         target.Set(moisture, soil);
+
+        int waterCells = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (distance[i] == 0f)
+                waterCells++;
+        }
+        Log.Message($"[LivingLandscapes] Environment fields computed for {map} ({sizeX}x{sizeZ}): " +
+                    $"rainfall {rainfall:F0} mm (baseline {baseline:F2}), water cells {waterCells}, " +
+                    $"moisture {Describe(moisture)}, soil {Describe(soil)}.");
+    }
+
+    /// <summary>
+    /// Copies the generator's elevation grid, which is disposed after map generation. Uses TryGetVar so a map
+    /// whose generator never made the grid doesn't get a zeroed one created here.
+    /// </summary>
+    private static void CaptureElevation(Map map, EnvironmentFields target, int sizeX, int sizeZ, int count)
+    {
+        if (!MapGenerator.TryGetVar("Elevation", out MapGenFloatGrid grid))
+        {
+            Log.Message($"[LivingLandscapes] No generator elevation grid on {map}; elevation field not stored.");
+            return;
+        }
+
+        var elevation = new float[count];
+        for (int z = 0; z < sizeZ; z++)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                var c = new IntVec3(x, 0, z);
+                elevation[map.cellIndices.CellToIndex(c)] = grid[c];
+            }
+        }
+        target.SetElevation(elevation);
+        Log.Message($"[LivingLandscapes] Elevation captured for {map}: {Describe(elevation)}.");
+    }
+
+    private static string Describe(float[] field)
+    {
+        float min = float.MaxValue, max = float.MinValue, sum = 0f;
+        foreach (float v in field)
+        {
+            min = Mathf.Min(min, v);
+            max = Mathf.Max(max, v);
+            sum += v;
+        }
+        return $"min {min:F2} / mean {sum / field.Length:F2} / max {max:F2}";
     }
 
     /// <summary>Two-pass chamfer distance (cells) to the nearest water or river cell. Large when the map has no water.</summary>

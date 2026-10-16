@@ -12,17 +12,45 @@ namespace LivingLandscapes.Fields;
 /// </summary>
 public class EnvironmentFields : MapComponent
 {
-    public enum Overlay { None, Moisture, Soil }
+    public enum Overlay { None, Moisture, Soil, Elevation }
+
+    /// <summary>Elevation is stored as 16-bit over ElevationMin..ElevationMax; one byte would terrace slopes.
+    /// Vanilla values go below zero (water-carving mutators), so the range must start below 0.</summary>
+    private const float ElevationMin = -1f;
+    private const float ElevationMax = 2f;
+
+    private static float DecodeElevation(ushort v) => ElevationMin + v / 65535f * (ElevationMax - ElevationMin);
+
+    private static ushort EncodeElevation(float v) =>
+        (ushort)Mathf.RoundToInt(Mathf.InverseLerp(ElevationMin, ElevationMax, v) * 65535f);
 
     private byte[] moisture;
     private byte[] soil;
+    private ushort[] elevation;
 
     private Overlay overlay;
     private CellBoolDrawer drawer;
+    private ContourLines contours;
 
     public EnvironmentFields(Map map) : base(map) { }
 
     public bool HasFields => moisture != null && soil != null;
+
+    public bool HasElevation => elevation != null;
+
+    public float ElevationAt(IntVec3 c)
+    {
+        return elevation == null ? 0f : DecodeElevation(elevation[map.cellIndices.CellToIndex(c)]);
+    }
+
+    /// <summary>Stores a copy of vanilla's generator elevation grid, which is disposed once map generation ends.</summary>
+    public void SetElevation(float[] elevationField)
+    {
+        elevation = new ushort[elevationField.Length];
+        for (int i = 0; i < elevationField.Length; i++)
+            elevation[i] = EncodeElevation(elevationField[i]);
+        contours = null;
+    }
 
     public float MoistureAt(IntVec3 c) => Read(moisture, c);
 
@@ -53,11 +81,29 @@ public class EnvironmentFields : MapComponent
     {
         DataExposeUtility.LookByteArray(ref moisture, "moisture");
         DataExposeUtility.LookByteArray(ref soil, "soil");
+
+        byte[] elevationBytes = null;
+        if (Scribe.mode == LoadSaveMode.Saving && elevation != null)
+        {
+            elevationBytes = new byte[elevation.Length * sizeof(ushort)];
+            Buffer.BlockCopy(elevation, 0, elevationBytes, 0, elevationBytes.Length);
+        }
+        DataExposeUtility.LookByteArray(ref elevationBytes, "elevation");
+        if (Scribe.mode == LoadSaveMode.LoadingVars && elevationBytes != null)
+        {
+            elevation = new ushort[elevationBytes.Length / sizeof(ushort)];
+            Buffer.BlockCopy(elevationBytes, 0, elevation, 0, elevationBytes.Length);
+        }
     }
 
     public void CycleOverlay()
     {
-        overlay = (Overlay)(((int)overlay + 1) % Enum.GetValues(typeof(Overlay)).Length);
+        int count = Enum.GetValues(typeof(Overlay)).Length;
+        do
+        {
+            overlay = (Overlay)(((int)overlay + 1) % count);
+        }
+        while (overlay == Overlay.Elevation && !HasElevation);
         drawer ??= new CellBoolDrawer(new OverlayGiver(this), map.Size.x, map.Size.z);
         drawer.SetDirty();
         Messages.Message($"[LivingLandscapes] Overlay: {overlay}", MessageTypeDefOf.SilentInput, historical: false);
@@ -65,10 +111,39 @@ public class EnvironmentFields : MapComponent
 
     public override void MapComponentUpdate()
     {
-        if (overlay == Overlay.None || drawer == null || !HasFields)
+        if (overlay == Overlay.None || map != Find.CurrentMap)
+            return;
+        if (overlay == Overlay.Elevation)
+        {
+            DrawContours();
+            return;
+        }
+        if (drawer == null || !HasFields)
             return;
         drawer.MarkForDraw();
         drawer.CellBoolDrawerUpdate();
+    }
+
+    public override void MapComponentOnGUI()
+    {
+        if (overlay == Overlay.Elevation && map == Find.CurrentMap && Event.current.type == EventType.Repaint)
+            contours?.DrawLabels();
+    }
+
+    private void DrawContours()
+    {
+        if (elevation == null)
+            return;
+        if (contours == null)
+        {
+            var heights = new float[elevation.Length];
+            for (int i = 0; i < heights.Length; i++)
+                heights[i] = DecodeElevation(elevation[i]);
+            contours = new ContourLines();
+            contours.Build(heights, map.Size.x, map.Size.z);
+            Log.Message($"[LivingLandscapes] Built {contours.Count} contour segments and {contours.ExtremaCount} extrema for {map}.");
+        }
+        contours.Draw();
     }
 
     private class OverlayGiver : ICellBoolGiver
@@ -79,7 +154,7 @@ public class EnvironmentFields : MapComponent
 
         public Color Color => Color.white;
 
-        public bool GetCellBool(int index) => owner.overlay != Overlay.None;
+        public bool GetCellBool(int index) => owner.overlay != Overlay.None && owner.overlay != Overlay.Elevation;
 
         public Color GetCellExtraColor(int index)
         {
