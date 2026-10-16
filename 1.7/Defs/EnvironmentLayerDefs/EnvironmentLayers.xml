@@ -82,6 +82,11 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
+        <riverBed>
+          <depth>0.6</depth>
+          <bankWidth>4</bankWidth>
+          <margin>2</margin>
+        </riverBed>
         <microRelief>0.3</microRelief>
         <microWavelength>6</microWavelength>
       </li>

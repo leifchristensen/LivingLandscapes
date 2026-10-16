@@ -149,6 +149,9 @@ Each step is a commit series with its own exports; later steps only add rules.
    the owner's in-game review. Original plan:: `LL_RockStrength` layer and rock types per bed, feeding the erosion model. Overlay first,
    then terrain. Unlocks narrows, spires, ridges and coves.
 2. **Downhill river tracing** (W1, W3): course on the final heightmap with carving, width from discharge; invariant 1.
+   Partly done: `RiverCarver` carves the bed to the closest never-rising profile; invariants 1-2 are reported in the
+   export summary (`DevTools/Invariants.cs`). Open: still water outside closed depressions (vanilla shallow water and
+   marsh placed by fertility rank) - lakes (W6) and water table (W7) should place it instead.
 3. **Water table, lakes and moisture** — owner accepted soil, topology and drainage (2026-10-16); partly done: wetness from drainage (S1), fertility and wet patches from
    wetness and soil, dry washes. Lakes (W6) and surface water (W7) remain. (W6, W7, S1, S3): kept depressions, HAND, surface water, terrain classes.
    Verify vanilla river painting and watermill needs first.

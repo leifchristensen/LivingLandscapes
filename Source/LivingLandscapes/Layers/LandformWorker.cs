@@ -29,6 +29,9 @@ public class LandformWorker : EnvironmentLayerWorker
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
+            // Water flows downhill or level: carve the river's channel along its course (W1).
+            RiverCarver.Carve(generated, map.Size.x, map.Size.z, RiverCourse.FromPlan(riverCourse, map.Size.x, map.Size.z),
+                RiverCourse.WidthOnMap(map.TileInfo), generation.riverBed);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {

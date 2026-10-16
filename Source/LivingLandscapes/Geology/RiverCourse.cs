@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -21,6 +23,17 @@ public static class RiverCourse
 
     /// <summary>Corner-cutting passes that round the course's bends before it is reduced to segments.</summary>
     private const int SmoothingPasses = 3;
+
+    /// <summary>
+    /// The river's width in cells, as vanilla would paint it: that of the river with the longest course through the
+    /// tile. 0 if the tile has no river.
+    /// </summary>
+    public static float WidthOnMap(Tile tile)
+    {
+        if (!(tile is SurfaceTile surface) || surface.Rivers.NullOrEmpty())
+            return 0f;
+        return surface.Rivers.OrderBy(rl => -((SurfaceTile)Verse.Find.WorldGrid[rl.neighbor]).riverDist).First().river.widthOnMap;
+    }
 
     /// <summary>
     /// The part of a planned course (map cells, upstream to downstream, may extend beyond the map) that crosses the

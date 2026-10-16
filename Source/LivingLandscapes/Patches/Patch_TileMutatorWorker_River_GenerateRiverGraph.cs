@@ -51,8 +51,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
             return true;
         }
 
-        // Same width vanilla would use: the river with the longest course through this tile.
-        float width = surface.Rivers.OrderBy(rl => -((SurfaceTile)Find.WorldGrid[rl.neighbor]).riverDist).First().river.widthOnMap;
+        float width = RiverCourse.WidthOnMap(surface);
         course[0] -= (course[1] - course[0]).normalized * EdgeOverhang;
         int last = course.Count - 1;
         course[last] += (course[last] - course[last - 1]).normalized * EdgeOverhang;
