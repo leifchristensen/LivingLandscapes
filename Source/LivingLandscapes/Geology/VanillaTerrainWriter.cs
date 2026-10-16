@@ -24,7 +24,10 @@ public static class VanillaTerrainWriter
     private const float Scree = 0.58f;
     private const float Soil = 0.3f;
 
-    public static CliffPlan Write(Map map, float[] soilDepth, float[] landform, float cellSize, SoilModelExtension p, TerraceExtension terraces)
+    /// <param name="drainage">Drainage area (log10 cells) per cell, or null: dry washes are then left out.</param>
+    /// <param name="climate">Climate wetness 0..1 from tile rainfall.</param>
+    public static CliffPlan Write(Map map, float[] soilDepth, float[] landform, float cellSize, SoilModelExtension p, TerraceExtension terraces,
+        float[] drainage, float climate, GroundWriterExtension ground)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = soilDepth.Length;
         bool IsExposed(int i) => soilDepth[i] < p.rockWallDepth;
@@ -45,6 +48,21 @@ public static class VanillaTerrainWriter
                 values[i] = Scree;
             else
                 values[i] = Soil;
+        }
+
+        // Dry washes: on dry tiles, flash floods scour drainage lines down to gravel.
+        int washes = 0;
+        if (drainage != null && climate < ground.washMaxClimate)
+        {
+            float washArea = Mathf.Lerp(ground.washAreaArid, ground.washAreaHumid, climate / ground.washMaxClimate);
+            for (int i = 0; i < n; i++)
+            {
+                if (values[i] == Soil && drainage[i] >= washArea)
+                {
+                    values[i] = Scree;
+                    washes++;
+                }
+            }
         }
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock.
@@ -74,7 +92,8 @@ public static class VanillaTerrainWriter
             else if (values[i] == Scree) scree++;
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
-                    $"rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree {Percent(scree, n)}, soil {Percent(n - rock - floor - scree, n)}.");
+                    $"rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
+                    $"soil {Percent(n - rock - floor - scree, n)}.");
         return plan;
     }
 

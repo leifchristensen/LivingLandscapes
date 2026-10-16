@@ -238,6 +238,40 @@
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Wetness</defName>
+    <label>wetness</label>
+    <description>0 (dry) to 1 (wet): where water collects and the water table is near the surface, from drainage area, slope and height above the nearest drainage line; sharper on dry tiles. Drives soil fertility and wet ground.</description>
+    <workerClass>LivingLandscapes.Layers.WetnessWorker</workerClass>
+    <precision>Byte</precision>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_DrainageArea</li>
+    </dependsOn>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.WetnessExtension">
+        <slopeSmoothing>2</slopeSmoothing>
+        <channelArea>2.5</channelArea>
+        <heightAboveDrainageScale>2</heightAboveDrainageScale>
+        <wetnessIndexRange>4~13</wetnessIndexRange>
+        <wetnessIndexWeight>0.5</wetnessIndexWeight>
+        <wetRainfallMm>1500</wetRainfallMm>
+        <aridSharpening>3</aridSharpening>
+        <unknownRainfall>0.4</unknownRainfall>
+      </li>
+      <li Class="LivingLandscapes.Geology.GroundWriterExtension">
+        <fertilityWetness>0.55</fertilityWetness>
+        <fertilitySoilDepth>0.35</fertilitySoilDepth>
+        <fertilityNoise>0.1</fertilityNoise>
+        <deepSoil>2</deepSoil>
+        <washAreaArid>2.4</washAreaArid>
+        <washAreaHumid>3.2</washAreaHumid>
+        <washMaxClimate>0.6</washMaxClimate>
+        <wetPatchNoise>0.2</wetPatchNoise>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_WaterDistance</defName>
     <label>distance to water</label>
     <description>Distance to the nearest water or river cell. Maps without water read 999 everywhere.</description>
@@ -249,10 +283,11 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Moisture</defName>
     <label>moisture</label>
-    <description>0 (dry) to 1 (saturated): tile rainfall baseline, raised near water.</description>
+    <description>0 (dry) to 1 (saturated): ground wetness from drainage and climate, raised near water.</description>
     <workerClass>LivingLandscapes.Layers.MoistureWorker</workerClass>
     <dependsOn>
       <li>LL_WaterDistance</li>
+      <li>LL_Wetness</li>
     </dependsOn>
     <overlay>
       <contourInterval>0.1</contourInterval>
@@ -267,9 +302,6 @@
     <modExtensions>
       <li Class="LivingLandscapes.Layers.MoistureExtension">
         <waterReachCells>10</waterReachCells>
-        <wetRainfallMm>2000</wetRainfallMm>
-        <rainfallWeight>0.6</rainfallWeight>
-        <unknownRainfallBaseline>0.4</unknownRainfallBaseline>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

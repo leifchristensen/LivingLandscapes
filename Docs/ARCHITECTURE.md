@@ -18,7 +18,8 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 ## Generation pipeline (vanilla GenStep order, our hooks)
 | Step | Hook | What we do |
 |---|---|---|
-| ElevationFertility (10) | `Patch_GenStep_ElevationFertility_Generate` postfix | Compute the Elevation stage layers; write vanilla elevation/fertility from our soil and rock model; plan cliffs |
+| (all steps) | `Patch_MapGenerator_GenerateContentsIntoMap` | Skip scattered ruins while the setting is off (`GenStepFilterDef` LL_ScatteredRuins) |
+| ElevationFertility (10) | `Patch_GenStep_ElevationFertility_Generate` postfix | Compute the Elevation stage layers; write vanilla elevation (rock, washes) and fertility and wet patches (`GroundWriter`); rock types follow strata; plan cliffs |
 | Mutators (20) | `Patch_TileMutatorWorker_GeneratePostElevationFertility` | Skip elevation rewrites of mutators we model as landforms |
 | River graph | `Patch_TileMutatorWorker_River_*` | Rivers follow the erosion model's trunk channel (straight segments, no vanilla meander) |
 | RocksFromGrid (200) | `Patch_GenStep_RocksFromGrid_Generate` | Spawn cliff bands, steps; plan talus |
@@ -37,10 +38,11 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_Height | walkable height: landform stepped into terraces where steep (`TerraceExtension`) |
 | LL_RockStrength | strength 0..1 of the rock bed beneath each cell (On mode only) |
 | LL_SoilDepth | soil thickness from slope, convergence and rock strength (`SoilModelExtension`) |
-| LL_DrainageArea | multiple-flow-direction upslope area, log10 cells |
+| LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled surface, log10 cells |
+| LL_Wetness | topographic wetness 0..1: wetness index + height above the drainage line a cell drains to, sharpened on dry tiles |
 | LL_Slope | rise over run of LL_Height; drawn as a vector field using LL_Aspect |
 | LL_Aspect | downhill direction, radians counter-clockwise from east, 0..2π |
-| LL_WaterDistance, LL_Moisture, LL_Soil | water proximity, moisture index, soil class |
+| LL_WaterDistance, LL_Moisture, LL_Soil | water proximity, moisture (wetness raised near water), soil class |
 
 **Slope vector field** = LL_Slope (magnitude) + LL_Aspect (direction); `GridMath.SlopeToward` gives the slope along
 any heading. Intended consumers: runoff and erosion, scree/talus placement, cliff facing, sun exposure (latitude),
@@ -55,6 +57,9 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   strength, solubility), soft interbeds, warped, two partly open joint sets. Erodibility and creep per cell come from
   the bed exposed at its current height, so hard beds become ridges and soft beds strike valleys. `StrataRockNoise`
   replaces vanilla's rock-type noises so rock walls and floors show the beds. Tile mutators become `LandformExtension`s in XML (`1.7/Patches/TileMutatorLandforms.xml`).
+- `GroundWriter` (`GroundWriterExtension` on LL_Wetness): vanilla's fertility grid and the biome's wet patch makers
+  (mud, marsh, ponds, rich soil) are rank-mapped from wetness and soil depth, so each biome keeps its ground shares
+  but soil, rich soil, mud and ponds sit where water collects. Dry washes: gravel beds along drainage lines on dry tiles.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
@@ -91,6 +96,9 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Water flows downhill or level, never uphill (hard rule, checked on exports).
 - Features are compressed to map scale so each map has distinct areas; 1:1 real scale is given up on purpose.
 - Rock is simplified to layered beds for now; formation types revisited later.
+- Soil type, wet ground and later plant density must read as indicators of moisture and drainage (owner, 2026-10-16).
+  Vanilla ground is rank-mapped from our fields rather than replaced, to keep each biome's balance.
+- Scattered ruins are off by default until terrain generation is polished (setting; tile-mutator structures stay).
 - Erodibility raised 0.02 → 0.05 so erosion, not the uplift noise, shapes landforms (rock differences only show when
   erosion is strong enough). Rock walls start below 0.15 m soil.
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.

@@ -148,7 +148,8 @@ Each step is a commit series with its own exports; later steps only add rules.
    the owner's in-game review. Original plan:: `LL_RockStrength` layer and rock types per bed, feeding the erosion model. Overlay first,
    then terrain. Unlocks narrows, spires, ridges and coves.
 2. **Downhill river tracing** (W1, W3): course on the final heightmap with carving, width from discharge; invariant 1.
-3. **Water table, lakes and moisture** (W6, W7, S1, S3): kept depressions, HAND, surface water, terrain classes.
+3. **Water table, lakes and moisture** — partly done: wetness from drainage (S1), fertility and wet patches from
+   wetness and soil, dry washes. Lakes (W6) and surface water (W7) remain. (W6, W7, S1, S3): kept depressions, HAND, surface water, terrain classes.
    Verify vanilla river painting and watermill needs first.
 4. **Channel patterns** (W4, W5): confinement and stream power per reach; single, split and braided first, then
    meanders with cutoffs, then entrenched meanders and terraces along rivers, then deltas.

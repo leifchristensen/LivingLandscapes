@@ -34,7 +34,13 @@ public static class Patch_GenStep_ElevationFertility_Generate
             var generation = EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
             var soilModel = EnvironmentLayerDefOf.LL_SoilDepth.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
             var terraces = EnvironmentLayerDefOf.LL_Height.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
-            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), landform.ToArray(), generation.cellSize, soilModel, terraces);
+            var wetnessModel = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<Layers.WetnessExtension>() ?? new Layers.WetnessExtension();
+            var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<GroundWriterExtension>() ?? new GroundWriterExtension();
+            float[] drainage = environment.TryGetGrid(EnvironmentLayerDefOf.LL_DrainageArea, out EnvironmentGrid drainageGrid) ? drainageGrid.ToArray() : null;
+            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), landform.ToArray(), generation.cellSize, soilModel, terraces,
+                drainage, wetnessModel.ClimateOf(map), ground);
+            if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Wetness, out EnvironmentGrid wetness))
+                GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground);
         }
         catch (Exception e)
         {
