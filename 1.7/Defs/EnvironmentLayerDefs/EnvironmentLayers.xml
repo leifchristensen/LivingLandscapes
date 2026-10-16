@@ -9,8 +9,8 @@
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Elevation</defName>
-    <label>elevation</label>
-    <description>Vanilla map-generation elevation. Rock forms above 0.7; lakes are carved below 0.</description>
+    <label>vanilla elevation</label>
+    <description>Vanilla map-generation elevation, as generated (noise; lakes flattened to 0, rivers -1). Rock forms above 0.7; lakes are carved below 0.</description>
     <workerClass>LivingLandscapes.Layers.ElevationWorker</workerClass>
     <precision>UShort</precision>
     <overlay>
@@ -28,6 +28,95 @@
         <li><value>0.9</value><color>(0.58, 0.42, 0.33)</color></li>
         <li><value>1.2</value><color>(0.80, 0.78, 0.76)</color></li>
         <li><value>1.8</value><color>(0.97, 0.97, 0.97)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <!-- Geology: one height surface that all downstream layers read. Off mode infers it from vanilla terrain. -->
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef Name="LL_HeightOverlayBase" Abstract="True">
+    <overlay>
+      <banded>true</banded>
+      <contourInterval>0.05</contourInterval>
+      <indexEvery>2</indexEvery>
+      <colors>
+        <li><value>-0.2</value><color>(0.35, 0.55, 0.80)</color></li>
+        <li><value>0.0</value><color>(0.60, 0.80, 0.85)</color></li>
+        <li><value>0.05</value><color>(0.30, 0.58, 0.32)</color></li>
+        <li><value>0.25</value><color>(0.55, 0.76, 0.40)</color></li>
+        <li><value>0.45</value><color>(0.90, 0.88, 0.52)</color></li>
+        <li><value>0.6</value><color>(0.93, 0.74, 0.47)</color></li>
+        <li><value>0.7</value><color>(0.78, 0.52, 0.33)</color></li>
+        <li><value>0.9</value><color>(0.58, 0.42, 0.33)</color></li>
+        <li><value>1.2</value><color>(0.80, 0.78, 0.76)</color></li>
+        <li><value>1.8</value><color>(0.97, 0.97, 0.97)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef ParentName="LL_HeightOverlayBase">
+    <defName>LL_Height</defName>
+    <label>height</label>
+    <description>Geological height: smooth, hydrologically consistent. Lakes are flat and below their shores, rivers descend, every cell drains.</description>
+    <workerClass>LivingLandscapes.Layers.HeightWorker</workerClass>
+    <precision>UShort</precision>
+    <dependsOn>
+      <li>LL_Elevation</li>
+    </dependsOn>
+    <modExtensions>
+      <li Class="LivingLandscapes.Geology.HeightInferenceExtension">
+        <smoothingSigma>2.5</smoothingSigma>
+        <basinDepth>0.12</basinDepth>
+        <basinReach>18</basinReach>
+        <wetBasinFactor>0.5</wetBasinFactor>
+        <shoreDrop>0.01</shoreDrop>
+        <riverIncision>0.04</riverIncision>
+        <riverGradientPerCell>0.0006</riverGradientPerCell>
+        <rockThreshold>0.7</rockThreshold>
+        <rockEdgeSigma>1</rockEdgeSigma>
+        <maxBreachDepth>0.06</maxBreachDepth>
+        <drainageEpsilon>0.00005</drainageEpsilon>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_DrainageArea</defName>
+    <label>drainage area</label>
+    <description>Upslope area draining through each cell (log10 of cells): 0 on ridges, high along gullies and valley floors.</description>
+    <workerClass>LivingLandscapes.Layers.DrainageAreaWorker</workerClass>
+    <dependsOn>
+      <li>LL_Height</li>
+    </dependsOn>
+    <unit>log10 cells</unit>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.65</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.95, 0.93, 0.85)</color></li>
+        <li><value>1.5</value><color>(0.80, 0.85, 0.70)</color></li>
+        <li><value>2.5</value><color>(0.45, 0.70, 0.85)</color></li>
+        <li><value>3.5</value><color>(0.15, 0.40, 0.85)</color></li>
+        <li><value>4.8</value><color>(0.05, 0.10, 0.45)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Slope</defName>
+    <label>slope</label>
+    <description>Steepness of the geological height (height units per cell).</description>
+    <workerClass>LivingLandscapes.Layers.SlopeWorker</workerClass>
+    <dependsOn>
+      <li>LL_Height</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.000</labelFormat>
+      <colors>
+        <li><value>0</value><color>(0.95, 0.95, 0.90)</color></li>
+        <li><value>0.01</value><color>(0.85, 0.85, 0.55)</color></li>
+        <li><value>0.025</value><color>(0.90, 0.55, 0.30)</color></li>
+        <li><value>0.05</value><color>(0.60, 0.20, 0.20)</color></li>
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
