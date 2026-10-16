@@ -133,9 +133,8 @@
         <thinRoofDepth>3</thinRoofDepth>
         <thickRoofDepth>7</thickRoofDepth>
         <massiveRockDepth>4</massiveRockDepth>
-        <scarpSlope>0.7</scarpSlope>
-        <sheerSlope>1.2</sheerSlope>
-        <ledgeInterval>2.5</ledgeInterval>
+        <scarpSlope>1.0</scarpSlope>
+        <sheerSlope>1.7</sheerSlope>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

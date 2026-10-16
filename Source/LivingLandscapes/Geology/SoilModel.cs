@@ -32,17 +32,15 @@ public class SoilModelExtension : DefModExtension
     /// steep bare rock forms cliffs and gentle bare rock is rough stone floor.</summary>
     public float massiveRockDepth = 4f;
 
-    /// <summary>Bare rock steeper than this is a scarp (climbable, slow, gives cover); 0.7 is about 35 degrees.</summary>
-    public float scarpSlope = 0.7f;
-
-    /// <summary>Bare rock steeper than this is a sheer cliff (very slow to climb, blocks sight); 1.2 is about 50 degrees.</summary>
-    public float sheerSlope = 1.2f;
-
     /// <summary>
-    /// Steep bare rock steps down in ledges: a cliff piece stands wherever the ground drops past a multiple of this
-    /// height (metres), with walkable bare-rock benches between. Very steep ground gets ledges every cell or two.
+    /// Bare rock steeper than this carries cliff pieces: scarps (slow to cross, give cover). 1.0 is 45 degrees, where
+    /// contour lines bunch together; gentler bare rock is rough stone without cliffs.
     /// </summary>
-    public float ledgeInterval = 2.5f;
+    public float scarpSlope = 1.0f;
+
+    /// <summary>Bare rock steeper than this is a sheer cliff (very slow to climb, blocks sight); 1.7 is about 60 degrees.</summary>
+    public float sheerSlope = 1.7f;
+
 
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>
     public float thinRoofDepth = 3f;

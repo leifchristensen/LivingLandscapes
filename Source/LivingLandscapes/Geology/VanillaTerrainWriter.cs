@@ -35,6 +35,7 @@ public static class VanillaTerrainWriter
 
         var plan = new CliffPlan(n);
         var values = new float[n];
+        bool IsCliffBand(int i) => IsExposed(i) && depthIntoRock[i] * cellSize < p.massiveRockDepth && slope[i] / cellSize >= p.scarpSlope;
         for (int i = 0; i < n; i++)
         {
             float gradient = slope[i] / cellSize;
@@ -43,19 +44,10 @@ public static class VanillaTerrainWriter
             {
                 values[i] = metresIntoRock >= p.thickRoofDepth ? ThickRoof : metresIntoRock >= p.thinRoofDepth ? ThinRoof : RockNoRoof;
             }
-            else if (IsExposed(i) && gradient >= p.scarpSlope)
+            else if (IsCliffBand(i))
             {
-                // Steep bare rock: rough stone, stepped by ledges. A cliff piece marks each ledge, where the ground
-                // drops past a multiple of the ledge interval towards its downhill neighbour.
+                // Steep bare rock: the band's ground is rough stone; its cliff stands at the foot (below).
                 values[i] = RockFloor;
-                Rot4 facing = CliffPlan.DownhillFacing(height, sizeX, sizeZ, i);
-                IntVec3 below = map.cellIndices.IndexToCell(i) + facing.FacingCell;
-                if (below.InBounds(map)
-                    && Mathf.FloorToInt(height[i] / p.ledgeInterval) != Mathf.FloorToInt(height[map.cellIndices.CellToIndex(below)] / p.ledgeInterval))
-                {
-                    plan.Kind[i] = gradient >= p.sheerSlope ? CliffKind.Sheer : CliffKind.Scarp;
-                    plan.Facing[i] = facing;
-                }
             }
             else if (soilDepth[i] < p.rockFloorDepth)
             {
@@ -70,6 +62,8 @@ public static class VanillaTerrainWriter
                 values[i] = Soil;
             }
         }
+
+        PlanCliffs(map, plan, height, IsCliffBand, cellSize, p);
 
         MapGenFloatGrid elevation = MapGenerator.Elevation;
         int rock = 0, floor = 0, scree = 0, sheer = 0, scarp = 0;
@@ -86,6 +80,46 @@ public static class VanillaTerrainWriter
                     $"scarp {Percent(scarp, n)}, rock floor {Percent(floor, n)}, scree {Percent(scree, n)}, " +
                     $"soil {Percent(n - rock - sheer - scarp - floor - scree, n)}.");
         return plan;
+    }
+
+    /// <summary>
+    /// One cliff per band, at its foot: the lowest band cell along the downhill direction. Its drop is measured from
+    /// the top of the band to the ground just below the foot; the band's average steepness decides sheer or scarp.
+    /// </summary>
+    private static void PlanCliffs(Map map, CliffPlan plan, float[] height, System.Func<int, bool> isBand, float cellSize, SoilModelExtension p)
+    {
+        CellIndices indices = map.cellIndices;
+        for (int i = 0; i < height.Length; i++)
+        {
+            if (!isBand(i))
+                continue;
+            Rot4 facing = CliffPlan.DownhillFacing(height, map.Size.x, map.Size.z, i);
+            IntVec3 foot = indices.IndexToCell(i);
+            IntVec3 below = foot + facing.FacingCell;
+            if (below.InBounds(map) && isBand(indices.CellToIndex(below)))
+                continue; // not the foot: the band continues downhill
+
+            // Walk uphill across the band to its top.
+            IntVec3 top = foot;
+            int run = 1;
+            while (true)
+            {
+                IntVec3 next = top - facing.FacingCell;
+                if (!next.InBounds(map) || !isBand(indices.CellToIndex(next)))
+                {
+                    if (next.InBounds(map))
+                        top = next; // first cell above the band: its height is the top of the cliff
+                    break;
+                }
+                top = next;
+                run++;
+            }
+            float bottom = below.InBounds(map) ? height[indices.CellToIndex(below)] : height[i];
+            float drop = Mathf.Max(0f, height[indices.CellToIndex(top)] - bottom);
+            plan.Kind[i] = drop / (run * cellSize) >= p.sheerSlope ? CliffKind.Sheer : CliffKind.Scarp;
+            plan.Facing[i] = facing;
+            plan.Drop[i] = drop;
+        }
     }
 
     private static string Percent(int count, int total) => $"{100f * count / Mathf.Max(total, 1):F0}%";

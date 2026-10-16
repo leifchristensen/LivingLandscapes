@@ -13,18 +13,23 @@ public enum CliffKind : byte
 }
 
 /// <summary>
-/// Where cliffs go on a map and which way each one faces (downhill). Planned from the geology during map generation,
-/// spawned once vanilla has placed its rock. Not saved: the cliffs themselves are things on the map.
+/// Where cliffs go on a map, which way each faces (downhill) and how far the ground drops across it. A cliff band
+/// (steep bare rock) gets one cliff at its foot, as tall as the band's drop. Planned from the geology during map
+/// generation, spawned once vanilla has placed its rock. Not saved: the cliffs themselves are things on the map.
 /// </summary>
 public class CliffPlan
 {
     public readonly CliffKind[] Kind;
     public readonly Rot4[] Facing;
 
+    /// <summary>Height (metres) from the top of the band down to the ground at its foot.</summary>
+    public readonly float[] Drop;
+
     public CliffPlan(int cellCount)
     {
         Kind = new CliffKind[cellCount];
         Facing = new Rot4[cellCount];
+        Drop = new float[cellCount];
     }
 
     /// <summary>Downhill direction of a cell, snapped to the four map directions.</summary>

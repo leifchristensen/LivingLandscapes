@@ -90,6 +90,10 @@ public static class Patch_GenStep_RocksFromGrid_Generate
                 var cliff = (Building_Cliff)ThingMaker.MakeThing(def);
                 cliff.Rock = GenStep_RocksFromGrid.RockDefAt(centre);
                 cliff.Lichen = lichen;
+                float drop = 0f;
+                for (int j = 0; j < length; j++)
+                    drop = UnityEngine.Mathf.Max(drop, plan.Drop[map.cellIndices.CellToIndex(origin + step * j)]);
+                cliff.Drop = drop;
                 GenSpawn.Spawn(cliff, centre, map, facing);
                 ThingDef chunk = cliff.Rock?.building?.mineableThing;
                 float talusChance = kind == CliffKind.Sheer ? TalusChanceCliff : TalusChanceScarp;

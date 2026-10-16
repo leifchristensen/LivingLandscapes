@@ -1,17 +1,40 @@
+using RimWorld;
 using UnityEngine;
 using Verse;
 
 namespace LivingLandscapes.Geology;
 
+/// <summary>How tall cliff faces are drawn, set on the cliff ThingDefs in XML.</summary>
+public class CliffGraphicsExtension : DefModExtension
+{
+    /// <summary>Screen height (cells) drawn per metre of drop, like vanilla's compressed tall trees.</summary>
+    public float cellsPerMetre = 0.3f;
+
+    /// <summary>Tallest face drawn, in cells above the cliff's own cell.</summary>
+    public float maxExtraCells = 6f;
+
+    /// <summary>
+    /// Share of the height shown for each facing. Seen from the south, a south-facing face shows in full, east and
+    /// west faces in profile, and a north-facing face hardly at all (only its lip).
+    /// </summary>
+    public float southShare = 1f;
+    public float sideShare = 0.6f;
+    public float northShare = 0.15f;
+}
+
 /// <summary>
-/// A cliff piece cut from a particular rock (granite, marble...). Its sprite is greyscale with a mask, as vanilla
-/// apparel and furniture: the rock parts take the rock's colour, the lichen and soil on its ledges take a colour
-/// for the biome. Its name includes the rock ("granite cliff").
+/// A cliff at the foot of a band of steep rock. It is made of a particular rock (granite, marble...): its masked
+/// sprite takes that rock's colour, the lichen on its ledges a colour for the biome, and its name includes the rock
+/// ("granite cliff"). It is drawn as tall as the ground drops across the band, extending up over the band's bare rock,
+/// following RimWorld's convention that tall things rise towards the top of the screen.
 /// </summary>
 public class Building_Cliff : Building
 {
+    private static readonly Color DefaultLichen = new Color(0.55f, 0.58f, 0.45f);
+
     private ThingDef rock;
-    private Color lichen = new Color(0.55f, 0.58f, 0.45f);
+    private Color lichen = DefaultLichen;
+    private float drop;
 
     /// <summary>The natural rock this cliff is made of. Set before spawning.</summary>
     public ThingDef Rock
@@ -27,6 +50,13 @@ public class Building_Cliff : Building
         set => lichen = value;
     }
 
+    /// <summary>Metres the ground drops across this cliff's band. Set before spawning.</summary>
+    public float Drop
+    {
+        get => drop;
+        set => drop = value;
+    }
+
     public override Color DrawColor
     {
         get => rock?.graphicData?.color ?? base.DrawColor;
@@ -37,11 +67,39 @@ public class Building_Cliff : Building
 
     public override string LabelNoCount => rock == null ? base.LabelNoCount : $"{rock.label} {def.label}";
 
+    public override string GetInspectString()
+    {
+        string text = base.GetInspectString();
+        string height = "LL_CliffDrop".Translate(drop.ToString("0"));
+        return text.NullOrEmpty() ? height : text + "\n" + height;
+    }
+
+    /// <summary>Extra screen height in cells for this cliff's drop and facing.</summary>
+    private float ExtraCells()
+    {
+        var g = def.GetModExtension<CliffGraphicsExtension>() ?? new CliffGraphicsExtension();
+        float share = Rotation == Rot4.South ? g.southShare : Rotation == Rot4.North ? g.northShare : g.sideShare;
+        return Mathf.Min(drop * g.cellsPerMetre * share, g.maxExtraCells);
+    }
+
+    public override void Print(SectionLayer layer)
+    {
+        Graphic graphic = Graphic;
+        Vector2 size = Rotation.IsHorizontal ? graphic.drawSize.Rotated() : graphic.drawSize;
+        float extra = ExtraCells();
+        size.y += extra;
+        // Stretch the sprite upwards (north on screen): its foot stays on the cliff's cell.
+        Vector3 center = this.TrueCenter() + new Vector3(0f, 0f, extra * 0.5f);
+        bool flip = (Rotation == Rot4.West && graphic.WestFlipped) || (Rotation == Rot4.East && graphic.EastFlipped);
+        Printer_Plane.PrintPlane(layer, center, size, graphic.MatAt(Rotation, this), 0f, flip);
+    }
+
     public override void ExposeData()
     {
         base.ExposeData();
         Scribe_Defs.Look(ref rock, "rock");
-        Scribe_Values.Look(ref lichen, "lichen", new Color(0.55f, 0.58f, 0.45f));
+        Scribe_Values.Look(ref lichen, "lichen", DefaultLichen);
+        Scribe_Values.Look(ref drop, "drop");
     }
 
     /// <summary>

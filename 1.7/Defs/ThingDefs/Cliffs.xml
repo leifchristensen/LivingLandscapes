@@ -27,6 +27,15 @@
     <statBases>
       <Flammability>0</Flammability>
     </statBases>
+    <modExtensions>
+      <li Class="LivingLandscapes.Geology.CliffGraphicsExtension">
+        <cellsPerMetre>0.3</cellsPerMetre>
+        <maxExtraCells>6</maxExtraCells>
+        <southShare>1</southShare>
+        <sideShare>0.6</sideShare>
+        <northShare>0.15</northShare>
+      </li>
+    </modExtensions>
     <building>
       <isInert>true</isInert>
       <deconstructible>false</deconstructible>

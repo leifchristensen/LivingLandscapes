@@ -3,6 +3,7 @@
 
   <LL_SettingsCategory>Living Landscapes</LL_SettingsCategory>
   <LL_None>none</LL_None>
+  <LL_CliffDrop>Drop: {0} m</LL_CliffDrop>
   <LL_OverlayToggleTip>Living Landscapes environment overlay: {0}.
 Click to choose a layer (height, soil, drainage, moisture...).</LL_OverlayToggleTip>
 
