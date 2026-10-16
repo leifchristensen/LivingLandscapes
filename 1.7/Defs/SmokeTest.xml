@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Defs>
-  <!-- Temporary: proves that XML in 1.7/Defs loads and binds to our C# Def type. Delete once real Defs exist. -->
-  <LivingLandscapes.SmokeTestDef>
-    <defName>LL_SmokeTest</defName>
-    <message>XML from 1.7/Defs loaded and bound to LivingLandscapes.SmokeTestDef</message>
-  </LivingLandscapes.SmokeTestDef>
-</Defs>

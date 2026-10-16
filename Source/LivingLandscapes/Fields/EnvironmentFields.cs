@@ -14,15 +14,17 @@ public class EnvironmentFields : MapComponent
 {
     public enum Overlay { None, Moisture, Soil, Elevation }
 
-    /// <summary>Elevation is stored as 16-bit over ElevationMin..ElevationMax; one byte would terrace slopes.
-    /// Vanilla values go below zero (water-carving mutators), so the range must start below 0.</summary>
-    private const float ElevationMin = -1f;
-    private const float ElevationMax = 2f;
+    /// <summary>
+    /// Elevation is stored as 16-bit over the map's own min..max (one byte would terrace slopes). Vanilla values
+    /// have no fixed range: water-carving mutators push them below 0 and mountainous tiles well above 2.
+    /// </summary>
+    private float elevationMin;
+    private float elevationMax;
 
-    private static float DecodeElevation(ushort v) => ElevationMin + v / 65535f * (ElevationMax - ElevationMin);
+    private float DecodeElevation(ushort v) => elevationMin + v / 65535f * (elevationMax - elevationMin);
 
-    private static ushort EncodeElevation(float v) =>
-        (ushort)Mathf.RoundToInt(Mathf.InverseLerp(ElevationMin, ElevationMax, v) * 65535f);
+    private ushort EncodeElevation(float v) =>
+        (ushort)Mathf.RoundToInt(Mathf.InverseLerp(elevationMin, elevationMax, v) * 65535f);
 
     private byte[] moisture;
     private byte[] soil;
@@ -46,6 +48,13 @@ public class EnvironmentFields : MapComponent
     /// <summary>Stores a copy of vanilla's generator elevation grid, which is disposed once map generation ends.</summary>
     public void SetElevation(float[] elevationField)
     {
+        elevationMin = float.MaxValue;
+        elevationMax = float.MinValue;
+        foreach (float v in elevationField)
+        {
+            elevationMin = Mathf.Min(elevationMin, v);
+            elevationMax = Mathf.Max(elevationMax, v);
+        }
         elevation = new ushort[elevationField.Length];
         for (int i = 0; i < elevationField.Length; i++)
             elevation[i] = EncodeElevation(elevationField[i]);
@@ -89,6 +98,8 @@ public class EnvironmentFields : MapComponent
             Buffer.BlockCopy(elevation, 0, elevationBytes, 0, elevationBytes.Length);
         }
         DataExposeUtility.LookByteArray(ref elevationBytes, "elevation");
+        Scribe_Values.Look(ref elevationMin, "elevationMin");
+        Scribe_Values.Look(ref elevationMax, "elevationMax");
         if (Scribe.mode == LoadSaveMode.LoadingVars && elevationBytes != null)
         {
             elevation = new ushort[elevationBytes.Length / sizeof(ushort)];
@@ -124,12 +135,6 @@ public class EnvironmentFields : MapComponent
         drawer.CellBoolDrawerUpdate();
     }
 
-    public override void MapComponentOnGUI()
-    {
-        if (overlay == Overlay.Elevation && map == Find.CurrentMap && Event.current.type == EventType.Repaint)
-            contours?.DrawLabels();
-    }
-
     private void DrawContours()
     {
         if (elevation == null)
@@ -141,7 +146,7 @@ public class EnvironmentFields : MapComponent
                 heights[i] = DecodeElevation(elevation[i]);
             contours = new ContourLines();
             contours.Build(heights, map.Size.x, map.Size.z);
-            Log.Message($"[LivingLandscapes] Built {contours.Count} contour segments and {contours.ExtremaCount} extrema for {map}.");
+            Log.Message($"[LivingLandscapes] Built {contours.Count} contour segments for {map}.");
         }
         contours.Draw();
     }
