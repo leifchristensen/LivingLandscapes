@@ -70,9 +70,11 @@
         <reliefImpassable>300</reliefImpassable>
         <tileSpacingMetres>30000</tileSpacingMetres>
         <landformWavelength>300</landformWavelength>
+        <detailWavelength>100</detailWavelength>
+        <detailUplift>0.3</detailUplift>
         <ridgedness>0.2</ridgedness>
         <ridgednessMountains>0.6</ridgednessMountains>
-        <erosionCellSize>3</erosionCellSize>
+        <erosionCellSize>2</erosionCellSize>
         <regionScale>2.5</regionScale>
         <erosionIterations>120</erosionIterations>
         <erodibility>0.05</erodibility>
@@ -115,6 +117,7 @@
         <minStageHeight>2</minStageHeight>
         <treadRise>0.2</treadRise>
         <stepSpacing>24</stepSpacing>
+        <knobMaxCells>150</knobMaxCells>
         <gentleSlope>0.9</gentleSlope>
         <cliffSlope>1.0</cliffSlope>
         <steepnessSmoothing>2</steepnessSmoothing>
@@ -172,9 +175,6 @@
         <passHalfWidth>3</passHalfWidth>
         <passMaxDepth>12</passMaxDepth>
         <passMinOpen>0.25</passMinOpen>
-        <edgeCliffMaxThickness>12</edgeCliffMaxThickness>
-        <ravineHalfWidth>4</ravineHalfWidth>
-        <edgeCliffMinSlope>0.3</edgeCliffMinSlope>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

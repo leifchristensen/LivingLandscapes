@@ -15,6 +15,11 @@ public class TerraceExtension : DefModExtension
     /// <summary>Share of a stage's height that rises gently across its level ground; the rest is the cliff.</summary>
     public float treadRise = 0.2f;
 
+    /// <summary>
+    /// A summit stage no larger than this (cells) with mostly steep sides is a knob of rock, not a ring of cliffs.
+    /// </summary>
+    public int knobMaxCells = 150;
+
     /// <summary>Steps between stages come about every this many cells along a cliff band.</summary>
     public int stepSpacing = 24;
 

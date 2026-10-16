@@ -10,8 +10,7 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Spawns the cliffs the geology planned, right after vanilla places mountain rock and before terrain is chosen: a
-/// Decorative Cliffs stone cliff on every band cell (piece by facing, linking into lines, made of the local rock's
-/// blocks) and our steps facing downhill. Rock fallen from the faces is planned as talus: chunks of the same rock just
+/// cliff band on every band cell (thin edges on its lower sides, tinted with the local rock) and steps facing downhill. Rock fallen from the faces is planned as talus: chunks of the same rock just
 /// below them, spawned once the terrain and water are final.
 /// </summary>
 [HarmonyPatch(typeof(GenStep_RocksFromGrid), nameof(GenStep_RocksFromGrid.Generate))]
@@ -41,14 +40,13 @@ public static class Patch_GenStep_RocksFromGrid_Generate
                 if (cell.GetEdifice(map) != null)
                     continue;
                 ThingDef rock = GenStep_RocksFromGrid.RockDefAt(cell);
-                ThingDef def = kind == CliffKind.Steps ? CliffDefs.Steps : CliffDefs.BandFacing(plan.Facing[i]);
+                ThingDef def = kind == CliffKind.Steps ? CliffDefs.Steps : CliffDefs.Band;
                 if (def == null)
                     continue;
-                ThingDef stuff = def.MadeFromStuff ? CliffDefs.BlocksOf(rock) ?? GenStuff.DefaultStuffFor(def) : null;
-                Thing thing = ThingMaker.MakeThing(def, stuff);
-                if (thing is Building_Cliff steps)
-                    steps.Rock = rock;
-                GenSpawn.Spawn(thing, cell, map, kind == CliffKind.Steps ? plan.Facing[i] : Rot4.North);
+                var cliff = (Building_Cliff)ThingMaker.MakeThing(def);
+                cliff.Rock = rock;
+                cliff.LowerNeighbours = plan.Lower[i];
+                GenSpawn.Spawn(cliff, cell, map, plan.Facing[i]);
                 spawned++;
 
                 ThingDef chunk = rock?.building?.mineableThing;

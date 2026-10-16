@@ -16,20 +16,31 @@ public enum CliffKind : byte
 
 /// <summary>
 /// The terrace cliffs of a map: a band on every cell at the edge of a height stage (the higher side), steps at
-/// intervals along each band, and which way each faces (towards the lower stage). Planned from the geology during
+/// intervals along each band, and which sides of each drop to lower ground (each drawn as a thin edge). Planned from the geology during
 /// map generation and spawned once vanilla has placed its rock. Not saved: the cliffs themselves are things.
 /// </summary>
 public class CliffPlan
 {
     private static readonly IntVec3[] Cardinals = { IntVec3.North, IntVec3.East, IntVec3.South, IntVec3.West };
 
+    /// <summary>North-east, south-east, south-west, north-west: mask bits 16, 32, 64, 128.</summary>
+    private static readonly IntVec3[] Diagonals = { new IntVec3(1, 0, 1), new IntVec3(1, 0, -1), new IntVec3(-1, 0, -1), new IntVec3(-1, 0, 1) };
+
     public readonly CliffKind[] Kind;
     public readonly Rot4[] Facing;
+
+    /// <summary>
+    /// Which of a band cell's 8 neighbours are lower ground: north 1, east 2, south 4, west 8 (bits by
+    /// <see cref="Rot4.AsInt"/>), north-east 16, south-east 32, south-west 64, north-west 128. It picks the cliff's
+    /// shape (<see cref="Building_Cliff"/>); <see cref="Facing"/> is the main drop.
+    /// </summary>
+    public readonly byte[] Lower;
 
     public CliffPlan(int cellCount)
     {
         Kind = new CliffKind[cellCount];
         Facing = new Rot4[cellCount];
+        Lower = new byte[cellCount];
     }
 
     /// <summary>
@@ -45,6 +56,7 @@ public class CliffPlan
                 continue;
             IntVec3 c = indices.IndexToCell(i);
             Rot4 facing = Rot4.Invalid;
+            byte lower = 0;
             for (int d = 0; d < 4; d++)
             {
                 IntVec3 n = c + Cardinals[d];
@@ -53,22 +65,32 @@ public class CliffPlan
                 int ni = indices.CellToIndex(n);
                 if (excluded(ni) || stage[ni] >= stage[i])
                     continue;
+                lower |= (byte)(1 << d);
                 // Prefer showing the face: a lower neighbour to the south wins.
                 if (!facing.IsValid || d == 2)
                     facing = new Rot4(d);
             }
             if (!facing.IsValid)
                 continue;
-            Kind[i] = facing == Rot4.South ? CliffKind.Face : CliffKind.Rim;
-            Facing[i] = facing;
+            for (int k = 0; k < 4; k++)
+            {
+                IntVec3 n = c + Diagonals[k];
+                if (!n.InBounds(map))
+                    continue;
+                int ni = indices.CellToIndex(n);
+                if (!excluded(ni) && stage[ni] < stage[i])
+                    lower |= (byte)(16 << k);
+            }
+            PlanEdge(i, facing, lower);
         }
     }
 
-    /// <summary>Marks one cell as a cliff band facing the given way (towards the lower ground).</summary>
-    public void PlanEdge(int i, Rot4 facing)
+    /// <summary>Marks one cell as a cliff band with the given lower sides; <paramref name="facing"/> is the main one.</summary>
+    public void PlanEdge(int i, Rot4 facing, byte lower)
     {
         Kind[i] = facing == Rot4.South ? CliffKind.Face : CliffKind.Rim;
         Facing[i] = facing;
+        Lower[i] = lower;
     }
 
     /// <summary>

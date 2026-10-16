@@ -14,19 +14,11 @@
       <steamWorkshopUrl>steam://url/CommunityFilePageByID/2009463077</steamWorkshopUrl>
       <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
     </li>
-    <li>
-      <packageId>Mlie.DecorativeCliffs</packageId>
-      <displayName>Decorative Cliffs (Continued)</displayName>
-      <steamWorkshopUrl>steam://url/CommunityFilePageByID/2453099145</steamWorkshopUrl>
-      <downloadUrl>https://steamcommunity.com/sharedfiles/filedetails/?id=2453099145</downloadUrl>
-    </li>
   </modDependencies>
   <loadAfter>
     <li>brrainz.harmony</li>
     <!-- Supported world generator: load after it so our map-generation patches see its results. -->
     <li>koth.RealisticPlanets2</li>
-    <!-- Cliff art comes from Decorative Cliffs. -->
-    <li>Mlie.DecorativeCliffs</li>
   </loadAfter>
   <description>Brings biological and geological rules to map generation, so plants grow where they would in nature: clustered, near water, or under the forest canopy.</description>
 </ModMetaData>

@@ -52,7 +52,9 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `GridMath`: masked blur/inpainting, chamfer distance, priority-flood fill, breach-fill, D8 and MFD flow, slope,
   aspect, region labelling.
 - `LandscapeGenerator`: region model ~2.5x map size, stream-power erosion (Braun–Willett implicit) + hillslope
-  diffusion, cropped and smoothed at the model cell size (removes the erosion grid's checkerboard).
+  diffusion, cropped and smoothed at the model cell size (removes the erosion grid's checkerboard). Two landform
+  scales: main ridges/valleys (`landformWavelength` 300 m) and hillside detail (`detailWavelength` 100 m, spurs, knolls,
+  hollows) on a 2 m erosion grid, so gullies cut the slopes and cliff lines bend and break with the ground.
 - `RockStrata` (`<strata>` in XML): tilted beds of the tile's rock types (`RockProperties` patched onto vanilla rocks:
   strength, solubility), soft interbeds, warped, two partly open joint sets. Erodibility and creep per cell come from
   the bed exposed at its current height, so hard beds become ridges and soft beds strike valleys. `StrataRockNoise`
@@ -63,24 +65,27 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
   ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
   rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
-- Edge cliffs (`SoilModelExtension` edgeCliff*, ravineHalfWidth): rock edges marking a height change (thin rock up to
-  12 m thick incl. pass sides; sides of narrow ravines between any rock) become cliff bands facing down LL_Aspect;
-  massive mountain edges stay rock walls.
 - `StreamWriter` (Plants prefix): narrow standing shallow water on drainage lines (log area >= `streamArea`) becomes
   moving water, with flow from the smoothed downhill direction written into vanilla's river flow map.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
-## Cliffs (`CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
-Bands are Decorative Cliffs' own stone cliffs (`Stone_Cliff_Left/Right`, `Stone_CliffTop_Left`; Mlie.DecorativeCliffs,
-hard dependency), spawned from the local rock's blocks so they link into continuous lines like player-built ones.
-Facing: lower ground south or west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Cliffs only face downhill.
-Our own `LL_CliffSteps` (passable) sit in the bands.
-**Open (next branch):** Decorative Cliffs' defs block movement and sight; cliffs must stay passable at a very high
-path cost and must not block sight. Their CornerFiller linking only joins orthogonal neighbours, so diagonal
-(stepped) bands break into separate pieces; cliffs need to link diagonally. Talus chunks below faces. Slopes get a stepped series of bands
-(terrace stages, `stagesAcrossRelief` 12). Must stay compatible with As Above So Below 2 (optional, later).
+## Cliffs (`Building_Cliff`, `CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
+A cliff shows which way a steep slope drops: a climbable step between heights, walkable ground on its high side.
+Own defs and own art (owner, 2026-10-16); Decorative Cliffs is no longer used or required.
+- `LL_Cliff` (PassThroughOnly, path cost 400, fill 0.45: cover, never blocks sight) and `LL_CliffSteps` (standable).
+  One thing per band cell on the higher side; `CliffPlan.Lower` records which of the 8 neighbours are lower.
+- Autotiled art: one texture per neighbour pattern (256, `Cliff_<mask>` / `Stairs_<mask>`), rounded organic outline
+  that meets neighbours seamlessly, short rock face where the drop faces south, thin rim elsewhere, plateau side fading
+  into the ground; greyscale, tinted with the local rock. Soft shadows (`Shadow_South/East/West`) on the lower cells.
+  A face's apparent height must match the drop: thin faces, so stacked cliffs read as nested lines.
+- Art: `Source/ArtTools/generate_cliff_art.py` (pure Python, `png_min.py`, ~1 min) writes
+  `Textures/Things/Building/LivingLandscapes/Cliff/`. Style reference: owner-supplied asset pack (not in the repo).
+  Grass overhang not done yet.
+- Distribution: terrace bands where steep (12 stages across the relief). A cliff ring round a small summit has no
+  direction, so summit stages up to `knobMaxCells` with mostly steep sides become rock knobs instead. Thin rock stays
+  mountain rock (no crest cliffs). Talus chunks below faces.
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
 One map toggle per layer with an `<overlay>` (lower right corner, `Patch_PlaySettings_DoPlaySettingsGlobalControls`);
@@ -108,6 +113,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Water flows downhill or level, never uphill (hard rule, checked on exports).
 - Features are compressed to map scale so each map has distinct areas; 1:1 real scale is given up on purpose.
 - Rock is simplified to layered beds for now; formation types revisited later.
+- Variety comes from the topography generation; features are then placed by normal rules, never by exception passes.
 - Soil type, wet ground and later plant density must read as indicators of moisture and drainage (owner, 2026-10-16).
   Vanilla ground is rank-mapped from our fields rather than replaced, to keep each biome's balance.
 - Ridges show height change as identifiable rock formations broken by passes, not continuous walls (owner).
@@ -124,14 +130,15 @@ Current focus: geological features that read well on the map, worked from the ow
 `Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain; 9: cove with a cave river; 10: broad valley between ranges, bridge). The rules that produce them, and the build order, are in
 `Docs/GEOLOGY-RULES.md`; it supersedes items 1, 2, 4 and 5 below where they overlap.
 
-1. Few cliffs: steep ground mostly becomes mountain rock, which is excluded. Decide whether mountain edges get cliffs;
-   consider using the slope vector field for cliff placement and facing.
+1. Cliffs: first release done (owner accepted placement, blending and rock colour, 2026-10-16). Later: terrace
+   stages from hard beds instead of equal heights; impassable see-through cliffs with stairs that blend in and a
+   connectivity check; grass overhang on the lip.
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
-3. Height cues: cast shadows on lower stages, south-face emphasis, stage tint, hillshading.
+3. Height cues: stage tint, hillshading (cliff shadows and south faces are done).
 4. Remaining landforms: Basin, Hollow, Chasm, Crevasse, coasts, river variants. Landform shapes are too rounded.
 5. Water from the heightmap: lakes, ponds, marsh.
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
-8. Toggle icons per layer (art), visual check of Decorative Cliffs art in game.
+8. Toggle icons per layer (art).
 9. Revisit rock formation: sedimentary, igneous and metamorphic rock form and erode differently (see
    `GEOLOGY-RULES.md` section 3). The simplified layered-beds model stands until then.

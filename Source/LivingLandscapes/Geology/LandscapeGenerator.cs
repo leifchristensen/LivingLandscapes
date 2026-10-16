@@ -27,12 +27,20 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>Typical spacing of ridges and valleys.</summary>
     public float landformWavelength = 300f;
 
+    /// <summary>
+    /// A second, shorter landform scale: spurs, knolls and side hollows on the hillsides between the main ridges and
+    /// valleys. Its wavelength (metres) and its share of the uplift. Erosion then cuts gullies around them, so slopes
+    /// are not single even planes and cliff lines bend and break with the ground.
+    /// </summary>
+    public float detailWavelength = 100f;
+    public float detailUplift = 0.3f;
+
     /// <summary>Ruggedness of the uplift pattern (0 smooth swells, 1 sharp ridges); mountains use the upper value.</summary>
     public float ridgedness = 0.2f;
     public float ridgednessMountains = 0.6f;
 
     /// <summary>Grid spacing of the erosion model; the result is interpolated to map cells.</summary>
-    public float erosionCellSize = 3f;
+    public float erosionCellSize = 2f;
 
     /// <summary>
     /// The erosion model covers a region this many times the map's width, centred on it, with base level at the
@@ -210,6 +218,7 @@ public static class LandscapeGenerator
         double frequency = metresPerModelCell / p.landformWavelength;
         var swells = new Perlin(frequency, 2.0, 0.5, 4, Rand.Int, QualityMode.High);
         var ridges = new RidgedMultifractal(frequency, 2.0, 4, Rand.Int, QualityMode.High);
+        var detail = new Perlin(metresPerModelCell / Mathf.Max(1f, p.detailWavelength), 2.0, 0.5, 3, Rand.Int, QualityMode.High);
         bool mountains = world.Hilliness >= Hilliness.Mountainous;
         float ridged = mountains ? p.ridgednessMountains : p.ridgedness;
 
@@ -222,7 +231,7 @@ public static class LandscapeGenerator
             {
                 float smooth = 0.5f + 0.5f * (float)swells.GetValue(x, 0.0, z);
                 float sharp = Mathf.Clamp01(0.5f * (float)ridges.GetValue(x, 0.0, z));
-                float u = Mathf.Lerp(smooth, sharp, ridged);
+                float u = Mathf.Lerp(smooth, sharp, ridged) + p.detailUplift * (float)detail.GetValue(x, 0.0, z);
                 float upslope = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) / half;
                 u *= Mathf.Max(0.1f, 1f + p.regionalUpliftBias * upslope);
                 u = Mathf.Lerp(0.15f, 1f, Mathf.Clamp01(u));
