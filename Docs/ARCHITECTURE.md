@@ -130,14 +130,15 @@ Current focus: geological features that read well on the map, worked from the ow
 `Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain; 9: cove with a cave river; 10: broad valley between ranges, bridge). The rules that produce them, and the build order, are in
 `Docs/GEOLOGY-RULES.md`; it supersedes items 1, 2, 4 and 5 below where they overlap.
 
-1. Few cliffs: steep ground mostly becomes mountain rock, which is excluded. Decide whether mountain edges get cliffs;
-   consider using the slope vector field for cliff placement and facing.
+1. Cliffs: first release done (owner accepted placement, blending and rock colour, 2026-10-16). Later: terrace
+   stages from hard beds instead of equal heights; impassable see-through cliffs with stairs that blend in and a
+   connectivity check; grass overhang on the lip.
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
-3. Height cues: cast shadows on lower stages, south-face emphasis, stage tint, hillshading.
+3. Height cues: stage tint, hillshading (cliff shadows and south faces are done).
 4. Remaining landforms: Basin, Hollow, Chasm, Crevasse, coasts, river variants. Landform shapes are too rounded.
 5. Water from the heightmap: lakes, ponds, marsh.
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
-8. Toggle icons per layer (art), visual check of Decorative Cliffs art in game.
+8. Toggle icons per layer (art).
 9. Revisit rock formation: sedimentary, igneous and metamorphic rock form and erode differently (see
    `GEOLOGY-RULES.md` section 3). The simplified layered-beds model stands until then.
