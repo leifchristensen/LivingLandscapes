@@ -144,3 +144,37 @@ the geological process behind it, and how our layers should produce it. Plans th
 - Streams start at or near the mountain foot and run down LL_Aspect.
 - Rock types alternate in bands that follow the ridge direction.
 - Cave passages run mostly along the strike and open at the head of a valley.
+
+## 5. Lakes among broken rock ridges, with an impact site
+
+**What it shows** (rolling ground, many lakes, rock in clusters)
+- Lakes of every size. Small ponds sit in hollows between rock knobs, even high up; the largest lakes lie at the
+  lowest ground, here along the map edges. Each lake has a shallow rim and a deeper core.
+- The rock is not a solid ridge but a band of rounded blocks and knobs, elongated and lined up in one direction,
+  with narrow gaps between them. Only a few gaps go all the way through, so crossing the band means finding a pass
+  or mining.
+- Wet green ground and rich soil gather around the lakes; the open ground in the middle is drier.
+- Lower right: an impact site. Rubble is strewn around it and a barren, light streak runs away from it in one
+  direction.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Lakes in hollows at every height, largest at the lowest ground | Water collects in closed depressions until it spills or evaporation balances inflow | Keep depressions instead of breaching them all: fill each to its spill level when rainfall over its catchment exceeds evaporation, lower (or dry) otherwise. Bigger catchments in low ground give bigger lakes |
+| Shallow rim, deep core | Depth grows toward the centre of the depression | Water depth from fill depth: deep water beyond a depth threshold |
+| Aligned knobs and hollows, many lakes | Glacial scouring (as on the Canadian Shield): ice plucks and grinds weak rock along its flow direction, leaving streamlined knobs and undrained hollows | Cold-climate regime: ice-flow direction (from the world, later), scour that removes weak rock and stretches shapes along that direction |
+| Broken ridge with few passes | Rock breaks along joints (fracture sets); erosion opens the joints into gaps | Weaken rock strength along two joint sets so ridges split into blocks; check how many passable routes cross a ridge |
+| Rubble and a barren streak | Impact: crater, ejecta thrown downrange, ground scorched along the path | Impact landform: crater bowl and rim, rubble (rock chunks) downrange, barren terrain along the trajectory |
+
+**New or changed pieces** (beyond targets 1-4)
+1. Lake water balance: which depressions hold water, and to what level, from rainfall, catchment and evaporation.
+   This replaces breaching every depression, and also gives dry lakes and salt flats in arid climates.
+2. Joint sets in the rock strength model, plus a passability check (number of routes across a ridge).
+3. Glacial scour regime for cold tiles.
+4. Impact sites as a landform with direction. Check which 1.7 tile mutators or features already describe impacts.
+
+**Checks on the exports** (a boreal or temperate tile with lakes, e.g. s4)
+- Every lake lies in a closed depression of LL_Landform; the largest lakes lie in the lowest quarter of the map.
+- Rock bands have 2-5 passable routes across them.
+- Rock knobs are elongated, mostly along one direction.
+- An impact site has rubble on one side and a barren streak in the same direction.
