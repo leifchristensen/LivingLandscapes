@@ -82,6 +82,9 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Overlays: GIS hypsometric bands + contours; one toggle per layer, several at once (replaced the nested menu).
 - Cliffs are Things (option B), passable, directional, material-coloured; terraces rather than mountain blocks.
 - Cliffs only where contour lines are very close; mountain rock edges currently excluded (open question below).
+- Water flows downhill or level, never uphill (hard rule, checked on exports).
+- Features are compressed to map scale so each map has distinct areas; 1:1 real scale is given up on purpose.
+- Rock is simplified to layered beds for now; formation types revisited later.
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.
 
 ## Roadmap / open items
@@ -98,3 +101,5 @@ Current focus: geological features that read well on the map, worked from the ow
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
 8. Toggle icons per layer (art), visual check of Decorative Cliffs art in game.
+9. Revisit rock formation: sedimentary, igneous and metamorphic rock form and erode differently (see
+   `GEOLOGY-RULES.md` section 3). The simplified layered-beds model stands until then.

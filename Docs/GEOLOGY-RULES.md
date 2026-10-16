@@ -11,6 +11,10 @@ come from the same rules with different inputs. Each rule below names the target
 3. **Hard rules are invariants**, checked on every test export (section 9). Tuning numbers live in XML.
 4. **Start with realism, dial back to fun.** Gameplay limits (passability, buildable space) are rules too, with
    checks, not afterthoughts.
+5. **Features at map scale, distinct areas.** Every reference map has several distinct areas (a gorge, a basin, a
+   delta, a ridge with passes), so small parts of a map feel unique. Geological features are compressed so their
+   effect is visible within one RimWorld map: we give up 1:1 scale on purpose. Feature sizes (bed thickness, meander
+   wavelength, lake size, ridge spacing) are tuned in map cells, not real metres; see invariant 7.
 
 ## 2. Tile inputs and the regimes they select
 
@@ -41,6 +45,11 @@ The targets are just points in this input space:
 | 10 Broad valley | ranges far apart | arid, big river | | floodplain, structures |
 
 ## 3. Rock rules (all targets)
+Simplified for now: every rock is treated as layered beds. Real rock forms in three ways and erodes differently;
+revisit this later (roadmap): sedimentary (layered beds, dip, soluble limestone, caprock), igneous (intrusive
+bodies such as granite domes and dikes, massive and jointed; extrusive lava flows and columnar basalt), metamorphic
+(foliation, folds). The tile's rock types would then pick the formation style, not only strength and colour.
+
 - **R1 Strata.** Rock strength is a 3D field of beds: a strike direction, a dip angle, bed thicknesses drawn from a
   distribution, and a smooth warp so bands are irregular (4). Flat-lying beds give caprock and terraces (1, 9).
 - **R2 Rock types.** The tile's rock types are assigned to beds; each type carries strength and solubility (XML).
@@ -63,7 +72,7 @@ The targets are just points in this input space:
 - **F6 Impact** (mutator or rare feature): crater bowl and rim, rubble thrown downrange, barren streak (5).
 
 ## 5. Water rules
-- **W1 Downhill only.** Water never flows uphill. The river course is traced on the final heightmap; where it would
+- **W1 Downhill or flat.** Water flows downhill or level, never uphill. The river course is traced on the final heightmap; where it would
   climb, the channel is carved instead. Near a mountain the river therefore runs parallel to the face or away from
   it (6, all rivers).
 - **W2 Sources.** World rivers enter at their tile edge; streams start where drainage area passes a threshold
@@ -123,12 +132,14 @@ The targets are just points in this input space:
   switched off.
 
 ## 9. Invariants checked on every export
-1. Height never rises along any river course (W1).
+1. Height never rises along any river course: each step is downhill or level (W1).
 2. Every lake lies in a closed depression of LL_Landform (W6).
 3. Inside rock, rivers are single channels (W4).
 4. Split channels rejoin or reach a base level; none ends in the open (W4).
 5. Rock bands have at least one pass unless the tile is meant to be enclosed (G1).
 6. Wet ground runs unbroken along every river course (S1).
+7. The map has several distinct areas: at least 3 landform or terrain zones of meaningful size, none covering most
+   of the map (principle 5). Thresholds tuned in XML.
 
 ## 10. Build order
 Each step is a commit series with its own exports; later steps only add rules.
