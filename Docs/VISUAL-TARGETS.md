@@ -81,3 +81,33 @@ the geological process behind it, and how our layers should produce it. Plans th
 - 3 or more channels reach the sea through the delta, with islands between them.
 - Wet ground and plants stay within about 6 cells of water on arid tiles.
 - Dune streaks share one orientation, at right angles to the wind direction.
+
+## 3. Marsh with rock spires
+
+**What it shows** (flat, wet plain; no large relief)
+- A dense web of narrow, shallow channels (2-5 cells) covers the whole map. They join and split again, forming
+  closed loops rather than a tree, and widen into small pools where they meet. There is no clear downstream direction.
+- Almost all land between the channels is marsh or wet ground with dense, low bog plants.
+- Small blocks and spires of rock stand alone on the plain. They and a thin rim around them are the only dry ground.
+- In the upper right a larger river runs through the rock, cutting a channel between the blocks.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Web of looping channels | On an almost level surface with a high water table, flow has no strong direction; water spreads, splits and rejoins (anastomosing network) | Multiple-flow-direction routing on a low-relief surface with fine noise; channels where flow accumulation passes a threshold. Splitting flow produces the loops |
+| Pools at junctions | Water stands in shallow hollows | Depression filling: filled depth above zero is standing water |
+| Marsh everywhere | Water table at or just below the surface | Height above drainage near zero over most of the map gives saturated moisture |
+| Isolated rock spires | Hard rock that resisted erosion while the plain around it was worn down and buried by sediment | Rock strength field: sediment fills the plain to a flat level and only hard knobs stand above it |
+| River through the rock | A larger river cuts through weak zones between the blocks | Same river course and rock strength as targets 1 and 2 |
+
+**New or changed pieces** (beyond targets 1 and 2)
+1. Low-relief regime: the plain is filled with sediment to a nearly flat level (basin fill); rock stands above it
+   only where it is strong.
+2. Channel network from spreading (multiple-direction) flow, so loops can form, alongside the single river course.
+3. Wet ground classes (marsh, mud) chosen from moisture, shared with targets 1 and 2.
+
+**Checks on the exports** (a swamp or wet temperate tile, low hilliness)
+- The channel network contains closed loops (more than one channel between some pairs of junctions).
+- Channels are 2-6 cells wide and reach every part of the map, with no land more than about 25 cells from water.
+- Marsh or mud covers at least half of the land.
+- Dry ground lies mostly on or within a few cells of rock.
