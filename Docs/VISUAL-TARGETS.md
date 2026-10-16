@@ -111,3 +111,36 @@ the geological process behind it, and how our layers should produce it. Plans th
 - Channels are 2-6 cells wide and reach every part of the map, with no land more than about 25 cells from water.
 - Marsh or mud covers at least half of the land.
 - Dry ground lies mostly on or within a few cells of rock.
+
+## 4. Mountain foot with tilted strata and caves
+
+**What it shows** (mountain mass to the north-east, lowland to the south-west)
+- The mountain front is not a smooth edge. Long rock ridges and fingers reach out of it onto the plain, most of them
+  pointing the same way at a similar angle, but not exactly parallel or evenly spaced.
+- Narrow valleys cut back into the mountain between the ridges. Streams start at their heads, at the foot of the
+  mountain, and wind down across the plain, joining as they go. Their direction shows which way the land slopes.
+- A cave winds into the mountain from the head of one valley as a long, branching dark passage.
+- Isolated rock outcrops and stepped benches lie just in front of the mountain; green, wetter patches dot the plain.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Ridges at one angle, irregular | Sedimentary layers, tilted by tectonics, alternate hard and soft; erosion leaves the hard layers as ridges along the strike (hogbacks) and hollows out the soft ones | Rock strength as tilted strata: bands of hard and soft rock along a strike direction, with dip, varying bed thickness and warping so they are not uniform |
+| Valleys cut back into the mountain, streams from their heads | Water from the mountain collects in the soft layers and leaves at the foot (springs) | Drainage area already counts the mountain; streams appear where it passes a threshold, so they start at the front |
+| Streams wind across the plain | Runoff follows the slope down from the mountain | The slope vector field (LL_Aspect) gives the direction; the river tracing from target 1 gives the course |
+| Spreading, shifting channels at the foot | Streams slow where the slope eases and drop sediment in fans (alluvial fans) | At a sharp drop in slope, build a fan of sediment and split the channel |
+| Cave along the strike, opening at a valley head | Water dissolves soluble layers along bedding planes and drainage lines; caves connect to springs | Guide cave tunnels along soluble strata and the mountain's internal drainage lines, with mouths at valley heads |
+| Wet patches | Springs and seeps at the foot of the slope | Moisture model: water table rises where slope eases below steep ground |
+
+**New or changed pieces** (beyond targets 1-3)
+1. Rock strength becomes stratigraphy: strike, dip, bed thicknesses and warping. The tile's rock types (two or three
+   per tile in vanilla) are assigned to the beds, so rock colour shows the bands too.
+2. Alluvial fans where streams leave the mountain.
+3. Caves guided by soluble strata and drainage. Verify first how vanilla's cave generation works in 1.7 and where it
+   can be steered.
+
+**Checks on the exports** (a mountainous tile with caves)
+- Rock ridges at the mountain front share an orientation within about 20 degrees, with uneven spacing.
+- Streams start at or near the mountain foot and run down LL_Aspect.
+- Rock types alternate in bands that follow the ridge direction.
+- Cave passages run mostly along the strike and open at the head of a valley.
