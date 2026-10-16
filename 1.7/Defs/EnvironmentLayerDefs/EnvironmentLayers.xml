@@ -117,6 +117,7 @@
         <minStageHeight>2</minStageHeight>
         <treadRise>0.2</treadRise>
         <stepSpacing>24</stepSpacing>
+        <knobMaxCells>150</knobMaxCells>
         <gentleSlope>0.9</gentleSlope>
         <cliffSlope>1.0</cliffSlope>
         <steepnessSmoothing>2</steepnessSmoothing>
@@ -174,8 +175,6 @@
         <passHalfWidth>3</passHalfWidth>
         <passMaxDepth>12</passMaxDepth>
         <passMinOpen>0.25</passMinOpen>
-        <edgeCliffMaxThickness>12</edgeCliffMaxThickness>
-        <edgeCliffMinSlope>0.3</edgeCliffMinSlope>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

@@ -73,9 +73,9 @@ public static class VanillaTerrainWriter
         int[] stage = Terraces.Stages(landform, stageHeight);
         var plan = new CliffPlan(n);
         float[] steepness = Terraces.Steepness(landform, sizeX, sizeZ, cellSize, terraces);
+        int knobs = MakeRockKnobs(map, values, stage, steepness, terraces);
         plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f);
         int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);
-        int edgeCliffs = aspect == null ? 0 : PlanRidgeCrests(map, values, depthIntoRock, slope, aspect, cellSize, plan, p);
         int bands = 0;
         for (int i = 0; i < n; i++)
         {
@@ -113,7 +113,7 @@ public static class VanillaTerrainWriter
             else if (values[i] == Scree) scree++;
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
-                    $"{edgeCliffs} on ridge crests; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
+                    $"{knobs} cells of rock knobs; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
                     $"soil {Percent(n - rock - floor - scree, n)}; {passCells} pass cells, {sizeable} walkable areas (largest holds " +
                     $"{Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
@@ -182,68 +182,66 @@ public static class VanillaTerrainWriter
     }
 
     /// <summary>
-    /// Ridge crests: a cliff is a climbable step, so it needs walkable ground on its high side. Thin rock (ridges and
-    /// fins no thicker than <see cref="SoilModelExtension.edgeCliffMaxThickness"/> metres, where the ground is steep)
-    /// becomes a walkable crest of rough stone, edged by cliffs facing down the slope vector field on every side that
-    /// drops away. Thick rock (mountains, pocket walls) stays solid rock with plain edges. Returns the edge cliffs placed.
+    /// Rock knobs: a cliff shows which way a slope drops, so a ring of cliffs closing round a small summit says nothing.
+    /// A small height stage that is a summit (every neighbour lower, not touching the map edge or rock) with mostly
+    /// steep sides is a knob of rock instead: it becomes mountain rock, and no cliffs ring it. Returns the cells made rock.
     /// </summary>
-    private static int PlanRidgeCrests(Map map, float[] values, float[] depthIntoRock, float[] slope, float[] aspect, float cellSize,
-        CliffPlan plan, SoilModelExtension p)
+    private static int MakeRockKnobs(Map map, float[] values, int[] stage, float[] steepness, TerraceExtension t)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = values.Length;
-        var wasWall = new bool[n];
-        var wallDepth = new float[n];
-        for (int i = 0; i < n; i++)
+        var visited = new bool[n];
+        var region = new List<int>();
+        var queue = new Queue<int>();
+        int made = 0;
+        for (int start = 0; start < n; start++)
         {
-            wasWall[i] = values[i] > 0.7f;
-            wallDepth[i] = wasWall[i] ? depthIntoRock[i] : 0f;
-        }
-        // Thickness of a rock mass around each cell: the deepest point within reach.
-        float[] thickness = GridMath.MaxFilter(wallDepth, sizeX, sizeZ, Mathf.CeilToInt(p.edgeCliffMaxThickness / cellSize));
-        var crest = new bool[n];
-        for (int i = 0; i < n; i++)
-            crest[i] = wasWall[i] && thickness[i] * cellSize <= p.edgeCliffMaxThickness;
-
-        var edges = new List<(int cell, Rot4 facing, byte lower)>();
-        for (int i = 0; i < n; i++)
-        {
-            if (!crest[i] || slope[i] / cellSize < p.edgeCliffMinSlope)
+            if (visited[start] || values[start] > 0.7f)
                 continue;
-            IntVec3 c = map.cellIndices.IndexToCell(i);
-            var downhill = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
-            // The crest stands above all open ground around it: every such side gets an edge. The main facing (for
-            // talus) is the one most down the slope.
-            Rot4 facing = Rot4.Invalid;
-            byte lower = 0;
-            float best = float.MinValue;
-            for (int d = 0; d < 4; d++)
+            region.Clear();
+            queue.Enqueue(start);
+            visited[start] = true;
+            bool summit = true;
+            int boundary = 0, steepBoundary = 0;
+            while (queue.Count > 0)
             {
-                IntVec3 nb = c + new Rot4(d).FacingCell;
-                if (!nb.InBounds(map))
-                    continue;
-                int ni = map.cellIndices.CellToIndex(nb);
-                if (wasWall[ni] || plan.Kind[ni] != CliffKind.None)
-                    continue;
-                lower |= (byte)(1 << d);
-                IntVec3 step = new Rot4(d).FacingCell;
-                float along = downhill.x * step.x + downhill.y * step.z;
-                if (along > best)
+                int c = queue.Dequeue();
+                region.Add(c);
+                int cx = c % sizeX, cz = c / sizeX;
+                if (cx == 0 || cz == 0 || cx == sizeX - 1 || cz == sizeZ - 1)
+                    summit = false;
+                for (int d = 0; d < 4; d++)
                 {
-                    best = along;
-                    facing = new Rot4(d);
+                    IntVec3 off = new Rot4(d).FacingCell;
+                    int nx = cx + off.x, nz = cz + off.z;
+                    if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
+                        continue;
+                    int nb = nz * sizeX + nx;
+                    if (values[nb] > 0.7f || stage[nb] > stage[c])
+                    {
+                        summit = false;
+                        continue;
+                    }
+                    if (stage[nb] == stage[c])
+                    {
+                        if (!visited[nb])
+                        {
+                            visited[nb] = true;
+                            queue.Enqueue(nb);
+                        }
+                        continue;
+                    }
+                    boundary++;
+                    if (steepness[c] >= 0.5f)
+                        steepBoundary++;
                 }
             }
-            if (facing.IsValid)
-                edges.Add((i, facing, lower));
+            if (!summit || region.Count > t.knobMaxCells || steepBoundary * 2 < boundary)
+                continue;
+            foreach (int c in region)
+                values[c] = RockNoRoof;
+            made += region.Count;
         }
-        for (int i = 0; i < n; i++)
-        {
-            if (crest[i])
-                values[i] = RockFloor;
-        }
-        foreach ((int cell, Rot4 facing, byte lower) in edges)
-            plan.PlanEdge(cell, facing, lower);
-        return edges.Count;
+        return made;
     }
 
     private static string Percent(int count, int total) => $"{100f * count / Mathf.Max(total, 1):F0}%";

@@ -65,7 +65,6 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
   ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
   rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
-- Ridge crests (`SoilModelExtension` edgeCliff*): see Cliffs.
 - `StreamWriter` (Plants prefix): narrow standing shallow water on drainage lines (log area >= `streamArea`) becomes
   moving water, with flow from the smoothed downhill direction written into vanilla's river flow map.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
@@ -73,18 +72,20 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
 ## Cliffs (`Building_Cliff`, `CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
-A cliff is a climbable step between heights with walkable ground on its high side. Own defs and own art (owner,
-2026-10-16); Decorative Cliffs is no longer used or required.
+A cliff shows which way a steep slope drops: a climbable step between heights, walkable ground on its high side.
+Own defs and own art (owner, 2026-10-16); Decorative Cliffs is no longer used or required.
 - `LL_Cliff` (PassThroughOnly, path cost 400, fill 0.45: cover, never blocks sight) and `LL_CliffSteps` (standable).
-  One thing per band cell on the higher side; `CliffPlan.Lower` records every side that drops to lower ground.
-- Drawn as thin edges, not full-cell blocks (`Building_Cliff.Print`): south side a short stone face, north a thin lip,
-  east/west a thin column; steps draw stairs on their facing side. Greyscale, tinted with the local rock. A face's
-  apparent height must match the drop, so stacked cliffs read as nested lines; edges on cell sides join at corners.
-- Art: `Source/ArtTools/generate_cliff_art.py` (pure Python, `png_min.py`) writes
-  `Textures/Things/Building/LivingLandscapes/Cliff/`. Style reference: owner-supplied asset pack (not in the repo):
-  outlined rounded stones, short south faces, thin rims, grass overhang (not yet done).
-- Distribution: terrace bands where steep (12 stages across the relief); thin rock becomes a walkable crest with edges
-  on every lower side; thick rock keeps plain rock edges. Talus chunks below faces.
+  One thing per band cell on the higher side; `CliffPlan.Lower` records which of the 8 neighbours are lower.
+- Autotiled art: one texture per neighbour pattern (256, `Cliff_<mask>` / `Stairs_<mask>`), rounded organic outline
+  that meets neighbours seamlessly, short rock face where the drop faces south, thin rim elsewhere, plateau side fading
+  into the ground; greyscale, tinted with the local rock. Soft shadows (`Shadow_South/East/West`) on the lower cells.
+  A face's apparent height must match the drop: thin faces, so stacked cliffs read as nested lines.
+- Art: `Source/ArtTools/generate_cliff_art.py` (pure Python, `png_min.py`, ~1 min) writes
+  `Textures/Things/Building/LivingLandscapes/Cliff/`. Style reference: owner-supplied asset pack (not in the repo).
+  Grass overhang not done yet.
+- Distribution: terrace bands where steep (12 stages across the relief). A cliff ring round a small summit has no
+  direction, so summit stages up to `knobMaxCells` with mostly steep sides become rock knobs instead. Thin rock stays
+  mountain rock (no crest cliffs). Talus chunks below faces.
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
 One map toggle per layer with an `<overlay>` (lower right corner, `Patch_PlaySettings_DoPlaySettingsGlobalControls`);

@@ -57,14 +57,6 @@ public class SoilModelExtension : DefModExtension
     public float passMaxDepth = 12f;
     public float passMinOpen = 0.25f;
 
-    /// <summary>
-    /// Ridge crests: thin rock (no thicker than <see cref="edgeCliffMaxThickness"/> metres) becomes a walkable crest
-    /// edged by cliffs facing downhill, where the ground is at least <see cref="edgeCliffMinSlope"/> steep. A cliff must
-    /// lead up to walkable ground; thick rock (mountains, pocket walls) keeps plain rock edges.
-    /// </summary>
-    public float edgeCliffMaxThickness = 12f;
-    public float edgeCliffMinSlope = 0.3f;
-
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>
     public float thinRoofDepth = 3f;
     public float thickRoofDepth = 7f;

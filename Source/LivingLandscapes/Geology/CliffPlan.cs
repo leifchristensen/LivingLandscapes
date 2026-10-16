@@ -23,12 +23,16 @@ public class CliffPlan
 {
     private static readonly IntVec3[] Cardinals = { IntVec3.North, IntVec3.East, IntVec3.South, IntVec3.West };
 
+    /// <summary>North-east, south-east, south-west, north-west: mask bits 16, 32, 64, 128.</summary>
+    private static readonly IntVec3[] Diagonals = { new IntVec3(1, 0, 1), new IntVec3(1, 0, -1), new IntVec3(-1, 0, -1), new IntVec3(-1, 0, 1) };
+
     public readonly CliffKind[] Kind;
     public readonly Rot4[] Facing;
 
     /// <summary>
-    /// Every side of a band cell that drops to lower ground, as bits by <see cref="Rot4.AsInt"/> (north 1, east 2,
-    /// south 4, west 8). The cliff draws a thin edge on each of them; <see cref="Facing"/> is the main one.
+    /// Which of a band cell's 8 neighbours are lower ground: north 1, east 2, south 4, west 8 (bits by
+    /// <see cref="Rot4.AsInt"/>), north-east 16, south-east 32, south-west 64, north-west 128. It picks the cliff's
+    /// shape (<see cref="Building_Cliff"/>); <see cref="Facing"/> is the main drop.
     /// </summary>
     public readonly byte[] Lower;
 
@@ -68,6 +72,15 @@ public class CliffPlan
             }
             if (!facing.IsValid)
                 continue;
+            for (int k = 0; k < 4; k++)
+            {
+                IntVec3 n = c + Diagonals[k];
+                if (!n.InBounds(map))
+                    continue;
+                int ni = indices.CellToIndex(n);
+                if (!excluded(ni) && stage[ni] < stage[i])
+                    lower |= (byte)(16 << k);
+            }
             PlanEdge(i, facing, lower);
         }
     }

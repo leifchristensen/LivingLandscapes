@@ -12,7 +12,7 @@
     <thingClass>LivingLandscapes.Geology.Building_Cliff</thingClass>
     <altitudeLayer>Building</altitudeLayer>
     <graphicData>
-      <texPath>Things/Building/LivingLandscapes/Cliff/Edge_South</texPath>
+      <texPath>Things/Building/LivingLandscapes/Cliff/Cliff_004</texPath>
       <graphicClass>Graphic_Single</graphicClass>
     </graphicData>
     <useHitPoints>false</useHitPoints>

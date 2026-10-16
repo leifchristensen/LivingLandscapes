@@ -45,7 +45,7 @@ public static class Patch_GenStep_RocksFromGrid_Generate
                     continue;
                 var cliff = (Building_Cliff)ThingMaker.MakeThing(def);
                 cliff.Rock = rock;
-                cliff.LowerSides = plan.Lower[i];
+                cliff.LowerNeighbours = plan.Lower[i];
                 GenSpawn.Spawn(cliff, cell, map, plan.Facing[i]);
                 spawned++;
 
