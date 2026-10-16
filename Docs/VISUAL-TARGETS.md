@@ -314,3 +314,38 @@ without fanning out and with little change of direction. Pools may form near cav
 - Where the river crosses rock it is a single channel with nearly constant width and low curvature.
 - Every underground water course that reaches open ground ends in a pool.
 - Beaches lie in sheltered parts of the bay; headlands facing the open sea are rock.
+
+## 10. Broad river valley between two ranges, with a bridge
+
+**What it shows** (arid plain, mountain ranges along the top and bottom edges, a wide river across the middle)
+- A wide river runs east-west through the middle of the valley, halfway between the two ranges. It winds gently,
+  with a deep centre, shallow edges, and sand or mud bars and islands in the channel.
+- Along both banks lies a band of dark rich soil and mud (the floodplain), of fairly even width. Inside it, stripes
+  follow the curves of the bends. A light step marks the edge of the band; beyond it the ground is higher, sandy and
+  dry, with streaks running along the valley.
+- An ancient highway crosses the valley north-south, broken in places, with a bridge over the river.
+
+**Owner's reading:** the river flows at the midpoint of the valley between two ranges and probably carved the valley
+itself. Far from the mountains it is free to fan out. Rich soil forms along the banks.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| River at the valley's midpoint | The river cut the valley; the ranges are the valley sides | The erosion model's river valley (`riverValley` landform) centred between the ranges, wide where rock is far away |
+| Wide, gently winding channel with bars | Large discharge and low gradient: meanders with bars inside the channel | Channel pattern (target 2) with width from discharge; bars where the channel is wide |
+| Even band of rich soil and mud | Floodplain: the river shifts within a belt and leaves fine sediment when it floods; finest and richest next to the banks | Meander belt width from discharge; soil richness and moisture highest near the channel, falling to the belt edge |
+| Stripes following the bends | Scroll bars: the inner bank of each bend builds ridge after ridge as the bend migrates | Old channel positions from meander migration, recorded as alternating soil bands |
+| Light step at the band's edge | Terrace scarp: the floodplain lies below the older valley floor | Terrace (target 6) at the edge of the meander belt |
+| Streaks along the valley | Wind funnelled along the valley axis | Wind field (target 2) steered by large-scale topography |
+| Highway and bridge | Structures from tile mutators (map generation runs them after terrain) | Compatibility: structures must still find our river; check how 1.7 places roads and bridges across water |
+
+**New or changed pieces** (beyond targets 1-9)
+1. Meander belt: floodplain width from discharge, soil richness from distance to the channel, scroll-bar banding.
+2. Wind steered along valleys.
+3. Compatibility with roads, bridges and other structures that cross rivers.
+
+**Checks on the exports** (an arid tile with a large river and hills on both sides)
+- The river lies near the middle of the valley floor.
+- The floodplain band has roughly even width along the river; rich soil is densest next to the banks.
+- A road crossing the river gets a bridge (or a ford), not a gap.
+- On arid tiles, sand streaks run along the valley.
