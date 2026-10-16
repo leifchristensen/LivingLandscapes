@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Cliffs: steep natural rock faces placed by geological terrain where the ground is too steep to hold soil.
+    Unlike mountain rock they can't be mined or destroyed; they shape movement, sight lines and cover.
+    Graphics are placeholders (tinted vanilla rock atlas) until dedicated cliff art exists.
+  -->
+
+  <ThingDef Name="LL_CliffBase" ParentName="BuildingNaturalBase" Abstract="True">
+    <thingClass>Building</thingClass>
+    <graphicData>
+      <texPath>Things/Building/Linked/Rock_Atlas</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <linkType>CornerFiller</linkType>
+      <linkFlags>
+        <li>Rock</li>
+        <li>MapEdge</li>
+      </linkFlags>
+    </graphicData>
+    <altitudeLayer>Building</altitudeLayer>
+    <useHitPoints>false</useHitPoints>
+    <neverMultiSelect>true</neverMultiSelect>
+    <rotatable>false</rotatable>
+    <saveCompressible>true</saveCompressible>
+    <fertility>0</fertility>
+    <canOverlapZones>false</canOverlapZones>
+    <statBases>
+      <Flammability>0</Flammability>
+    </statBases>
+    <building>
+      <isInert>true</isInert>
+      <deconstructible>false</deconstructible>
+      <claimable>false</claimable>
+      <canBuildNonEdificesUnder>false</canBuildNonEdificesUnder>
+      <destroyShakeAmount>0</destroyShakeAmount>
+    </building>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffBase">
+    <defName>LL_CliffSheer</defName>
+    <label>cliff</label>
+    <description>A sheer face of bare rock, too steep to climb. It blocks movement and sight, and can't be mined away.</description>
+    <graphicData>
+      <color>(0.50, 0.46, 0.42)</color>
+    </graphicData>
+    <passability>Impassable</passability>
+    <fillPercent>1</fillPercent>
+    <blockWind>true</blockWind>
+    <blockLight>true</blockLight>
+    <castEdgeShadows>true</castEdgeShadows>
+    <staticSunShadowHeight>1.0</staticSunShadowHeight>
+    <coversFloor>true</coversFloor>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffBase">
+    <defName>LL_CliffScarp</defName>
+    <label>rocky scarp</label>
+    <description>A steep, broken rock slope. It can be scrambled over, slowly, and gives some cover to anyone behind it.</description>
+    <graphicData>
+      <color>(0.66, 0.62, 0.56)</color>
+    </graphicData>
+    <passability>PassThroughOnly</passability>
+    <pathCost>150</pathCost>
+    <pathCostIgnoreRepeat>false</pathCostIgnoreRepeat>
+    <fillPercent>0.6</fillPercent>
+    <castEdgeShadows>true</castEdgeShadows>
+    <staticSunShadowHeight>0.4</staticSunShadowHeight>
+  </ThingDef>
+
+</Defs>

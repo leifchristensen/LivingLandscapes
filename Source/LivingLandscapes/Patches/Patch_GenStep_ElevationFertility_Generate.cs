@@ -31,7 +31,7 @@ public static class Patch_GenStep_ElevationFertility_Generate
 
             var generation = EnvironmentLayerDefOf.LL_Height.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
             var soilModel = EnvironmentLayerDefOf.LL_SoilDepth.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
-            VanillaTerrainWriter.Write(map, soil.ToArray(), height.ToArray(), generation.cellSize, soilModel);
+            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), height.ToArray(), generation.cellSize, soilModel);
         }
         catch (Exception e)
         {

@@ -29,6 +29,9 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public System.Collections.Generic.List<UnityEngine.Vector2> PlannedRiverCourse { get; set; }
 
+    /// <summary>Cliffs planned by the geology during generation, spawned after vanilla places rock. Not saved.</summary>
+    public Geology.CliffPlan PlannedCliffs { get; set; }
+
     public EnvironmentOverlay Overlay { get; }
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
