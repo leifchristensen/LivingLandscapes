@@ -14,6 +14,9 @@ Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleT
 
 In development: this option has no effect yet.</LL_GeologicalTerrainDesc>
 
+  <LL_ScatteredRuins>Scattered ruins and ancient debris</LL_ScatteredRuins>
+  <LL_ScatteredRuinsTip>Vanilla's small ruins, shrines and ancient junk scattered across new maps. Off by default while Living Landscapes' terrain is in development; ruins chosen through tile features are unaffected.</LL_ScatteredRuinsTip>
+
   <LL_SupportedTerrainMods>Supported terrain and world mods active: {0}</LL_SupportedTerrainMods>
   <LL_UnsupportedTerrainMods>Other mods that change terrain generation: {0}. If maps look wrong, turn geologically driven terrain off.</LL_UnsupportedTerrainMods>
 

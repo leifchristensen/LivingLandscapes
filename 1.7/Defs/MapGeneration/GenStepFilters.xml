@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!--
+    Scattered structures that vanilla drops anywhere on a map, regardless of terrain. Switched off by the
+    "Scattered ruins" setting while geological terrain is being refined. Tile mutator structures (ancient ruins,
+    stockpiles and the like the player chose a tile for) are not listed and stay.
+  -->
+  <LivingLandscapes.Settings.GenStepFilterDef>
+    <defName>LL_ScatteredRuins</defName>
+    <label>scattered ruins</label>
+    <genSteps>
+      <li>ScatterRuinsSimple</li>
+      <li>ScatterShrines</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">ScatterRoadDebris</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">ScatterCaveDebris</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientUtilityBuilding</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">MechanoidRemains</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientTurret</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientMechs</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientLandingPad</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientFences</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientPipelineSection</li>
+      <li MayRequire="Ludeon.RimWorld.Ideology">AncientJunkClusters</li>
+      <li MayRequire="Ludeon.RimWorld.Biotech">AncientPollutionJunk</li>
+    </genSteps>
+  </LivingLandscapes.Settings.GenStepFilterDef>
+</Defs>

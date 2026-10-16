@@ -22,6 +22,11 @@ public static class Patch_GenStep_Plants
     {
         try
         {
+            if (Geology.GeologicalTerrain.AppliesTo(map))
+            {
+                var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<Geology.GroundWriterExtension>() ?? new Geology.GroundWriterExtension();
+                Geology.StreamWriter.Apply(map, ground);
+            }
             map.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)
@@ -46,7 +51,7 @@ public static class Patch_GenStep_Plants
         var drowned = new System.Collections.Generic.List<Thing>();
         foreach (Thing thing in map.listerThings.AllThings)
         {
-            if (thing is Geology.Building_Cliff && thing.Position.GetTerrain(map).IsWater)
+            if (Geology.CliffDefs.IsCliff(thing.def) && thing.Position.GetTerrain(map).IsWater)
                 drowned.Add(thing);
         }
         foreach (Thing thing in drowned)

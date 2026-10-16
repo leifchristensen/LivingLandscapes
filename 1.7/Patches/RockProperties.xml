@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Erosion resistance and solubility of the vanilla rock types (LivingLandscapes.Geology.RockProperties). -->
+<Patch>
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/ThingDef[defName="Granite"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.RockProperties"><strength>0.9</strength><solubility>0</solubility></li>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/ThingDef[defName="Marble"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.RockProperties"><strength>0.7</strength><solubility>0.5</solubility></li>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/ThingDef[defName="Slate"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.RockProperties"><strength>0.6</strength><solubility>0</solubility></li>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/ThingDef[defName="Limestone"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.RockProperties"><strength>0.5</strength><solubility>0.8</solubility></li>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAddModExtension">
+    <xpath>Defs/ThingDef[defName="Sandstone"]</xpath>
+    <value>
+      <li Class="LivingLandscapes.Geology.RockProperties"><strength>0.35</strength><solubility>0.1</solubility></li>
+    </value>
+  </Operation>
+</Patch>

@@ -64,6 +64,13 @@ public class CliffPlan
         }
     }
 
+    /// <summary>Marks one cell as a cliff band facing the given way (towards the lower ground).</summary>
+    public void PlanEdge(int i, Rot4 facing)
+    {
+        Kind[i] = facing == Rot4.South ? CliffKind.Face : CliffKind.Rim;
+        Facing[i] = facing;
+    }
+
     /// <summary>
     /// Puts steps along every band, about every <paramref name="spacing"/> cells and at least once per band, on
     /// straight stretches where the drop is a single stage. Bands shorter than half the spacing (small knolls and

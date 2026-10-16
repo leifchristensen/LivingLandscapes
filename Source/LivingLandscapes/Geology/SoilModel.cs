@@ -18,6 +18,20 @@ public class SoilModelExtension : DefModExtension
     /// <summary>Soil missing on crests and noses, where it is shed (fraction of base depth).</summary>
     public float crestLoss = 0.5f;
 
+    /// <summary>
+    /// Soil depth multiplier on the weakest and the strongest rock: weak rock weathers into deep soil, strong rock
+    /// stays bare, so hard beds show as rock ridges.
+    /// </summary>
+    public float soilOnWeakRock = 1.5f;
+    public float soilOnStrongRock = 0.3f;
+
+    /// <summary>
+    /// Bare-rock slope multiplier on the weakest and strongest rock: strong rock weathers too slowly to keep soil on
+    /// moderate slopes, so it is bare at gentler slopes than weak rock.
+    /// </summary>
+    public float bareSlopeOnWeakRock = 1.3f;
+    public float bareSlopeOnStrongRock = 0.5f;
+
     /// <summary>Below this soil depth bedrock forms a wall (impassable natural rock).</summary>
     public float rockWallDepth = 0.05f;
 
@@ -33,6 +47,27 @@ public class SoilModelExtension : DefModExtension
     public float massiveRockDepth = 4f;
 
 
+    /// <summary>
+    /// Passes: where a cross-strike joint cuts a ridge, the ridge is broken by a gap of rough stone this many cells
+    /// either side of the joint. Only rock within <see cref="passMaxDepth"/> metres of the rock edge is opened, so
+    /// ridges and mountain fringes get gaps and notches while massive mountain interiors stay solid. Joints whose
+    /// network is less open than <see cref="passMinOpen"/> stay closed, so passes are irregular.
+    /// </summary>
+    public float passHalfWidth = 3f;
+    public float passMaxDepth = 12f;
+    public float passMinOpen = 0.25f;
+
+    /// <summary>
+    /// Edge cliffs: rock edges that mark a change in height get a cliff band instead of a plain rock wall, facing
+    /// down the slope vector field. They are the edges of thin rock (ridges and fins no thicker than
+    /// <see cref="edgeCliffMaxThickness"/> metres, including the sides of passes) and the sides of narrow walkable gaps
+    /// (ravines no wider than twice <see cref="ravineHalfWidth"/> cells) between any rock, where the ground is at least
+    /// <see cref="edgeCliffMinSlope"/> steep. Massive mountain edges stay rock walls.
+    /// </summary>
+    public float edgeCliffMaxThickness = 12f;
+    public float ravineHalfWidth = 4f;
+    public float edgeCliffMinSlope = 0.3f;
+
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>
     public float thinRoofDepth = 3f;
     public float thickRoofDepth = 7f;
@@ -45,7 +80,8 @@ public class SoilModelExtension : DefModExtension
 /// </summary>
 public static class SoilModel
 {
-    public static float[] SoilDepth(float[] height, int sizeX, int sizeZ, float cellSize, SoilModelExtension p)
+    /// <param name="rockStrength">Rock strength (0..1) per cell, or null when unknown (no rock effect).</param>
+    public static float[] SoilDepth(float[] height, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float[] rockStrength = null)
     {
         float[] slope = GridMath.Slope(height, sizeX, sizeZ);
         float[] area = GridMath.FlowAccumulationMfd(height, sizeX, sizeZ);
@@ -56,8 +92,11 @@ public static class SoilModel
             // 0 on divergent crests (area ~1 cell), 1 in strongly convergent hollows (area >= 1000 cells).
             float convergence = Mathf.Clamp01(Mathf.Log10(area[i]) / 3f);
             float landform = 1f + p.hollowBonus * convergence - p.crestLoss * (1f - convergence);
-            float steepness = Mathf.Clamp01(1f - gradient / p.bareRockSlope);
-            soil[i] = Mathf.Max(0f, p.baseSoilDepth * landform * steepness);
+            float strength = rockStrength == null ? -1f : rockStrength[i];
+            float bareSlope = strength < 0f ? p.bareRockSlope : p.bareRockSlope * Mathf.Lerp(p.bareSlopeOnWeakRock, p.bareSlopeOnStrongRock, strength);
+            float steepness = Mathf.Clamp01(1f - gradient / bareSlope);
+            float rock = strength < 0f ? 1f : Mathf.Lerp(p.soilOnWeakRock, p.soilOnStrongRock, strength);
+            soil[i] = Mathf.Max(0f, p.baseSoilDepth * landform * steepness * rock);
         }
         return soil;
     }

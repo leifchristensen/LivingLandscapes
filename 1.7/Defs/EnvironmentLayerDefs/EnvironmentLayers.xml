@@ -49,6 +49,20 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <cellSize>1</cellSize>
+        <strata>
+          <bedThickness>8~30</bedThickness>
+          <dip>5~35</dip>
+          <warpAmplitude>12</warpAmplitude>
+          <warpScale>60</warpScale>
+          <jointSpacing>25~45</jointSpacing>
+          <jointWidth>2</jointWidth>
+          <jointWeakness>0.35</jointWeakness>
+          <strengthJitter>0.15</strengthJitter>
+          <softBedChance>0.4</softBedChance>
+          <softBedFactor>0.45</softBedFactor>
+          <openJoints>0.5</openJoints>
+          <contrast>2</contrast>
+        </strata>
         <reliefFlat>4</reliefFlat>
         <reliefSmallHills>20</reliefSmallHills>
         <reliefLargeHills>70</reliefLargeHills>
@@ -61,7 +75,7 @@
         <erosionCellSize>3</erosionCellSize>
         <regionScale>2.5</regionScale>
         <erosionIterations>120</erosionIterations>
-        <erodibility>0.02</erodibility>
+        <erodibility>0.05</erodibility>
         <areaExponent>0.5</areaExponent>
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
@@ -97,7 +111,7 @@
     </dependsOn>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.TerraceExtension">
-        <stagesAcrossRelief>6</stagesAcrossRelief>
+        <stagesAcrossRelief>12</stagesAcrossRelief>
         <minStageHeight>2</minStageHeight>
         <treadRise>0.2</treadRise>
         <stepSpacing>24</stepSpacing>
@@ -109,6 +123,17 @@
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_RockStrength</defName>
+    <label>rock strength</label>
+    <description>Strength of the rock beneath the ground, 0 to 1: tilted beds of the tile's rock types, weakened along joints. Hard beds stand as ridges and narrows; soft beds wear into valleys. Only with geological terrain on.</description>
+    <workerClass>LivingLandscapes.Layers.RockStrengthWorker</workerClass>
+    <precision>Byte</precision>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_SoilDepth</defName>
     <label>soil depth</label>
     <description>Depth of soil over bedrock. Thin on steep ground and crests, deep in hollows and valley floors; bedrock is exposed where none remains.</description>
@@ -116,6 +141,7 @@
     <unit>m</unit>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_RockStrength</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -132,13 +158,23 @@
         <bareRockSlope>0.84</bareRockSlope>
         <hollowBonus>1.0</hollowBonus>
         <crestLoss>0.5</crestLoss>
-        <rockWallDepth>0.05</rockWallDepth>
+        <soilOnWeakRock>1.5</soilOnWeakRock>
+        <soilOnStrongRock>0.3</soilOnStrongRock>
+        <bareSlopeOnWeakRock>1.3</bareSlopeOnWeakRock>
+        <bareSlopeOnStrongRock>0.5</bareSlopeOnStrongRock>
+        <rockWallDepth>0.15</rockWallDepth>
         <rockFloorDepth>0.3</rockFloorDepth>
         <screeReach>5</screeReach>
         <screeMinSlope>0.2</screeMinSlope>
         <thinRoofDepth>3</thinRoofDepth>
         <thickRoofDepth>7</thickRoofDepth>
         <massiveRockDepth>4</massiveRockDepth>
+        <passHalfWidth>3</passHalfWidth>
+        <passMaxDepth>12</passMaxDepth>
+        <passMinOpen>0.25</passMinOpen>
+        <edgeCliffMaxThickness>12</edgeCliffMaxThickness>
+        <ravineHalfWidth>4</ravineHalfWidth>
+        <edgeCliffMinSlope>0.3</edgeCliffMinSlope>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -208,6 +244,42 @@
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Wetness</defName>
+    <label>wetness</label>
+    <description>0 (dry) to 1 (wet): where water collects and the water table is near the surface, from drainage area, slope and height above the nearest drainage line; sharper on dry tiles. Drives soil fertility and wet ground.</description>
+    <workerClass>LivingLandscapes.Layers.WetnessWorker</workerClass>
+    <precision>Byte</precision>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_DrainageArea</li>
+    </dependsOn>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.WetnessExtension">
+        <slopeSmoothing>2</slopeSmoothing>
+        <channelArea>2.5</channelArea>
+        <heightAboveDrainageScale>2</heightAboveDrainageScale>
+        <wetnessIndexRange>4~13</wetnessIndexRange>
+        <wetnessIndexWeight>0.5</wetnessIndexWeight>
+        <wetRainfallMm>1500</wetRainfallMm>
+        <aridSharpening>3</aridSharpening>
+        <unknownRainfall>0.4</unknownRainfall>
+      </li>
+      <li Class="LivingLandscapes.Geology.GroundWriterExtension">
+        <fertilityWetness>0.55</fertilityWetness>
+        <fertilitySoilDepth>0.35</fertilitySoilDepth>
+        <fertilityNoise>0.1</fertilityNoise>
+        <deepSoil>2</deepSoil>
+        <washAreaArid>2.4</washAreaArid>
+        <washAreaHumid>3.2</washAreaHumid>
+        <washMaxClimate>0.6</washMaxClimate>
+        <wetPatchNoise>0.2</wetPatchNoise>
+        <streamArea>2.8</streamArea>
+        <streamMaxHalfWidth>3</streamMaxHalfWidth>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_WaterDistance</defName>
     <label>distance to water</label>
     <description>Distance to the nearest water or river cell. Maps without water read 999 everywhere.</description>
@@ -219,27 +291,25 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Moisture</defName>
     <label>moisture</label>
-    <description>0 (dry) to 1 (saturated): tile rainfall baseline, raised near water.</description>
+    <description>0 (dry) to 1 (saturated): ground wetness from drainage and climate, raised near water.</description>
     <workerClass>LivingLandscapes.Layers.MoistureWorker</workerClass>
     <dependsOn>
       <li>LL_WaterDistance</li>
+      <li>LL_Wetness</li>
     </dependsOn>
     <overlay>
-      <contourInterval>0.1</contourInterval>
-      <indexEvery>5</indexEvery>
       <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
       <colors>
-        <li><value>0</value><color>(0.85, 0.70, 0.35)</color></li>
-        <li><value>0.5</value><color>(0.60, 0.78, 0.50)</color></li>
-        <li><value>1</value><color>(0.10, 0.35, 0.90)</color></li>
+        <li><value>0</value><color>(0.55, 0.75, 1.00, 0)</color></li>
+        <li><value>0.3</value><color>(0.45, 0.70, 1.00, 0.35)</color></li>
+        <li><value>0.6</value><color>(0.20, 0.45, 0.95, 0.7)</color></li>
+        <li><value>1</value><color>(0.05, 0.15, 0.70, 0.95)</color></li>
       </colors>
     </overlay>
     <modExtensions>
       <li Class="LivingLandscapes.Layers.MoistureExtension">
         <waterReachCells>10</waterReachCells>
-        <wetRainfallMm>2000</wetRainfallMm>
-        <rainfallWeight>0.6</rainfallWeight>
-        <unknownRainfallBaseline>0.4</unknownRainfallBaseline>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
