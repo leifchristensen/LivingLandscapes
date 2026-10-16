@@ -178,3 +178,38 @@ the geological process behind it, and how our layers should produce it. Plans th
 - Rock bands have 2-5 passable routes across them.
 - Rock knobs are elongated, mostly along one direction.
 - An impact site has rubble on one side and a barren streak in the same direction.
+
+## 6. Entrenched meanders and a mountain apron
+
+**What it shows** (open plain, a river winding through rock, a mountain in the lower right)
+- The river winds in tight bends, but unlike target 2 the bends are cut into rock. Each bend has a steep, stepped
+  rock wall on its outer side and a crescent-shaped rock spur, sloping down more gently, on its inner side.
+- Stepped cliff lines run parallel to the channel: old valley floors left behind as the river cut down.
+- Dry, abandoned loops of channel with their own walls lie beside the river (upper and lower left).
+- The channel has side channels and bars within it.
+- The mountain in the lower right has a long slope (an apron) reaching toward the river. The river runs parallel to
+  the mountain face, then away from it; it never climbs toward it.
+
+**Rule from the owner:** a river follows the contours or descends across them, never up a slope. Near a mountain it
+therefore runs parallel to the face or away from it.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Bends cut into rock | Entrenched meanders: a meandering river kept cutting down while the land rose (or sea level fell), locking its bends into the rock | Meander migration (target 2) run together with downcutting where rock strength is high; the bend shape is carved into the heightmap |
+| Steep outer wall, gentle inner spur | Outer bank is undercut (cut bank); inner bank is left as the river shifts outward (slip-off slope) | Bank erosion depends on the sign of the channel's curvature: steep on the outside, gentle on the inside |
+| Stepped lines parallel to the channel | River terraces: each step is an old floodplain abandoned by downcutting | Terraces (existing `Terraces`) laid out parallel to the channel, not only to contours |
+| Dry abandoned loops | A bend cut off after the river had entrenched it; no water left in it | Cutoffs from meander migration; whether they hold water comes from the lake water balance (target 5) |
+| River parallel to and away from the mountain | The mountain's apron slopes toward the river; water only flows downhill | River course strictly downhill on the final heightmap: where the heightmap would make it climb, carve the channel instead |
+
+**New or changed pieces** (beyond targets 1-5)
+1. A hard rule in river tracing: height never rises along the course. Checked with the slope vector field: the
+   slope toward the flow direction (`GridMath.SlopeToward`) is never negative.
+2. Bank asymmetry from bend curvature; river terraces parallel to the channel.
+3. Entrenched versus free meanders chosen from rock strength and the downcutting rate.
+
+**Checks on the exports** (a hilly tile with a river, e.g. s7 plus `-ll-hilliness=LargeHills`)
+- Height along the river course never increases (within quantisation).
+- Within about 20 cells of rock, the river's direction never points up the mountain's slope (LL_Aspect).
+- In most bends (80 % or more), the outer bank is steeper than the inner bank.
+- Terrace steps near the river run roughly parallel to it.
