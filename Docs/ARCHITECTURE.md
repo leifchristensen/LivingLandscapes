@@ -85,6 +85,9 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.
 
 ## Roadmap / open items
+Current focus: geological features that read well on the map, worked from the owner's reference maps in
+`Docs/VISUAL-TARGETS.md` (target 1: river valley through mountains). Collect the targets, then plan shared pieces.
+
 1. Few cliffs: steep ground mostly becomes mountain rock, which is excluded. Decide whether mountain edges get cliffs;
    consider using the slope vector field for cliff placement and facing.
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
