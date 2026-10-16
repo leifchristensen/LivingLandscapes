@@ -5,74 +5,95 @@ using Verse;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// Translates the geology into vanilla's map-generation elevation grid and plans terrace cliffs. Vanilla does not read
-/// that grid as a height: every consumer compares it with fixed thresholds, so it is a rock/exposure classifier.
+/// Translates the geology into vanilla's map-generation grids and plans cliffs ("On" mode). Every cell is classified
+/// once by the ordered ground rules (<see cref="GroundRulesDef"/>, XML): water, rock, rough floor, marsh, mud, gravel
+/// or soil. The class sets the value in vanilla's elevation grid, which vanilla does not read as a height: every
+/// consumer compares it with fixed thresholds, so it is a rock/exposure classifier.
 /// <list type="bullet">
 /// <item>&gt; 0.70 rock wall (GenStep_RocksFromGrid); &gt; 0.728 thin roof; &gt; 0.798 thick roof (overhead mountain)</item>
 /// <item>0.61-0.70 rough stone floor, 0.55-0.61 gravel (MapGenUtility.TerrainFrom); soil by fertility below</item>
 /// <item>rock chunks only below 0.55; caves and cave hives only inside rock; ruins and structures only at 0.70 or below</item>
 /// </list>
-/// Bare rock deep inside a rock mass (from the natural landform) is mountain: mineable, roofed by depth. Other bare
-/// rock is rough stone; scree collects below rock; the rest is soil. The walkable ground is stepped into height
-/// stages, with a cliff band along every stage edge and steps along each band (<see cref="CliffPlan"/>).
+/// Water, marsh and mud are planned as ground cover and placed when vanilla picks terrain
+/// (<see cref="Patches.Patch_MapGenUtility_GetNaturalTerrainAt"/>). The walkable ground is stepped into height stages,
+/// with a cliff band along every stage edge on dry ground and steps along each band (<see cref="CliffPlan"/>).
 /// </summary>
 public static class VanillaTerrainWriter
 {
-    private const float ThickRoof = 0.82f;
-    private const float ThinRoof = 0.75f;
     private const float RockNoRoof = 0.71f;
     private const float RockFloor = 0.65f;
-    private const float Scree = 0.58f;
-    private const float Soil = 0.3f;
 
-    /// <param name="drainage">Drainage area (log10 cells) per cell, or null: dry washes are then left out.</param>
-    /// <param name="climate">Climate wetness 0..1 from tile rainfall.</param>
-    public static CliffPlan Write(Map map, float[] soilDepth, float[] landform, float cellSize, SoilModelExtension p, TerraceExtension terraces,
-        float[] drainage, float climate, GroundWriterExtension ground, RockStrata strata)
+    /// <summary>
+    /// The fields ground rules can test (<see cref="GroundFields"/>): every layer computed so far, plus the derived ones.
+    /// </summary>
+    public static GroundFields BuildFields(Map map, Environment.MapComponent_Environment environment, SoilModelExtension p, float cellSize, float climate)
+    {
+        int sizeX = map.Size.x, sizeZ = map.Size.z;
+        var fields = new GroundFields();
+        foreach (Environment.EnvironmentLayerDef layer in DefDatabase<Environment.EnvironmentLayerDef>.AllDefs)
+        {
+            if (environment.TryGetGrid(layer, out Environment.EnvironmentGrid grid))
+                fields.Add(layer.defName, grid.ToArray());
+        }
+        float[] soil = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SoilDepth, out var soilGrid) ? soilGrid.ToArray() : null;
+        float[] landform = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Landform, out var landformGrid) ? landformGrid.ToArray() : null;
+        float[] water = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SurfaceWater, out var waterGrid) ? waterGrid.ToArray() : null;
+        if (soil != null)
+        {
+            bool Bare(int i) => soil[i] < p.rockWallDepth;
+            float[] depth = GridMath.DistanceTo(i => !Bare(i), sizeX, sizeZ);
+            float[] distance = GridMath.DistanceTo(Bare, sizeX, sizeZ);
+            for (int i = 0; i < depth.Length; i++)
+            {
+                depth[i] *= cellSize;
+                distance[i] *= cellSize;
+            }
+            fields.Add("RockDepth", depth);
+            fields.Add("RockDistance", distance);
+        }
+        if (water != null)
+            fields.Add("WaterDistance", GridMath.DistanceTo(i => water[i] > 0f, sizeX, sizeZ));
+        if (landform != null)
+        {
+            var filled = (float[])landform.Clone();
+            GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
+            for (int i = 0; i < filled.Length; i++)
+                filled[i] -= landform[i];
+            fields.Add("Hollow", filled);
+        }
+        fields.AddConstant("Climate", climate);
+        return fields;
+    }
+
+    /// <summary>
+    /// Classifies every cell, writes vanilla's elevation grid, and plans cliffs. <paramref name="cover"/> receives the
+    /// ground the geology places itself (water, marsh, mud) per cell.
+    /// </summary>
+    public static CliffPlan Write(Map map, GroundFields fields, GroundRulesDef rules, float[] soilDepth, float[] landform, float cellSize,
+        SoilModelExtension p, TerraceExtension terraces, RockStrata strata, out GroundCover[] cover)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = soilDepth.Length;
-        bool IsExposed(int i) => soilDepth[i] < p.rockWallDepth;
-
-        float[] depthIntoRock = GridMath.DistanceTo(i => !IsExposed(i), sizeX, sizeZ);
-        float[] distanceToRock = GridMath.DistanceTo(IsExposed, sizeX, sizeZ);
-        float[] slope = GridMath.Slope(landform, sizeX, sizeZ);
-
+        int[] rule = fields.Classify(rules, n);
         var values = new float[n];
+        cover = new GroundCover[n];
+        var perRule = new int[rules.rules.Count];
         for (int i = 0; i < n; i++)
         {
-            float metresIntoRock = depthIntoRock[i] * cellSize;
-            if (IsExposed(i) && metresIntoRock >= p.massiveRockDepth)
-                values[i] = metresIntoRock >= p.thickRoofDepth ? ThickRoof : metresIntoRock >= p.thinRoofDepth ? ThinRoof : RockNoRoof;
-            else if (soilDepth[i] < p.rockFloorDepth)
-                values[i] = RockFloor;
-            else if (distanceToRock[i] * cellSize <= p.screeReach && slope[i] / cellSize >= p.screeMinSlope)
-                values[i] = Scree;
-            else
-                values[i] = Soil;
+            GroundRule r = rules.rules[rule[i]];
+            values[i] = r.elevation;
+            cover[i] = r.cover;
+            perRule[rule[i]]++;
         }
 
+        float[] depthIntoRock = GridMath.DistanceTo(i => soilDepth[i] >= p.rockWallDepth, sizeX, sizeZ);
         int passCells = strata == null ? 0 : OpenPasses(map, values, depthIntoRock, cellSize, strata, p);
 
-        // Dry washes: on dry tiles, flash floods scour drainage lines down to gravel.
-        int washes = 0;
-        if (drainage != null && climate < ground.washMaxClimate)
-        {
-            float washArea = Mathf.Lerp(ground.washAreaArid, ground.washAreaHumid, climate / ground.washMaxClimate);
-            for (int i = 0; i < n; i++)
-            {
-                if (values[i] == Soil && drainage[i] >= washArea)
-                {
-                    values[i] = Scree;
-                    washes++;
-                }
-            }
-        }
-
-        // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock.
+        // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
         var (stageHeight, stage, steepness) = Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
         var plan = new CliffPlan(n);
         int knobs = MakeRockKnobs(map, values, stage, steepness, terraces);
-        plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f);
+        GroundCover[] planned = cover;
+        plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f || GroundCovers.IsWater(planned[i]));
         int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);
         int bands = 0;
         for (int i = 0; i < n; i++)
@@ -80,6 +101,7 @@ public static class VanillaTerrainWriter
             if (plan.Kind[i] == CliffKind.None)
                 continue;
             values[i] = Mathf.Max(values[i], RockFloor);
+            cover[i] = GroundCover.None;
             if (plan.Kind[i] != CliffKind.Steps)
                 bands++;
         }
@@ -102,18 +124,18 @@ public static class VanillaTerrainWriter
         }
 
         MapGenFloatGrid elevation = MapGenerator.Elevation;
-        int rock = 0, floor = 0, scree = 0;
         for (int i = 0; i < n; i++)
-        {
             elevation[map.cellIndices.IndexToCell(i)] = values[i];
-            if (values[i] > 0.7f) rock++;
-            else if (values[i] == RockFloor) floor++;
-            else if (values[i] == Scree) scree++;
+
+        var shares = new List<string>();
+        for (int r = 0; r < perRule.Length; r++)
+        {
+            if (perRule[r] > 0)
+                shares.Add($"{rules.rules[r].label} {Percent(perRule[r], n)}");
         }
-        Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
-                    $"{knobs} cells of rock knobs; rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
-                    $"soil {Percent(n - rock - floor - scree, n)}; {passCells} pass cells, {sizeable} walkable areas (largest holds " +
-                    $"{Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
+        Log.Message($"[LivingLandscapes] Geological terrain written for {map}: {string.Join(", ", shares)}; stages of {stageHeight:F1} m, " +
+                    $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs, {passCells} pass cells; {sizeable} walkable areas " +
+                    $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
     }
 

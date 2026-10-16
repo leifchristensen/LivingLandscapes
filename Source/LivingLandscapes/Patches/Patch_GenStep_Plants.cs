@@ -22,12 +22,12 @@ public static class Patch_GenStep_Plants
     {
         try
         {
+            var environment = map.GetComponent<MapComponent_Environment>();
+            if (environment != null)
+                environment.PlannedCover = null;
             if (Geology.GeologicalTerrain.AppliesTo(map))
-            {
-                var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<Geology.GroundWriterExtension>() ?? new Geology.GroundWriterExtension();
-                Geology.StreamWriter.Apply(map, ground);
-            }
-            map.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
+                Geology.FlowWriter.Apply(map);
+            environment?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)
         {
@@ -45,7 +45,10 @@ public static class Patch_GenStep_Plants
         TestRun.OnMapGenerated(map);
     }
 
-    /// <summary>Lakes and ponds are still placed by vanilla after the cliffs; a cliff can't stand in water.</summary>
+    /// <summary>
+    /// Our own water is planned before cliffs, so cliffs avoid it; water vanilla paints later (the world river, coasts,
+    /// lake mutators) can still cover a cliff, and a cliff can't stand in water.
+    /// </summary>
     private static void RemoveCliffsInWater(Map map)
     {
         var drowned = new System.Collections.Generic.List<Thing>();

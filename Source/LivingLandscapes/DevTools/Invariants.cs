@@ -9,7 +9,7 @@ namespace LivingLandscapes.DevTools;
 
 /// <summary>
 /// Checks the water invariants of Docs/GEOLOGY-RULES.md section 9 on a generated map and reports them for the export
-/// summary: rivers never climb (1), lakes lie in closed depressions (2). Measured on LL_Height.
+/// summary: rivers never climb on the walkable height (1), lakes lie in closed depressions of the landform (2).
 /// </summary>
 public static class Invariants
 {
@@ -23,12 +23,12 @@ public static class Invariants
     public static void Report(Map map, StringBuilder summary)
     {
         var environment = map.GetComponent<MapComponent_Environment>();
-        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid grid))
+        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid grid)
+            || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform))
             return;
-        float[] h = grid.ToArray();
         int sizeX = map.Size.x, sizeZ = map.Size.z;
-        RiverDownhill(map, h, summary);
-        Lakes(map, h, sizeX, sizeZ, summary);
+        RiverDownhill(map, grid.ToArray(), summary);
+        Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
     }
 
     /// <summary>

@@ -18,32 +18,14 @@ public class GroundWriterExtension : DefModExtension
 
     /// <summary>Soil depth (metres) counted as fully deep for the fertility score.</summary>
     public float deepSoil = 2f;
-
-    /// <summary>
-    /// Dry washes: drainage lines (log10 upslope cells) whose beds are scoured to gravel. On the driest tiles from
-    /// <see cref="washAreaArid"/>; the threshold rises with climate wetness and washes stop at <see cref="washMaxClimate"/>,
-    /// where vegetation holds the channels and wetness shows them instead.
-    /// </summary>
-    public float washAreaArid = 2.4f;
-    public float washAreaHumid = 3.2f;
-    public float washMaxClimate = 0.6f;
-
-    /// <summary>
-    /// Streams: standing shallow water on a drainage line of at least this area (log10 cells), no more than
-    /// <see cref="streamMaxHalfWidth"/> cells from its bank, becomes moving water (<see cref="StreamWriter"/>).
-    /// </summary>
-    public float streamArea = 2.8f;
-    public float streamMaxHalfWidth = 3f;
-
-    /// <summary>Noise mixed into wetness for the biome's wet patches (mud, marsh, ponds), so their edges look natural.</summary>
-    public float wetPatchNoise = 0.2f;
 }
 
 /// <summary>
-/// Makes vanilla's ground follow the geology ("On" mode). Vanilla picks soil, rich soil, sand and so on from its
-/// fertility grid, and mud, marsh and ponds from each biome's patch-maker noise. Both are rank-mapped from our fields:
-/// the wettest, deepest-soiled cells get vanilla's highest fertility values, the wettest cells get the patch makers'
-/// highest noise values. Each biome keeps its own share of every ground type; only where it lies changes.
+/// Makes vanilla's soils follow the geology ("On" mode). Vanilla picks soil, rich soil, sand and so on from its
+/// fertility grid, and patches (rich soil, moss...) from each biome's patch-maker noise. Both are rank-mapped from our
+/// fields: the wettest, deepest-soiled cells get vanilla's highest fertility values and the patch makers' highest
+/// noise values. Each biome keeps its own share of every soil type; only where it lies changes. Water, marsh and mud
+/// are not left to noise: the ground rules place them from the surface water model.
 /// </summary>
 public static class GroundWriter
 {
@@ -74,7 +56,7 @@ public static class GroundWriter
         for (int i = 0; i < n; i++)
             fertility[map.cellIndices.IndexToCell(i)] = ranked[i];
 
-        // Wet patches (mud, marsh, ponds, rich soil rings) in the wettest ground; never on rock or rough stone.
+        // Soil patches (rich soil, moss...) in the wettest ground; never on rock or rough stone.
         MapGenFloatGrid elevation = MapGenerator.Elevation;
         int wetMakers = 0;
         foreach (TerrainPatchMaker maker in map.Biome.terrainPatchMakers)
@@ -89,24 +71,26 @@ public static class GroundWriter
             {
                 IntVec3 c = map.cellIndices.IndexToCell(i);
                 reference[i] = (float)own.GetValue(c.x, 0.0, c.z);
-                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.wetPatchNoise * reference[i];
+                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityNoise * reference[i];
             }
             PatchNoise(maker) = new GridNoise(RankMap(wet, reference), sizeX, sizeZ);
             PatchMap(maker) = map;
             wetMakers++;
         }
-        Log.Message($"[LivingLandscapes] Ground follows wetness and soil on {map}: fertility rank-mapped, {wetMakers} wet patch makers steered.");
+        Log.Message($"[LivingLandscapes] Ground follows wetness and soil on {map}: fertility rank-mapped, {wetMakers} soil patch makers steered.");
     }
 
-    /// <summary>Patch makers that make wet ground: water, mud, marsh or richer-than-normal soil.</summary>
+    /// <summary>
+    /// Patch makers of wet or rich ground. Steered toward wet cells so their rich soil lies there; their water, marsh
+    /// and mud are replaced (<see cref="Patches.Patch_MapGenUtility_GetNaturalTerrainAt"/>) because the ground rules
+    /// place those.
+    /// </summary>
     private static bool IsWetPatchMaker(TerrainPatchMaker maker)
     {
         foreach (TerrainThreshold threshold in maker.thresholds)
         {
             TerrainDef t = threshold.terrain;
-            if (t == null)
-                continue;
-            if (t.IsWater || t.defName.Contains("Mud") || t.defName.Contains("Marsh") || t.fertility > 1f)
+            if (t != null && (GroundCovers.IsWetGround(t) || t.fertility > 1f))
                 return true;
         }
         return false;

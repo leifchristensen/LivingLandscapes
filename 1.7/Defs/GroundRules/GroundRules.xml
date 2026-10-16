@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Ground rules (soil and surface rule S3): every cell takes the first rule whose conditions all hold
+    (min inclusive, max exclusive). Fields: any environment layer by defName, plus RockDepth and RockDistance (metres
+    into / to bare rock), WaterDistance (cells to surface water), Hollow (metres below a closed hollow's spill level)
+    and Climate (0..1 from tile rainfall). elevation is the value written into vanilla's elevation grid
+    (> 0.798 overhead mountain, > 0.728 thin roof, > 0.70 rock wall, 0.61-0.70 rough stone, 0.55-0.61 gravel,
+    below that soil chosen by fertility). cover places water, marsh or mud.
+  -->
+  <LivingLandscapes.Geology.GroundRulesDef>
+    <defName>LL_GroundRules</defName>
+    <label>ground rules</label>
+    <rules>
+      <li>
+        <label>deep water</label>
+        <conditions>
+          <li><field>LL_SurfaceWater</field><min>0.5</min></li>
+          <li><field>LL_WaterFlow</field><max>0.01</max></li>
+        </conditions>
+        <cover>DeepWater</cover>
+      </li>
+      <li>
+        <label>deep moving water</label>
+        <conditions>
+          <li><field>LL_SurfaceWater</field><min>0.85</min></li>
+        </conditions>
+        <cover>DeepMovingWater</cover>
+      </li>
+      <li>
+        <label>stream</label>
+        <conditions>
+          <li><field>LL_SurfaceWater</field><min>0.01</min></li>
+          <li><field>LL_WaterFlow</field><min>0.01</min></li>
+        </conditions>
+        <cover>ShallowMovingWater</cover>
+      </li>
+      <li>
+        <label>shallow water</label>
+        <conditions>
+          <li><field>LL_SurfaceWater</field><min>0.01</min></li>
+        </conditions>
+        <cover>ShallowWater</cover>
+      </li>
+      <li>
+        <label>overhead mountain</label>
+        <conditions>
+          <li><field>RockDepth</field><min>7</min></li>
+        </conditions>
+        <elevation>0.82</elevation>
+      </li>
+      <li>
+        <label>mountain</label>
+        <conditions>
+          <li><field>RockDepth</field><min>4</min></li>
+        </conditions>
+        <elevation>0.75</elevation>
+      </li>
+      <li>
+        <label>rough stone</label>
+        <conditions>
+          <li><field>LL_SoilDepth</field><max>0.3</max></li>
+        </conditions>
+        <elevation>0.65</elevation>
+      </li>
+      <li>
+        <label>marsh</label>
+        <conditions>
+          <li><field>LL_Wetness</field><min>0.88</min></li>
+          <li><field>Climate</field><min>0.5</min></li>
+        </conditions>
+        <cover>Marsh</cover>
+      </li>
+      <li>
+        <label>hollow marsh</label>
+        <conditions>
+          <li><field>Hollow</field><min>0.1</min></li>
+          <li><field>Climate</field><min>0.4</min></li>
+        </conditions>
+        <cover>Marsh</cover>
+      </li>
+      <li>
+        <label>mud</label>
+        <conditions>
+          <li><field>LL_Wetness</field><min>0.8</min></li>
+        </conditions>
+        <cover>Mud</cover>
+      </li>
+      <li>
+        <label>shore mud</label>
+        <conditions>
+          <li><field>WaterDistance</field><max>1.5</max></li>
+          <li><field>LL_Wetness</field><min>0.6</min></li>
+        </conditions>
+        <cover>Mud</cover>
+      </li>
+      <li>
+        <label>scree</label>
+        <conditions>
+          <li><field>RockDistance</field><max>5</max></li>
+          <li><field>LL_Slope</field><min>0.2</min></li>
+        </conditions>
+        <elevation>0.58</elevation>
+      </li>
+      <li>
+        <label>dry wash</label>
+        <conditions>
+          <li><field>Climate</field><max>0.3</max></li>
+          <li><field>LL_DrainageArea</field><min>2.4</min></li>
+        </conditions>
+        <elevation>0.58</elevation>
+      </li>
+      <li>
+        <label>wash</label>
+        <conditions>
+          <li><field>Climate</field><max>0.6</max></li>
+          <li><field>LL_DrainageArea</field><min>2.8</min></li>
+        </conditions>
+        <elevation>0.58</elevation>
+      </li>
+      <li>
+        <label>soil</label>
+        <elevation>0.3</elevation>
+      </li>
+    </rules>
+  </LivingLandscapes.Geology.GroundRulesDef>
+
+</Defs>

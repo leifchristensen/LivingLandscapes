@@ -14,6 +14,8 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Slope;
     public static EnvironmentLayerDef LL_Aspect;
     public static EnvironmentLayerDef LL_Wetness;
+    public static EnvironmentLayerDef LL_SurfaceWater;
+    public static EnvironmentLayerDef LL_WaterFlow;
     public static EnvironmentLayerDef LL_WaterDistance;
     public static EnvironmentLayerDef LL_Moisture;
 
