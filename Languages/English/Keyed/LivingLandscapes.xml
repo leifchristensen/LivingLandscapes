@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+
+  <LL_SettingsCategory>Living Landscapes</LL_SettingsCategory>
+  <LL_None>none</LL_None>
+
+  <LL_GeologicalTerrain>Geologically driven terrain</LL_GeologicalTerrain>
+  <LL_GeologicalTerrainTip>On: new maps are reshaped by geological rules. Off: Living Landscapes only reads the terrain that map generation produced. Existing maps are never changed.</LL_GeologicalTerrainTip>
+  <LL_GeologicalTerrainDesc>Shapes new maps from geology: lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn this off if you use a mod that changes map terrain and isn't listed as supported below; plants will still follow the terrain that mod creates. Only affects newly generated maps.
+
+In development: this option has no effect yet.</LL_GeologicalTerrainDesc>
+
+  <LL_SupportedTerrainMods>Supported terrain and world mods active: {0}</LL_SupportedTerrainMods>
+  <LL_UnsupportedTerrainMods>Other mods that change terrain generation: {0}. If maps look wrong, turn geologically driven terrain off.</LL_UnsupportedTerrainMods>
+
+</LanguageData>
