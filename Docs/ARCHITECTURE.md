@@ -126,6 +126,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.
 
 ## Roadmap / open items
+Latest review (data, principles, gaps against the targets, systemic clean-up plan): `Docs/PROJECT-REVIEW.md`.
 Current focus: geological features that read well on the map, worked from the owner's reference maps in
 `Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain; 9: cove with a cave river; 10: broad valley between ranges, bridge). The rules that produce them, and the build order, are in
 `Docs/GEOLOGY-RULES.md`; it supersedes items 1, 2, 4 and 5 below where they overlap.
