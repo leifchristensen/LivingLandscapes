@@ -35,6 +35,26 @@ public static class Patch_GenStep_Plants
         int plants = map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).Count;
         Log.Message($"[LivingLandscapes] GenStep_Plants finished on {map} ({map.Biome?.defName}), {plants} plants on map.");
 
+        SpawnTalus(map);
         TestRun.OnMapGenerated(map);
+    }
+
+    /// <summary>Scatters the rock chunks planned below cliff faces, where the ground is now dry and open.</summary>
+    private static void SpawnTalus(Map map)
+    {
+        var environment = map.GetComponent<MapComponent_Environment>();
+        var talus = environment?.PlannedTalus;
+        if (talus == null)
+            return;
+        environment.PlannedTalus = null;
+        int spawned = 0;
+        foreach ((IntVec3 cell, ThingDef chunk) in talus)
+        {
+            if (!cell.InBounds(map) || !cell.Standable(map) || cell.GetFirstItem(map) != null || cell.GetTerrain(map).IsWater)
+                continue;
+            GenSpawn.Spawn(chunk, cell, map);
+            spawned++;
+        }
+        Log.Message($"[LivingLandscapes] Scattered {spawned} talus chunks below cliffs on {map}.");
     }
 }

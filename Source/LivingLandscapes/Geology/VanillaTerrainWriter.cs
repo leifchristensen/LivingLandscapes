@@ -45,10 +45,17 @@ public static class VanillaTerrainWriter
             }
             else if (IsExposed(i) && gradient >= p.scarpSlope)
             {
-                // Steep bare rock face: the ground is rough stone, the cliff stands on it.
-                plan.Kind[i] = gradient >= p.sheerSlope ? CliffKind.Sheer : CliffKind.Scarp;
-                plan.Facing[i] = CliffPlan.DownhillFacing(height, sizeX, sizeZ, i);
+                // Steep bare rock: rough stone, stepped by ledges. A cliff piece marks each ledge, where the ground
+                // drops past a multiple of the ledge interval towards its downhill neighbour.
                 values[i] = RockFloor;
+                Rot4 facing = CliffPlan.DownhillFacing(height, sizeX, sizeZ, i);
+                IntVec3 below = map.cellIndices.IndexToCell(i) + facing.FacingCell;
+                if (below.InBounds(map)
+                    && Mathf.FloorToInt(height[i] / p.ledgeInterval) != Mathf.FloorToInt(height[map.cellIndices.CellToIndex(below)] / p.ledgeInterval))
+                {
+                    plan.Kind[i] = gradient >= p.sheerSlope ? CliffKind.Sheer : CliffKind.Scarp;
+                    plan.Facing[i] = facing;
+                }
             }
             else if (soilDepth[i] < p.rockFloorDepth)
             {
@@ -64,12 +71,6 @@ public static class VanillaTerrainWriter
             }
         }
 
-        // Cliffs must not strand walkable ground. Mountain rock counts as walkable: it can be dug through.
-        var walkable = new bool[n];
-        for (int i = 0; i < n; i++)
-            walkable[i] = true;
-        int opened = plan.EnsureConnected(walkable, sizeX, sizeZ);
-
         MapGenFloatGrid elevation = MapGenerator.Elevation;
         int rock = 0, floor = 0, scree = 0, sheer = 0, scarp = 0;
         for (int i = 0; i < n; i++)
@@ -82,7 +83,7 @@ public static class VanillaTerrainWriter
             else if (values[i] == Scree) scree++;
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: rock {Percent(rock, n)}, sheer cliff {Percent(sheer, n)}, " +
-                    $"scarp {Percent(scarp, n)} ({opened} opened for access), rock floor {Percent(floor, n)}, scree {Percent(scree, n)}, " +
+                    $"scarp {Percent(scarp, n)}, rock floor {Percent(floor, n)}, scree {Percent(scree, n)}, " +
                     $"soil {Percent(n - rock - sheer - scarp - floor - scree, n)}.");
         return plan;
     }

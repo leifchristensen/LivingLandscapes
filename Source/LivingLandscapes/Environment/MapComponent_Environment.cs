@@ -32,6 +32,9 @@ public class MapComponent_Environment : MapComponent
     /// <summary>Cliffs planned by the geology during generation, spawned after vanilla places rock. Not saved.</summary>
     public Geology.CliffPlan PlannedCliffs { get; set; }
 
+    /// <summary>Rock chunks to scatter below cliff faces once terrain and water are final. Not saved.</summary>
+    public System.Collections.Generic.List<(IntVec3 cell, ThingDef chunk)> PlannedTalus { get; set; }
+
     public EnvironmentOverlay Overlay { get; }
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);

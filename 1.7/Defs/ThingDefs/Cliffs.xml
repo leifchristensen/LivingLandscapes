@@ -3,28 +3,27 @@
 
   <!--
     Cliffs: steep natural rock faces placed by geological terrain where the ground is too steep to hold soil.
-    Unlike mountain rock they can't be mined or destroyed; they shape movement, sight lines and cover.
-    Graphics are placeholders (tinted vanilla rock atlas) until dedicated cliff art exists.
+    Pieces are 1-3 cells long along the cliff line and face downhill (rotation = downhill direction), so their art
+    shows which way the ground drops. They can be crossed, very slowly, but can't be mined or destroyed.
+    Each piece is made of the local rock and takes its colour and name ("granite cliff").
+    Placeholder art from Source/Tools/generate_cliff_art.py.
   -->
 
   <ThingDef Name="LL_CliffBase" ParentName="BuildingNaturalBase" Abstract="True">
-    <thingClass>Building</thingClass>
+    <thingClass>LivingLandscapes.Geology.Building_Cliff</thingClass>
     <graphicData>
-      <texPath>Things/Building/Linked/Rock_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>Rock</li>
-        <li>MapEdge</li>
-      </linkFlags>
+      <!-- Greyscale sprite plus mask (_northm etc.): red takes the rock's colour, green the biome's lichen colour. -->
+      <shaderType>CutoutComplex</shaderType>
     </graphicData>
     <altitudeLayer>Building</altitudeLayer>
+    <rotatable>true</rotatable>
     <useHitPoints>false</useHitPoints>
-    <neverMultiSelect>true</neverMultiSelect>
-    <rotatable>false</rotatable>
+    <passability>PassThroughOnly</passability>
+    <pathCostIgnoreRepeat>false</pathCostIgnoreRepeat>
     <saveCompressible>true</saveCompressible>
     <fertility>0</fertility>
     <canOverlapZones>false</canOverlapZones>
+    <castEdgeShadows>true</castEdgeShadows>
     <statBases>
       <Flammability>0</Flammability>
     </statBases>
@@ -37,35 +36,83 @@
     </building>
   </ThingDef>
 
-  <ThingDef ParentName="LL_CliffBase">
-    <defName>LL_CliffSheer</defName>
+  <!-- Sheer cliff: a steep rock face. Climbing it takes a long time, and it blocks sight like a wall. -->
+  <ThingDef Name="LL_CliffSheerBase" ParentName="LL_CliffBase" Abstract="True">
     <label>cliff</label>
-    <description>A sheer face of bare rock, too steep to climb. It blocks movement and sight, and can't be mined away.</description>
-    <graphicData>
-      <color>(0.50, 0.46, 0.42)</color>
-    </graphicData>
-    <passability>Impassable</passability>
+    <description>A steep face of bare rock. It can be climbed, but very slowly, and nobody can see through it. It can't be mined away.</description>
+    <pathCost>600</pathCost>
     <fillPercent>1</fillPercent>
     <blockWind>true</blockWind>
-    <blockLight>true</blockLight>
-    <castEdgeShadows>true</castEdgeShadows>
-    <staticSunShadowHeight>1.0</staticSunShadowHeight>
-    <coversFloor>true</coversFloor>
+    <staticSunShadowHeight>0.8</staticSunShadowHeight>
   </ThingDef>
 
-  <ThingDef ParentName="LL_CliffBase">
-    <defName>LL_CliffScarp</defName>
+  <!-- Scarp: steep broken rock. Slow to scramble over, gives cover without blocking sight. -->
+  <ThingDef Name="LL_CliffScarpBase" ParentName="LL_CliffBase" Abstract="True">
     <label>rocky scarp</label>
-    <description>A steep, broken rock slope. It can be scrambled over, slowly, and gives some cover to anyone behind it.</description>
-    <graphicData>
-      <color>(0.66, 0.62, 0.56)</color>
-    </graphicData>
-    <passability>PassThroughOnly</passability>
+    <description>A steep slope of broken rock. It can be scrambled over slowly, and gives good cover to anyone behind it.</description>
     <pathCost>150</pathCost>
-    <pathCostIgnoreRepeat>false</pathCostIgnoreRepeat>
     <fillPercent>0.6</fillPercent>
-    <castEdgeShadows>true</castEdgeShadows>
-    <staticSunShadowHeight>0.4</staticSunShadowHeight>
+    <staticSunShadowHeight>0.35</staticSunShadowHeight>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffSheerBase">
+    <defName>LL_CliffSmall</defName>
+    <size>(1,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Cliff/Cliff1</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(1,1)</drawSize>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffSheerBase">
+    <defName>LL_CliffMedium</defName>
+    <size>(2,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Cliff/Cliff2</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(2,1)</drawSize>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffSheerBase">
+    <defName>LL_CliffLarge</defName>
+    <size>(3,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Cliff/Cliff3</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(3,1)</drawSize>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffScarpBase">
+    <defName>LL_ScarpSmall</defName>
+    <size>(1,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Scarp/Scarp1</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(1,1)</drawSize>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffScarpBase">
+    <defName>LL_ScarpMedium</defName>
+    <size>(2,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Scarp/Scarp2</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(2,1)</drawSize>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef ParentName="LL_CliffScarpBase">
+    <defName>LL_ScarpLarge</defName>
+    <size>(3,1)</size>
+    <graphicData>
+      <texPath>Things/Building/LivingLandscapes/Scarp/Scarp3</texPath>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(3,1)</drawSize>
+    </graphicData>
   </ThingDef>
 
 </Defs>
