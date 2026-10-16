@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LivingLandscapes.Environment;
 using UnityEngine;
 using Verse;
 
@@ -48,6 +49,23 @@ public class OverlayProperties
     public int autoContourCount;
 
     /// <summary>
+    /// Draw as a vector field instead of shaded cells: arrows point along <see cref="directionLayer"/> (radians
+    /// counter-clockwise from east), coloured by this layer's ramp and longer where its value is higher.
+    /// </summary>
+    public EnvironmentLayerDef directionLayer;
+
+    /// <summary>One arrow every this many cells in each direction.</summary>
+    public int arrowSpacing = 3;
+
+    /// <summary>Longest arrow, as a share of <see cref="arrowSpacing"/>.</summary>
+    public float arrowScale = 0.9f;
+
+    /// <summary>Texture path of this layer's map toggle button; the generic overlay icon when empty.</summary>
+    public string icon;
+
+    public bool IsVectorField => directionLayer != null;
+
+    /// <summary>
     /// The style for one map's value range: relative colour stops become absolute and an automatic contour interval
     /// is picked. Returns this instance when nothing depends on the range.
     /// </summary>
@@ -92,6 +110,8 @@ public class OverlayProperties
             yield return "overlay is banded but has no contourInterval or autoContourCount.";
         if (indexEvery < 1)
             yield return "overlay indexEvery must be at least 1.";
+        if (IsVectorField && arrowSpacing < 1)
+            yield return "overlay arrowSpacing must be at least 1.";
     }
 
     /// <summary>Fill colour for a value, flattened to its band when <see cref="banded"/> is set.</summary>

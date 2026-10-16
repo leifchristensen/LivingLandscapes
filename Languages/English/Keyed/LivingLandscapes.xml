@@ -4,8 +4,9 @@
   <LL_SettingsCategory>Living Landscapes</LL_SettingsCategory>
   <LL_None>none</LL_None>
   <LL_CliffDrop>Drop: {0} m</LL_CliffDrop>
-  <LL_OverlayToggleTip>Living Landscapes environment overlay: {0}.
-Click to choose a layer (height, soil, drainage, moisture...).</LL_OverlayToggleTip>
+  <LL_OverlayToggleTip>Living Landscapes overlay: {0}.
+{1}
+Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleTip>
 
   <LL_GeologicalTerrain>Geologically driven terrain</LL_GeologicalTerrain>
   <LL_GeologicalTerrainTip>On: new maps are reshaped by geological rules. Off: Living Landscapes only reads the terrain that map generation produced. Existing maps are never changed.</LL_GeologicalTerrainTip>

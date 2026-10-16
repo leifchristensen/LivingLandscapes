@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using HarmonyLib;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Overlay;
@@ -10,8 +8,8 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// Adds the environment overlay button to the map toggles in the lower right corner. Clicking it lists the current
-/// map's layers; the button is highlighted while one is shown.
+/// Adds one map toggle per environment overlay to the lower right corner, beside vanilla's. Each button shows or hides
+/// its layer and is highlighted while active, so several layers can be compared at once.
 /// </summary>
 [HarmonyPatch(typeof(PlaySettings), nameof(PlaySettings.DoPlaySettingsGlobalControls))]
 public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
@@ -22,27 +20,15 @@ public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
     {
         if (worldView || row == null)
             return;
-        var environment = Find.CurrentMap?.GetComponent<MapComponent_Environment>();
-        if (environment == null)
+        EnvironmentOverlay overlay = Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.Overlay;
+        if (overlay == null)
             return;
-        List<EnvironmentLayerDef> layers = environment.Overlay.Available.ToList();
-        if (layers.Count == 0)
-            return;
-
-        EnvironmentLayerDef selected = environment.Overlay.Selected;
-        string tooltip = "LL_OverlayToggleTip".Translate(selected != null ? selected.LabelCap.ToString() : "LL_None".Translate().ToString());
-        if (!row.ButtonIcon(OverlayTextures.Toggle, tooltip, backgroundColor: selected != null ? ActiveBackground : (Color?)null))
-            return;
-
-        var options = new List<FloatMenuOption>
+        foreach (EnvironmentLayerDef layer in overlay.Available)
         {
-            new FloatMenuOption("LL_None".Translate().CapitalizeFirst(), () => environment.Overlay.Select(null)),
-        };
-        foreach (EnvironmentLayerDef layer in layers)
-        {
-            string label = layer == selected ? $"{layer.LabelCap} ✓" : layer.LabelCap.ToString();
-            options.Add(new FloatMenuOption(label, () => environment.Overlay.Select(layer)));
+            bool on = overlay.IsActive(layer);
+            string tooltip = "LL_OverlayToggleTip".Translate(layer.LabelCap, layer.description);
+            if (row.ButtonIcon(OverlayTextures.IconFor(layer), tooltip, backgroundColor: on ? ActiveBackground : (Color?)null))
+                overlay.Toggle(layer);
         }
-        Find.WindowStack.Add(new FloatMenu(options));
     }
 }

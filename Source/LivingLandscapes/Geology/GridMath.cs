@@ -314,14 +314,45 @@ public static class GridMath
         {
             for (int x = 0; x < sizeX; x++)
             {
-                int x0 = Mathf.Max(x - 1, 0), x1 = Mathf.Min(x + 1, sizeX - 1);
-                int z0 = Mathf.Max(z - 1, 0), z1 = Mathf.Min(z + 1, sizeZ - 1);
-                float dx = (h[z * sizeX + x1] - h[z * sizeX + x0]) / (x1 - x0);
-                float dz = (h[z1 * sizeX + x] - h[z0 * sizeX + x]) / (z1 - z0);
+                Gradient(h, sizeX, sizeZ, x, z, out float dx, out float dz);
                 slope[z * sizeX + x] = Mathf.Sqrt(dx * dx + dz * dz);
             }
         }
         return slope;
+    }
+
+    /// <summary>
+    /// Aspect: the downhill direction of each cell in radians, counter-clockwise from east (0 = east, π/2 = north,
+    /// π = west, 3π/2 = south), in 0..2π. Flat cells get 0. With <see cref="Slope"/> it forms the slope vector field.
+    /// </summary>
+    public static float[] Aspect(float[] h, int sizeX, int sizeZ)
+    {
+        var aspect = new float[h.Length];
+        for (int z = 0; z < sizeZ; z++)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                Gradient(h, sizeX, sizeZ, x, z, out float dx, out float dz);
+                float angle = Mathf.Atan2(-dz, -dx);
+                aspect[z * sizeX + x] = angle < 0f ? angle + 2f * Mathf.PI : angle;
+            }
+        }
+        return aspect;
+    }
+
+    /// <summary>
+    /// How steeply the ground falls toward <paramref name="direction"/> (radians, as <see cref="Aspect"/>): the slope
+    /// where it faces that way, 0 across it, negative where the ground rises that way.
+    /// </summary>
+    public static float SlopeToward(float slope, float aspect, float direction) => slope * Mathf.Cos(aspect - direction);
+
+    /// <summary>Uphill gradient at one cell (height units per cell), central differences, one-sided at the edges.</summary>
+    private static void Gradient(float[] h, int sizeX, int sizeZ, int x, int z, out float dx, out float dz)
+    {
+        int x0 = Mathf.Max(x - 1, 0), x1 = Mathf.Min(x + 1, sizeX - 1);
+        int z0 = Mathf.Max(z - 1, 0), z1 = Mathf.Min(z + 1, sizeZ - 1);
+        dx = (h[z * sizeX + x1] - h[z * sizeX + x0]) / (x1 - x0);
+        dz = (h[z1 * sizeX + x] - h[z0 * sizeX + x]) / (z1 - z0);
     }
 
     /// <summary>Labels 4-connected regions where <paramref name="member"/> is true; -1 elsewhere. Returns the region count.</summary>
