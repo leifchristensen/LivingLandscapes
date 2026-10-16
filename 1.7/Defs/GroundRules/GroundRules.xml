@@ -58,9 +58,17 @@
         <elevation>0.75</elevation>
       </li>
       <li>
-        <label>rough stone</label>
+        <label>bare rock</label>
+        <conditions>
+          <li><field>RockDepth</field><min>0.5</min></li>
+        </conditions>
+        <elevation>0.65</elevation>
+      </li>
+      <li>
+        <label>outcrop</label>
         <conditions>
           <li><field>LL_SoilDepth</field><max>0.3</max></li>
+          <li><field>LL_RockStrength</field><min>0.5</min></li>
         </conditions>
         <elevation>0.65</elevation>
       </li>
@@ -98,8 +106,7 @@
       <li>
         <label>scree</label>
         <conditions>
-          <li><field>RockDistance</field><max>5</max></li>
-          <li><field>LL_Slope</field><min>0.2</min></li>
+          <li><field>LL_Debris</field><min>1</min></li>
         </conditions>
         <elevation>0.58</elevation>
       </li>

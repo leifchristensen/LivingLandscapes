@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!--
@@ -171,9 +171,34 @@
         <bareSlopeOnWeakRock>1.3</bareSlopeOnWeakRock>
         <bareSlopeOnStrongRock>0.5</bareSlopeOnStrongRock>
         <rockWallDepth>0.15</rockWallDepth>
-        <passHalfWidth>3</passHalfWidth>
-        <passMaxDepth>12</passMaxDepth>
-        <passMinOpen>0.25</passMinOpen>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Debris</defName>
+    <label>rock debris</label>
+    <description>Rock fragments shed by bare rock faces, collected where they come to rest as the slope eases: the number of faces feeding each cell. Scree lies where it is high.</description>
+    <workerClass>LivingLandscapes.Layers.DebrisWorker</workerClass>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_SoilDepth</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.6, 0.6, 0.6, 0)</color></li>
+        <li><value>1</value><color>(0.6, 0.55, 0.5, 0.6)</color></li>
+        <li><value>10</value><color>(0.3, 0.25, 0.2, 1)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.DebrisExtension">
+        <faceSlope>0.5</faceSlope>
+        <restSlope>0.25</restSlope>
+        <maxRun>40</maxRun>
+        <spread>1.5</spread>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

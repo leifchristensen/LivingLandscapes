@@ -39,9 +39,8 @@ public static class Patch_GenStep_ElevationFertility_Generate
             var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<GroundWriterExtension>() ?? new GroundWriterExtension();
             GroundFields fields = VanillaTerrainWriter.BuildFields(map, environment, soilModel, generation.cellSize, wetnessModel.ClimateOf(map));
             environment.PlannedCliffs = VanillaTerrainWriter.Write(map, fields, DefDatabase<GroundRulesDef>.GetNamed("LL_GroundRules"),
-                soil.ToArray(), landform.ToArray(), generation.cellSize, soilModel, terraces, environment.PlannedStrata, out GroundCover[] cover);
+                soil.ToArray(), landform.ToArray(), generation.cellSize, terraces, out GroundCover[] cover);
             environment.PlannedCover = cover;
-            environment.PlannedStrata = null;
             if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Wetness, out EnvironmentGrid wetness))
                 GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground);
         }

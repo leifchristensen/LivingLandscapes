@@ -42,6 +42,7 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_SoilDepth | soil thickness from slope, convergence and rock strength (`SoilModelExtension`) |
 | LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled landform, log10 cells |
 | LL_Wetness | topographic wetness 0..1: wetness index + height above the drainage line a cell drains to, sharpened on dry tiles |
+| LL_Debris | rockfall debris collected where the slope eases below bare rock faces (faces feeding each cell) |
 | LL_SurfaceWater | water depth (m): lakes fill closed hollows to the water-balance level (rain on the catchment vs evaporation from tile temperature), streams where drainage area x climate passes `streamArea`, width ~ sqrt(area) |
 | LL_WaterFlow | flow speed 0..1 in stream channels (0 in lakes); moving water in game |
 | LL_Slope | rise over run of LL_Landform (hydrology and slope read the natural surface; terraces only shape walking and cliffs); drawn as a vector field using LL_Aspect |
@@ -70,9 +71,10 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `GroundWriter`: vanilla's fertility grid and the biome's rich-soil patch makers are rank-mapped from wetness and soil
   depth, so each biome keeps its soil shares but rich soil sits where water collects. Water, marsh and mud never come
   from vanilla noise.
-- Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
-  ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
-  rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
+- Passes: ridges must not be unbroken walls in a 2D map. Open joints weaken the rock (`jointWeakness`), so erosion
+  notches ridges along them and soil holds there; no separate pass-cutting step. The writer logs walkable areas.
+- `LL_Debris` (rule S4): fragments from bare rock faces roll down the steepest way until the slope eases and collect
+  there; scree lies where debris is high (fans and aprons below rock instead of a fixed-width ring).
 - `FlowWriter`: stream flow (LL_WaterFlow, smoothed downhill direction) into vanilla's river flow map, so streams
   animate and turn watermills; rewritten after vanilla's own river rebuilds the map after fog.
 - `SoilModel` (soil depth: thinner, and bare at gentler slopes, on strong rock), `VanillaTerrainWriter` (runs the

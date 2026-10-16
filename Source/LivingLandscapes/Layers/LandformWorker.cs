@@ -38,7 +38,6 @@ public class LandformWorker : EnvironmentLayerWorker
                 environment.PlannedRiverCourse = riverCourse;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRock = rock;
-                environment.PlannedStrata = strata;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +

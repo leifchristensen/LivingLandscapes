@@ -70,7 +70,7 @@ public static class VanillaTerrainWriter
     /// ground the geology places itself (water, marsh, mud) per cell.
     /// </summary>
     public static CliffPlan Write(Map map, GroundFields fields, GroundRulesDef rules, float[] soilDepth, float[] landform, float cellSize,
-        SoilModelExtension p, TerraceExtension terraces, RockStrata strata, out GroundCover[] cover)
+        TerraceExtension terraces, out GroundCover[] cover)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = soilDepth.Length;
         int[] rule = fields.Classify(rules, n);
@@ -84,9 +84,6 @@ public static class VanillaTerrainWriter
             cover[i] = r.cover;
             perRule[rule[i]]++;
         }
-
-        float[] depthIntoRock = GridMath.DistanceTo(i => soilDepth[i] >= p.rockWallDepth, sizeX, sizeZ);
-        int passCells = strata == null ? 0 : OpenPasses(map, values, depthIntoRock, cellSize, strata, p);
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
         var (stageHeight, stage, steepness) = Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
@@ -134,71 +131,9 @@ public static class VanillaTerrainWriter
                 shares.Add($"{rules.rules[r].label} {Percent(perRule[r], n)}");
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: {string.Join(", ", shares)}; stages of {stageHeight:F1} m, " +
-                    $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs, {passCells} pass cells; {sizeable} walkable areas " +
+                    $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs; {sizeable} walkable areas " +
                     $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
-    }
-
-    /// <summary>
-    /// Passes: ridges in a 2D map must not be unbroken walls. Where an open joint crosses a ridge (its line within 45
-    /// degrees of the ridge's across direction), weathering has opened it into a gap of rough stone. The across
-    /// direction comes from the structure tensor of the smoothed rock mask, which is reliable even on a ridge's crest.
-    /// Only rock near the edge of a rock mass is opened, so massive mountain interiors stay solid.
-    /// </summary>
-    private static int OpenPasses(Map map, float[] values, float[] depthIntoRock, float cellSize, RockStrata strata, SoilModelExtension p)
-    {
-        int sizeX = map.Size.x, sizeZ = map.Size.z, n = values.Length;
-        var ones = new float[n];
-        var wall = new float[n];
-        for (int i = 0; i < n; i++)
-        {
-            ones[i] = 1f;
-            wall[i] = values[i] > 0.7f ? 1f : 0f;
-        }
-        float[] smooth = GridMath.MaskedBlur(wall, ones, sizeX, sizeZ, 2f);
-        var jxx = new float[n];
-        var jxz = new float[n];
-        var jzz = new float[n];
-        for (int z = 0; z < sizeZ; z++)
-        {
-            for (int x = 0; x < sizeX; x++)
-            {
-                int i = z * sizeX + x;
-                float gx = (smooth[z * sizeX + Mathf.Min(x + 1, sizeX - 1)] - smooth[z * sizeX + Mathf.Max(x - 1, 0)]) * 0.5f;
-                float gz = (smooth[Mathf.Min(z + 1, sizeZ - 1) * sizeX + x] - smooth[Mathf.Max(z - 1, 0) * sizeX + x]) * 0.5f;
-                jxx[i] = gx * gx;
-                jxz[i] = gx * gz;
-                jzz[i] = gz * gz;
-            }
-        }
-        jxx = GridMath.MaskedBlur(jxx, ones, sizeX, sizeZ, 4f);
-        jxz = GridMath.MaskedBlur(jxz, ones, sizeX, sizeZ, 4f);
-        jzz = GridMath.MaskedBlur(jzz, ones, sizeX, sizeZ, 4f);
-
-        const float CrossingCos = 0.7071f;
-        int opened = 0;
-        for (int i = 0; i < n; i++)
-        {
-            if (values[i] <= 0.7f || depthIntoRock[i] * cellSize > p.passMaxDepth)
-                continue;
-            float angle = 0.5f * Mathf.Atan2(2f * jxz[i], jxx[i] - jzz[i]);
-            var across = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-            IntVec3 c = map.cellIndices.IndexToCell(i);
-            for (int set = 0; set < 2; set++)
-            {
-                Vector2 normal = strata.JointNormal(set);
-                var line = new Vector2(-normal.y, normal.x);
-                if (Mathf.Abs(Vector2.Dot(line, across)) < CrossingCos)
-                    continue;
-                if (strata.DistanceToJoint(set, c.x, c.z, p.passMinOpen) <= p.passHalfWidth)
-                {
-                    values[i] = RockFloor;
-                    opened++;
-                    break;
-                }
-            }
-        }
-        return opened;
     }
 
     /// <summary>
