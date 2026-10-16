@@ -25,6 +25,8 @@ public static class Patch_GenStep_ElevationFertility_Generate
             if (environment == null)
                 return;
             environment.ComputeLayers(GenerationStage.Elevation);
+            StrataRockNoise.Apply(map, environment.PlannedRock);
+            environment.PlannedRock = null;
             if (!environment.TryGetGrid(EnvironmentLayerDefOf.LL_SoilDepth, out EnvironmentGrid soil)
                 || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform))
                 return;

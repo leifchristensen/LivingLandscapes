@@ -49,6 +49,20 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <cellSize>1</cellSize>
+        <strata>
+          <bedThickness>8~30</bedThickness>
+          <dip>5~35</dip>
+          <warpAmplitude>12</warpAmplitude>
+          <warpScale>60</warpScale>
+          <jointSpacing>25~45</jointSpacing>
+          <jointWidth>2</jointWidth>
+          <jointWeakness>0.35</jointWeakness>
+          <strengthJitter>0.15</strengthJitter>
+          <softBedChance>0.4</softBedChance>
+          <softBedFactor>0.45</softBedFactor>
+          <openJoints>0.5</openJoints>
+          <contrast>2</contrast>
+        </strata>
         <reliefFlat>4</reliefFlat>
         <reliefSmallHills>20</reliefSmallHills>
         <reliefLargeHills>70</reliefLargeHills>
@@ -61,7 +75,7 @@
         <erosionCellSize>3</erosionCellSize>
         <regionScale>2.5</regionScale>
         <erosionIterations>120</erosionIterations>
-        <erodibility>0.02</erodibility>
+        <erodibility>0.05</erodibility>
         <areaExponent>0.5</areaExponent>
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
@@ -109,6 +123,17 @@
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_RockStrength</defName>
+    <label>rock strength</label>
+    <description>Strength of the rock beneath the ground, 0 to 1: tilted beds of the tile's rock types, weakened along joints. Hard beds stand as ridges and narrows; soft beds wear into valleys. Only with geological terrain on.</description>
+    <workerClass>LivingLandscapes.Layers.RockStrengthWorker</workerClass>
+    <precision>Byte</precision>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_SoilDepth</defName>
     <label>soil depth</label>
     <description>Depth of soil over bedrock. Thin on steep ground and crests, deep in hollows and valley floors; bedrock is exposed where none remains.</description>
@@ -116,6 +141,7 @@
     <unit>m</unit>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_RockStrength</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -132,7 +158,11 @@
         <bareRockSlope>0.84</bareRockSlope>
         <hollowBonus>1.0</hollowBonus>
         <crestLoss>0.5</crestLoss>
-        <rockWallDepth>0.05</rockWallDepth>
+        <soilOnWeakRock>1.5</soilOnWeakRock>
+        <soilOnStrongRock>0.3</soilOnStrongRock>
+        <bareSlopeOnWeakRock>1.3</bareSlopeOnWeakRock>
+        <bareSlopeOnStrongRock>0.5</bareSlopeOnStrongRock>
+        <rockWallDepth>0.15</rockWallDepth>
         <rockFloorDepth>0.3</rockFloorDepth>
         <screeReach>5</screeReach>
         <screeMinSlope>0.2</screeMinSlope>

@@ -20,7 +20,7 @@ public class SoilDepthWorker : EnvironmentLayerWorker
             return null;
         var p = def.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
-        float[] soil = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p);
+        float[] soil = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p, context.Get(EnvironmentLayerDefOf.LL_RockStrength));
 
         if (StageFor(context.Map) == GenerationStage.Plants)
         {

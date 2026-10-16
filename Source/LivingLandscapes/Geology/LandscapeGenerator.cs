@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -65,6 +66,9 @@ public class GeologyGenerationExtension : DefModExtension
         shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
     };
 
+    /// <summary>Tilted rock beds and joints: hard beds resist erosion, soft beds wear away (sizes in map cells).</summary>
+    public RockStrataSettings strata = new RockStrataSettings();
+
     /// <summary>Small-scale roughness added after erosion (boulders, hummocks).</summary>
     public float microRelief = 0.3f;
     public float microWavelength = 6f;
@@ -98,7 +102,10 @@ public static class LandscapeGenerator
     private static readonly int[] DZ = { 0, 1, 1, 1, 0, -1, -1, -1 };
     private static readonly float[] Dist = { 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f };
 
-    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out List<Vector2> riverCourse)
+    /// <param name="rockStrength">Strength (0..1) of the rock beneath each map cell, from <paramref name="strata"/>.</param>
+    /// <param name="rock">Rock type beneath each map cell (null where the tile has no rock types).</param>
+    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out List<Vector2> riverCourse,
+        out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
     {
         riverCourse = null;
         world = WorldContext.For(map, p.tileSpacingMetres);
@@ -116,12 +123,24 @@ public static class LandscapeGenerator
         float[] uplift = UpliftField(world, p, gx, gz, metresPerModelCell, out float[] erodibility,
             landforms, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
                                              ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
+        // Rock beds, in map cells around the map's centre; heights in cells above the lowest ground.
+        float relief = p.ReliefFor(world.Hilliness);
+        float reliefCells = relief / p.cellSize;
+        float extent = Mathf.Max(gx, gz) * mapCellsPerModelCell * 0.75f;
+        strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells);
+        var sites = new RockStrata.Site[gx * gz];
+        for (int z = 0; z < gz; z++)
+        {
+            for (int x = 0; x < gx; x++)
+                sites[z * gx + x] = strata.At((x - originX) * mapCellsPerModelCell, (z - originZ) * mapCellsPerModelCell);
+        }
+
         bool[] outlet = Outlets(world, gx, gz, out int riverEntry);
         float[] inflow = new float[gx * gz];
         if (riverEntry >= 0)
             inflow[riverEntry] = p.riverInflow * gx * gz;
 
-        float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, out int[] receiver);
+        float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, strata, sites, reliefCells, out int[] receiver, out float modelTop);
         if (riverEntry >= 0)
         {
             // The river's course is the channel the model carved from its entry: follow the receivers downstream.
@@ -143,14 +162,34 @@ public static class LandscapeGenerator
                 max = Mathf.Max(max, v);
             }
         }
-        float relief = p.ReliefFor(world.Hilliness);
+        // Bilinear upscaling leaves the erosion grid's D8 pattern as a fine checkerboard in the slopes; smooth it out at
+        // the model cell size (features that matter are several model cells wide).
+        var ones = new float[sizeX * sizeZ];
+        for (int i = 0; i < ones.Length; i++)
+            ones[i] = 1f;
+        window = GridMath.MaskedBlur(window, ones, sizeX, sizeZ, mapCellsPerModelCell * 0.75f);
+        min = float.MaxValue;
+        max = float.MinValue;
+        foreach (float v in window)
+        {
+            min = Mathf.Min(min, v);
+            max = Mathf.Max(max, v);
+        }
         var micro = new Perlin(p.cellSize / p.microWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
         var result = new float[sizeX * sizeZ];
+        rockStrength = new float[sizeX * sizeZ];
+        rock = new ThingDef[sizeX * sizeZ];
         for (int z = 0; z < sizeZ; z++)
         {
             for (int x = 0; x < sizeX; x++)
             {
+                // The bed exposed here, at the same height scale the erosion model used.
+                RockStrata.Site site = strata.At(x, z);
+                float bedHeight = window[z * sizeX + x] / Mathf.Max(modelTop, 1e-6f) * reliefCells;
+                rockStrength[z * sizeX + x] = strata.Strength(site, bedHeight);
+                rock[z * sizeX + x] = strata.RockAt(site, bedHeight);
+
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
@@ -247,8 +286,16 @@ public static class LandscapeGenerator
         return last;
     }
 
+    /// <summary>Iterations between updates of the rock erodibility as erosion exposes deeper beds.</summary>
+    private const int StrataUpdateInterval = 10;
+
+    /// <summary>
+    /// Uplift, stream-power incision and hillslope creep. Rock strength is read from the beds exposed at each cell's
+    /// current height (scaled to the tile's relief), so cutting down through a hard bed into a soft one speeds up.
+    /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, int gx, int gz,
-        GeologyGenerationExtension p, out int[] receiverOut)
+        GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
+        out int[] receiverOut, out float modelTop)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -261,11 +308,27 @@ public static class LandscapeGenerator
         var donorStart = new int[n + 1];
         var donors = new int[n];
 
+        var rockK = new float[n];
+        var creep = new float[n];
+        // Explicit diffusion is stable only below 0.25 per step.
+        float maxCreepFactor = 0.24f / Mathf.Max(1e-6f, p.hillslopeDiffusion);
+
         for (int i = 0; i < n; i++)
             h[i] = outlet[i] ? 0f : uplift[i] * 0.01f;
 
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
+            if (iteration % StrataUpdateInterval == 0)
+            {
+                float top = Mathf.Max(1e-6f, h.Max());
+                for (int i = 0; i < n; i++)
+                {
+                    float k = strata.Erodibility(sites[i], h[i] / top * reliefCells);
+                    rockK[i] = erodibility[i] * k;
+                    creep[i] = Mathf.Min(k, maxCreepFactor);
+                }
+            }
+
             // Uplift.
             for (int i = 0; i < n; i++)
             {
@@ -346,18 +409,20 @@ public static class LandscapeGenerator
                 int r = receiver[c];
                 if (r < 0)
                     continue;
-                float f = p.erodibility * erodibility[c] * Mathf.Pow(area[c], p.areaExponent) / receiverDist[c];
+                float f = p.erodibility * rockK[c] * Mathf.Pow(area[c], p.areaExponent) / receiverDist[c];
                 h[c] = (h[c] + f * h[r]) / (1f + f);
             }
 
             // Hillslope creep.
-            Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion);
+            Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
         }
         receiverOut = receiver;
+        modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
     }
 
-    private static void Diffuse(float[] h, bool[] outlet, int gx, int gz, float k)
+    /// <summary>Linear hillslope creep; weak rock (higher <paramref name="factor"/>) creeps faster.</summary>
+    private static void Diffuse(float[] h, bool[] outlet, int gx, int gz, float k, float[] factor)
     {
         var next = (float[])h.Clone();
         for (int z = 1; z < gz - 1; z++)
@@ -368,7 +433,7 @@ public static class LandscapeGenerator
                 if (outlet[i])
                     continue;
                 float laplacian = h[i - 1] + h[i + 1] + h[i - gx] + h[i + gx] - 4f * h[i];
-                next[i] = h[i] + k * laplacian;
+                next[i] = h[i] + k * factor[i] * laplacian;
             }
         }
         Array.Copy(next, h, h.Length);

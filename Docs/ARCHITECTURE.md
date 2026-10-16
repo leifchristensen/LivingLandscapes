@@ -35,7 +35,8 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_Elevation | vanilla elevation grid as generated (classifier: >0.70 rock, roofs above) |
 | LL_Landform | natural surface in metres (On: generator; Off: inference). Overlay label "topology" |
 | LL_Height | walkable height: landform stepped into terraces where steep (`TerraceExtension`) |
-| LL_SoilDepth | soil thickness from slope and convergence (`SoilModelExtension`) |
+| LL_RockStrength | strength 0..1 of the rock bed beneath each cell (On mode only) |
+| LL_SoilDepth | soil thickness from slope, convergence and rock strength (`SoilModelExtension`) |
 | LL_DrainageArea | multiple-flow-direction upslope area, log10 cells |
 | LL_Slope | rise over run of LL_Height; drawn as a vector field using LL_Aspect |
 | LL_Aspect | downhill direction, radians counter-clockwise from east, 0..2π |
@@ -49,8 +50,12 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `GridMath`: masked blur/inpainting, chamfer distance, priority-flood fill, breach-fill, D8 and MFD flow, slope,
   aspect, region labelling.
 - `LandscapeGenerator`: region model ~2.5x map size, stream-power erosion (Braun–Willett implicit) + hillslope
-  diffusion, cropped. Tile mutators become `LandformExtension`s in XML (`1.7/Patches/TileMutatorLandforms.xml`).
-- `SoilModel`, `VanillaTerrainWriter`: soil depth → vanilla elevation classes (rock, roof thickness, gravel, soil).
+  diffusion, cropped and smoothed at the model cell size (removes the erosion grid's checkerboard).
+- `RockStrata` (`<strata>` in XML): tilted beds of the tile's rock types (`RockProperties` patched onto vanilla rocks:
+  strength, solubility), soft interbeds, warped, two partly open joint sets. Erodibility and creep per cell come from
+  the bed exposed at its current height, so hard beds become ridges and soft beds strike valleys. `StrataRockNoise`
+  replaces vanilla's rock-type noises so rock walls and floors show the beds. Tile mutators become `LandformExtension`s in XML (`1.7/Patches/TileMutatorLandforms.xml`).
+- `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
@@ -68,7 +73,8 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 
 ## Dev and testing
 - Command line: `-quicktest -ll-export -ll-quit [-ll-quit-delay=s] [-ll-seed=text] [-ll-mutators=A+B] [-ll-hilliness=X]`.
-  Exports every layer as PNG (cliffs marked) plus summary.txt. Compare placed things against overlays.
+  Exports every layer as PNG (cliffs marked; grey ramp for layers without an overlay), `Map.png` (rock in its own
+  colour, rough floors, water, cliffs, ground types) plus summary.txt. Compare placed things against overlays.
 - Test seeds: s1 mountainous + lake, s4 boreal lakes, s5 hills + water, s7 wide river.
 - Conventions: one Harmony patch class per file `Patch_<Type>_<Method>`; prefix/postfix over transpilers; verify the
   1.7 signature in decompiled source first; never commit game code or assets; feature branches, owner merges.
@@ -85,6 +91,8 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Water flows downhill or level, never uphill (hard rule, checked on exports).
 - Features are compressed to map scale so each map has distinct areas; 1:1 real scale is given up on purpose.
 - Rock is simplified to layered beds for now; formation types revisited later.
+- Erodibility raised 0.02 → 0.05 so erosion, not the uplift noise, shapes landforms (rock differences only show when
+  erosion is strong enough). Rock walls start below 0.15 m soil.
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.
 
 ## Roadmap / open items

@@ -27,15 +27,21 @@ public class LandformWorker : EnvironmentLayerWorker
 
         if (StageFor(map) == GenerationStage.Elevation)
         {
-            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse);
+            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse,
+                out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
+            {
                 environment.PlannedRiverCourse = riverCourse;
+                environment.PlannedRockStrength = rockStrength;
+                environment.PlannedRock = rock;
+            }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
-                        $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}].");
+                        $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +
+                        $"{strata.BedCount} rock beds dipping {strata.DipDegrees:F0} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
             return generated;
         }
 
