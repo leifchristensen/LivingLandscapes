@@ -111,7 +111,7 @@
     </dependsOn>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.TerraceExtension">
-        <stagesAcrossRelief>6</stagesAcrossRelief>
+        <stagesAcrossRelief>12</stagesAcrossRelief>
         <minStageHeight>2</minStageHeight>
         <treadRise>0.2</treadRise>
         <stepSpacing>24</stepSpacing>

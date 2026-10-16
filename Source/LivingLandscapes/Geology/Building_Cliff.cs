@@ -3,7 +3,8 @@ using Verse;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// A terrace cliff band or steps, made of a particular rock (granite, marble...). The greyscale sprite takes that
+/// Terrace steps, made of a particular rock (granite, marble...). Cliff bands are Decorative Cliffs' own stone cliffs
+/// (<see cref="CliffDefs"/>). The greyscale sprite takes that
 /// rock's colour, like vanilla rock walls, and the name includes it ("granite cliff").
 /// </summary>
 public class Building_Cliff : Building

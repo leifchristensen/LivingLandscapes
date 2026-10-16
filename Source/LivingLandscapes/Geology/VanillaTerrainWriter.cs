@@ -206,8 +206,9 @@ public static class VanillaTerrainWriter
             IntVec3 c = map.cellIndices.IndexToCell(i);
             bool thin = thickness[i] * cellSize <= p.edgeCliffMaxThickness;
             var downhill = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
+            // Cliffs only face downhill: a neighbour must lie at least partly down the slope.
             Rot4 facing = Rot4.Invalid;
-            float best = float.MinValue;
+            float best = 0.2f;
             for (int d = 0; d < 4; d++)
             {
                 IntVec3 nb = c + new Rot4(d).FacingCell;

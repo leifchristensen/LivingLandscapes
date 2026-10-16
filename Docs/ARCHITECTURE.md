@@ -72,11 +72,12 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
-## Cliffs (`Building_Cliff`, `1.7/Defs/ThingDefs/Cliffs.xml`)
-Natural Things, not terrain: passable at very high path cost, directional bands (north/east/south/west art,
-linked like walls), colour inherited from the local rock, talus stones at the foot. Art from Decorative Cliffs
-(`Mlie.DecorativeCliffs`, hard dependency for now). Must stay compatible with As Above So Below 2 (optional, later):
-don't duplicate its level system.
+## Cliffs (`CliffDefs`, `1.7/Defs/ThingDefs/Cliffs.xml`)
+Bands are Decorative Cliffs' own stone cliffs (`Stone_Cliff_Left/Right`, `Stone_CliffTop_Left`; Mlie.DecorativeCliffs,
+hard dependency), spawned from the local rock's blocks so they link into continuous lines like player-built ones.
+Facing: lower ground south or west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Cliffs only face downhill.
+Our own `LL_CliffSteps` (passable) sit in the bands. Talus chunks below faces. Slopes get a stepped series of bands
+(terrace stages, `stagesAcrossRelief` 12). Must stay compatible with As Above So Below 2 (optional, later).
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
 One map toggle per layer with an `<overlay>` (lower right corner, `Patch_PlaySettings_DoPlaySettingsGlobalControls`);

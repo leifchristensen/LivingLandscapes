@@ -2,10 +2,8 @@
 <Defs>
 
   <!--
-    Terrace cliffs: with geological terrain on, the ground is shaped into height stages, and a thin cliff band runs
-    along every stage edge where the ground is steep, linked like a wall. Bands can be crossed, slowly; steps along them
-    are the quick way between stages. They are made of the local rock and take its colour and name ("granite cliff").
-    Band art: Decorative Cliffs. Steps: placeholder from Source/Tools/generate_cliff_art.py.
+    Terrace steps: the quick way between height stages, in the gaps of the cliff bands. Made of the local rock and
+    taking its colour and name. Art: placeholder from Source/Tools/generate_cliff_art.py.
   -->
 
   <ThingDef Name="LL_TerraceBase" ParentName="BuildingNaturalBase" Abstract="True">
@@ -27,76 +25,10 @@
     </building>
   </ThingDef>
 
-  <ThingDef Name="LL_CliffBandBase" ParentName="LL_TerraceBase" Abstract="True">
-    <passability>PassThroughOnly</passability>
-    <pathCost>400</pathCost>
-    <pathCostIgnoreRepeat>false</pathCostIgnoreRepeat>
-    <castEdgeShadows>true</castEdgeShadows>
-  </ThingDef>
-
   <!--
-    Band art comes from Decorative Cliffs (Mlie.DecorativeCliffs, MIT): its linked cliff atlases, tinted with the
-    local rock's colour. Seen from the south, a cliff whose lower ground is south, west or east shows its face; one
-    whose lower ground is north shows only its top edge.
+    Cliff bands are Decorative Cliffs' stone cliffs (Stone_Cliff_Left/Right, Stone_CliffTop_Left), spawned from the
+    local rock's blocks so they link into lines; see LivingLandscapes.Geology.CliffDefs.
   -->
-  <ThingDef Name="LL_CliffFaceBase" ParentName="LL_CliffBandBase" Abstract="True">
-    <label>cliff</label>
-    <description>A steep rise in the ground, showing its rock face. It can be scrambled up or down, slowly, and gives some cover; steps along it are quicker.</description>
-    <fillPercent>0.45</fillPercent>
-    <staticSunShadowHeight>0.3</staticSunShadowHeight>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffFaceBase">
-    <defName>LL_CliffFacingSouth</defName>
-    <graphicData>
-      <texPath>Cliff_Left_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>Custom6</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffFaceBase">
-    <defName>LL_CliffFacingWest</defName>
-    <graphicData>
-      <texPath>Cliff_Left_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>Custom6</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffFaceBase">
-    <defName>LL_CliffFacingEast</defName>
-    <graphicData>
-      <texPath>Cliff_Right_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>Custom6</li>
-      </linkFlags>
-    </graphicData>
-  </ThingDef>
-
-  <ThingDef ParentName="LL_CliffBandBase">
-    <defName>LL_CliffFacingNorth</defName>
-    <label>cliff edge</label>
-    <description>The top edge of a steep drop. It can be scrambled up or down, slowly, and gives some cover; steps along it are quicker.</description>
-    <graphicData>
-      <texPath>CliffTop_Left_Atlas</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <linkType>CornerFiller</linkType>
-      <linkFlags>
-        <li>Custom6</li>
-      </linkFlags>
-    </graphicData>
-    <fillPercent>0.45</fillPercent>
-    <staticSunShadowHeight>0.15</staticSunShadowHeight>
-  </ThingDef>
 
   <!-- Rough steps between stages; faces downhill. Registers the cliff link so bands join onto it. -->
   <ThingDef ParentName="LL_TerraceBase">
@@ -107,7 +39,7 @@
       <texPath>Things/Building/LivingLandscapes/Terrace/CliffSteps</texPath>
       <graphicClass>Graphic_Multi</graphicClass>
       <linkFlags>
-        <li>Custom6</li>
+        <li>Custom2</li>
       </linkFlags>
     </graphicData>
     <rotatable>true</rotatable>

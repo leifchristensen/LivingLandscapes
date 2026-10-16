@@ -83,7 +83,8 @@ public static class LayerImageExporter
                     if (level != int.MinValue)
                         color = Color.Lerp(color, style.contourColor, style.IsIndexLevel(level) ? 1f : 0.7f);
                 }
-                if (markCliffs && map.edificeGrid[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)] is Building_Cliff cliff)
+                if (markCliffs && map.edificeGrid[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)] is { } cliff
+                    && CliffDefs.IsCliff(cliff.def))
                     color = cliff.def.passability == Traversability.Standable ? StepsMark : CliffMark;
                 color.a = 1f;
                 pixels[i] = color;
@@ -128,7 +129,7 @@ public static class LayerImageExporter
                 Building edifice = map.edificeGrid[i];
                 TerrainDef terrain = map.terrainGrid.TerrainAt(i);
                 Color color;
-                if (edifice is Building_Cliff)
+                if (edifice != null && CliffDefs.IsCliff(edifice.def))
                     color = CliffMark;
                 else if (edifice != null && edifice.def.building?.isNaturalRock == true && edifice.def.graphicData != null)
                     color = edifice.def.graphicData.color * 0.75f;
