@@ -244,3 +244,40 @@ is free to fan out. The river erodes the rock.
 - Where the valley floor is less than about 3 channel widths wide, the river is a single channel.
 - Where it is more than about 6 channel widths wide, the river has 2 or more channels that rejoin downstream.
 - The combined width of split channels stays roughly that of the single channel.
+
+## 8. Biome boundary: boreal forest meets glacial plain
+
+**What it shows** (ocean on the west, boreal forest in the middle, ice and mountains on the east)
+- The east of the map is ice, with rock poking through and steep ice edges. The ice edge is ragged, not a straight
+  line: ice reaches further where the ground is high and pulls back along the valleys.
+- In front of the ice, a dense web of meltwater channels covers the ground. They join into a few rivers that run
+  west, downhill, to the ocean.
+- On the open forest plain the rivers spread out again into several channels and reach the sea between sandy
+  islands and bars.
+- The coast has sand beaches, spits and shallow bars, with deeper water offshore (as in target 2).
+- Trees thin out toward the ice.
+
+**Owner's reading:** glacial runoff follows the slope, which runs from the mountains to the ocean. Without rock to
+confine them, the runoff rivers fan out toward the ocean.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| Ice on one side, ragged edge | The neighbouring tile is glacial; the ice ends where melting beats snowfall, which depends on height and shade | Edge influence from neighbour tiles (planned for plant ecotones in the research summary), here for terrain: ice cover from distance to the glacial edge, height and LL_Aspect (shaded slopes keep ice longer) |
+| Web of meltwater channels in front of the ice | Meltwater leaves along the whole ice margin carrying lots of sediment; on the outwash plain it braids | Water enters the drainage model along the ice margin; high sediment favours braided channels (channel pattern, target 2) |
+| Rivers running to the ocean | Runoff follows the slope from mountains to sea | River tracing strictly downhill (target 6) |
+| Fanning out on the open plain | No rock confinement (target 7) | Confinement in the channel pattern |
+| Beaches, spits, bars | Waves and longshore drift move sand along the coast | Coast model (target 2), with spits extended along the drift direction (from the wind field) |
+| Trees thin toward the ice | Colder, shorter season near the ice | Edge influence passed on to plants later |
+
+**New or changed pieces** (beyond targets 1-7)
+1. Edge influence from neighbour tiles as a layer (direction, distance, the neighbour's biome), used for terrain
+   now and plants later.
+2. Ice cover layer: glacial edge, height and aspect. Water sources along its margin.
+3. Sediment load as an input to the channel pattern (meltwater carries a lot, so it braids).
+
+**Checks on the exports** (a tile next to a glacial or ice sheet tile, ideally with a coast)
+- Ice cover rises toward the glacial neighbour; its edge reaches further on high and shaded ground.
+- Streams start along the ice edge and run down LL_Aspect to the sea or the map edge.
+- The number of channels grows where the ground opens out toward the coast.
+- Plant density falls toward the ice (once plants use the edge influence).
