@@ -70,9 +70,11 @@
         <reliefImpassable>300</reliefImpassable>
         <tileSpacingMetres>30000</tileSpacingMetres>
         <landformWavelength>300</landformWavelength>
+        <detailWavelength>100</detailWavelength>
+        <detailUplift>0.3</detailUplift>
         <ridgedness>0.2</ridgedness>
         <ridgednessMountains>0.6</ridgednessMountains>
-        <erosionCellSize>3</erosionCellSize>
+        <erosionCellSize>2</erosionCellSize>
         <regionScale>2.5</regionScale>
         <erosionIterations>120</erosionIterations>
         <erodibility>0.05</erodibility>

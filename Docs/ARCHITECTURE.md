@@ -52,7 +52,9 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `GridMath`: masked blur/inpainting, chamfer distance, priority-flood fill, breach-fill, D8 and MFD flow, slope,
   aspect, region labelling.
 - `LandscapeGenerator`: region model ~2.5x map size, stream-power erosion (Braun–Willett implicit) + hillslope
-  diffusion, cropped and smoothed at the model cell size (removes the erosion grid's checkerboard).
+  diffusion, cropped and smoothed at the model cell size (removes the erosion grid's checkerboard). Two landform
+  scales: main ridges/valleys (`landformWavelength` 300 m) and hillside detail (`detailWavelength` 100 m, spurs, knolls,
+  hollows) on a 2 m erosion grid, so gullies cut the slopes and cliff lines bend and break with the ground.
 - `RockStrata` (`<strata>` in XML): tilted beds of the tile's rock types (`RockProperties` patched onto vanilla rocks:
   strength, solubility), soft interbeds, warped, two partly open joint sets. Erodibility and creep per cell come from
   the bed exposed at its current height, so hard beds become ridges and soft beds strike valleys. `StrataRockNoise`
@@ -109,6 +111,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Water flows downhill or level, never uphill (hard rule, checked on exports).
 - Features are compressed to map scale so each map has distinct areas; 1:1 real scale is given up on purpose.
 - Rock is simplified to layered beds for now; formation types revisited later.
+- Variety comes from the topography generation; features are then placed by normal rules, never by exception passes.
 - Soil type, wet ground and later plant density must read as indicators of moisture and drainage (owner, 2026-10-16).
   Vanilla ground is rank-mapped from our fields rather than replaced, to keep each biome's balance.
 - Ridges show height change as identifiable rock formations broken by passes, not continuous walls (owner).
