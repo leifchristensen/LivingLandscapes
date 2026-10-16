@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using LivingLandscapes.Environment;
+using LivingLandscapes.Geology;
 using LivingLandscapes.Overlay;
 using UnityEngine;
 using Verse;
@@ -15,6 +16,8 @@ public static class LayerImageExporter
 {
     private const int PixelsPerCell = 4;
     private static readonly Color WaterTint = new Color(0.2f, 0.45f, 0.95f);
+    private static readonly Color CliffMark = new Color(0.55f, 0.05f, 0.05f);
+    private static readonly Color StepsMark = Color.white;
 
     public static string Folder => Path.Combine(GenFilePaths.SaveDataFolderPath, "LivingLandscapes", "Exports");
 
@@ -31,14 +34,19 @@ public static class LayerImageExporter
             if (layer.overlay == null || !environment.TryGetGrid(layer, out EnvironmentGrid grid))
                 continue;
             string path = Path.Combine(Folder, $"{layer.defName}.png");
-            Export(map, grid, layer.overlay.ResolveFor(grid.Min, grid.Max), path);
+            bool markCliffs = layer == EnvironmentLayerDefOf.LL_Height || layer == EnvironmentLayerDefOf.LL_Landform;
+            Export(map, grid, layer.overlay.ResolveFor(grid.Min, grid.Max), path, markCliffs);
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
         }
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());
         Log.Message($"[LivingLandscapes] Exported environment layers to {Folder}");
     }
 
-    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path)
+    /// <summary>
+    /// Writes one layer. With <paramref name="markCliffs"/>, terrace cliffs (dark red) and steps (white) are drawn
+    /// over it, so their placement can be checked against the contours.
+    /// </summary>
+    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path, bool markCliffs)
     {
         int sizeX = map.Size.x;
         int sizeZ = map.Size.z;
@@ -72,6 +80,8 @@ public static class LayerImageExporter
                     if (level != int.MinValue)
                         color = Color.Lerp(color, style.contourColor, style.IsIndexLevel(level) ? 1f : 0.7f);
                 }
+                if (markCliffs && map.edificeGrid[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)] is Building_Cliff cliff)
+                    color = cliff.def.passability == Traversability.Standable ? StepsMark : CliffMark;
                 color.a = 1f;
                 pixels[i] = color;
             }

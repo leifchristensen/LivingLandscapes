@@ -1,4 +1,3 @@
-using System.Linq;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
 using Verse;
@@ -6,50 +5,24 @@ using Verse;
 namespace LivingLandscapes.Layers;
 
 /// <summary>
-/// The geological height, metres above sea level, that every downstream layer (soil, drainage, slope, moisture,
-/// plants) reads.
-/// On (geological terrain): generated from geological principles right after vanilla's elevation step, and then
-/// drives where rock, scree and soil are placed (<see cref="LandscapeGenerator"/>).
-/// Off: inferred from the terrain vanilla placed, just before plants (<see cref="HeightInference"/>).
+/// The walkable height, metres above sea level, that drainage, slope, moisture and plants read. With geological
+/// terrain on, steep parts of the landform are stepped into terraces (<see cref="Terraces"/>) whose edges get cliffs;
+/// gentle ground and the "off" mode keep the landform unchanged.
 /// </summary>
 public class HeightWorker : EnvironmentLayerWorker
 {
-    /// <summary>Typical spread of vanilla's elevation grid, used to turn inferred heights into metres.</summary>
-    private const float VanillaElevationSpread = 0.6f;
-
-    public override GenerationStage StageFor(Map map) =>
-        GeologicalTerrain.AppliesTo(map) ? GenerationStage.Elevation : GenerationStage.Plants;
+    public override GenerationStage StageFor(Map map) => EnvironmentLayerDefOf.LL_Landform.Worker.StageFor(map);
 
     public override float[] Compute(EnvironmentContext context)
     {
-        Map map = context.Map;
-        var generation = def.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
-
-        if (StageFor(map) == GenerationStage.Elevation)
-        {
-            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse);
-            var environment = map.GetComponent<MapComponent_Environment>();
-            if (environment != null)
-                environment.PlannedRiverCourse = riverCourse;
-            Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
-                        $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
-                        $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +
-                        $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
-                        $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}].");
-            return generated;
-        }
-
-        float[] vanilla = context.Get(EnvironmentLayerDefOf.LL_Elevation);
-        if (vanilla == null)
+        float[] landform = context.Get(EnvironmentLayerDefOf.LL_Landform);
+        if (landform == null)
             return null;
-        var inference = def.GetModExtension<HeightInferenceExtension>() ?? new HeightInferenceExtension();
-        float[] inferred = HeightInference.Infer(map, vanilla, inference);
-
-        // Inference works in vanilla's units; express it in metres around the tile's elevation so both modes agree.
-        float tileElevation = map.TileInfo.elevation;
-        float metresPerUnit = generation.ReliefFor(map.TileInfo.HillinessForElevationGen) / VanillaElevationSpread;
-        for (int i = 0; i < inferred.Length; i++)
-            inferred[i] = tileElevation + (inferred[i] - inference.rockThreshold * 0.5f) * metresPerUnit;
-        return inferred;
+        if (!GeologicalTerrain.AppliesTo(context.Map))
+            return landform;
+        var p = def.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
+        float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
+        float[] steepness = Terraces.Steepness(landform, context.SizeX, context.SizeZ, cellSize, p);
+        return Terraces.Apply(landform, Terraces.StageHeight(landform, p), steepness, p);
     }
 }

@@ -26,12 +26,13 @@ public static class Patch_GenStep_ElevationFertility_Generate
                 return;
             environment.ComputeLayers(GenerationStage.Elevation);
             if (!environment.TryGetGrid(EnvironmentLayerDefOf.LL_SoilDepth, out EnvironmentGrid soil)
-                || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid height))
+                || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform))
                 return;
 
-            var generation = EnvironmentLayerDefOf.LL_Height.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
+            var generation = EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension();
             var soilModel = EnvironmentLayerDefOf.LL_SoilDepth.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
-            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), height.ToArray(), generation.cellSize, soilModel);
+            var terraces = EnvironmentLayerDefOf.LL_Height.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
+            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), landform.ToArray(), generation.cellSize, soilModel, terraces);
         }
         catch (Exception e)
         {

@@ -35,8 +35,22 @@ public static class Patch_GenStep_Plants
         int plants = map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).Count;
         Log.Message($"[LivingLandscapes] GenStep_Plants finished on {map} ({map.Biome?.defName}), {plants} plants on map.");
 
+        RemoveCliffsInWater(map);
         SpawnTalus(map);
         TestRun.OnMapGenerated(map);
+    }
+
+    /// <summary>Lakes and ponds are still placed by vanilla after the cliffs; a cliff can't stand in water.</summary>
+    private static void RemoveCliffsInWater(Map map)
+    {
+        var drowned = new System.Collections.Generic.List<Thing>();
+        foreach (Thing thing in map.listerThings.AllThings)
+        {
+            if (thing is Geology.Building_Cliff && thing.Position.GetTerrain(map).IsWater)
+                drowned.Add(thing);
+        }
+        foreach (Thing thing in drowned)
+            thing.Destroy();
     }
 
     /// <summary>Scatters the rock chunks planned below cliff faces, where the ground is now dry and open.</summary>

@@ -29,17 +29,8 @@ public class SoilModelExtension : DefModExtension
     public float screeMinSlope = 0.2f;
 
     /// <summary>Bare rock this far (metres) inside a rock mass is mountain: solid, mineable rock. Nearer the edge,
-    /// steep bare rock forms cliffs and gentle bare rock is rough stone floor.</summary>
+    /// bare rock is rough stone floor.</summary>
     public float massiveRockDepth = 4f;
-
-    /// <summary>
-    /// Bare rock steeper than this carries cliff pieces: scarps (slow to cross, give cover). 1.0 is 45 degrees, where
-    /// contour lines bunch together; gentler bare rock is rough stone without cliffs.
-    /// </summary>
-    public float scarpSlope = 1.0f;
-
-    /// <summary>Bare rock steeper than this is a sheer cliff (very slow to climb, blocks sight); 1.7 is about 60 degrees.</summary>
-    public float sheerSlope = 1.7f;
 
 
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>

@@ -6,6 +6,7 @@ namespace LivingLandscapes.Environment;
 public static class EnvironmentLayerDefOf
 {
     public static EnvironmentLayerDef LL_Elevation;
+    public static EnvironmentLayerDef LL_Landform;
     public static EnvironmentLayerDef LL_Height;
     public static EnvironmentLayerDef LL_SoilDepth;
     public static EnvironmentLayerDef LL_DrainageArea;
