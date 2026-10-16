@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Per-cell environment layers. Each is computed once at map generation, in dependency order, and saved with the
+    map. <overlay> controls the dev-mode overlay and PNG export: a colour ramp (layer units), optional flat
+    hypsometric bands, contour interval, and every n-th contour as a thicker, labelled index line.
+  -->
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Elevation</defName>
+    <label>elevation</label>
+    <description>Vanilla map-generation elevation. Rock forms above 0.7; lakes are carved below 0.</description>
+    <workerClass>LivingLandscapes.Layers.ElevationWorker</workerClass>
+    <precision>UShort</precision>
+    <overlay>
+      <banded>true</banded>
+      <contourInterval>0.05</contourInterval>
+      <indexEvery>2</indexEvery>
+      <colors>
+        <li><value>-0.2</value><color>(0.35, 0.55, 0.80)</color></li>
+        <li><value>0.0</value><color>(0.60, 0.80, 0.85)</color></li>
+        <li><value>0.05</value><color>(0.30, 0.58, 0.32)</color></li>
+        <li><value>0.25</value><color>(0.55, 0.76, 0.40)</color></li>
+        <li><value>0.45</value><color>(0.90, 0.88, 0.52)</color></li>
+        <li><value>0.6</value><color>(0.93, 0.74, 0.47)</color></li>
+        <li><value>0.7</value><color>(0.78, 0.52, 0.33)</color></li>
+        <li><value>0.9</value><color>(0.58, 0.42, 0.33)</color></li>
+        <li><value>1.2</value><color>(0.80, 0.78, 0.76)</color></li>
+        <li><value>1.8</value><color>(0.97, 0.97, 0.97)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_WaterDistance</defName>
+    <label>distance to water</label>
+    <description>Distance to the nearest water or river cell. Maps without water read 999 everywhere.</description>
+    <workerClass>LivingLandscapes.Layers.WaterDistanceWorker</workerClass>
+    <precision>UShort</precision>
+    <unit>cells</unit>
+    <overlay>
+      <contourInterval>5</contourInterval>
+      <indexEvery>4</indexEvery>
+      <contourMax>900</contourMax>
+      <labelFormat>0</labelFormat>
+      <colors>
+        <li><value>0</value><color>(0.15, 0.35, 0.85)</color></li>
+        <li><value>10</value><color>(0.45, 0.80, 0.85)</color></li>
+        <li><value>30</value><color>(0.92, 0.90, 0.60)</color></li>
+        <li><value>80</value><color>(0.85, 0.62, 0.38)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Moisture</defName>
+    <label>moisture</label>
+    <description>0 (dry) to 1 (saturated): tile rainfall baseline, raised near water.</description>
+    <workerClass>LivingLandscapes.Layers.MoistureWorker</workerClass>
+    <dependsOn>
+      <li>LL_WaterDistance</li>
+    </dependsOn>
+    <overlay>
+      <contourInterval>0.1</contourInterval>
+      <indexEvery>5</indexEvery>
+      <labelFormat>0.0</labelFormat>
+      <colors>
+        <li><value>0</value><color>(0.85, 0.70, 0.35)</color></li>
+        <li><value>0.5</value><color>(0.60, 0.78, 0.50)</color></li>
+        <li><value>1</value><color>(0.10, 0.35, 0.90)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.MoistureExtension">
+        <waterReachCells>10</waterReachCells>
+        <wetRainfallMm>2000</wetRainfallMm>
+        <rainfallWeight>0.6</rainfallWeight>
+        <unknownRainfallBaseline>0.4</unknownRainfallBaseline>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Soil</defName>
+    <label>soil quality</label>
+    <description>0 (bare rock, sand) to 1 (rich soil), from vanilla terrain fertility.</description>
+    <workerClass>LivingLandscapes.Layers.SoilWorker</workerClass>
+    <overlay>
+      <contourInterval>0.1</contourInterval>
+      <indexEvery>5</indexEvery>
+      <labelFormat>0.0</labelFormat>
+      <colors>
+        <li><value>0</value><color>(0.55, 0.55, 0.55)</color></li>
+        <li><value>0.5</value><color>(0.70, 0.65, 0.35)</color></li>
+        <li><value>1</value><color>(0.15, 0.60, 0.20)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.SoilExtension">
+        <richFertility>1.2</richFertility>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+</Defs>

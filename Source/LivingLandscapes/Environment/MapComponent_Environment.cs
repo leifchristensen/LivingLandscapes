@@ -1,0 +1,98 @@
+using System;
+using System.Collections.Generic;
+using LivingLandscapes.Overlay;
+using Verse;
+
+namespace LivingLandscapes.Environment;
+
+/// <summary>
+/// Holds every environment layer of one map, computed once at generation and saved with the map.
+/// A layer that is missing (old save, generation step skipped) reads as absent, so callers fall back to vanilla.
+/// </summary>
+public class MapComponent_Environment : MapComponent
+{
+    private Dictionary<EnvironmentLayerDef, EnvironmentGrid> layers = new Dictionary<EnvironmentLayerDef, EnvironmentGrid>();
+
+    private List<EnvironmentLayerDef> keysWorking;
+    private List<EnvironmentGrid> valuesWorking;
+
+    public MapComponent_Environment(Map map) : base(map)
+    {
+        Overlay = new EnvironmentOverlay(this);
+    }
+
+    public Map Map => map;
+
+    public EnvironmentOverlay Overlay { get; }
+
+    public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
+
+    public bool TryGetGrid(EnvironmentLayerDef layer, out EnvironmentGrid grid) => layers.TryGetValue(layer, out grid);
+
+    /// <summary>Value of a layer at a cell, or <paramref name="fallback"/> when the map doesn't have that layer.</summary>
+    public float ValueAt(EnvironmentLayerDef layer, IntVec3 cell, float fallback = 0f)
+    {
+        return layers.TryGetValue(layer, out EnvironmentGrid grid) ? grid[map.cellIndices.CellToIndex(cell)] : fallback;
+    }
+
+    /// <summary>Computes all layers in dependency order. A layer that fails or returns null keeps its stored values.</summary>
+    public void ComputeLayers()
+    {
+        var context = new EnvironmentContext(map, this);
+        foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
+        {
+            try
+            {
+                float[] values = layer.Worker.Compute(context);
+                if (values == null)
+                {
+                    Log.Message($"[LivingLandscapes] {layer.defName}: not computed on {map}{(HasLayer(layer) ? ", keeping stored values" : "")}.");
+                    continue;
+                }
+                context.Set(layer, values);
+                layers[layer] = new EnvironmentGrid(values, layer.precision);
+                Log.Message($"[LivingLandscapes] {layer.defName} computed for {map}: {Describe(values)}.");
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[LivingLandscapes] Failed to compute {layer.defName} on {map}: {e}");
+            }
+        }
+        Overlay.Notify_LayersChanged();
+    }
+
+    private static string Describe(float[] values)
+    {
+        float min = float.MaxValue, max = float.MinValue, sum = 0f;
+        foreach (float v in values)
+        {
+            min = Math.Min(min, v);
+            max = Math.Max(max, v);
+            sum += v;
+        }
+        return $"min {min:F2} / mean {sum / values.Length:F2} / max {max:F2}";
+    }
+
+    public override void ExposeData()
+    {
+        Scribe_Collections.Look(ref layers, "layers", LookMode.Def, LookMode.Deep, ref keysWorking, ref valuesWorking);
+        if (Scribe.mode == LoadSaveMode.PostLoadInit)
+        {
+            layers ??= new Dictionary<EnvironmentLayerDef, EnvironmentGrid>();
+            // Layers whose Def was removed load with a null key.
+            layers.RemoveAll(pair => pair.Key == null || pair.Value == null || pair.Value.Count != map.cellIndices.NumGridCells);
+        }
+    }
+
+    public override void MapComponentUpdate()
+    {
+        if (map == Find.CurrentMap)
+            Overlay.Update();
+    }
+
+    public override void MapComponentOnGUI()
+    {
+        if (map == Find.CurrentMap)
+            Overlay.OnGUI();
+    }
+}
