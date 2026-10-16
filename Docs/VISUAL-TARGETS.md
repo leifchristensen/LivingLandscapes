@@ -281,3 +281,36 @@ confine them, the runoff rivers fan out toward the ocean.
 - Streams start along the ice edge and run down LL_Aspect to the sea or the map edge.
 - The number of channels grows where the ground opens out toward the coast.
 - Plant density falls toward the ice (once plants use the edge influence).
+
+## 9. Cove with a cave river
+
+**What it shows** (a mountain mass wrapped around a bay that opens to the sea in the south-east)
+- A river comes down through the mountain from the top edge in a narrow tunnel: one channel, nearly constant width,
+  only gentle bends. It comes out at the head of the cove.
+- Other cave passages wind through the rock, some with water in them. Small pools lie at or near where caves open.
+- The cove is almost enclosed by rock headlands. Inside it: an island, rock islets lined up across the bay, sandy
+  beaches along most of the shore, and swirling sand bars in shallow water. Deep water lies at the entrance.
+
+**Owner's reading:** a river inside a mountain can form caves. With no room to move, water inside the mountain flows
+without fanning out and with little change of direction. Pools may form near cave exits.
+
+**Geological processes**
+| What is seen | Process | How we produce it |
+|---|---|---|
+| River through the mountain in a tunnel | Water follows soluble or fractured rock through the mountain (cave river) | Cave routing (target 4) along the river course where it crosses rock; water terrain under the mountain roof |
+| One channel, constant width, steady direction | Fully confined: no room to split or meander (the extreme of target 7) | Confinement in the channel pattern: inside rock, always a single channel with low curvature |
+| Pools at cave exits | Water emerging from rock (a resurgence) scours a plunge pool or collects in a hollow | Pool at every point where an underground water course reaches open ground |
+| Enclosed cove | The sea breaks through a hard band of rock and then quickly erodes the soft rock behind it into a round bay | Coastal erosion driven by rock strength strata (target 4): soft rock behind a hard coastal band becomes bay |
+| Islets lined up across the bay, headlands | Remnants of the hard band (sea stacks) | Strong rock left standing offshore |
+| Beaches in the bay, rock at the headlands | Waves wear headlands and drop sand in sheltered water | Coast model (target 2): sand where wave exposure is low, rock where it is high |
+| Swirling sand bars | Currents circulating in the bay deposit sand in curved bars | Bars following the depth contours of the bay |
+
+**New or changed pieces** (beyond targets 1-8)
+1. Rivers through rock as cave rivers, with pools at their exits. Verify first how 1.7 handles water terrain under
+   a thick (overhead mountain) roof and how vanilla places caves.
+2. Coastal erosion from rock strength: coves, headlands and sea stacks; wave exposure from the open-sea direction.
+
+**Checks on the exports** (a coastal mountain tile with a river, ideally with caves)
+- Where the river crosses rock it is a single channel with nearly constant width and low curvature.
+- Every underground water course that reaches open ground ends in a pool.
+- Beaches lie in sheltered parts of the bay; headlands facing the open sea are rock.

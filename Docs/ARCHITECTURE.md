@@ -86,7 +86,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 
 ## Roadmap / open items
 Current focus: geological features that read well on the map, worked from the owner's reference maps in
-`Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain). Collect the targets, then plan shared pieces.
+`Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain; 9: cove with a cave river). Collect the targets, then plan shared pieces.
 
 1. Few cliffs: steep ground mostly becomes mountain rock, which is excluded. Decide whether mountain edges get cliffs;
    consider using the slope vector field for cliff placement and facing.
