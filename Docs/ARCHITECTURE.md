@@ -76,7 +76,10 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 Bands are Decorative Cliffs' own stone cliffs (`Stone_Cliff_Left/Right`, `Stone_CliffTop_Left`; Mlie.DecorativeCliffs,
 hard dependency), spawned from the local rock's blocks so they link into continuous lines like player-built ones.
 Facing: lower ground south or west -> Cliff_Left, east -> Cliff_Right, north -> CliffTop_Left. Cliffs only face downhill.
-Our own `LL_CliffSteps` (passable) sit in the bands. Talus chunks below faces. Slopes get a stepped series of bands
+Our own `LL_CliffSteps` (passable) sit in the bands.
+**Open (next branch):** Decorative Cliffs' defs block movement and sight; cliffs must stay passable at a very high
+path cost and must not block sight. Their CornerFiller linking only joins orthogonal neighbours, so diagonal
+(stepped) bands break into separate pieces; cliffs need to link diagonally. Talus chunks below faces. Slopes get a stepped series of bands
 (terrace stages, `stagesAcrossRelief` 12). Must stay compatible with As Above So Below 2 (optional, later).
 
 ## Overlays (`Source/LivingLandscapes/Overlay`)
