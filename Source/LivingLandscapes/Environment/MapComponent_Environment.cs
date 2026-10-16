@@ -36,6 +36,9 @@ public class MapComponent_Environment : MapComponent
     public float[] PlannedRockStrength { get; set; }
     public ThingDef[] PlannedRock { get; set; }
 
+    /// <summary>The rock beds and joints of this map, while it is generated (passes through ridges). Not saved.</summary>
+    public Geology.RockStrata PlannedStrata { get; set; }
+
     /// <summary>Cliffs planned by the geology during generation, spawned after vanilla places rock. Not saved.</summary>
     public Geology.CliffPlan PlannedCliffs { get; set; }
 

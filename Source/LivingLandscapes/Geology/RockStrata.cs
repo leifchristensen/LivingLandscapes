@@ -178,6 +178,23 @@ public class RockStrata
         return lo;
     }
 
+    /// <summary>Unit normal of joint set 0 (along the strike) or 1 (across it); the joints run at right angles to it.</summary>
+    public Vector2 JointNormal(int set) => jointNormals[set];
+
+    /// <summary>
+    /// Distance (cells) to the nearest joint of one set. Where the joint network is tightly closed (open share below
+    /// <paramref name="minOpen"/>), returns float.MaxValue, so gaps along joints are irregular.
+    /// </summary>
+    public float DistanceToJoint(int set, float x, float z, float minOpen)
+    {
+        float open = Mathf.Clamp01(((float)jointOpen.GetValue(x, 0.0, z) - (0.5f - settings.openJoints)) * 4f);
+        if (open < minOpen)
+            return float.MaxValue;
+        float wobble = (float)jointWarp.GetValue(x, 0.0, z) * settings.jointWidth * 2f;
+        float d = x * jointNormals[set].x + z * jointNormals[set].y + jointOffsets[set] + wobble;
+        return Mathf.Abs(d - Mathf.Round(d / jointSpacings[set]) * jointSpacings[set]);
+    }
+
     /// <summary>1 on a joint, falling to 0 a few joint widths away.</summary>
     private float Joint(float x, float z)
     {

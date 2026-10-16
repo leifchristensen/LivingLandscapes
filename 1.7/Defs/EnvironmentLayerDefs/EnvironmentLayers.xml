@@ -169,6 +169,9 @@
         <thinRoofDepth>3</thinRoofDepth>
         <thickRoofDepth>7</thickRoofDepth>
         <massiveRockDepth>4</massiveRockDepth>
+        <passHalfWidth>3</passHalfWidth>
+        <passMaxDepth>12</passMaxDepth>
+        <passMinOpen>0.25</passMinOpen>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -290,13 +293,13 @@
       <li>LL_Wetness</li>
     </dependsOn>
     <overlay>
-      <contourInterval>0.1</contourInterval>
-      <indexEvery>5</indexEvery>
       <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
       <colors>
-        <li><value>0</value><color>(0.85, 0.70, 0.35)</color></li>
-        <li><value>0.5</value><color>(0.60, 0.78, 0.50)</color></li>
-        <li><value>1</value><color>(0.10, 0.35, 0.90)</color></li>
+        <li><value>0</value><color>(0.55, 0.75, 1.00, 0)</color></li>
+        <li><value>0.3</value><color>(0.45, 0.70, 1.00, 0.35)</color></li>
+        <li><value>0.6</value><color>(0.20, 0.45, 0.95, 0.7)</color></li>
+        <li><value>1</value><color>(0.05, 0.15, 0.70, 0.95)</color></li>
       </colors>
     </overlay>
     <modExtensions>

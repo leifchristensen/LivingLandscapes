@@ -47,6 +47,16 @@ public class SoilModelExtension : DefModExtension
     public float massiveRockDepth = 4f;
 
 
+    /// <summary>
+    /// Passes: where a cross-strike joint cuts a ridge, the ridge is broken by a gap of rough stone this many cells
+    /// either side of the joint. Only rock within <see cref="passMaxDepth"/> metres of the rock edge is opened, so
+    /// ridges and mountain fringes get gaps and notches while massive mountain interiors stay solid. Joints whose
+    /// network is less open than <see cref="passMinOpen"/> stay closed, so passes are irregular.
+    /// </summary>
+    public float passHalfWidth = 3f;
+    public float passMaxDepth = 12f;
+    public float passMinOpen = 0.25f;
+
     /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>
     public float thinRoofDepth = 3f;
     public float thickRoofDepth = 7f;

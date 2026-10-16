@@ -60,6 +60,9 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
 - `GroundWriter` (`GroundWriterExtension` on LL_Wetness): vanilla's fertility grid and the biome's wet patch makers
   (mud, marsh, ponds, rich soil) are rank-mapped from wetness and soil depth, so each biome keeps its ground shares
   but soil, rich soil, mud and ponds sit where water collects. Dry washes: gravel beds along drainage lines on dry tiles.
+- Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
+  ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
+  rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
 - `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
@@ -98,6 +101,8 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Rock is simplified to layered beds for now; formation types revisited later.
 - Soil type, wet ground and later plant density must read as indicators of moisture and drainage (owner, 2026-10-16).
   Vanilla ground is rank-mapped from our fields rather than replaced, to keep each biome's balance.
+- Ridges show height change as identifiable rock formations broken by passes, not continuous walls (owner).
+- Moisture overlay is a heatmap (transparent dry to blue wet), no contours.
 - Scattered ruins are off by default until terrain generation is polished (setting; tile-mutator structures stay).
 - Erodibility raised 0.02 → 0.05 so erosion, not the uplift noise, shapes landforms (rock differences only show when
   erosion is strong enough). Rock walls start below 0.15 m soil.

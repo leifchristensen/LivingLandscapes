@@ -27,7 +27,7 @@ public static class VanillaTerrainWriter
     /// <param name="drainage">Drainage area (log10 cells) per cell, or null: dry washes are then left out.</param>
     /// <param name="climate">Climate wetness 0..1 from tile rainfall.</param>
     public static CliffPlan Write(Map map, float[] soilDepth, float[] landform, float cellSize, SoilModelExtension p, TerraceExtension terraces,
-        float[] drainage, float climate, GroundWriterExtension ground)
+        float[] drainage, float climate, GroundWriterExtension ground, RockStrata strata)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = soilDepth.Length;
         bool IsExposed(int i) => soilDepth[i] < p.rockWallDepth;
@@ -49,6 +49,8 @@ public static class VanillaTerrainWriter
             else
                 values[i] = Soil;
         }
+
+        int passCells = strata == null ? 0 : OpenPasses(map, values, depthIntoRock, cellSize, strata, p);
 
         // Dry washes: on dry tiles, flash floods scour drainage lines down to gravel.
         int washes = 0;
@@ -82,6 +84,23 @@ public static class VanillaTerrainWriter
                 bands++;
         }
 
+        // Connectivity: how many separate walkable areas the rock leaves (counting areas over 0.5 % of the map).
+        int areas = GridMath.LabelRegions(i => values[i] <= 0.7f, sizeX, sizeZ, out int[] labels);
+        var areaSize = new int[areas];
+        foreach (int label in labels)
+        {
+            if (label >= 0)
+                areaSize[label]++;
+        }
+        int largest = 0, sizeable = 0, walkable = 0;
+        foreach (int size in areaSize)
+        {
+            walkable += size;
+            largest = Mathf.Max(largest, size);
+            if (size > n / 200)
+                sizeable++;
+        }
+
         MapGenFloatGrid elevation = MapGenerator.Elevation;
         int rock = 0, floor = 0, scree = 0;
         for (int i = 0; i < n; i++)
@@ -93,8 +112,71 @@ public static class VanillaTerrainWriter
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: stages of {stageHeight:F1} m, {bands} cliff cells, {steps} steps; " +
                     $"rock {Percent(rock, n)}, rock floor {Percent(floor, n)}, scree and washes {Percent(scree, n)} (washes {Percent(washes, n)}), " +
-                    $"soil {Percent(n - rock - floor - scree, n)}.");
+                    $"soil {Percent(n - rock - floor - scree, n)}; {passCells} pass cells, {sizeable} walkable areas (largest holds " +
+                    $"{Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
+    }
+
+    /// <summary>
+    /// Passes: ridges in a 2D map must not be unbroken walls. Where an open joint crosses a ridge (its line within 45
+    /// degrees of the ridge's across direction), weathering has opened it into a gap of rough stone. The across
+    /// direction comes from the structure tensor of the smoothed rock mask, which is reliable even on a ridge's crest.
+    /// Only rock near the edge of a rock mass is opened, so massive mountain interiors stay solid.
+    /// </summary>
+    private static int OpenPasses(Map map, float[] values, float[] depthIntoRock, float cellSize, RockStrata strata, SoilModelExtension p)
+    {
+        int sizeX = map.Size.x, sizeZ = map.Size.z, n = values.Length;
+        var ones = new float[n];
+        var wall = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            ones[i] = 1f;
+            wall[i] = values[i] > 0.7f ? 1f : 0f;
+        }
+        float[] smooth = GridMath.MaskedBlur(wall, ones, sizeX, sizeZ, 2f);
+        var jxx = new float[n];
+        var jxz = new float[n];
+        var jzz = new float[n];
+        for (int z = 0; z < sizeZ; z++)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                int i = z * sizeX + x;
+                float gx = (smooth[z * sizeX + Mathf.Min(x + 1, sizeX - 1)] - smooth[z * sizeX + Mathf.Max(x - 1, 0)]) * 0.5f;
+                float gz = (smooth[Mathf.Min(z + 1, sizeZ - 1) * sizeX + x] - smooth[Mathf.Max(z - 1, 0) * sizeX + x]) * 0.5f;
+                jxx[i] = gx * gx;
+                jxz[i] = gx * gz;
+                jzz[i] = gz * gz;
+            }
+        }
+        jxx = GridMath.MaskedBlur(jxx, ones, sizeX, sizeZ, 4f);
+        jxz = GridMath.MaskedBlur(jxz, ones, sizeX, sizeZ, 4f);
+        jzz = GridMath.MaskedBlur(jzz, ones, sizeX, sizeZ, 4f);
+
+        const float CrossingCos = 0.7071f;
+        int opened = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (values[i] <= 0.7f || depthIntoRock[i] * cellSize > p.passMaxDepth)
+                continue;
+            float angle = 0.5f * Mathf.Atan2(2f * jxz[i], jxx[i] - jzz[i]);
+            var across = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            IntVec3 c = map.cellIndices.IndexToCell(i);
+            for (int set = 0; set < 2; set++)
+            {
+                Vector2 normal = strata.JointNormal(set);
+                var line = new Vector2(-normal.y, normal.x);
+                if (Mathf.Abs(Vector2.Dot(line, across)) < CrossingCos)
+                    continue;
+                if (strata.DistanceToJoint(set, c.x, c.z, p.passMinOpen) <= p.passHalfWidth)
+                {
+                    values[i] = RockFloor;
+                    opened++;
+                    break;
+                }
+            }
+        }
+        return opened;
     }
 
     private static string Percent(int count, int total) => $"{100f * count / Mathf.Max(total, 1):F0}%";

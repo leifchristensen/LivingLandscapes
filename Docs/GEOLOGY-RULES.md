@@ -125,7 +125,8 @@ bodies such as granite domes and dikes, massive and jointed; extrusive lava flow
 - **S5 Edge influence** layer (direction, distance, neighbour biome) for terrain now and plants later (8).
 
 ## 8. Gameplay and compatibility rules
-- **G1 Passability.** Rock bands keep a few passes (2-5 routes); checked by pathfinding on the export (5).
+- **G1 Passability.** Rock bands keep a few passes (2-5 routes); checked by pathfinding on the export (5). First
+  version: open joints crossing a ridge become gaps; walkable areas are counted at generation.
 - **G2 Structures.** Roads, bridges and mutator structures run after terrain; a road crossing our river must get a
   bridge or ford (10).
 - **G3 Settings.** Intermittent rivers, cave rivers and anything that changes play (watermills, travel) can be
