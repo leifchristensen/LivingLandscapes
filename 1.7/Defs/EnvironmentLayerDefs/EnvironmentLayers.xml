@@ -190,7 +190,7 @@
     <description>Upslope area draining through each cell (log10 of cells): 0 on ridges, high along gullies and valley floors.</description>
     <workerClass>LivingLandscapes.Layers.DrainageAreaWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <unit>log10 cells</unit>
     <overlay>
@@ -212,7 +212,7 @@
     <description>Steepness of the ground, rise over run (0.1 is about 6 degrees, 1 is 45). Drawn as arrows pointing downhill; longer and redder is steeper.</description>
     <workerClass>LivingLandscapes.Layers.SlopeWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <overlay>
       <relativeColors>true</relativeColors>
@@ -234,7 +234,7 @@
     <description>Downhill direction of the ground in radians, counter-clockwise from east (0 east, 1.57 north, 3.14 west, 4.71 south).</description>
     <workerClass>LivingLandscapes.Layers.AspectWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.00</labelFormat>
@@ -318,27 +318,4 @@
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
-
-  <LivingLandscapes.Environment.EnvironmentLayerDef>
-    <defName>LL_Soil</defName>
-    <label>soil quality</label>
-    <description>0 (bare rock, sand) to 1 (rich soil), from vanilla terrain fertility.</description>
-    <workerClass>LivingLandscapes.Layers.SoilWorker</workerClass>
-    <overlay>
-      <contourInterval>0.1</contourInterval>
-      <indexEvery>5</indexEvery>
-      <labelFormat>0.0</labelFormat>
-      <colors>
-        <li><value>0</value><color>(0.55, 0.55, 0.55)</color></li>
-        <li><value>0.5</value><color>(0.70, 0.65, 0.35)</color></li>
-        <li><value>1</value><color>(0.15, 0.60, 0.20)</color></li>
-      </colors>
-    </overlay>
-    <modExtensions>
-      <li Class="LivingLandscapes.Layers.SoilExtension">
-        <richFertility>1.2</richFertility>
-      </li>
-    </modExtensions>
-  </LivingLandscapes.Environment.EnvironmentLayerDef>
-
 </Defs>

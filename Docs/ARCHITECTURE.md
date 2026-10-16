@@ -38,11 +38,11 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_Height | walkable height: landform stepped into terraces where steep (`TerraceExtension`) |
 | LL_RockStrength | strength 0..1 of the rock bed beneath each cell (On mode only) |
 | LL_SoilDepth | soil thickness from slope, convergence and rock strength (`SoilModelExtension`) |
-| LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled surface, log10 cells |
+| LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled landform, log10 cells |
 | LL_Wetness | topographic wetness 0..1: wetness index + height above the drainage line a cell drains to, sharpened on dry tiles |
-| LL_Slope | rise over run of LL_Height; drawn as a vector field using LL_Aspect |
+| LL_Slope | rise over run of LL_Landform (hydrology and slope read the natural surface; terraces only shape walking and cliffs); drawn as a vector field using LL_Aspect |
 | LL_Aspect | downhill direction, radians counter-clockwise from east, 0..2π |
-| LL_WaterDistance, LL_Moisture, LL_Soil | water proximity, moisture (wetness raised near water), soil class |
+| LL_WaterDistance, LL_Moisture | water proximity, moisture (wetness raised near water) |
 
 **Slope vector field** = LL_Slope (magnitude) + LL_Aspect (direction); `GridMath.SlopeToward` gives the slope along
 any heading. Intended consumers: runoff and erosion, scree/talus placement, cliff facing, sun exposure (latitude),

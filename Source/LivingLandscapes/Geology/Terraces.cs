@@ -43,6 +43,14 @@ public class TerraceExtension : DefModExtension
 /// </summary>
 public static class Terraces
 {
+    /// <summary>Stage height, stage index per cell and steepness per cell for a landform: the single terrace plan that
+    /// both the walkable height and the cliffs are built from.</summary>
+    public static (float stageHeight, int[] stage, float[] steepness) Plan(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
+    {
+        float stageHeight = StageHeight(landform, p);
+        return (stageHeight, Stages(landform, stageHeight), Steepness(landform, sizeX, sizeZ, cellSize, p));
+    }
+
     /// <summary>Stage height (metres) for a landform, from its relief.</summary>
     public static float StageHeight(float[] landform, TerraceExtension p)
     {

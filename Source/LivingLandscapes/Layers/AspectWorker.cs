@@ -10,11 +10,11 @@ namespace LivingLandscapes.Layers;
 /// </summary>
 public class AspectWorker : EnvironmentLayerWorker
 {
-    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Height.Worker.StageFor(map);
+    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Landform.Worker.StageFor(map);
 
     public override float[] Compute(EnvironmentContext context)
     {
-        float[] height = context.Get(EnvironmentLayerDefOf.LL_Height);
+        float[] height = context.Get(EnvironmentLayerDefOf.LL_Landform);
         return height == null ? null : GridMath.Aspect(height, context.SizeX, context.SizeZ);
     }
 }

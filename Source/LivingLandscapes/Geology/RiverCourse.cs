@@ -7,17 +7,11 @@ using Verse;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// Finds the course of a world river across the map along the geological terrain: it enters where the valley floor
-/// meets the upstream edge, then follows the steepest way down until it leaves the map.
+/// The course of a world river across the map: the channel the erosion model carved for it, cut to the map and
+/// smoothed into river segments, and the width vanilla paints it with.
 /// </summary>
 public static class RiverCourse
 {
-    private static readonly int[] DX = { 1, 1, 0, -1, -1, -1, 0, 1 };
-    private static readonly int[] DZ = { 0, 1, 1, 1, 0, -1, -1, -1 };
-
-    /// <summary>Fraction of the map width searched along the upstream edge for the valley floor.</summary>
-    private const float EntrySearch = 0.25f;
-
     /// <summary>Douglas-Peucker tolerance (cells) when reducing the course to river segments.</summary>
     private const float SimplifyTolerance = 2f;
 
@@ -51,87 +45,6 @@ public static class RiverCourse
         // Keep one point either side so the river runs off the map edges.
         var crossing = plan.GetRange(Mathf.Max(first - 1, 0), Mathf.Min(last + 2, plan.Count) - Mathf.Max(first - 1, 0));
         return Simplify(Smooth(crossing, SmoothingPasses), SimplifyTolerance);
-    }
-
-    /// <summary>
-    /// Returns the course as points from upstream to downstream (map cells), or null if no sensible course exists
-    /// (the caller then falls back to vanilla's straight river).
-    /// </summary>
-    public static List<Vector2> Find(float[] height, int sizeX, int sizeZ, Vector2 flow)
-    {
-        var h = (float[])height.Clone();
-        GridMath.BreachDepressions(h, sizeX, sizeZ, _ => false, 1e-4f, float.MaxValue);
-
-        int entry = LowestEdgeCellToward(h, sizeX, sizeZ, -flow);
-        var path = new List<Vector2>();
-        int c = entry;
-        var visited = new HashSet<int>();
-        while (visited.Add(c))
-        {
-            int cx = c % sizeX, cz = c / sizeX;
-            path.Add(new Vector2(cx + 0.5f, cz + 0.5f));
-            bool onEdge = cx == 0 || cz == 0 || cx == sizeX - 1 || cz == sizeZ - 1;
-            if (onEdge && path.Count > Mathf.Min(sizeX, sizeZ) / 4)
-                break;
-
-            int next = -1;
-            float best = float.MaxValue;
-            for (int d = 0; d < 8; d++)
-            {
-                int nx = cx + DX[d], nz = cz + DZ[d];
-                if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
-                    continue;
-                int n = nz * sizeX + nx;
-                // Prefer going down; while still on the entry edge, step inward along the valley floor.
-                float score = h[n] - (onEdge && path.Count < 3 ? Vector2.Dot(new Vector2(DX[d], DZ[d]), flow) * 1000f : 0f);
-                if (score < best && !visited.Contains(n))
-                {
-                    best = score;
-                    next = n;
-                }
-            }
-            if (next < 0)
-                return null;
-            c = next;
-        }
-
-        // The river must leave on the far side, not curl back to where it came in.
-        if (path.Count < 2 || Vector2.Dot(path[path.Count - 1] - path[0], flow) <= 0f)
-            return null;
-        return Simplify(path, SimplifyTolerance);
-    }
-
-    private static int LowestEdgeCellToward(float[] h, int sizeX, int sizeZ, Vector2 direction)
-    {
-        var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
-        float reach = Mathf.Max(sizeX, sizeZ);
-        Vector2 target = centre + direction.normalized * reach;
-        float window = EntrySearch * sizeX;
-        int best = -1;
-        float bestHeight = float.MaxValue;
-        for (int z = 0; z < sizeZ; z++)
-        {
-            for (int x = 0; x < sizeX; x++)
-            {
-                if (x != 0 && z != 0 && x != sizeX - 1 && z != sizeZ - 1)
-                    continue;
-                var cell = new Vector2(x + 0.5f, z + 0.5f);
-                // Edge cells facing the direction and within the search window of where its ray leaves the map.
-                if (Vector2.Dot(cell - centre, direction) <= 0f)
-                    continue;
-                float offAxis = Mathf.Abs(Vector2.Dot(cell - centre, new Vector2(-direction.y, direction.x).normalized));
-                if (offAxis > window && best >= 0)
-                    continue;
-                int i = z * sizeX + x;
-                float score = h[i] + (offAxis > window ? 1e6f : 0f);
-                if (score < bestHeight)
-                {
-                    bestHeight = score;
-                    best = i;
-                }
-            }
-        }
-        return best >= 0 ? best : (sizeZ / 2) * sizeX + sizeX / 2;
     }
 
     /// <summary>Chaikin corner cutting: rounds bends while keeping both end points.</summary>

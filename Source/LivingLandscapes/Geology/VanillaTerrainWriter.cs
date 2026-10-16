@@ -28,7 +28,7 @@ public static class VanillaTerrainWriter
     /// <param name="drainage">Drainage area (log10 cells) per cell, or null: dry washes are then left out.</param>
     /// <param name="climate">Climate wetness 0..1 from tile rainfall.</param>
     public static CliffPlan Write(Map map, float[] soilDepth, float[] landform, float cellSize, SoilModelExtension p, TerraceExtension terraces,
-        float[] drainage, float climate, GroundWriterExtension ground, RockStrata strata, float[] aspect)
+        float[] drainage, float climate, GroundWriterExtension ground, RockStrata strata)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = soilDepth.Length;
         bool IsExposed(int i) => soilDepth[i] < p.rockWallDepth;
@@ -69,10 +69,8 @@ public static class VanillaTerrainWriter
         }
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock.
-        float stageHeight = Terraces.StageHeight(landform, terraces);
-        int[] stage = Terraces.Stages(landform, stageHeight);
+        var (stageHeight, stage, steepness) = Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
         var plan = new CliffPlan(n);
-        float[] steepness = Terraces.Steepness(landform, sizeX, sizeZ, cellSize, terraces);
         int knobs = MakeRockKnobs(map, values, stage, steepness, terraces);
         plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f);
         int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);

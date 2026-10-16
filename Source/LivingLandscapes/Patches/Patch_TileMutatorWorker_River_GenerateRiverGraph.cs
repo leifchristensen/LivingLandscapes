@@ -35,7 +35,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         if (__instance.GetType() != typeof(TileMutatorWorker_River) || !GeologicalTerrain.AppliesTo(map))
             return true;
         var environment = map.GetComponent<MapComponent_Environment>();
-        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid height))
+        if (environment == null)
             return true;
         if (!(map.TileInfo is SurfaceTile surface) || surface.Rivers.NullOrEmpty())
             return true;
@@ -43,11 +43,10 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         WorldContext world = WorldContext.For(map, 1f);
         if (!world.HasRiver)
             return true;
-        List<Vector2> course = RiverCourse.FromPlan(environment.PlannedRiverCourse, map.Size.x, map.Size.z)
-                               ?? RiverCourse.Find(height.ToArray(), map.Size.x, map.Size.z, world.RiverFlow);
+        List<Vector2> course = RiverCourse.FromPlan(environment.PlannedRiverCourse, map.Size.x, map.Size.z);
         if (course == null)
         {
-            Log.Warning($"[LivingLandscapes] No river course found along the terrain on {map}; using vanilla's river.");
+            Log.Warning($"[LivingLandscapes] No planned river course crosses {map}; using vanilla's river.");
             return true;
         }
 
