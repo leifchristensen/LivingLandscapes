@@ -154,6 +154,12 @@ public class RiverSystem
     /// </summary>
     public bool[] Seep;
 
+    /// <summary>Alluvium (metres) the channels deposited, per cell (<see cref="Sediment"/>).</summary>
+    public float[] Alluvium;
+
+    /// <summary>Grain size of that alluvium, 0 clay and silt to 1 gravel (0 where there is none).</summary>
+    public float[] GrainSize;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 

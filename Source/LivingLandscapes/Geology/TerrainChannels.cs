@@ -160,6 +160,9 @@ public class TerrainChannelSettings
     public float flatNoiseWavelength = 9f;
     public int flatNoiseSeed = 4711;
 
+    /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
+    public SedimentSettings sediment = new SedimentSettings();
+
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
 
@@ -183,7 +186,8 @@ public static class TerrainChannels
     /// <param name="riverCentre">Where world rivers meet (map cells); a world river rising on the map (headwater) rises here.</param>
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
-        float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
+        float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
+        bool[] sea = null)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
@@ -297,6 +301,12 @@ public static class TerrainChannels
         system.Channels = plans;
         int bars = Bars(height, cells, main, width, depth, moving, power, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
+        // Base level: the sea, lakes and hollows the water stands in. Rivers drop their load there.
+        var baseLevel = new bool[n];
+        for (int i = 0; i < n; i++)
+            baseLevel[i] = (sea != null && sea[i]) || system.Still[i] || filled[i] - natural[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
+        Sediment.Budget(cells, receiver, discharge, dischargeScale, filled, natural, width, inflow, rockStrength, baseLevel, sizeX, sizeZ,
+            p.sediment, system, out string sedimentSummary);
         int painted = 0;
         for (int i = 0; i < n; i++)
         {
@@ -310,7 +320,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }

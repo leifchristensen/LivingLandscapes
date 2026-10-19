@@ -24,6 +24,8 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Fitness;
     public static EnvironmentLayerDef LL_Settlement;
     public static EnvironmentLayerDef LL_Interest;
+    public static EnvironmentLayerDef LL_Alluvium;
+    public static EnvironmentLayerDef LL_GrainSize;
 
     static EnvironmentLayerDefOf()
     {

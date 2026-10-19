@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- Sediment (Docs/SEDIMENT-PLAN.md): what the channels deposit, from the sediment budget run with the channels. Tuning sits
+       with the channel settings (terrainChannels/sediment on LL_Landform). -->
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Alluvium</defName>
+    <label>alluvium</label>
+    <description>Metres of sediment the rivers laid down: bars and levees by the channel, floodplains beside it, fans where the slope eases and deltas at the sea or a lake. Thicker where a river loses the power to carry its load.</description>
+    <workerClass>LivingLandscapes.Layers.AlluviumWorker</workerClass>
+    <precision>UShort</precision>
+    <unit>m</unit>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.00</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.9, 0.8, 0.5, 0)</color></li>
+        <li><value>0.05</value><color>(0.9, 0.8, 0.5, 0.35)</color></li>
+        <li><value>0.5</value><color>(0.8, 0.6, 0.3, 0.7)</color></li>
+        <li><value>2</value><color>(0.55, 0.35, 0.15, 0.95)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_GrainSize</defName>
+    <label>grain size</label>
+    <description>Grain size of the alluvium: 0 clay and silt (back swamps, quiet water) to 1 gravel (bars, steep reaches). Coarsest by the channel, finer farther out and downstream. 0 where there is no alluvium.</description>
+    <workerClass>LivingLandscapes.Layers.GrainSizeWorker</workerClass>
+    <dependsOn>
+      <li>LL_Alluvium</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.35, 0.3, 0.25, 0)</color></li>
+        <li><value>0.01</value><color>(0.35, 0.3, 0.25, 0.7)</color></li>
+        <li><value>0.5</value><color>(0.85, 0.75, 0.45, 0.8)</color></li>
+        <li><value>1</value><color>(0.6, 0.6, 0.6, 0.9)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+</Defs>
