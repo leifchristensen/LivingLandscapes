@@ -9,6 +9,19 @@
   <LivingLandscapes.Flora.PlantEcologyDef>
     <defName>LL_PlantEcology</defName>
     <label>plant ecology</label>
+    <!-- Forest layers: biome x layer multipliers on vanilla's commonality (vanilla's forests are sparse). Shares renormalise. -->
+    <stratumScales>
+      <li><biome>TemperateForest</biome><stratum>Canopy</stratum><scale>2.0</scale></li>
+      <li><biome>TemperateForest</biome><stratum>Shrub</stratum><scale>1.4</scale></li>
+      <li><biome>TemperateForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
+      <li><biome>BorealForest</biome><stratum>Canopy</stratum><scale>2.2</scale></li>
+      <li><biome>BorealForest</biome><stratum>Shrub</stratum><scale>1.3</scale></li>
+      <li><biome>BorealForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
+      <li><biome>TropicalRainforest</biome><stratum>Canopy</stratum><scale>2.2</scale></li>
+      <li><biome>TropicalRainforest</biome><stratum>Shrub</stratum><scale>1.4</scale></li>
+      <li><biome>TemperateSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
+      <li><biome>TropicalSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
+    </stratumScales>
     <!-- Species with fitness under this (times strength) are not candidates on a cell. -->
     <minFitness>0.08</minFitness>
     <!-- Choice weight ~ fitness^this. -->
@@ -30,7 +43,9 @@
     <!-- Canopy shadows fall toward the pole by this share of their radius. -->
     <shadowShift>0.5</shadowShift>
     <!-- A spawn attempt is accepted with a chance from this floor (hopeless ground) to 1 (the best ground). -->
-    <capacityFloor>0.35</capacityFloor>
+    <capacityFloor>0.2</capacityFloor>
+    <!-- Capacity ratio ^ this before the floor: shaded and poor ground thins faster. -->
+    <capacityExponent>2</capacityExponent>
     <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
     <vitalityMin>0.5</vitalityMin>
     <vitalityMax>1.2</vitalityMax>

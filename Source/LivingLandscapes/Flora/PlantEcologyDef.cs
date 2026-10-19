@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using RimWorld;
 using Verse;
 
 namespace LivingLandscapes.Flora;
@@ -8,8 +10,34 @@ namespace LivingLandscapes.Flora;
 /// biome plant lists, commonality, density and regrowth pace stay the baseline. Every effect is blended by the player's
 /// habitat strength (0 = vanilla, 1 = full).
 /// </summary>
+/// <summary>How much a biome's plants of one vegetation layer are favoured over vanilla's commonality (see <see cref="PlantEcologyDef.stratumScales"/>).</summary>
+public class StratumScale
+{
+    public BiomeDef biome;
+    public PlantStratum stratum;
+    public float scale = 1f;
+}
+
 public class PlantEcologyDef : Def
 {
+    /// <summary>
+    /// Forest layers: multiplies the commonality of a biome's canopy, shrub or ground plants, so a forest biome can carry
+    /// more trees and understory than vanilla's commonality gives (vanilla's forests are sparse). The spawner's shares are
+    /// recomputed from the scaled values, so the other layers give way rather than the total growing.
+    /// </summary>
+    public List<StratumScale> stratumScales = new List<StratumScale>();
+
+    public float ScaleFor(BiomeDef biome, PlantStratum stratum)
+    {
+        float scale = 1f;
+        foreach (StratumScale entry in stratumScales)
+        {
+            if (entry.biome == biome && entry.stratum == stratum)
+                scale *= entry.scale;
+        }
+        return scale;
+    }
+
     /// <summary>A species whose fitness on a cell is below this (times the strength) is not a candidate there.</summary>
     public float minFitness = 0.08f;
 
@@ -72,6 +100,9 @@ public class PlantEcologyDef : Def
     /// thins it on dry slopes, without changing the map's target total (the spawner keeps trying elsewhere).
     /// </summary>
     public float capacityFloor = 0.35f;
+
+    /// <summary>The capacity ratio is raised to this before the floor applies: above 1, shaded and poor ground thins faster than it gains.</summary>
+    public float capacityExponent = 2f;
 
     /// <summary>Vitality: a plant's growth rate is multiplied by this at zero fitness and by <see cref="vitalityMax"/> at 1.</summary>
     public float vitalityMin = 0.5f;
