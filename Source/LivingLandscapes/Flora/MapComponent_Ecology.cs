@@ -348,7 +348,7 @@ public class MapComponent_Ecology : MapComponent
         if (capacityReference < 0f)
             capacityReference = ReferenceCapacity();
         float floor = PlantEcologyDef.Current.capacityFloor;
-        float accept = Mathf.Lerp(floor, 1f, Mathf.Clamp01(capacity / capacityReference));
+        float accept = Mathf.Lerp(floor, 1f, Mathf.Pow(Mathf.Clamp01(capacity / capacityReference), PlantEcologyDef.Current.capacityExponent));
         return Mathf.Lerp(1f, accept, Strength);
     }
 

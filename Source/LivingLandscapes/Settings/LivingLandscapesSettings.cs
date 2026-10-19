@@ -26,6 +26,12 @@ public class LivingLandscapesSettings : ModSettings
     /// <summary>How strongly the ecology applies, 0 (vanilla) to 1 (full).</summary>
     public float habitatStrength = 1f;
 
+    /// <summary>
+    /// Gameplay siting ("dial back to fun"): the start spot, mineable resources and discoveries follow the ground's suitability
+    /// instead of vanilla's random picks. Off: vanilla's placement.
+    /// </summary>
+    public bool gameplaySiting = true;
+
     public override void ExposeData()
     {
         base.ExposeData();
@@ -33,5 +39,6 @@ public class LivingLandscapesSettings : ModSettings
         Scribe_Values.Look(ref scatteredRuins, "scatteredRuins", false);
         Scribe_Values.Look(ref plantEcology, "plantEcology", true);
         Scribe_Values.Look(ref habitatStrength, "habitatStrength", 1f);
+        Scribe_Values.Look(ref gameplaySiting, "gameplaySiting", true);
     }
 }

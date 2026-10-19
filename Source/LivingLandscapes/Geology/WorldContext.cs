@@ -55,6 +55,9 @@ public class WorldContext
     /// <summary>Direction the river flows (towards its downstream neighbour).</summary>
     public Vector2 RiverFlow;
 
+    /// <summary>The neighbours' slope is kept when it already runs this much (cosine) with the river; otherwise the river's direction replaces it.</summary>
+    private const float RiverAgreement = 0.5f;
+
     public static WorldContext For(Map map, float tileSpacingMetres)
     {
         Tile tile = map.TileInfo;
@@ -117,6 +120,14 @@ public class WorldContext
             context.RiverFlow = context.RiverInflows.Count > 0
                 ? (context.RiverExit - context.RiverInflows[0].From).normalized
                 : context.RiverExit;
+            // A river runs down the regional slope: the tile elevations of the neighbours are coarse and can point anywhere, so where the
+            // world gives a river the map slopes the way the river flows. (Otherwise water entering would have to climb to its exit.)
+            if (context.RiverFlow.sqrMagnitude > 1e-6f && Vector2.Dot(context.Downhill, context.RiverFlow.normalized) < RiverAgreement)
+            {
+                context.Downhill = context.RiverFlow.normalized;
+                if (context.RegionalGradient <= 0f)
+                    context.RegionalGradient = 0.0005f;
+            }
             Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
             context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
             Rand.PopState();

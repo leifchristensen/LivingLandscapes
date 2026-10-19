@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!--
+    Discoveries gather in interesting ground and lie farther from where the colony starts (Docs/GAMEPLAY-PLAN.md, G3).
+    Adds a siting validator to vanilla scatterers: probability = LL_Interest^interestPower x distance curve (cells from the
+    settlement anchor), never below floor. Counts stay vanilla's. Skipped for steps that are not installed.
+  -->
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="ScatterShrines"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="ScatterShrines"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterShrines"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.5</interestPower><distance><points><li>(0,0.2)</li><li>(50,0.6)</li><li>(110,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterShrines"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.5</interestPower><distance><points><li>(0,0.2)</li><li>(50,0.6)</li><li>(110,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="ScatterRuinsSimple"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="ScatterRuinsSimple"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterRuinsSimple"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(50,0.7)</li><li>(110,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterRuinsSimple"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(50,0.7)</li><li>(110,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="SteamGeysers"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="SteamGeysers"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="SteamGeysers"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>0.7</interestPower><distance><points><li>(0,0.8)</li><li>(40,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="SteamGeysers"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>0.7</interestPower><distance><points><li>(0,0.8)</li><li>(40,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="ScatterRoadDebris"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="ScatterRoadDebris"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterRoadDebris"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.4)</li><li>(60,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="ScatterRoadDebris"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.4)</li><li>(60,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientUtilityBuilding"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientUtilityBuilding"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientUtilityBuilding"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(50,0.7)</li><li>(110,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientUtilityBuilding"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(50,0.7)</li><li>(110,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="MechanoidRemains"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="MechanoidRemains"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="MechanoidRemains"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="MechanoidRemains"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientTurret"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientTurret"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientTurret"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientTurret"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientMechs"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientMechs"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientMechs"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientMechs"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.2)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientLandingPad"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientLandingPad"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientLandingPad"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientLandingPad"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.2</interestPower><distance><points><li>(0,0.25)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientFences"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientFences"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientFences"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.3)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientFences"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.3)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/GenStepDef[defName="AncientJunkClusters"]/genStep</xpath>
+    <match Class="PatchOperationConditional">
+      <xpath>/Defs/GenStepDef[defName="AncientJunkClusters"]/genStep/validators</xpath>
+      <match Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientJunkClusters"]/genStep/validators</xpath>
+        <value><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.3)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></value>
+      </match>
+      <nomatch Class="PatchOperationAdd">
+        <xpath>/Defs/GenStepDef[defName="AncientJunkClusters"]/genStep</xpath>
+        <value><validators><li Class="LivingLandscapes.Gameplay.ScattererValidator_Siting"><interestPower>1.0</interestPower><distance><points><li>(0,0.3)</li><li>(60,0.8)</li><li>(120,1)</li></points></distance></li></validators></value>
+      </nomatch>
+    </match>
+  </Operation>
+
+</Patch>

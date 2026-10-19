@@ -43,6 +43,7 @@ public static class Patch_GenStep_ElevationFertility_Generate
             environment.PlannedCover = cover;
             if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Wetness, out EnvironmentGrid wetness))
                 GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground);
+            Gameplay.SettlementSiting.Plan(map, environment);
         }
         catch (Exception e)
         {

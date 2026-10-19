@@ -92,7 +92,7 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
 
     /// <summary>
     /// "-ll-coast" (or "-ll-coast=North|East|South|West": the sea lies that way) makes a neighbour ocean. "-ll-rivers=
-    /// Creek,River,~HugeRiver" replaces the tile's river links, one per land neighbour in order; a name prefixed "~"
+    /// Creek,River,~HugeRiver" ("-" skips a neighbour) replaces the tile's river links, one per land neighbour in order; a name prefixed "~"
     /// links to the ocean (a river mouth; needs -ll-coast). The tile's Coast and river mutators then follow from this as
     /// world generation assigns them (<c>WorldGenStep_Mutators</c>): Coast for a coastal tile; RiverDelta for a coastal
     /// tile with more than two links, Headwater for one link, RiverConfluence for more than two, else River. This mirrors
@@ -101,6 +101,28 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
     /// </summary>
     private static void ForceNeighbours(PlanetTile start, Tile tile)
     {
+        // "-ll-neighbour-biome=Desert": the first neighbour gets that biome (a mixed-biome tile needs a neighbour of another biome).
+        if (GenCommandLine.TryGetCommandLineArg("ll-neighbour-biome", out string other) && DefDatabase<BiomeDef>.GetNamedSilentFail(other) is { } otherBiome)
+        {
+            var near = new System.Collections.Generic.List<PlanetTile>();
+            Find.WorldGrid.GetTileNeighbors(start, near);
+            foreach (PlanetTile n in near)
+                Find.WorldGrid[n].PrimaryBiome = otherBiome;
+        }
+        // "-ll-roads=DirtRoad,DirtRoad": one road link per neighbour, in order.
+        if (GenCommandLine.TryGetCommandLineArg("ll-roads", out string roadList) && tile is SurfaceTile roadTile)
+        {
+            var near = new System.Collections.Generic.List<PlanetTile>();
+            Find.WorldGrid.GetTileNeighbors(start, near);
+            roadTile.potentialRoads = new System.Collections.Generic.List<SurfaceTile.RoadLink>();
+            string[] names = roadList.Split(',');
+            for (int i = 0; i < names.Length && i < near.Count; i++)
+            {
+                RoadDef road = DefDatabase<RoadDef>.GetNamedSilentFail(names[i]);
+                if (road != null)
+                    roadTile.potentialRoads.Add(new SurfaceTile.RoadLink { neighbor = near[i], road = road });
+            }
+        }
         // Either the bare flag or "-ll-coast=North".
         bool coast = GenCommandLine.TryGetCommandLineArg("ll-coast", out string coastSide) || GenCommandLine.CommandLineArgPassed("ll-coast");
         bool rivers = GenCommandLine.TryGetCommandLineArg("ll-rivers", out string riverList) && !riverList.NullOrEmpty();
@@ -125,6 +147,11 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             int land = 0;
             foreach (string entry in riverList.Split(','))
             {
+                if (entry == "-")
+                {
+                    land++; // a neighbour without a river, so links can be set on opposite sides
+                    continue;
+                }
                 bool mouth = entry.StartsWith("~");
                 RiverDef river = DefDatabase<RiverDef>.GetNamedSilentFail(mouth ? entry.Substring(1) : entry);
                 PlanetTile to = mouth ? ocean : (land < neighbours.Count ? neighbours[land++] : PlanetTile.Invalid);

@@ -171,6 +171,8 @@
     <order>20</order>
     <conditions>
       <li><field>Rainfall</field><max>400</max></li>
+      <!-- Washes are the map's own dry channels. A world river keeps its vanilla width in any climate. -->
+      <li><field>River</field><max>0.5</max></li>
     </conditions>
     <sourceShare>0.04~0.06</sourceShare>
     <floodplainScale>0.5</floodplainScale>

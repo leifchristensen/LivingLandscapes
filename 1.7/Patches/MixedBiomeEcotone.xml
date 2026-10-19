@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!-- Biome transition width on mixed-biome tiles (Docs/GAMEPLAY-PLAN.md, G4). Needs Odyssey, which defines the mutator. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/TileMutatorDef[defName="MixedBiome"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/TileMutatorDef[defName="MixedBiome"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Gameplay.EcotoneExtension">
+          <halfWidth>40</halfWidth>
+          <patchScale>10</patchScale>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+</Patch>

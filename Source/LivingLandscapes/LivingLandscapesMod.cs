@@ -49,6 +49,9 @@ public class LivingLandscapesMod : Mod
         }
         listing.Gap();
 
+        listing.CheckboxLabeled("LL_GameplaySiting".Translate(), ref Settings.gameplaySiting, "LL_GameplaySitingTip".Translate());
+        listing.Gap();
+
         string supported = string.Join(", ", TerrainGenerationMods.ActiveSupported());
         listing.Label("LL_SupportedTerrainMods".Translate(supported.Length == 0 ? "LL_None".Translate().ToString() : supported));
 

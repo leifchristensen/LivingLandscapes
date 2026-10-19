@@ -170,12 +170,15 @@ public static class Invariants
         var lakeDepth = new float[lakeCount];
         var lakeCells = new int[lakeCount];
         var lakeTerrain = new TerrainDef[lakeCount];
+        var lakeAt = new IntVec3[lakeCount];
         for (int i = 0; i < h.Length; i++)
         {
             int l = lakeLabels[i];
             if (l < 0)
                 continue;
             lakeCells[l]++;
+            if (lakeTerrain[l] == null)
+                lakeAt[l] = map.cellIndices.IndexToCell(i);
             lakeTerrain[l] ??= terrain[i];
             lakeDepth[l] = Mathf.Max(lakeDepth[l], filled[i] - h[i]);
         }
@@ -189,7 +192,7 @@ public static class Invariants
             if (lakeDepth[l] > Tolerance)
                 inDepression++;
             else
-                failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]}");
+                failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]} at {lakeAt[l].x},{lakeAt[l].z}");
         }
 
         int hollowCount = GridMath.LabelRegions(i => filled[i] - h[i] > Tolerance, sizeX, sizeZ, out int[] hollowLabels);

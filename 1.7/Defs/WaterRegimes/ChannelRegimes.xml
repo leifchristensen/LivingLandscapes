@@ -87,6 +87,7 @@
       <widthNoise>1.6</widthNoise>
       <spread>1.6</spread>
       <deposition>1.5</deposition>
+      <sinuosity>1.6</sinuosity>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -105,6 +106,7 @@
       <bankNoise>2</bankNoise>
       <spread>2.5</spread>
       <deposition>1.2</deposition>
+      <sinuosity>1.8</sinuosity>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -122,6 +124,8 @@
       <depth>1.15</depth>
       <widthNoise>1.4</widthNoise>
       <depthNoise>0.8</depthNoise>
+      <!-- Blended with a neutral 1: this full-strength 3 gives about 1.7 (Docs/RIVER-PLANFORM.md). -->
+      <sinuosity>3</sinuosity>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 

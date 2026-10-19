@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- Loose material on the ground (Geology/GroundScatter.cs), placed after plants. Conditions test environment layers.
+       thing: a ThingDef defName (skipped if not installed) or LocalRockChunk (a chunk of the nearest rock). -->
+  <LivingLandscapes.Geology.GroundScatterDef>
+    <defName>LL_GroundScatter</defName>
+    <rules>
+      <!-- Gravel bars: the coarsest alluvium carries cobbles and boulders. -->
+      <li>
+        <label>chunks on gravel bars</label>
+        <conditions>
+          <li><field>LL_GrainSize</field><min>0.55</min></li>
+          <li><field>LL_Alluvium</field><min>0.15</min></li>
+        </conditions>
+        <terrains><li>Gravel</li></terrains>
+        <thing>LocalRockChunk</thing>
+        <chance>0.06</chance>
+      </li>
+      <!-- Small stones from Scattered Stones (Owlchemist.ScatteredStones), when it is installed. -->
+      <li>
+        <label>stones on gravel bars</label>
+        <conditions>
+          <li><field>LL_GrainSize</field><min>0.5</min></li>
+          <li><field>LL_Alluvium</field><min>0.15</min></li>
+        </conditions>
+        <terrains><li>Gravel</li></terrains>
+        <thing>Owl_Filth_Rocks</thing>
+        <chance>0.35</chance>
+        <tintWithRock>true</tintWithRock>
+      </li>
+    </rules>
+  </LivingLandscapes.Geology.GroundScatterDef>
+
+</Defs>

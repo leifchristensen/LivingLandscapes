@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- Settlement suitability (Docs/GAMEPLAY-PLAN.md, G1). A site's score is the weighted geometric mean of the terms below,
+       so one failing need sinks it. Fields: LL_Slope, LL_Wetness (layers) and the ones the worker derives:
+       Room (share of open dry ground within roomSigma), Farmland (share fertile), Hazard (deep water, marsh, mud nearby),
+       Refuge (share of barrier - rock, deep water - in the ring around), WaterDistance and RockDistance (cells). -->
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Settlement</defName>
+    <label>settlement suitability</label>
+    <description>0 to 1: how good the ground is to build a colony on. Level, dry, open ground with farmland about it, water a walk away (not in the flood zone), no swamp or deep water at the door, rock within reach, and a partly enclosing rim to defend. The start spot is placed near the best of it.</description>
+    <workerClass>LivingLandscapes.Layers.SettlementWorker</workerClass>
+    <dependsOn>
+      <li>LL_Slope</li>
+      <li>LL_Wetness</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.7</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.5, 0.1, 0.1, 0.0)</color></li>
+        <li><value>0.4</value><color>(0.9, 0.7, 0.2, 0.3)</color></li>
+        <li><value>0.7</value><color>(0.6, 0.85, 0.2, 0.6)</color></li>
+        <li><value>1</value><color>(0.1, 0.65, 0.15, 0.9)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Gameplay.SettlementExtension">
+        <roomSigma>9</roomSigma>
+        <farmlandSigma>14</farmlandSigma>
+        <farmlandFertility>0.85</farmlandFertility>
+        <hazardSigma>4</hazardSigma>
+        <refugeInner>10</refugeInner>
+        <refugeOuter>32</refugeOuter>
+        <anchorSigma>6</anchorSigma>
+        <centralFraction>0.4</centralFraction>
+        <anchorSharpness>8</anchorSharpness>
+        <searchRadius>14</searchRadius>
+        <terms>
+          <li>
+            <field>LL_Slope</field>
+            <weight>1.5</weight>
+            <curve><points><li>(0,1)</li><li>(0.15,1)</li><li>(0.4,0.3)</li><li>(0.8,0.02)</li></points></curve>
+          </li>
+          <li>
+            <field>Room</field>
+            <weight>1.5</weight>
+            <curve><points><li>(0.2,0.05)</li><li>(0.5,0.6)</li><li>(0.8,1)</li></points></curve>
+          </li>
+          <li>
+            <field>Farmland</field>
+            <weight>1</weight>
+            <curve><points><li>(0,0.25)</li><li>(0.3,0.7)</li><li>(0.6,1)</li></points></curve>
+          </li>
+          <li>
+            <field>WaterDistance</field>
+            <weight>1.2</weight>
+            <curve><points><li>(0,0.3)</li><li>(3,0.7)</li><li>(6,1)</li><li>(35,1)</li><li>(80,0.45)</li><li>(998,0.4)</li><li>(999,0.5)</li></points></curve>
+          </li>
+          <li>
+            <field>LL_Wetness</field>
+            <weight>0.8</weight>
+            <curve><points><li>(0.3,1)</li><li>(0.7,0.5)</li><li>(0.95,0.1)</li></points></curve>
+          </li>
+          <li>
+            <field>Hazard</field>
+            <weight>1</weight>
+            <curve><points><li>(0,1)</li><li>(0.1,0.8)</li><li>(0.35,0.3)</li><li>(0.7,0.05)</li></points></curve>
+          </li>
+          <li>
+            <field>Refuge</field>
+            <weight>0.6</weight>
+            <curve><points><li>(0,0.55)</li><li>(0.12,0.9)</li><li>(0.3,1)</li><li>(0.55,0.8)</li><li>(0.8,0.35)</li></points></curve>
+          </li>
+          <li>
+            <field>RockDistance</field>
+            <weight>0.4</weight>
+            <curve><points><li>(0,0.8)</li><li>(15,1)</li><li>(50,0.9)</li><li>(120,0.6)</li><li>(998,0.5)</li><li>(999,0.55)</li></points></curve>
+          </li>
+        </terms>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Interest</defName>
+    <label>interest</label>
+    <description>0 to 1 (a rank: 0.8 beats 80% of the map): how interesting the ground is for discoveries. Local relief, the edges of rock and water, and a regional noise that gathers finds in recognisable places. Ruins, shrines and geysers favour it.</description>
+    <workerClass>LivingLandscapes.Layers.InterestWorker</workerClass>
+    <dependsOn>
+      <li>LL_Slope</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.6</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.3, 0.3, 0.5, 0.0)</color></li>
+        <li><value>0.7</value><color>(0.8, 0.5, 0.9, 0.4)</color></li>
+        <li><value>1</value><color>(0.7, 0.1, 0.8, 0.9)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.InterestExtension">
+        <reliefSigma>8</reliefSigma>
+        <reliefWeight>1</reliefWeight>
+        <edgeSigma>5</edgeSigma>
+        <edgeWeight>1</edgeWeight>
+        <noiseScale>70</noiseScale>
+        <noiseWeight>1.2</noiseWeight>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+</Defs>

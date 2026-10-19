@@ -17,6 +17,9 @@ public class EnvironmentContext
 
     public Map Map { get; }
 
+    /// <summary>The map's environment: layers computed so far and the geology's plans (cover, cliffs).</summary>
+    public MapComponent_Environment Environment => environment;
+
     public int SizeX => Map.Size.x;
 
     public int SizeZ => Map.Size.z;

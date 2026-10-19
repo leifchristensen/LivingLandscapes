@@ -154,6 +154,15 @@ public class RiverSystem
     /// </summary>
     public bool[] Seep;
 
+    /// <summary>Alluvium (metres) the channels deposited, per cell (<see cref="Sediment"/>).</summary>
+    public float[] Alluvium;
+
+    /// <summary>Grain size of that alluvium, 0 clay and silt to 1 gravel (0 where there is none).</summary>
+    public float[] GrainSize;
+
+    /// <summary>Cells where river deposits built land above the sea (delta land): the coast mutator must not paint sea there.</summary>
+    public bool[] DeltaLand;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 

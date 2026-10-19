@@ -111,6 +111,34 @@
         </conditions>
         <cover>Mud</cover>
       </li>
+      <!-- Alluvium (Docs/SEDIMENT-PLAN.md): what the rivers laid down, by grain size. Gravel bars by the water, sandy
+           banks and levees, fine fertile floodplain soil farther out. Back swamps are caught by the marsh and mud rules above. -->
+      <li>
+        <label>gravel bar</label>
+        <conditions>
+          <li><field>LL_Alluvium</field><min>0.15</min></li>
+          <li><field>LL_GrainSize</field><min>0.5</min></li>
+          <li><field>WaterDistance</field><max>2.5</max></li>
+        </conditions>
+        <cover>Gravel</cover>
+      </li>
+      <li>
+        <label>sandy bank</label>
+        <conditions>
+          <li><field>LL_Alluvium</field><min>0.15</min></li>
+          <li><field>LL_GrainSize</field><min>0.33</min></li>
+          <li><field>WaterDistance</field><max>5</max></li>
+        </conditions>
+        <cover>Sand</cover>
+      </li>
+      <li>
+        <label>alluvial soil</label>
+        <conditions>
+          <li><field>LL_Alluvium</field><min>0.5</min></li>
+          <li><field>LL_GrainSize</field><max>0.33</max></li>
+        </conditions>
+        <cover>RichSoil</cover>
+      </li>
       <li>
         <label>scree</label>
         <conditions>

@@ -284,6 +284,30 @@ public static class PlantBenchmark
                     shaded++;
             }
             Log.Message($"[LivingLandscapes] Plant census: {shaded * 100f / map.Area:F0}% of cells under canopy shade above 30%.");
+            // Understory: plants per land cell of each layer in deep shade (above 60%), partial shade and open ground.
+            var cellsIn = new int[3];
+            var counts = new int[3, 3];
+            for (int i = 0; i < map.Area; i++)
+            {
+                if (map.fertilityGrid.FertilityAt(map.cellIndices.IndexToCell(i)) <= 0f)
+                    continue;
+                float s = ecology.ShadeAt(i);
+                cellsIn[s > 0.6f ? 0 : s > 0.2f ? 1 : 2]++;
+            }
+            foreach (Plant plant in plants)
+            {
+                Flora.PlantHabitat h = Flora.PlantHabitat.For(plant.def);
+                if (!h.HasSiteCurves)
+                    continue;
+                float s = ecology.ShadeAt(map.cellIndices.CellToIndex(plant.Position));
+                counts[s > 0.6f ? 0 : s > 0.2f ? 1 : 2, (int)h.stratum]++;
+            }
+            string[] zones = { "deep shade", "part shade", "open" };
+            for (int z = 0; z < 3; z++)
+            {
+                float n = Mathf.Max(cellsIn[z], 1);
+                Log.Message($"[LivingLandscapes] Plant census: layers in {zones[z]} ({cellsIn[z] * 100f / map.Area:F0}% of cells): canopy {counts[z, 0] / n:F2}, shrub {counts[z, 1] / n:F2}, ground {counts[z, 2] / n:F2} plants per cell.");
+            }
         }
     }
 
