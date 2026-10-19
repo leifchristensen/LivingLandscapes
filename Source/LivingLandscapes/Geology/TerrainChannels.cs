@@ -320,7 +320,7 @@ public static class TerrainChannels
         int bars = Bars(height, cells, main, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
             deposited, atBase, eroded);
-        int mouths = Mouths(sea, system, sizeX, sizeZ);
+        string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p);
         int painted = 0;
         for (int i = 0; i < n; i++)
         {
@@ -334,20 +334,95 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {mouths} channels reaching the sea; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
 
-    /// <summary>Distinct channels reaching the sea: groups of moving water cells, apart from each other, that touch it.</summary>
-    private static int Mouths(bool[] sea, RiverSystem system, int sizeX, int sizeZ)
+    /// <summary>
+    /// The world river's own network (Docs/SEDIMENT-PLAN.md): channels carrying a real share of its water. Counts how often it
+    /// branches and rejoins itself and how many of its branches reach the sea, the measure of a delta or a braided reach (runoff
+    /// creeks reaching the sea beside it do not count). Branch and rejoin points closer than a few cells count once.
+    /// </summary>
+    private static string MainRiver(List<int> cells, int[] receiver, int[] secondary, bool[] world, float[] discharge, float[] inflow, bool[] worldSource,
+        bool[] sea, RiverSystem system, int sizeX, int sizeZ, TerrainChannelSettings p)
     {
-        if (sea == null)
-            return 0;
+        float q = 0f;
+        for (int i = 0; i < inflow.Length; i++)
+        {
+            if (worldSource[i])
+                q += inflow[i];
+        }
+        if (q <= 0f)
+            return "no world river";
+        int n = receiver.Length;
+        var main = new bool[n];
+        foreach (int c in cells)
+            main[c] = world[c] && discharge[c] >= p.sediment.mainRiverShare * q;
+        var donors = new int[n];
+        var branches = new List<Vector2>();
+        foreach (int c in cells)
+        {
+            if (!main[c])
+                continue;
+            int r = receiver[c], s = secondary[c];
+            if (r >= 0 && main[r])
+                donors[r]++;
+            if (s >= 0 && main[s])
+            {
+                donors[s]++;
+                if (r >= 0 && main[r])
+                    AddPoint(branches, c, sizeX);
+            }
+        }
+        var rejoins = new List<Vector2>();
+        foreach (int c in cells)
+        {
+            if (main[c] && donors[c] >= 2)
+                AddPoint(rejoins, c, sizeX);
+        }
+        int mouths = sea == null ? 0 : Mouths(sea, system, sizeX, sizeZ, i => main[i] || (system.ChannelOf[i] >= 0 && Near(main, i, sizeX, sizeZ)));
+        int mainCells = 0;
+        foreach (bool m in main)
+            if (m) mainCells++;
+        int worldCells = 0;
+        float biggest = 0f;
+        foreach (int c in cells)
+        {
+            if (world[c]) { worldCells++; biggest = Mathf.Max(biggest, discharge[c]); }
+        }
+        return $"main river ({mainCells} cells; {worldCells} carry world water, largest {biggest / q:P0} of the {q:0} entering) branches {branches.Count} times, rejoins {rejoins.Count} times, {mouths} of its branches reach the sea";
+    }
+
+    private static void AddPoint(List<Vector2> points, int c, int sizeX)
+    {
+        var v = new Vector2(c % sizeX, c / sizeX);
+        if (!points.Exists(o => (o - v).sqrMagnitude < 36f))
+            points.Add(v);
+    }
+
+    private static bool Near(bool[] mask, int i, int sizeX, int sizeZ)
+    {
+        int x = i % sizeX, z = i / sizeX;
+        for (int dz = -3; dz <= 3; dz++)
+        {
+            for (int dx = -3; dx <= 3; dx++)
+            {
+                int nx = x + dx, nz = z + dz;
+                if (nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && mask[nz * sizeX + nx])
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Distinct channels reaching the sea: groups of moving water cells (of those <paramref name="counted"/>), apart from each other, that touch it.</summary>
+    private static int Mouths(bool[] sea, RiverSystem system, int sizeX, int sizeZ, System.Func<int, bool> counted)
+    {
         int n = sea.Length;
         bool Mouth(int i)
         {
-            if (sea[i] || system.ChannelOf[i] < 0 || system.Still[i])
+            if (sea[i] || system.ChannelOf[i] < 0 || system.Still[i] || !counted(i))
                 return false;
             int x = i % sizeX, z = i / sizeX;
             for (int dz = -1; dz <= 1; dz++)
