@@ -23,10 +23,29 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
             return null;
         var filled = (float[])height.Clone();
         GridMath.FillDepressions(filled, context.SizeX, context.SizeZ, _ => false, FillGradient);
-        float[] area = GridMath.FlowAccumulationMfd(filled, context.SizeX, context.SizeZ);
+        float[] area = GridMath.FlowAccumulationMfd(filled, context.SizeX, context.SizeZ, inflow: RiverInflow(context));
         for (int i = 0; i < area.Length; i++)
             area[i] = Mathf.Log10(area[i]);
         return area;
+    }
+
+    /// <summary>
+    /// A world river brings the water of all the land upstream of the map: that area enters where its main channel
+    /// crosses into the map, sized from the river's width.
+    /// </summary>
+    private static float[] RiverInflow(EnvironmentContext context)
+    {
+        RiverPlan river = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRiver;
+        if (river == null)
+            return null;
+        int entry = river.Main.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < context.SizeX && v.y < context.SizeZ);
+        if (entry < 0)
+            return null;
+        var p = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
+        float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(context.Map);
+        var inflow = new float[context.SizeX * context.SizeZ];
+        inflow[RiverChannels.Index(river.Main[entry], context.SizeX, context.SizeZ)] = p.AreaForWidth(river.NominalWidth, climate);
+        return inflow;
     }
 }
 

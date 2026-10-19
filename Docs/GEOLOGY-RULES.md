@@ -155,8 +155,19 @@ Each step is a commit series with its own exports; later steps only add rules.
    hollows by water balance and runs streams on drainage lines; one ordered ground rule table (XML) places water,
    marsh, mud, rock, scree and soil; vanilla's noise no longer places water. Invariant 2 holds on s1, s4, s5, s7.
    Later: rivers sinking into gravel and reappearing at narrows (W7), salt flats and dry lakes in arid hollows.
-4. **Channel patterns** (W4, W5): confinement and stream power per reach; single, split and braided first, then
-   meanders with cutoffs, then entrenched meanders and terraces along rivers, then deltas.
+4. **Channel patterns** (W4, W5): first version done (feature/water).
+   - Meander migration scaled by vanilla's width, with cutoffs to plugged oxbows.
+   - Bank erodibility from rock strength and valley walls, so confined rivers stay single.
+   - Splits where carrying capacity falls (deposition).
+   - A carved cross-section with a deep core, rims, an inner bar, and pools and riffles.
+   - Floodplain wetness grows with drainage area.
+
+   Invariant 1 now checks the water surface. Still to do:
+   - splits verified in-game (no test seed has a river with an open basin);
+   - braided channels;
+   - entrenched meanders and terraces along rivers;
+   - deltas;
+   - rivers on Valley landforms (the trunk channel misses the map, so vanilla's river climbs).
 5. **Coast** (C1-C3) and **sediment fill** (F3).
 6. **Caves, springs, fans** (W8, W9). Verify 1.7 cave generation and water under roofs first.
 7. **Wind and dunes** (F5), **ice and edge influence** (I1, S5), **glacial scour** (F4), **impacts** (F6).

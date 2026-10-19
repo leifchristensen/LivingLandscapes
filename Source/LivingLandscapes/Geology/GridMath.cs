@@ -220,9 +220,10 @@ public static class GridMath
     /// <summary>
     /// Multiple-flow-direction accumulation (Freeman 1991): each cell passes its water to all lower neighbours in
     /// proportion to slope^<paramref name="exponent"/>. Spreads over hillslopes and converges in valleys.
-    /// Returns the upslope contributing area of each cell, in cells (itself included).
+    /// Returns the upslope contributing area of each cell, in cells (itself included), plus any
+    /// <paramref name="inflow"/> (area draining in from beyond the map) added where it enters.
     /// </summary>
-    public static float[] FlowAccumulationMfd(float[] h, int sizeX, int sizeZ, float exponent = 1.1f)
+    public static float[] FlowAccumulationMfd(float[] h, int sizeX, int sizeZ, float exponent = 1.1f, float[] inflow = null)
     {
         int n = h.Length;
         var order = new int[n];
@@ -232,7 +233,7 @@ public static class GridMath
 
         var area = new float[n];
         for (int i = 0; i < n; i++)
-            area[i] = 1f;
+            area[i] = 1f + (inflow?[i] ?? 0f);
         var weights = new float[8];
         foreach (int c in order)
         {

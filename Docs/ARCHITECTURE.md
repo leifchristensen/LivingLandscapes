@@ -22,7 +22,7 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | ElevationFertility (10) | `Patch_GenStep_ElevationFertility_Generate` postfix | Compute the Elevation stage layers (incl. surface water); classify ground by the ground rules into vanilla elevation (rock, floor, gravel) and planned cover (water, marsh, mud); fertility rank-mapped (`GroundWriter`); rock types follow strata; plan cliffs on dry ground |
 | Terrain (210) | `Patch_MapGenUtility_GetNaturalTerrainAt` postfix | Planned cover replaces vanilla's choice; vanilla's noise water, marsh and mud elsewhere become dry ground |
 | Mutators (20) | `Patch_TileMutatorWorker_GeneratePostElevationFertility` | Skip elevation rewrites of mutators we model as landforms |
-| River graph | `Patch_TileMutatorWorker_River_*` | Rivers follow the erosion model's trunk channel (straight segments, no vanilla meander) |
+| River graph | `Patch_TileMutatorWorker_River_*` | Rivers follow the planned channels (`RiverPlan`: main channel, side branches) as straight segments, no vanilla meander. Vanilla's river and bank painting (`RiverTerrainAt`, `RiverBankTerrainAt`) defers to planned cover when the river was carved |
 | RocksFromGrid (200) | `Patch_GenStep_RocksFromGrid_Generate` | Spawn cliff bands, steps; plan talus |
 | Plants (900) | `Patch_GenStep_Plants` | Write stream flow (`FlowWriter`); compute the Plants stage layers; remove cliffs under water vanilla painted later; spawn talus |
 | After fog | `Patch_TileMutatorWorker_River_GeneratePostFog` | Vanilla rebuilt the flow map for its river: write our stream flow again |
@@ -75,6 +75,19 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   notches ridges along them and soil holds there; no separate pass-cutting step. The writer logs walkable areas.
 - `LL_Debris` (rule S4): fragments from bare rock faces roll down the steepest way until the slope eases and collect
   there; scree lies where debris is high (fans and aprons below rock instead of a fixed-width ring).
+- **Rivers** (W1, W3-W5): `RiverChannels` plans the world river's channels on the landform. Meander migration
+  (Howard-Knutson) is scaled by vanilla's channel width, so creeks bend tightly and great rivers gently. Cutoffs
+  leave oxbows. Banks erode by rock strength and stop at valley walls. Splits form around islands where carrying
+  capacity (slope over floor width) falls, which means deposition. `RiverCarver` carves the plan:
+  - The water surface follows the never-rising valley floor profile.
+  - Under it, a cross-section: a deep core shifted to the outside of bends, a shallow rim and inner bar, and pools at
+    bends with shallow riffles (fords) between them. The banks are steep outside and gentle inside.
+  - Oxbows are plugged closed hollows.
+
+  The plan's water level feeds `LL_SurfaceWater`, so river water comes from the same ground rules as lakes and
+  streams. The river's upstream inflow (from its width, by the stream width rule read backwards) enters
+  `LL_DrainageArea`. `LL_Wetness` lets the water table meet a river at its surface and widens the wet band with
+  drainage area, giving the floodplain.
 - `FlowWriter`: stream flow (LL_WaterFlow, smoothed downhill direction) into vanilla's river flow map, so streams
   animate and turn watermills; rewritten after vanilla's own river rebuilds the map after fog.
 - `SoilModel` (soil depth: thinner, and bare at gentler slopes, on strong rock), `VanillaTerrainWriter` (runs the
@@ -148,8 +161,10 @@ Current focus: geological features that read well on the map, worked from the ow
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
 3. Height cues: stage tint, hillshading (cliff shadows and south faces are done).
 4. Remaining landforms: Basin, Hollow, Chasm, Crevasse, coasts, river variants. Landform shapes are too rounded.
-5. Water from the heightmap: done (lakes by water balance, streams, marsh and mud from the ground rules). Next:
-   channel patterns (meanders, splits), sediment fill on low relief (F3), surface rock (`Docs/SURFACE-ROCK-PLAN.md`).
+5. Water from the heightmap: done (lakes by water balance, streams, marsh and mud from the ground rules). Channel
+   patterns first version (meanders, cutoffs, pools and riffles, splits by deposition, floodplain wetness); review of
+   water against the targets in `Docs/WATER-REVIEW.md`. Next: sediment fill on low relief (F3), surface rock
+   (`Docs/SURFACE-ROCK-PLAN.md`). Gameplay tuning of water comes later ("dial back to fun").
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
 8. Toggle icons per layer (art).
