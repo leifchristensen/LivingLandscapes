@@ -144,6 +144,14 @@ public class TerrainChannelSettings
     /// <summary>The map edge within this many cells of where water enters does not drain (the land beyond slopes in).</summary>
     public float entryGuardCells = 15f;
 
+    /// <summary>
+    /// Micro-relief (metres, wavelength in cells) added to the ground before routing water: the same on every call, so
+    /// the drainage a map is planned with is the drainage it is built with.
+    /// </summary>
+    public float flatNoise = 0.08f;
+    public float flatNoiseWavelength = 9f;
+    public int flatNoiseSeed = 4711;
+
     /// <summary>Gradient (metres per cell) across filled hollows, so water crosses them toward the spill point.</summary>
     public float fillGradient = 1e-3f;
 }
@@ -306,7 +314,12 @@ public static class TerrainChannels
             var v = new Vector2(x, z);
             return entries.TrueForAll(e => (e - v).sqrMagnitude > p.entryGuardCells * p.entryGuardCells);
         }
+        // Flats keep a little micro-relief, so water wanders across them instead of running straight or at 45 degrees;
+        // on slopes it is far below the fall of the ground and changes nothing.
         filled = (float[])height.Clone();
+        var microRelief = new Perlin(1.0 / p.flatNoiseWavelength, 2.0, 0.5, 3, p.flatNoiseSeed, QualityMode.Medium);
+        for (int i = 0; i < n; i++)
+            filled[i] += p.flatNoise * (float)microRelief.GetValue(i % sizeX, 0.0, i / sizeX);
         GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
         receiver = GridMath.Receivers(filled, sizeX, sizeZ);
         for (int i = 0; i < n; i++)
