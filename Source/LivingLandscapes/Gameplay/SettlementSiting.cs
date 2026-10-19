@@ -99,6 +99,27 @@ public static class SettlementSiting
         float vanillaScore = smooth[map.cellIndices.CellToIndex(vanilla)];
         if (!best.IsValid)
         {
+            // The anchor lies in ground cut off from vanilla's open area (mountains, cliffs): take the best valid cell the colony can walk to.
+            var central = new List<IntVec3>();
+            foreach (IntVec3 c in CellRect.CenteredOn(map.Center, Mathf.RoundToInt(p.centralFraction * map.Size.x / 2f)).ClipInsideMap(map))
+                central.Add(c);
+            central.Sort((a, b) => smooth[map.cellIndices.CellToIndex(b)].CompareTo(smooth[map.cellIndices.CellToIndex(a)]));
+            foreach (IntVec3 c in central)
+            {
+                float score = smooth[map.cellIndices.CellToIndex(c)];
+                if (score <= vanillaScore)
+                    break;
+                if (c.Standable(map) && !c.Roofed(map) && c.GetAffordances(map).Contains(TerrainAffordanceDefOf.Heavy)
+                    && !usedRects.Exists(r => r.Contains(c)) && map.reachability.CanReach(vanilla, c, PathEndMode.OnCell, walk))
+                {
+                    best = c;
+                    bestScore = score;
+                    break;
+                }
+            }
+        }
+        if (!best.IsValid)
+        {
             Log.Message($"[LivingLandscapes] Start spot on {map}: no valid cell near the anchor, keeping vanilla's {vanilla} (suitability {vanillaScore:0.00}); rejected {notOpen} unreachable from vanilla's spot, {notStandable} not standable or roofed, {notHeavy} without heavy ground, {used} in ruins.");
             return;
         }
