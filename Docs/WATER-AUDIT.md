@@ -159,3 +159,18 @@ processes continuously, never switch shapes.
 2. Step 4 (soft regimes).
 3. Steps 3 and 5 (spreading and mutator nudges).
 4. Step 6 (removing the old code) as each replacement lands.
+
+## 4. Progress
+
+- 2026-10-19, steps 1 and 2 (`TerrainChannels`, commits fc8e250 and e835abb):
+  - One channel system: D8 discharge on the filled landform. Hydraulic geometry, plus vanilla-like width, depth and
+    bank noise, and stream-power scour.
+  - The second stream system (`SurfaceWaterModel.Streams`) is removed.
+  - Invariants 1, 2, 4, 5 and 6 pass on s1, s4, s5, s7, and on the forced Delta, Headwater and River Island maps.
+  - Mutator regimes have no effect yet (step 5).
+- Known problems:
+  - #10: the map's own trunk is too wide without a world river;
+  - #11: the deep core is too uniform on large rivers;
+  - #12: straight runs across filled flats;
+  - #13: channel heads start abruptly.
+- Confluence and coast need checking on a real tile: #7.

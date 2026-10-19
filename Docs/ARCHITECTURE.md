@@ -75,24 +75,22 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   notches ridges along them and soil holds there; no separate pass-cutting step. The writer logs walkable areas.
 - `LL_Debris` (rule S4): fragments from bare rock faces roll down the steepest way until the slope eases and collect
   there; scree lies where debris is high (fans and aprons below rock instead of a fixed-width ring).
-- **Water regimes** (`Docs/WATER-REGIMES.md`): the river network is data driven. A map's `WaterRegimeDef` is chosen
-  from its tile, with mutators first, then climate and hilliness. It sets network density, channel regime weights,
-  floodplain wetness and climate, and world river structures (delta, confluence, river island, headwater, marsh
-  web). Every channel reach gets a `ChannelRegimeDef` from its own fields, and that regime sets wobble, meandering,
-  splits, depth and valley floor. `RiverNetwork` extracts the channels from the erosion model's drainage tree.
-- **Rivers** (W1, W3-W5): `RiverChannels` plans each channel on the landform. Meander migration
-  (Howard-Knutson) is scaled by vanilla's channel width, so creeks bend tightly and great rivers gently. Cutoffs
-  leave oxbows. Banks erode by rock strength and stop at valley walls. Splits form around islands where carrying
-  capacity (slope over floor width) falls, which means deposition. `RiverCarver` carves the plan:
-  - The water surface follows the never-rising valley floor profile.
-  - Under it, a cross-section: a deep core shifted to the outside of bends, a shallow rim and inner bar, and pools at
-    bends with shallow riffles (fords) between them. The banks are steep outside and gentle inside.
-  - Oxbows are plugged closed hollows.
+- **Water reset in progress** (`Docs/WATER-AUDIT.md`, tracking issue #6): water comes from topology and data plus
+  noise; regimes become gentle nudges. Steps 1 and 2 are in; regimes, splits and mutator nudges are next, then the
+  old rule code (`RiverChannels`, `RiverCarver`, regime shape fields) is removed.
+- **Channels** (W1-W3): `TerrainChannels` routes water down the steepest descent (D8) of the depression-filled
+  landform. A channel forms where discharge (drainage area times climate, plus inflow) passes a threshold, so it
+  follows the erosion model's valleys and bends with the terrain's own relief. Water entering from beyond the map
+  adds its discharge where it enters, and the map edge there does not drain. A world river enters with the discharge
+  that gives its vanilla width, so vanilla's class is the only scaling. Width grows with the square root of
+  discharge, depth with discharge^0.3 times stream-power scour. Width, depth and bank noise roughen them as vanilla
+  does. The water surface is the filled landform, which never rises downstream. Where a channel crosses a hollow
+  deeper than itself, the lake model fills the hollow. `RiverNetwork` still supplies the inflows (erosion model
+  channels crossing the map edge) and the world river's class.
 
-  The plan's water level feeds `LL_SurfaceWater`, so river water comes from the same ground rules as lakes and
-  streams. The river's upstream inflow (from its width, by the stream width rule read backwards) enters
-  `LL_DrainageArea`. `LL_Wetness` lets the water table meet a river at its surface and widens the wet band with
-  drainage area, giving the floodplain.
+  The channel water level feeds `LL_SurfaceWater`, so river water comes from the same ground rules as lakes. Inflow
+  enters `LL_DrainageArea`. `LL_Wetness` lets the water table meet a channel at its surface and widens the wet band
+  with drainage area, giving the floodplain.
 - `FlowWriter`: stream flow (LL_WaterFlow, smoothed downhill direction) into vanilla's river flow map, so streams
   animate and turn watermills; rewritten after vanilla's own river rebuilds the map after fog.
 - `SoilModel` (soil depth: thinner, and bare at gentler slopes, on strong rock), `VanillaTerrainWriter` (runs the
