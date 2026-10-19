@@ -43,9 +43,9 @@ public class RiverBedSettings
     public float sharpBendWidths = 3f;
 
     /// <summary>
-    /// Valley floors (rule V1): channels come first, valleys follow them. Beyond the banks a flat floor lies this
-    /// height above the water (metres, times the square root of the width: bankfull depth) and reaches out this many
-    /// channel widths times the rock's erodibility (soft rock: basins; hard rock: narrows), at most
+    /// Valley floors (rule V1): channels come first, valleys follow them. Beyond the banks a floor lies this height
+    /// above the water (metres, times the square root of the width: bankfull depth) and reaches out the reach regime's
+    /// floor widths times the rock's erodibility (soft rock: basins; hard rock: narrows), at most
     /// <see cref="maxFloorCells"/>. Beyond the floor the valley walls ease back to the natural ground over
     /// <see cref="wallWidth"/> cells. Ground is only ever lowered, so on flat tiles the floor is the plain itself.
     /// </summary>
@@ -53,7 +53,6 @@ public class RiverBedSettings
 
     /// <summary>The floor rises this much (metres per cell) away from the channel, so it drains to it like a floodplain.</summary>
     public float floorSlope = 0.003f;
-    public float floorWidths = 4f;
     public float maxFloorCells = 40f;
     public float wallWidth = 10f;
 
@@ -87,6 +86,11 @@ public static class RiverCarver
         public List<Vector2> Line;
         public float[] Cumulative, Curvature, Pool;
         public Nearest[] Near;
+
+        /// <summary>The reach regime at each point of the line.</summary>
+        public ReachRegime[] Regime;
+
+        public ReachRegime RegimeAt(Nearest n) => Regime[Mathf.Min(n.T < 0.5f ? n.Segment : n.Segment + 1, Regime.Length - 1)];
 
         public float At(float[] values, Nearest n) =>
             Mathf.Lerp(values[n.Segment], values[Mathf.Min(n.Segment + 1, values.Length - 1)], n.T);
@@ -133,7 +137,7 @@ public static class RiverCarver
         if (plan.Main.Count < 2)
             return;
         float reach = plan.NominalWidth * 0.5f + p.bankWidth * p.innerBankFactor + p.maxFloorCells + p.wallWidth;
-        Channel main = Build(plan.Main, plan.NominalWidth, reach, canvas, p);
+        Channel main = Build(plan.Main, plan.MainRegime.ToArray(), plan.NominalWidth, reach, canvas, p);
 
         // Water surface along the channel: the ground's never-rising profile, a bankfull depth below the valley floor,
         // and never below the parent's water where the channel joins it.
@@ -161,7 +165,7 @@ public static class RiverCarver
         // so where the two overlap their levels agree.
         foreach (RiverPlan.SideBranch side in plan.Sides)
         {
-            Channel branch = Build(side.Points, side.Width, reach, canvas, p);
+            Channel branch = Build(side.Points, plan.MainRegime.GetRange(side.From, side.Points.Count).ToArray(), side.Width, reach, canvas, p);
             float BranchSurface(int i)
             {
                 Nearest near = branch.Near[i];
@@ -180,7 +184,7 @@ public static class RiverCarver
             List<Vector2> body = LongestRun(loop, v => main.Near[RiverChannels.Index(v, canvas.SizeX, canvas.SizeZ)].Distance >= plug);
             if (body.Count < 4)
                 continue;
-            Channel oxbow = Build(body, loopWidth, loopWidth + p.bankWidth, canvas, p);
+            Channel oxbow = Build(body, null, loopWidth, loopWidth + p.bankWidth, canvas, p);
             float floor = float.MaxValue;
             for (int i = 0; i < canvas.Natural.Length; i++)
             {
@@ -192,11 +196,17 @@ public static class RiverCarver
         }
     }
 
-    private static Channel Build(List<Vector2> line, float width, float reach, Canvas canvas, RiverBedSettings p)
+    private static Channel Build(List<Vector2> line, ReachRegime[] regime, float width, float reach, Canvas canvas, RiverBedSettings p)
     {
-        var c = new Channel { Line = line, Cumulative = Cumulative(line) };
+        var c = new Channel { Line = line, Cumulative = Cumulative(line), Regime = regime };
         c.Curvature = Curvature(line, width * 0.5f / Mathf.Max(c.Cumulative[line.Count - 1] / Mathf.Max(line.Count - 1, 1), 0.1f));
         c.Pool = Pools(c.Cumulative, c.Curvature, width, p);
+        // Reaches whose regime has no riffles keep an unbroken deep thread.
+        for (int i = 0; regime != null && i < c.Pool.Length; i++)
+        {
+            if (!regime[Mathf.Min(i, regime.Length - 1)].Riffles)
+                c.Pool[i] = 1f;
+        }
         c.Near = NearestTo(line, c.Cumulative, reach, canvas.SizeX, canvas.SizeZ);
         return c;
     }
@@ -224,13 +234,14 @@ public static class RiverCarver
             bool outer = curvature * near.Side < 0f;
             float bank = p.bankWidth * Mathf.Lerp(1f, outer ? p.outerBankFactor : p.innerBankFactor, bend);
             float erodibility = canvas.RockStrength == null ? 0.5f : Mathf.Clamp01(1f - canvas.RockStrength[i]);
-            float floorEdge = half + bank + Mathf.Min(p.floorWidths * nominalWidth * erodibility, p.maxFloorCells);
+            ReachRegime regime = channel.RegimeAt(near);
+            float floorEdge = half + bank + Mathf.Min(regime.Floor * nominalWidth * erodibility, p.maxFloorCells);
             if (near.Distance > floorEdge + p.wallWidth)
                 continue;
             float surface = surfaceAt(i);
             if (near.Distance <= half)
             {
-                float bed = surface - Depth(near.Distance / half, outer, bend, channel.At(channel.Pool, near), width, p);
+                float bed = surface - regime.Depth * Depth(near.Distance / half, outer, bend, channel.At(channel.Pool, near), width, p);
                 bool mine = canvas.ChannelOf[i] == index;
                 canvas.Carved[i] = mine ? Mathf.Min(canvas.Carved[i], bed) : bed;
                 canvas.Level[i] = mine ? Mathf.Max(canvas.Level[i], surface) : surface;

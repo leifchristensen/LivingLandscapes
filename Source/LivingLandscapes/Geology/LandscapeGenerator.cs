@@ -122,10 +122,12 @@ public static class LandscapeGenerator
     /// <param name="rockStrength">Strength (0..1) of the rock beneath each map cell, from <paramref name="strata"/>.</param>
     /// <param name="rock">Rock type beneath each map cell (null where the tile has no rock types).</param>
     /// <param name="channels">The channel network crossing the map, larger channels first (see <see cref="RiverNetwork"/>).</param>
-    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out List<ChannelCourse> channels,
-        out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
+    /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
+    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
+        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
     {
         world = WorldContext.For(map, p.tileSpacingMetres);
+        water = WaterRegimes.Select(map, world);
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
         float mapCellsPerModelCell = metresPerModelCell / p.cellSize;
@@ -162,7 +164,7 @@ public static class LandscapeGenerator
         // The channels the model carved, from its drainage tree; the world river is the one from its entry.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
-            mapCellsPerModelCell, sizeX, sizeZ, riverEntry, p.network);
+            mapCellsPerModelCell, sizeX, sizeZ, riverEntry, water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];

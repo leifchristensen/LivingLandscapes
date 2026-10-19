@@ -1,6 +1,7 @@
 using System.Linq;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
+using UnityEngine;
 using Verse;
 
 namespace LivingLandscapes.Layers;
@@ -20,6 +21,20 @@ public class LandformWorker : EnvironmentLayerWorker
     public override GenerationStage StageFor(Map map) =>
         GeologicalTerrain.AppliesTo(map) ? GenerationStage.Elevation : GenerationStage.Plants;
 
+    /// <summary>Each reach field's 10th, 50th and 90th percentile over the map's reaches, for tuning the regime tables.</summary>
+    private static string ReachFieldRanges(RiverSystem rivers)
+    {
+        var fields = rivers.Channels.SelectMany(c => c.ReachFields).ToList();
+        if (fields.Count == 0)
+            return "";
+        return string.Join(", ", fields[0].Keys.Select(key =>
+        {
+            var values = fields.Select(f => f[key]).OrderBy(v => v).ToList();
+            float At(float q) => values[Mathf.Clamp(Mathf.RoundToInt(q * (values.Count - 1)), 0, values.Count - 1)];
+            return $"{key} {At(0.1f):0.###}/{At(0.5f):0.###}/{At(0.9f):0.###}";
+        }));
+    }
+
     public override float[] Compute(EnvironmentContext context)
     {
         Map map = context.Map;
@@ -27,12 +42,18 @@ public class LandformWorker : EnvironmentLayerWorker
 
         if (StageFor(map) == GenerationStage.Elevation)
         {
-            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var channels,
+            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out WaterRegimeDef water, out var channels,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
             // The channel network first (V1-V5: widths, shapes, islands), then carved with its valleys so water flows
             // downhill or level (W1, W5).
-            RiverSystem rivers = RiverChannels.PlanNetwork(generated, rockStrength, map.Size.x, map.Size.z, channels,
-                RiverCourse.WidthOnMap(map.TileInfo), world.SeaDirection, generation.network, generation.channels);
+            RiverSystem rivers = RiverChannels.PlanNetwork(channels, new RiverChannels.Context
+            {
+                Height = generated, RockStrength = rockStrength, SizeX = map.Size.x, SizeZ = map.Size.z,
+                VanillaWidth = RiverCourse.WidthOnMap(map.TileInfo), SeaDirection = world.SeaDirection,
+                Climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map),
+                Relief = generation.ReliefFor(world.Hilliness), Water = water,
+                Network = generation.network, Channels = generation.channels,
+            });
             RiverCarver.Carve(generated, rockStrength, map.Size.x, map.Size.z, rivers, generation.riverBed);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
@@ -44,7 +65,9 @@ public class LandformWorker : EnvironmentLayerWorker
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +
-                        $"{rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
+                        $"water regime {water?.defName ?? "none"}, {rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
+                        $"reaches {string.Join(" ", rivers.Channels.SelectMany(c => c.Reaches).GroupBy(r => r.Def.defName).Select(g => $"{g.Key} {g.Count()}"))}" +
+                        $" [{ReachFieldRanges(rivers)}]; " +
                         $"{rivers.Channels.Sum(c => c.Sides.Count)} side branches, {rivers.Channels.Sum(c => c.Oxbows.Count)} cut-off loops), " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
                         $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +

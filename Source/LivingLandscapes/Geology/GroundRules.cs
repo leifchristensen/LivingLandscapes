@@ -18,20 +18,36 @@ public enum GroundCover
     Mud,
 }
 
-/// <summary>One test of a rule: a field's value at the cell lies in [min, max).</summary>
-public class GroundCondition
+/// <summary>
+/// One test of a rule: a field's value lies in [min, max). Shared by every rule table: ground rules (fields per cell,
+/// see <see cref="GroundFields"/>), water regimes (fields per tile) and channel regimes (fields per reach).
+/// </summary>
+public class FieldCondition
 {
-    /// <summary>A layer defName (LL_SoilDepth, LL_Wetness...) or a derived field (see <see cref="GroundFields"/>).</summary>
+    /// <summary>The field's name: a layer defName (LL_SoilDepth, LL_Wetness...) or a field the table defines.</summary>
     public string field;
     public float min = float.NegativeInfinity;
     public float max = float.PositiveInfinity;
+
+    public bool Holds(float value) => value >= min && value < max;
+
+    /// <summary>All conditions hold; a field missing from <paramref name="fields"/> fails its condition.</summary>
+    public static bool All(List<FieldCondition> conditions, IReadOnlyDictionary<string, float> fields)
+    {
+        foreach (FieldCondition condition in conditions)
+        {
+            if (!fields.TryGetValue(condition.field, out float value) || !condition.Holds(value))
+                return false;
+        }
+        return true;
+    }
 }
 
 /// <summary>A class of ground: what a cell becomes when all conditions hold.</summary>
 public class GroundRule
 {
     public string label;
-    public List<GroundCondition> conditions = new List<GroundCondition>();
+    public List<FieldCondition> conditions = new List<FieldCondition>();
 
     /// <summary>
     /// Value written into vanilla's elevation grid, which vanilla reads as a class: &gt; 0.798 overhead mountain,
@@ -92,7 +108,7 @@ public class GroundFields
     {
         foreach (GroundRule rule in def.rules)
         {
-            foreach (GroundCondition condition in rule.conditions)
+            foreach (FieldCondition condition in rule.conditions)
             {
                 if (!Has(condition.field))
                     Log.ErrorOnce($"[LivingLandscapes] Ground rule '{rule.label}' tests unknown field '{condition.field}'; it never matches.",
@@ -118,7 +134,7 @@ public class GroundFields
 
     private bool Matches(GroundRule rule, int cell)
     {
-        foreach (GroundCondition condition in rule.conditions)
+        foreach (FieldCondition condition in rule.conditions)
         {
             float v = Value(condition.field, cell);
             if (float.IsNaN(v) || v < condition.min || v >= condition.max)

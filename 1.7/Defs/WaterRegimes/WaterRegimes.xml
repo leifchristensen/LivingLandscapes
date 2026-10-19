@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Water regimes (map scale, Docs/WATER-REGIMES.md). Tried in order; the first whose mutators (any one of them) and
+    conditions match the tile is the map's. Regimes tied to a mutator come first, so those maps are distinct. Tile
+    fields: Rainfall (mm), Temperature (C), Hilliness (1 flat, 2 small hills, 3 large hills, 4 mountainous,
+    5 impassable), Elevation (m), River (vanilla width of the world river, 0 if none), Coast (1 by the sea).
+    sourceShare: channels start where drainage reaches this share of the map's area (lower: denser network).
+    channelRegimes: weights on channel regimes (0 forbids; unlisted weigh 1).
+    Mutator structures (delta, confluence, river island, headwater, marsh web) come in a later step; until then these
+    regimes shape the network through density and channel regime weights only.
+  -->
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Delta</defName>
+    <label>delta</label>
+    <order>10</order>
+    <mutators><li>RiverDelta</li></mutators>
+    <sourceShare>0.03~0.04</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Braided</regime><weight>3</weight></li>
+      <li><regime>LL_Anabranching</regime><weight>3</weight></li>
+      <li><regime>LL_Meandering</regime><weight>2</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Confluence</defName>
+    <label>confluence</label>
+    <order>11</order>
+    <mutators><li>RiverConfluence</li></mutators>
+    <sourceShare>0.025~0.035</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Anabranching</regime><weight>2</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_RiverIsland</defName>
+    <label>river island</label>
+    <order>12</order>
+    <mutators><li>RiverIsland</li></mutators>
+    <sourceShare>0.03~0.04</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Anabranching</regime><weight>4</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Headwater</defName>
+    <label>headwater</label>
+    <order>13</order>
+    <mutators><li>Headwater</li></mutators>
+    <sourceShare>0.006~0.01</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Torrent</regime><weight>3</weight></li>
+      <li><regime>LL_Gorge</regime><weight>2</weight></li>
+      <li><regime>LL_Meandering</regime><weight>0</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_MarshWeb</defName>
+    <label>marsh web</label>
+    <order>14</order>
+    <mutators><li>Wetland</li><li>Marshy</li></mutators>
+    <sourceShare>0.006~0.01</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Anabranching</regime><weight>3</weight></li>
+      <li><regime>LL_Meandering</regime><weight>2</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Lakeland</defName>
+    <label>lakeland</label>
+    <order>15</order>
+    <mutators><li>Lake</li><li>LakeWithIsland</li><li>LakeWithIslands</li><li>Pond</li><li>Lakeshore</li><li>Oasis</li><li>CaveLakes</li></mutators>
+    <sourceShare>0.02~0.03</sourceShare>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Coastal</defName>
+    <label>coastal</label>
+    <order>16</order>
+    <mutators><li>Coast</li><li>Bay</li><li>Cove</li><li>Fjord</li><li>Peninsula</li><li>Archipelago</li></mutators>
+    <sourceShare>0.02~0.03</sourceShare>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Basin</defName>
+    <label>basin</label>
+    <order>17</order>
+    <mutators><li>Basin</li></mutators>
+    <sourceShare>0.015~0.025</sourceShare>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_AridWashes</defName>
+    <label>arid washes</label>
+    <order>20</order>
+    <conditions>
+      <li><field>Rainfall</field><max>400</max></li>
+    </conditions>
+    <sourceShare>0.04~0.06</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Braided</regime><weight>3</weight></li>
+      <li><regime>LL_Meandering</regime><weight>0.5</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_DryGround</defName>
+    <label>dry ground</label>
+    <order>21</order>
+    <mutators><li>DryGround</li></mutators>
+    <sourceShare>0.04~0.06</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Braided</regime><weight>3</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_MountainTorrents</defName>
+    <label>mountain torrents</label>
+    <order>30</order>
+    <conditions>
+      <li><field>Hilliness</field><min>4</min></li>
+    </conditions>
+    <sourceShare>0.012~0.02</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Gorge</regime><weight>3</weight></li>
+      <li><regime>LL_Torrent</regime><weight>3</weight></li>
+      <li><regime>LL_Meandering</regime><weight>0.5</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_HillCreeks</defName>
+    <label>hill creeks</label>
+    <order>31</order>
+    <conditions>
+      <li><field>Hilliness</field><min>2</min></li>
+    </conditions>
+    <sourceShare>0.012~0.02</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Torrent</regime><weight>2</weight></li>
+      <li><regime>LL_Meandering</regime><weight>0.7</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+  <!-- The default: flat ground. -->
+  <LivingLandscapes.Geology.WaterRegimeDef>
+    <defName>LL_Plains</defName>
+    <label>plains</label>
+    <order>100</order>
+    <sourceShare>0.025~0.04</sourceShare>
+    <channelRegimes>
+      <li><regime>LL_Meandering</regime><weight>2</weight></li>
+    </channelRegimes>
+  </LivingLandscapes.Geology.WaterRegimeDef>
+
+</Defs>

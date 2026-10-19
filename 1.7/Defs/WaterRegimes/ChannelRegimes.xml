@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Channel regimes (reach scale, Docs/WATER-REGIMES.md). Every reach of every channel takes the matching regime its
+    map's water regime weighs highest; ties go to the lower order. Fields per reach:
+      Discharge     log10 of drainage area (cells) times the climate's wetness
+      Slope         water drop per cell (metres per cell)
+      Confinement   valley floor width over channel width
+      Opening       confinement over its narrowest in the reaches just upstream (above 1 where the valley opens out)
+      BankStrength  rock strength along the banks, 0..1
+      Sediment      upstream erodibility times relief (/100 m)
+      BaseLevel     distance to the sea or where the channel leaves the map, in channel widths
+      Order         stream order
+    Parameters are ranges, drawn once per channel: wobble (widths) and its wavelength (widths), meander (share of full
+    bend migration), splitChance and islandWidths (where the valley opens out), depthScale, riffles (pools and fords
+    in wide channels), floorWidths (valley floor reach at full erodibility).
+  -->
+
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Gorge</defName>
+    <label>gorge</label>
+    <order>10</order>
+    <conditions>
+      <li><field>Confinement</field><max>3</max></li>
+      <li><field>BankStrength</field><min>0.45</min></li>
+    </conditions>
+    <wobbleWidths>0.1~0.3</wobbleWidths>
+    <wobbleWavelengthWidths>8~12</wobbleWavelengthWidths>
+    <meander>0~0</meander>
+    <splitChance>0~0</splitChance>
+    <depthScale>1.2~1.4</depthScale>
+    <riffles>false</riffles>
+    <floorWidths>0~0.3</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Torrent</defName>
+    <label>torrent</label>
+    <order>20</order>
+    <conditions>
+      <li><field>Slope</field><min>0.2</min></li>
+    </conditions>
+    <wobbleWidths>0.4~0.9</wobbleWidths>
+    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
+    <meander>0~0</meander>
+    <splitChance>0~0.1</splitChance>
+    <depthScale>0.7~0.9</depthScale>
+    <floorWidths>0.5~1.5</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Braided</defName>
+    <label>braided</label>
+    <order>30</order>
+    <conditions>
+      <li><field>Sediment</field><min>0.6</min></li>
+      <li><field>Slope</field><min>0.01</min><max>0.2</max></li>
+      <li><field>Confinement</field><min>5</min></li>
+    </conditions>
+    <wobbleWidths>0.5~1</wobbleWidths>
+    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
+    <meander>0~0.1</meander>
+    <splitChance>0.7~0.9</splitChance>
+    <islandWidths>1.5~2.5</islandWidths>
+    <depthScale>0.6~0.8</depthScale>
+    <floorWidths>4~6</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Anabranching</defName>
+    <label>anabranching</label>
+    <order>40</order>
+    <conditions>
+      <li><field>Confinement</field><min>6</min></li>
+      <li><field>Opening</field><min>2</min></li>
+      <li><field>Discharge</field><min>3.5</min></li>
+    </conditions>
+    <wobbleWidths>0.4~0.8</wobbleWidths>
+    <wobbleWavelengthWidths>5~8</wobbleWavelengthWidths>
+    <meander>0.1~0.3</meander>
+    <splitChance>0.5~0.8</splitChance>
+    <islandWidths>3~5</islandWidths>
+    <floorWidths>3~5</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Meandering</defName>
+    <label>meandering</label>
+    <order>50</order>
+    <conditions>
+      <li><field>Slope</field><max>0.01</max></li>
+      <li><field>Confinement</field><min>5</min></li>
+      <li><field>BankStrength</field><max>0.55</max></li>
+    </conditions>
+    <wobbleWidths>0.8~1.2</wobbleWidths>
+    <wobbleWavelengthWidths>4~6</wobbleWavelengthWidths>
+    <meander>0.6~1</meander>
+    <splitChance>0~0</splitChance>
+    <floorWidths>3~5</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- The default: matches every reach. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Wandering</defName>
+    <label>wandering</label>
+    <order>100</order>
+    <wobbleWidths>0.6~1.2</wobbleWidths>
+    <wobbleWavelengthWidths>4~7</wobbleWavelengthWidths>
+    <meander>0.1~0.3</meander>
+    <splitChance>0~0</splitChance>
+    <floorWidths>2~4</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+</Defs>

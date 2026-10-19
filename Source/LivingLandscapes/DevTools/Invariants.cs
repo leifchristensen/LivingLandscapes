@@ -134,7 +134,9 @@ public static class Invariants
         var filled = (float[])h.Clone();
         GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         TerrainDef[] terrain = map.terrainGrid.topGrid;
-        bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean;
+        // Open still water only: marsh is wet ground (floodplains, seeps), not a lake.
+        bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
+                                  && terrain[i] != TerrainDefOf.Marsh;
 
         int lakeCount = GridMath.LabelRegions(StillWater, sizeX, sizeZ, out int[] lakeLabels);
         var lakeDepth = new float[lakeCount];

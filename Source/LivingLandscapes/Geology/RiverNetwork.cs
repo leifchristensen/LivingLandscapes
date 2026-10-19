@@ -7,7 +7,10 @@ namespace LivingLandscapes.Geology;
 /// <summary>Channel network settings (part of <see cref="GeologyGenerationExtension"/>). Widths in map cells.</summary>
 public class RiverNetworkSettings
 {
-    /// <summary>A channel starts where the erosion model's drainage area reaches this share of the map's area.</summary>
+    /// <summary>
+    /// A channel starts where the erosion model's drainage area reaches this share of the map's area, unless the
+    /// map's water regime sets its own (<see cref="WaterRegimeDef.sourceShare"/>).
+    /// </summary>
     public float sourceShare = 0.02f;
 
     /// <summary>Channels shorter than this inside the map (cells) are left out, unless a kept channel joins them.</summary>
@@ -37,6 +40,9 @@ public class ChannelCourse
 {
     public List<Vector2> Points = new List<Vector2>();
 
+    /// <summary>Drainage area (map cells) at each point.</summary>
+    public List<float> Areas = new List<float>();
+
     /// <summary>Stream order (Strahler): 1 for a source channel, one more where two of equal order join.</summary>
     public int Order;
 
@@ -48,6 +54,22 @@ public class ChannelCourse
 
     /// <summary>The world river's channel.</summary>
     public bool WorldRiver;
+
+    /// <summary>Drainage area (map cells) at the course point nearest to <paramref name="v"/>.</summary>
+    public float AreaNear(Vector2 v)
+    {
+        float best = float.MaxValue, area = 1f;
+        for (int i = 0; i < Points.Count; i++)
+        {
+            float d = (Points[i] - v).sqrMagnitude;
+            if (d < best)
+            {
+                best = d;
+                area = Areas[i];
+            }
+        }
+        return area;
+    }
 }
 
 /// <summary>
@@ -62,11 +84,11 @@ public static class RiverNetwork
     /// <param name="toMap">Model cell index to map coordinates.</param>
     /// <param name="mapCellsPerModelCell">Map cells along one model cell.</param>
     public static List<ChannelCourse> Extract(int[] receiver, float[] area, int gx, int gz, System.Func<int, Vector2> toMap,
-        float mapCellsPerModelCell, int sizeX, int sizeZ, int riverEntry, RiverNetworkSettings p)
+        float mapCellsPerModelCell, int sizeX, int sizeZ, int riverEntry, float sourceShare, RiverNetworkSettings p)
     {
         int n = gx * gz;
         float cellArea = mapCellsPerModelCell * mapCellsPerModelCell;
-        float threshold = p.sourceShare * sizeX * sizeZ / cellArea;
+        float threshold = sourceShare * sizeX * sizeZ / cellArea;
         bool IsChannel(int c) => area[c] >= threshold;
 
         // Channel donors of each channel cell, then cells from small area to large (donors before receivers).
@@ -145,7 +167,10 @@ public static class RiverNetwork
             int a = Mathf.Max(0, first - 1), b = Mathf.Min(course.Count - 1, last + 1);
             var channel = new ChannelCourse { Order = orders[k], WorldRiver = riverEntry >= 0 && course.Contains(riverEntry) };
             for (int i = a; i <= b; i++)
+            {
                 channel.Points.Add(toMap(course[i]));
+                channel.Areas.Add(area[course[i]] * cellArea);
+            }
             if (a < first)
                 channel.EntryArea = area[course[first]] * cellArea;
             float inside = 0f;

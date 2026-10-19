@@ -5,16 +5,22 @@ using Verse.Noise;
 
 namespace LivingLandscapes.Geology;
 
-/// <summary>Channel pattern settings (part of <see cref="GeologyGenerationExtension"/>). Lengths in map cells.</summary>
+/// <summary>
+/// Channel process settings (part of <see cref="GeologyGenerationExtension"/>). Lengths in map cells. How much each
+/// process acts on a reach comes from its channel regime (<see cref="ChannelRegimeDef"/>); these are the physics.
+/// </summary>
 public class RiverChannelSettings
 {
     /// <summary>Largest spacing of the centre line's points while a channel is shaped (half a width for narrow ones).</summary>
     public float spacing = 2f;
 
+    /// <summary>Channels are classified in reaches this many widths long (at least <see cref="minReachLength"/> cells).</summary>
+    public float reachWidths = 5f;
+    public float minReachLength = 20f;
+
     /// <summary>
-    /// Meander migration steps (Howard-Knutson). Each step moves the bank outward at bends, weighted by the curvature
-    /// upstream, so bends grow and travel downstream. Valley walls stop it, so only channels on open, nearly flat
-    /// ground form loops (rule V4).
+    /// Meander migration (Howard-Knutson). Each step moves the bank outward at bends, weighted by the curvature
+    /// upstream, so bends grow and travel downstream. A reach's regime sets the share of full migration it gets.
     /// </summary>
     public int meanderSteps = 500;
     public float migrationRate = 4f;
@@ -36,15 +42,6 @@ public class RiverChannelSettings
     /// </summary>
     public float upstreamMaps = 2f;
 
-    /// <summary>
-    /// The small wobble every channel has (rule V4): amplitude this many channel widths (clamped to the cell range),
-    /// over a wavelength of this many widths (clamped). It also seeds bends where the ground lets them grow.
-    /// </summary>
-    public float wobbleWidths = 1f;
-    public FloatRange wobbleCells = new FloatRange(1.5f, 3f);
-    public float wobbleWavelengthWidths = 5f;
-    public FloatRange wobbleWavelengthCells = new FloatRange(10f, 20f);
-
     /// <summary>A bend whose neck closes to this many channel widths is cut off; the loop is left as an oxbow.</summary>
     public float cutoffWidths = 1.7f;
 
@@ -58,22 +55,19 @@ public class RiverChannelSettings
     public float bankStrengthExponent = 1f;
 
     /// <summary>
-    /// Splits where confinement ends (rule V5). Valley floor width is the ground within <see cref="floodDepth"/>
-    /// metres of the channel. Where it is at least <see cref="splitConfinement"/> channel widths and has grown to
-    /// <see cref="releaseRatio"/> times its narrowest over the last <see cref="upstreamWidths"/> widths upstream (a
-    /// gorge or narrows opening into a basin, a mountain front opening onto a plain), the channel divides around
-    /// islands and rejoins.
+    /// Where a split can happen (rule V5): valley floor (ground within <see cref="floodDepth"/> metres of the channel)
+    /// at least <see cref="splitConfinement"/> channel widths wide. The reach's regime decides how likely a split is
+    /// and how long its island; regimes that split where the valley opens out test the reach field Opening (floor
+    /// width over its narrowest in the last <see cref="upstreamWidths"/> widths upstream).
     /// </summary>
     public float splitConfinement = 6f;
-    public float releaseRatio = 2.5f;
     public float upstreamWidths = 10f;
     public float floodDepth = 1.5f;
 
     /// <summary>Within this many channel widths of a sea edge (base level) the channel fans into distributaries that reach the sea.</summary>
     public float deltaWidths = 8f;
 
-    /// <summary>Island length in channel widths (at least <see cref="minIslandLength"/> cells), and the width each branch keeps.</summary>
-    public float islandWidths = 3f;
+    /// <summary>Shortest island (cells), and the width each branch keeps.</summary>
     public float minIslandLength = 24f;
     public float branchWidthShare = 0.6f;
 
@@ -90,6 +84,9 @@ public class RiverPlan
     /// <summary>Channel width at each main point (narrower where a side branch takes part of the flow).</summary>
     public List<float> MainWidth = new List<float>();
 
+    /// <summary>The channel regime at each main point.</summary>
+    public List<ReachRegime> MainRegime = new List<ReachRegime>();
+
     public List<SideBranch> Sides = new List<SideBranch>();
 
     /// <summary>Abandoned loops (oxbows) left by cutoffs; the lake model decides whether they hold water.</summary>
@@ -104,6 +101,10 @@ public class RiverPlan
     public float EntryArea;
 
     public bool WorldRiver;
+
+    /// <summary>Each reach's fields and regime, upstream to downstream (for logs and the variety check).</summary>
+    public List<Dictionary<string, float>> ReachFields = new List<Dictionary<string, float>>();
+    public List<ReachRegime> Reaches = new List<ReachRegime>();
 
     public class SideBranch
     {
@@ -121,6 +122,8 @@ public class RiverPlan
 /// <summary>The map's channels, larger first, and what carving them left in each cell.</summary>
 public class RiverSystem
 {
+    public WaterRegimeDef Regime;
+
     public List<RiverPlan> Channels = new List<RiverPlan>();
 
     /// <summary>Water surface height in each cell of a live channel (NaN elsewhere), set when the channels are carved.</summary>
@@ -136,20 +139,31 @@ public class RiverSystem
 }
 
 /// <summary>
-/// Channel patterns (rules V3-V5, W4, W5). Every channel of the network is shaped by the same process: a small
-/// wobble at its own scale, then meander migration, where bends erode their outer bank. Bank erodibility comes from
-/// the rock and the valley walls, so a channel in rock or in a narrow valley keeps gentle curves, and one on an open
-/// plain of weak ground winds and cuts off loops. Widths come from a ladder: the world river's vanilla class, or the
-/// stream order of the map's own channels. Where confinement ends the channel splits around islands; near the sea it
-/// fans into distributaries.
+/// Channel patterns. Every channel of the network is shaped by the same processes: a wobble at its own scale, meander
+/// migration (bends erode their outer bank, held back by rock and valley walls), and splits where the valley opens
+/// out. How much each process acts is set per reach by its channel regime, chosen from the reach's own data
+/// (discharge, slope, confinement, bank strength, sediment, base level) and weighed by the map's water regime, so
+/// channels differ between reaches and between maps (Docs/WATER-REGIMES.md). Widths come from the world river's
+/// vanilla class or the stream order of the map's own channels. Near the sea the channel fans into distributaries.
 /// </summary>
 public static class RiverChannels
 {
-    /// <summary>Plans every channel of the network, parents before tributaries, each tributary ending on its parent.</summary>
-    public static RiverSystem PlanNetwork(float[] height, float[] rockStrength, int sizeX, int sizeZ, List<ChannelCourse> courses,
-        float vanillaWidth, Vector2 seaDirection, RiverNetworkSettings network, RiverChannelSettings p)
+    /// <summary>What the planning reads besides each channel's course.</summary>
+    public class Context
     {
-        var system = new RiverSystem();
+        public float[] Height, RockStrength;
+        public int SizeX, SizeZ;
+        public float VanillaWidth, Climate, Relief;
+        public Vector2 SeaDirection;
+        public WaterRegimeDef Water;
+        public RiverNetworkSettings Network;
+        public RiverChannelSettings Channels;
+    }
+
+    /// <summary>Plans every channel of the network, parents before tributaries, each tributary ending on its parent.</summary>
+    public static RiverSystem PlanNetwork(List<ChannelCourse> courses, Context c)
+    {
+        var system = new RiverSystem { Regime = c.Water };
         if (courses == null)
             return system;
         var planned = new RiverPlan[courses.Count];
@@ -157,22 +171,22 @@ public static class RiverChannels
         {
             ChannelCourse course = courses[k];
             RiverPlan parent = course.Parent >= 0 ? planned[course.Parent] : null;
-            float width = course.WorldRiver && vanillaWidth > 0f
-                ? network.worldRiverWidth.Evaluate(vanillaWidth)
-                : network.widthByOrder.Evaluate(course.Order);
+            float width = course.WorldRiver && c.VanillaWidth > 0f
+                ? c.Network.worldRiverWidth.Evaluate(c.VanillaWidth)
+                : c.Network.widthByOrder.Evaluate(course.Order);
             if (parent != null)
-                width = Mathf.Min(width, parent.NominalWidth * network.tributaryShare);
-            List<Vector2> line = RiverCourse.FromPlan(course.Points, sizeX, sizeZ);
+                width = Mathf.Min(width, parent.NominalWidth * c.Network.tributaryShare);
+            List<Vector2> line = RiverCourse.FromPlan(course.Points, c.SizeX, c.SizeZ);
             if (line == null)
                 continue;
             // A tributary ends on its parent's channel as planned, not where the model's grid put the junction: it is
             // cut where it comes closest to the parent and joined to it there. A junction beyond the map is left alone.
-            if (parent != null && Inside(line[line.Count - 1], sizeX, sizeZ))
+            if (parent != null && Inside(line[line.Count - 1], c.SizeX, c.SizeZ))
                 JoinParent(line, parent.Main);
             else
                 parent = null;
-            bool fromEdge = !Inside(course.Points[0], sizeX, sizeZ);
-            RiverPlan plan = Plan(height, rockStrength, sizeX, sizeZ, line, width, fromEdge, seaDirection, p);
+            bool fromEdge = !Inside(course.Points[0], c.SizeX, c.SizeZ);
+            RiverPlan plan = Plan(line, width, fromEdge, parent == null, course, c);
             if (plan.Main.Count < 2)
                 continue;
             plan.Parent = parent != null ? system.Channels.IndexOf(parent) : -1;
@@ -184,16 +198,17 @@ public static class RiverChannels
         return system;
     }
 
-    public static RiverPlan Plan(float[] height, float[] rockStrength, int sizeX, int sizeZ, List<Vector2> course, float width,
-        bool fromEdge, Vector2 seaDirection, RiverChannelSettings p)
+    private static RiverPlan Plan(List<Vector2> course, float width, bool fromEdge, bool leavesMap, ChannelCourse source, Context c)
     {
+        RiverChannelSettings p = c.Channels;
+        int sizeX = c.SizeX, sizeZ = c.SizeZ;
         var plan = new RiverPlan { NominalWidth = width };
         if (course == null || course.Count < 2)
             return plan;
         float spacing = Mathf.Clamp(width * 0.5f, 1f, p.spacing);
         float BankErodibility(Vector2 v)
         {
-            float strength = rockStrength == null ? 0.5f : rockStrength[Index(v, sizeX, sizeZ)];
+            float strength = c.RockStrength == null ? 0.5f : c.RockStrength[Index(v, sizeX, sizeZ)];
             return Mathf.Pow(Mathf.Clamp01(1f - strength), p.bankStrengthExponent);
         }
 
@@ -209,21 +224,43 @@ public static class RiverChannels
         }
         float outside = count > 0 ? sum / count : 0.25f;
         float Erodibility(Vector2 v) => Inside(v, sizeX, sizeZ) ? BankErodibility(v) : outside;
-        float[] floor = ValleyFloor(height, sizeX, sizeZ, course);
-        float AboveFloor(Vector2 v) => height[Index(v, sizeX, sizeZ)] - floor[Index(v, sizeX, sizeZ)];
+        float[] floor = ValleyFloor(c.Height, sizeX, sizeZ, course);
+        float AboveFloor(Vector2 v) => c.Height[Index(v, sizeX, sizeZ)] - floor[Index(v, sizeX, sizeZ)];
+
+        // The channel's regimes, reach by reach along the course as the model drew it.
+        List<Vector2> initial = Resample(course, spacing);
+        List<float> reachEnds = ClassifyReaches(plan, initial, width, spacing, leavesMap, source, c, BankErodibility);
+        ReachRegime RegimeAt(float fraction)
+        {
+            for (int r = 0; r < reachEnds.Count; r++)
+            {
+                if (fraction <= reachEnds[r])
+                    return plan.Reaches[r];
+            }
+            return plan.Reaches[plan.Reaches.Count - 1];
+        }
 
         var extended = new List<Vector2>(course);
+        float extension = 0f;
         if (fromEdge)
         {
             Vector2 back = (course[0] - course[1]).normalized;
-            extended.Insert(0, course[0] + back * p.upstreamMaps * Mathf.Max(sizeX, sizeZ));
+            extension = p.upstreamMaps * Mathf.Max(sizeX, sizeZ);
+            extended.Insert(0, course[0] + back * extension);
         }
         List<Vector2> points = Resample(extended, spacing);
+        float courseLength = Length(course);
+        // Along the extended line, the part upstream of the map takes the first reach's regime.
+        ReachRegime RegimeAlong(float along) => RegimeAt(Mathf.Clamp01((along - extension) / Mathf.Max(courseLength, 1f)));
 
-        Wobble(points, width, p);
+        Wobble(points, width, RegimeAlong);
         for (int step = 0; step < p.meanderSteps; step++)
         {
-            Migrate(points, width, spacing, p, Erodibility, AboveFloor, v => Inside(v, sizeX, sizeZ));
+            float[] cumulative = Cumulative(points);
+            float total = cumulative[cumulative.Length - 1];
+            float scaleToCourse = (courseLength + extension) / Mathf.Max(total, 1f);
+            Migrate(points, width, spacing, p, i => Erodibility(points[i]) * RegimeAlong(cumulative[i] * scaleToCourse).Meander,
+                AboveFloor, v => Inside(v, sizeX, sizeZ));
             points = Resample(points, spacing);
             if (step % 4 == 0)
                 CutOff(points, width * p.cutoffWidths, spacing, plan.Oxbows);
@@ -239,25 +276,121 @@ public static class RiverChannels
         plan.Oxbows.RemoveAll(loop => !loop.Exists(v => Inside(v, sizeX, sizeZ)));
 
         plan.Main = points;
-        foreach (Vector2 _ in points)
+        float[] along = Cumulative(points);
+        float length = Mathf.Max(along[along.Length - 1], 1f);
+        for (int i = 0; i < points.Count; i++)
+        {
             plan.MainWidth.Add(width);
-        Split(plan, height, sizeX, sizeZ, width, spacing, seaDirection, p, Erodibility);
+            plan.MainRegime.Add(RegimeAt(along[i] / length));
+        }
+        Split(plan, c, width, spacing, Erodibility);
         return plan;
     }
 
-    /// <summary>The small wobble of rule V4 along the course: a few cells over a few tens of cells, at the channel's own scale.</summary>
-    private static void Wobble(List<Vector2> points, float width, RiverChannelSettings p)
+    /// <summary>
+    /// Cuts the course into reaches, measures each reach's fields from the map's data and gives it the channel regime
+    /// the water regime favours among those that match. A lone reach between two of the same regime takes theirs, so
+    /// regimes come in stretches. Returns each reach's end as a fraction of the course length.
+    /// </summary>
+    private static List<float> ClassifyReaches(RiverPlan plan, List<Vector2> points, float width, float spacing, bool leavesMap,
+        ChannelCourse source, Context c, System.Func<Vector2, float> erodibility)
     {
-        float amplitude = p.wobbleCells.ClampToRange(p.wobbleWidths * width);
-        float wavelength = p.wobbleWavelengthCells.ClampToRange(p.wobbleWavelengthWidths * width);
-        var noise = new Perlin(1.0 / wavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
-        float along = 0f;
+        RiverChannelSettings p = c.Channels;
+        int n = points.Count, sizeX = c.SizeX, sizeZ = c.SizeZ;
+        float[] cumulative = Cumulative(points);
+        float total = Mathf.Max(cumulative[n - 1], 1f);
+        float reachLength = Mathf.Max(p.minReachLength, p.reachWidths * width);
+        int reaches = Mathf.Max(1, Mathf.RoundToInt(total / reachLength));
+
+        var ground = new float[n];
+        for (int i = 0; i < n; i++)
+            ground[i] = c.Height[Index(points[i], sizeX, sizeZ)];
+        ground = MovingAverage(ground, Mathf.CeilToInt(Mathf.Max(10f, 2f * width) / spacing));
+
+        var regimes = new ChannelRegimeDef[reaches];
+        var confinements = new float[reaches];
+        int upstreamReaches = Mathf.Max(1, Mathf.RoundToInt(p.upstreamWidths * width / reachLength));
+        var ends = new List<float>();
+        float upstreamErodibility = 0f;
+        int upstreamCount = 0;
+        float maxScan = 4f * width + 20f;
+        for (int r = 0; r < reaches; r++)
+        {
+            int a = Mathf.Clamp(Mathf.FloorToInt((float)r / reaches * (n - 1)), 0, n - 1);
+            int b = Mathf.Clamp(Mathf.FloorToInt((float)(r + 1) / reaches * (n - 1)), 0, n - 1);
+            float confinement = 0f, strength = 0f;
+            int samples = 0;
+            for (int i = a; i <= b; i++)
+            {
+                Vector2 v = points[i];
+                float e = erodibility(v);
+                upstreamErodibility += e;
+                upstreamCount++;
+                strength += 1f - e;
+                Vector2 t = (points[Mathf.Min(i + 1, n - 1)] - points[Mathf.Max(i - 1, 0)]).normalized;
+                var normal = new Vector2(-t.y, t.x);
+                float flood = c.Height[Index(v, sizeX, sizeZ)] + p.floodDepth;
+                confinement += (Room(v, normal, flood, maxScan, c.Height, sizeX, sizeZ) + Room(v, -normal, flood, maxScan, c.Height, sizeX, sizeZ)) / width;
+                samples++;
+            }
+            confinements[r] = confinement / Mathf.Max(samples, 1);
+            float narrowest = confinements[r];
+            for (int k = Mathf.Max(0, r - upstreamReaches); k < r; k++)
+                narrowest = Mathf.Min(narrowest, confinements[k]);
+            Vector2 middle = points[(a + b) / 2];
+            float remaining = (total - cumulative[(a + b) / 2]) / width;
+            float baseLevel = Mathf.Min(leavesMap ? remaining : 999f, SeaDistance(middle, c.SeaDirection, sizeX, sizeZ) / width);
+            var fields = new Dictionary<string, float>
+            {
+                ["Discharge"] = Mathf.Log10(Mathf.Max(1f, source.AreaNear(middle) * c.Climate)),
+                ["Slope"] = Mathf.Max(0f, (ground[a] - ground[b]) / Mathf.Max(cumulative[b] - cumulative[a], 1f)),
+                ["Confinement"] = confinements[r],
+                ["Opening"] = confinements[r] / Mathf.Max(narrowest, 0.1f),
+                ["BankStrength"] = strength / Mathf.Max(samples, 1),
+                ["Sediment"] = upstreamErodibility / Mathf.Max(upstreamCount, 1) * c.Relief / 100f,
+                ["BaseLevel"] = baseLevel,
+                ["Order"] = source.Order,
+            };
+            plan.ReachFields.Add(fields);
+            regimes[r] = WaterRegimes.Classify(fields, c.Water);
+            ends.Add(cumulative[b] / total);
+        }
+        for (int r = 1; r < reaches - 1; r++)
+        {
+            if (regimes[r - 1] == regimes[r + 1] && regimes[r] != regimes[r - 1])
+                regimes[r] = regimes[r - 1];
+        }
+
+        // Each regime's parameters are drawn once per channel, so its reaches look alike.
+        var drawn = new Dictionary<ChannelRegimeDef, ReachRegime>();
+        var fallback = new ChannelRegimeDef { defName = "Default" };
+        foreach (ChannelRegimeDef def in regimes)
+        {
+            ChannelRegimeDef key = def ?? fallback;
+            if (!drawn.TryGetValue(key, out ReachRegime regime))
+                drawn[key] = regime = ReachRegime.Draw(key);
+            plan.Reaches.Add(regime);
+        }
+        return ends;
+    }
+
+    /// <summary>
+    /// The wobble every channel has (rule V4): amplitude and wavelength in channel widths from each reach's regime.
+    /// The noise is read by phase, so the wavelength can change along the channel without breaking it.
+    /// </summary>
+    private static void Wobble(List<Vector2> points, float width, System.Func<float, ReachRegime> regimeAlong)
+    {
+        var noise = new Perlin(1.0, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+        float along = 0f, phase = 0f;
         var moved = new Vector2[points.Count];
         for (int i = 1; i < points.Count - 1; i++)
         {
-            along += (points[i] - points[i - 1]).magnitude;
+            float step = (points[i] - points[i - 1]).magnitude;
+            along += step;
+            ReachRegime regime = regimeAlong(along);
+            phase += step / Mathf.Max(regime.Wavelength * width, 1f);
             Vector2 t = (points[i + 1] - points[i - 1]).normalized;
-            moved[i] = new Vector2(-t.y, t.x) * (float)noise.GetValue(along, 0.0, 0.0) * amplitude;
+            moved[i] = new Vector2(-t.y, t.x) * (float)noise.GetValue(phase, 0.0, 0.0) * regime.Wobble * width;
         }
         for (int i = 1; i < points.Count - 1; i++)
             points[i] += moved[i];
@@ -265,7 +398,7 @@ public static class RiverChannels
 
     /// <summary>One migration step: each point moves toward the outside of its bend, by local and upstream curvature.</summary>
     private static void Migrate(List<Vector2> points, float scale, float spacing, RiverChannelSettings p,
-        System.Func<Vector2, float> erodibility, System.Func<Vector2, float> aboveFloor, System.Func<Vector2, bool> inside)
+        System.Func<int, float> mobility, System.Func<Vector2, float> aboveFloor, System.Func<Vector2, bool> inside)
     {
         int n = points.Count;
         if (n < 5)
@@ -301,7 +434,7 @@ public static class RiverChannels
             Vector2 t = (points[i + 1] - points[i - 1]).normalized;
             var normal = new Vector2(-t.y, t.x);
             // Positive curvature turns left (centre on the normal's side): the outer bank lies opposite the normal.
-            float distance = Mathf.Clamp(p.migrationRate * m * scale, -1f, 1f) * p.migrationStepWidths * scale * erodibility(points[i]);
+            float distance = Mathf.Clamp(p.migrationRate * m * scale, -1f, 1f) * p.migrationStepWidths * scale * mobility(i);
             Vector2 target = points[i] - normal * distance;
             // Valley walls: the channel moves over its floodplain, not up ground well above the valley floor.
             if (inside(target))
@@ -330,13 +463,15 @@ public static class RiverChannels
     }
 
     /// <summary>
-    /// Islands (rule V5). Where the valley floor opens out after narrows, the main channel narrows and a side branch
-    /// takes part of the flow, bowing toward the side with more room and rejoining downstream. Near a sea edge the
-    /// channel fans into distributaries on both sides that reach the sea.
+    /// Islands (rule V5). Where the valley floor is wide enough, the reach's regime decides whether the channel
+    /// splits and how long the island is: the main channel narrows and a side branch takes part of the flow,
+    /// bowing toward the side with more room and rejoining downstream. Near a sea edge the channel fans into
+    /// distributaries on both sides that reach the sea.
     /// </summary>
-    private static void Split(RiverPlan plan, float[] height, int sizeX, int sizeZ, float width, float spacing, Vector2 seaDirection,
-        RiverChannelSettings p, System.Func<Vector2, float> erodibility)
+    private static void Split(RiverPlan plan, Context c, float width, float spacing, System.Func<Vector2, float> erodibility)
     {
+        RiverChannelSettings p = c.Channels;
+        int sizeX = c.SizeX, sizeZ = c.SizeZ;
         List<Vector2> pts = plan.Main;
         int n = pts.Count;
         var left = new float[n];
@@ -346,44 +481,23 @@ public static class RiverChannels
         {
             Vector2 t = (pts[i + 1] - pts[i - 1]).normalized;
             var normal = new Vector2(-t.y, t.x);
-            float flood = height[Index(pts[i], sizeX, sizeZ)] + p.floodDepth;
-            left[i] = Room(pts[i], normal, flood, maxScan, height, sizeX, sizeZ);
-            right[i] = Room(pts[i], -normal, flood, maxScan, height, sizeX, sizeZ);
+            float flood = c.Height[Index(pts[i], sizeX, sizeZ)] + p.floodDepth;
+            left[i] = Room(pts[i], normal, flood, maxScan, c.Height, sizeX, sizeZ);
+            right[i] = Room(pts[i], -normal, flood, maxScan, c.Height, sizeX, sizeZ);
         }
 
-        // Confinement (floor width over channel width), smoothed over a channel width, and its narrowest upstream.
+        // Confinement (floor width over channel width), smoothed over a channel width.
         var confinement = new float[n];
         for (int i = 0; i < n; i++)
             confinement[i] = (left[i] + right[i]) / width;
         confinement = MovingAverage(confinement, Mathf.CeilToInt(width / spacing));
-        int upstreamPoints = Mathf.CeilToInt(p.upstreamWidths * width / spacing);
-        var narrowest = new float[n];
-        for (int i = 0; i < n; i++)
-        {
-            narrowest[i] = float.MaxValue;
-            for (int k = Mathf.Max(1, i - upstreamPoints); k < i; k++)
-                narrowest[i] = Mathf.Min(narrowest[i], confinement[k]);
-        }
 
-        float SeaDistance(Vector2 v)
-        {
-            float d = float.MaxValue;
-            if (seaDirection.x > 0.5f) d = Mathf.Min(d, sizeX - v.x);
-            if (seaDirection.x < -0.5f) d = Mathf.Min(d, v.x);
-            if (seaDirection.y > 0.5f) d = Mathf.Min(d, sizeZ - v.y);
-            if (seaDirection.y < -0.5f) d = Mathf.Min(d, v.y);
-            return d;
-        }
         bool Interior(Vector2 v) => v.x > width && v.y > width && v.x < sizeX - width && v.y < sizeZ - width;
-        bool Released(int i) => Interior(pts[i]) && confinement[i] >= p.splitConfinement
-                                && confinement[i] >= p.releaseRatio * narrowest[i] && erodibility(pts[i]) >= p.minIslandErodibility;
-
-        float islandLength = Mathf.Max(p.minIslandLength, p.islandWidths * width);
-        int islandPoints = Mathf.CeilToInt(islandLength / spacing);
+        bool HasRoom(int i) => Interior(pts[i]) && confinement[i] >= p.splitConfinement && erodibility(pts[i]) >= p.minIslandErodibility;
         float branchWidth = width * p.branchWidthShare;
 
         // Near the sea: distributaries on both sides from where the channel comes within reach of the coast.
-        int delta = pts.FindIndex(v => Inside(v, sizeX, sizeZ) && SeaDistance(v) <= p.deltaWidths * width);
+        int delta = pts.FindIndex(v => Inside(v, sizeX, sizeZ) && SeaDistance(v, c.SeaDirection, sizeX, sizeZ) <= p.deltaWidths * width);
         if (delta > 0 && delta < n - 3)
         {
             int to = n - 1;
@@ -403,12 +517,21 @@ public static class RiverChannels
             n = delta;
         }
 
-        // Where the valley opens out: islands that rejoin; the next may start after one ends.
-        for (int from = 1; from + islandPoints < n - 1; from++)
+        // Islands that rejoin, where there is room and the reach's regime splits; the next may start after one ends.
+        for (int from = 1; from < n - 2; from++)
         {
-            if (!Released(from))
+            if (!HasRoom(from) || plan.MainRegime[from].SplitChance <= 0f)
                 continue;
+            ReachRegime regime = plan.MainRegime[from];
+            int islandPoints = Mathf.CeilToInt(Mathf.Max(p.minIslandLength, regime.IslandWidths * width) / spacing);
             int to = from + islandPoints;
+            if (to >= n - 1)
+                break;
+            if (Rand.Value >= regime.SplitChance)
+            {
+                from += islandPoints / 2;
+                continue;
+            }
             float leftRoom = float.MaxValue, rightRoom = float.MaxValue;
             for (int k = from; k <= to; k++)
             {
@@ -431,6 +554,16 @@ public static class RiverChannels
             plan.Sides.Add(branch);
             from = to + islandPoints / 2;
         }
+    }
+
+    private static float SeaDistance(Vector2 v, Vector2 seaDirection, int sizeX, int sizeZ)
+    {
+        float d = float.MaxValue;
+        if (seaDirection.x > 0.5f) d = Mathf.Min(d, sizeX - v.x);
+        if (seaDirection.x < -0.5f) d = Mathf.Min(d, v.x);
+        if (seaDirection.y > 0.5f) d = Mathf.Min(d, sizeZ - v.y);
+        if (seaDirection.y < -0.5f) d = Mathf.Min(d, v.y);
+        return d;
     }
 
     /// <summary>Mean over <paramref name="radius"/> points either way (fewer at the ends).</summary>
@@ -552,6 +685,22 @@ public static class RiverChannels
 
     public static int Index(Vector2 v, int sizeX, int sizeZ) =>
         Mathf.Clamp((int)v.y, 0, sizeZ - 1) * sizeX + Mathf.Clamp((int)v.x, 0, sizeX - 1);
+
+    private static float[] Cumulative(List<Vector2> line)
+    {
+        var cumulative = new float[line.Count];
+        for (int i = 1; i < line.Count; i++)
+            cumulative[i] = cumulative[i - 1] + (line[i] - line[i - 1]).magnitude;
+        return cumulative;
+    }
+
+    private static float Length(List<Vector2> line)
+    {
+        float length = 0f;
+        for (int i = 1; i < line.Count; i++)
+            length += (line[i] - line[i - 1]).magnitude;
+        return length;
+    }
 
     /// <summary>Points along a polyline at even spacing, keeping both ends.</summary>
     public static List<Vector2> Resample(List<Vector2> line, float spacing)

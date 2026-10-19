@@ -107,9 +107,11 @@
           </widthByOrder>
           <tributaryShare>0.7</tributaryShare>
         </network>
-        <!-- Channel shapes and splits (V4, V5). -->
+        <!-- Channel processes (V4, V5); how much each acts per reach comes from the channel regimes (Defs/WaterRegimes). -->
         <channels>
           <spacing>2</spacing>
+          <reachWidths>5</reachWidths>
+          <minReachLength>20</minReachLength>
           <meanderSteps>500</meanderSteps>
           <migrationRate>4</migrationRate>
           <migrationStepWidths>0.02</migrationStepWidths>
@@ -117,19 +119,13 @@
           <upstreamWeight>2.5</upstreamWeight>
           <decayWidths>0.6</decayWidths>
           <upstreamMaps>2</upstreamMaps>
-          <wobbleWidths>1</wobbleWidths>
-          <wobbleCells>1.5~3</wobbleCells>
-          <wobbleWavelengthWidths>5</wobbleWavelengthWidths>
-          <wobbleWavelengthCells>10~20</wobbleWavelengthCells>
           <cutoffWidths>1.7</cutoffWidths>
           <wallHeight>1.5</wallHeight>
           <bankStrengthExponent>1</bankStrengthExponent>
           <splitConfinement>6</splitConfinement>
-          <releaseRatio>2.5</releaseRatio>
           <upstreamWidths>10</upstreamWidths>
           <floodDepth>1.5</floodDepth>
           <deltaWidths>8</deltaWidths>
-          <islandWidths>3</islandWidths>
           <minIslandLength>24</minIslandLength>
           <branchWidthShare>0.6</branchWidthShare>
           <minIslandErodibility>0.2</minIslandErodibility>
@@ -148,7 +144,6 @@
           <sharpBendWidths>3</sharpBendWidths>
           <floorHeightPerSqrtWidth>0.25</floorHeightPerSqrtWidth>
           <floorSlope>0.003</floorSlope>
-          <floorWidths>4</floorWidths>
           <maxFloorCells>40</maxFloorCells>
           <wallWidth>10</wallWidth>
           <oxbowDepth>0.6</oxbowDepth>
