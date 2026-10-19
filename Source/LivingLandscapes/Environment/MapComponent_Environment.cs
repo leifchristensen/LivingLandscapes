@@ -24,10 +24,10 @@ public class MapComponent_Environment : MapComponent
     public Map Map => map;
 
     /// <summary>
-    /// The course a world river should take across this map, in map cells from upstream to downstream, planned by the
+    /// The channels a world river takes across this map (main channel, side branches, cut-off loops), planned by the
     /// geology during generation. Not saved: only used while the river is placed.
     /// </summary>
-    public System.Collections.Generic.List<UnityEngine.Vector2> PlannedRiverCourse { get; set; }
+    public Geology.RiverPlan PlannedRiver { get; set; }
 
     /// <summary>
     /// Rock beds planned by the geology: strength (0..1) and rock type beneath each cell. Strength is kept as the

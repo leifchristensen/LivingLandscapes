@@ -40,6 +40,13 @@ public class SurfaceWaterExtension : DefModExtension
     /// <summary>Flow speed 0..1 of the smallest and of a stream this much larger (log10 cells).</summary>
     public float minFlow = 0.4f;
     public float fullFlowAreaAbove = 1.5f;
+
+    /// <summary>
+    /// The drainage area (cells) a channel of this width drains under the stream width rule, read backwards: how much
+    /// land a world river entering the map already drains, given the width vanilla gives it.
+    /// </summary>
+    public float AreaForWidth(float width, float climate) =>
+        Mathf.Pow(width / widthPerSqrtArea, 2f) / Mathf.Max(climate, 1e-3f);
 }
 
 /// <summary>
@@ -64,8 +71,20 @@ public static class SurfaceWaterModel
         float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
         var result = new Result { Depth = new float[n], Flow = new float[n] };
 
-        Streams(landform, drainage, sizeX, sizeZ, climate, p, result);
-        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result);
+        // A world river's channels hold water up to the surface the carving gave them, flowing at full speed. Streams
+        // and lakes join them there rather than overlaying them.
+        float[] river = map.GetComponent<MapComponent_Environment>()?.PlannedRiver?.WaterLevel;
+        bool InRiver(int i) => river != null && !float.IsNaN(river[i]);
+        for (int i = 0; river != null && i < n; i++)
+        {
+            if (!InRiver(i))
+                continue;
+            result.Depth[i] = Mathf.Max(0f, river[i] - landform[i]);
+            result.Flow[i] = 1f;
+        }
+
+        Streams(landform, drainage, sizeX, sizeZ, climate, p, result, InRiver);
+        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver);
 
         if (!log)
             return result;
@@ -83,13 +102,14 @@ public static class SurfaceWaterModel
     /// Stream channels: every cell whose drainage area times the climate wetness reaches <see cref="SurfaceWaterExtension.streamArea"/>
     /// is on a channel; the channel is widened around it to its width.
     /// </summary>
-    private static void Streams(float[] landform, float[] drainage, int sizeX, int sizeZ, float climate, SurfaceWaterExtension p, Result result)
+    private static void Streams(float[] landform, float[] drainage, int sizeX, int sizeZ, float climate, SurfaceWaterExtension p,
+        Result result, System.Func<int, bool> inRiver)
     {
         float climateLog = Mathf.Log10(Mathf.Max(climate, 1e-3f));
         for (int i = 0; i < landform.Length; i++)
         {
             float runoff = drainage[i] + climateLog;
-            if (runoff < p.streamArea)
+            if (runoff < p.streamArea || inRiver(i))
                 continue;
             float width = Mathf.Clamp(p.widthPerSqrtArea * Mathf.Sqrt(Mathf.Pow(10f, runoff)), 1f, p.maxStreamWidth);
             float depth = p.streamDepth + p.streamDepthPerWidth * width;
@@ -105,6 +125,8 @@ public static class SurfaceWaterModel
                     if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ || dx * dx + dz * dz > reach * reach + 0.25f)
                         continue;
                     int c = z * sizeX + x;
+                    if (inRiver(c))
+                        continue;
                     result.Depth[c] = Mathf.Max(result.Depth[c], depth);
                     result.Flow[c] = Mathf.Max(result.Flow[c], flow);
                 }
@@ -117,7 +139,8 @@ public static class SurfaceWaterModel
     /// level where evaporation from its surface balances the runoff from its catchment, up to the spill level. A
     /// stream passing through a lake is still water there. Returns the number of lakes.
     /// </summary>
-    private static int Lakes(Map map, float[] landform, float[] drainage, int sizeX, int sizeZ, SurfaceWaterExtension p, Result result)
+    private static int Lakes(Map map, float[] landform, float[] drainage, int sizeX, int sizeZ, SurfaceWaterExtension p, Result result,
+        System.Func<int, bool> inRiver)
     {
         var filled = (float[])landform.Clone();
         GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
@@ -163,6 +186,9 @@ public static class SurfaceWaterModel
             {
                 if (landform[c] >= level)
                     break;
+                // Pools in a river's bed are part of the flowing river.
+                if (inRiver(c))
+                    continue;
                 result.Depth[c] = level - landform[c];
                 result.Flow[c] = 0f;
             }

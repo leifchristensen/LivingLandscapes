@@ -82,10 +82,41 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
+        <channels>
+          <spacing>2</spacing>
+          <meanderSteps>500</meanderSteps>
+          <migrationRate>4</migrationRate>
+          <localWeight>-1</localWeight>
+          <upstreamWeight>2.5</upstreamWeight>
+          <decayWidths>0.6</decayWidths>
+          <upstreamMaps>2</upstreamMaps>
+          <seedWobble>3</seedWobble>
+          <seedWavelengthWidths>10</seedWavelengthWidths>
+          <cutoffWidths>1.7</cutoffWidths>
+          <wallHeight>1.5</wallHeight>
+          <bankStrengthExponent>1</bankStrengthExponent>
+          <splitConfinement>6</splitConfinement>
+          <depositionRatio>0.5</depositionRatio>
+          <upstreamWidths>10</upstreamWidths>
+          <minSlope>0.0005</minSlope>
+          <floodDepth>1.5</floodDepth>
+          <islandWidths>3</islandWidths>
+          <minIslandLength>24</minIslandLength>
+          <branchWidthShare>0.6</branchWidthShare>
+        </channels>
         <riverBed>
-          <depth>0.6</depth>
+          <bankHeight>0.3</bankHeight>
+          <depthPerSqrtWidth>0.35</depthPerSqrtWidth>
+          <rimDepth>0.2</rimDepth>
+          <riffleShare>0.35</riffleShare>
+          <poolSpacingWidths>6</poolSpacingWidths>
+          <thalwegShift>0.6</thalwegShift>
           <bankWidth>4</bankWidth>
-          <margin>2</margin>
+          <outerBankFactor>0.3</outerBankFactor>
+          <innerBankFactor>2</innerBankFactor>
+          <sharpBendWidths>3</sharpBendWidths>
+          <oxbowDepth>0.6</oxbowDepth>
+          <oxbowWidthShare>0.7</oxbowWidthShare>
         </riverBed>
         <microRelief>0.3</microRelief>
         <microWavelength>6</microWavelength>
@@ -302,6 +333,7 @@
     <label>surface water</label>
     <description>Depth of standing and flowing water in metres, from the landform: lakes fill closed hollows to the level where rain on their catchment balances evaporation; streams run where enough ground drains, wider the more it drains. Terrain, cliffs and plants all follow it.</description>
     <workerClass>LivingLandscapes.Layers.SurfaceWaterWorker</workerClass>
+    <precision>UShort</precision>
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_DrainageArea</li>

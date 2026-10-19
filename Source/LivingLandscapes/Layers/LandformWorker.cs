@@ -29,13 +29,15 @@ public class LandformWorker : EnvironmentLayerWorker
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
-            // Water flows downhill or level: carve the river's channel along its course (W1).
-            RiverCarver.Carve(generated, map.Size.x, map.Size.z, RiverCourse.FromPlan(riverCourse, map.Size.x, map.Size.z),
-                RiverCourse.WidthOnMap(map.TileInfo), generation.riverBed);
+            // The river's channel pattern (meanders, cutoffs, islands), then its bed carved so water flows downhill
+            // or level (W1, W4, W5).
+            RiverPlan river = RiverChannels.Plan(generated, rockStrength, map.Size.x, map.Size.z,
+                RiverCourse.FromPlan(riverCourse, map.Size.x, map.Size.z), RiverCourse.WidthOnMap(map.TileInfo), generation.channels);
+            RiverCarver.Carve(generated, map.Size.x, map.Size.z, river, generation.riverBed);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
-                environment.PlannedRiverCourse = riverCourse;
+                environment.PlannedRiver = river.Main.Count >= 2 ? river : null;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRock = rock;
             }

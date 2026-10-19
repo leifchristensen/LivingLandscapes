@@ -74,6 +74,9 @@ public class GeologyGenerationExtension : DefModExtension
         shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
     };
 
+    /// <summary>Channel patterns: meanders, cutoffs and islands (W4, W5).</summary>
+    public RiverChannelSettings channels = new RiverChannelSettings();
+
     /// <summary>The river's bed: carved so it never rises along the course (W1).</summary>
     public RiverBedSettings riverBed = new RiverBedSettings();
 
