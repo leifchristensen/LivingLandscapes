@@ -10,7 +10,8 @@
       Slope         water drop per cell over the next few cells (metres per cell)
       BankStrength  rock strength under the channel, 0..1
       Confinement   valley floor width over channel width
-    Nudges (factors, keep within about 0.5..2): width, depth, widthNoise, depthNoise, bankNoise.
+    Nudges (factors, keep within about 0.5..3): width, depth, widthNoise, depthNoise, bankNoise, spread (water
+    divides more readily where ground falls away two ways: splits and islands).
   -->
 
   <!-- Narrow, deep, even channels cut into strong rock. -->
@@ -27,6 +28,7 @@
       <depth>1.4</depth>
       <widthNoise>0.5</widthNoise>
       <bankNoise>0.6</bankNoise>
+      <spread>0.5</spread>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -43,6 +45,7 @@
       <depth>0.75</depth>
       <depthNoise>1.8</depthNoise>
       <bankNoise>1.5</bankNoise>
+      <spread>0.8</spread>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -61,6 +64,7 @@
       <depth>0.6</depth>
       <depthNoise>2</depthNoise>
       <bankNoise>1.4</bankNoise>
+      <spread>2</spread>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -77,6 +81,7 @@
       <width>1.3</width>
       <depth>0.9</depth>
       <widthNoise>1.6</widthNoise>
+      <spread>1.6</spread>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -93,6 +98,7 @@
       <width>0.7</width>
       <depth>0.5</depth>
       <bankNoise>2</bankNoise>
+      <spread>2.5</spread>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 

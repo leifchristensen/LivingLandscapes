@@ -45,6 +45,12 @@ public class TerrainChannelSettings
     public int flowSmoothingSteps = 3;
 
     /// <summary>
+    /// Flow spreading (step 3): how readily water divides where the ground falls away two ways. Higher is more
+    /// single-thread; regimes divide it by their spread nudge (braided reaches, deltas and wetlands spread more).
+    /// </summary>
+    public float spreadExponent = 6f;
+
+    /// <summary>
     /// Confinement field for the channel regimes: the valley floor is ground no higher than this (metres) above the
     /// water, measured across the channel up to this many channel widths each side.
     /// </summary>
@@ -88,7 +94,8 @@ public static class TerrainChannels
         }
 
         float runoff = Mathf.Max(climate, 0.05f);
-        float[] inflow = Inflow(courses, sizeX, sizeZ, riverCentre, runoff, p, worldRiverWidth, out bool[] worldSource, out float vanillaWidth);
+        float[] inflow = Inflow(courses, sizeX, sizeZ, riverCentre, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
+            out bool[] worldSource, out float vanillaWidth);
 
         // The map edge drains, except where water enters: there the land beyond slopes in, so it is no outlet.
         var entries = new List<Vector2>();
@@ -115,58 +122,55 @@ public static class TerrainChannels
                 receiver[i] = -1;
         }
 
-        // Discharge: each cell's own runoff plus inflow, gathered downstream. Every cell adds runoff, so a receiver
-        // always carries more than its donors and sorting by discharge orders donors before receivers.
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        System.Array.Sort(order, (a, b) => filled[b].CompareTo(filled[a]));
-        var discharge = new float[n];
-        var world = new bool[n];
-        for (int i = 0; i < n; i++)
-        {
-            discharge[i] = runoff + inflow[i];
-            world[i] = worldSource[i];
-        }
-        foreach (int c in order)
-        {
-            int r = receiver[c];
-            if (r < 0)
-                continue;
-            discharge[r] += discharge[c];
-            world[r] |= world[c];
-        }
-
-        // Where channels start; the water regime nudges it (a denser or sparser network).
+        // Two passes: the first routes along steepest descent only and reads each channel cell's regime nudges; the
+        // second lets water divide where those nudges spread it (splits emerge, step 3), then shapes the result.
         float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
-        var cells = new List<int>();
-        for (int c = 0; c < n; c++)
+        float mapSpread = water?.nudges.spread ?? 1f;
+        float[] spread = null, discharge = null, width = null, depth = null, bankAmplitude = null;
+        int[] secondary = null, main = null, branchFrom = null;
+        bool[] world = null;
+        List<int> cells = null;
+        Vector2[] direction = null;
+        Dictionary<string, int> regimes = null;
+        int splits = 0;
+        for (int pass = 0; pass < 2; pass++)
         {
-            if (discharge[c] >= threshold)
-                cells.Add(c);
+            discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
+                out world, out secondary, out branchFrom, out splits);
+
+            // Where channels start; the water regime nudges it (a denser or sparser network).
+            cells = new List<int>();
+            for (int c = 0; c < n; c++)
+            {
+                if (discharge[c] >= threshold)
+                    cells.Add(c);
+            }
+            if (cells.Count == 0)
+                return system;
+            // Highest first: every receiver lies lower, so donors come before receivers (splits break discharge order).
+            cells.Sort((x, y) => filled[y].CompareTo(filled[x]));
+
+            // The main donor of each channel cell: the channel cell upstream whose steepest descent brings the most water.
+            main = new int[n];
+            for (int i = 0; i < n; i++)
+                main[i] = -1;
+            foreach (int c in cells)
+            {
+                int r = receiver[c];
+                if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
+                    main[r] = c;
+            }
+
+            direction = Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
+            width = new float[n];
+            depth = new float[n];
+            spread = new float[n];
+            regimes = new Dictionary<string, int>();
+            bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, direction, sizeX, sizeZ, water, p,
+                width, depth, spread, regimes);
         }
-        if (cells.Count == 0)
-            return system;
-        cells.Sort((a, b) => discharge[a].CompareTo(discharge[b]));
 
-        // The main donor of each channel cell: the channel cell upstream bringing the most water.
-        var main = new int[n];
-        for (int i = 0; i < n; i++)
-            main[i] = -1;
-        foreach (int c in cells)
-        {
-            int r = receiver[c];
-            if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
-                main[r] = c;
-        }
-
-        Vector2[] direction = Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
-        float[] width = new float[n], depth = new float[n];
-        var regimes = new Dictionary<string, int>();
-        float[] bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, direction, sizeX, sizeZ, water, p,
-            width, depth, regimes);
-
-        List<RiverPlan> plans = Trace(cells, receiver, main, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
+        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
         int inHollows = Paint(height, filled, cells, width, depth, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
         int painted = 0;
@@ -181,19 +185,111 @@ public static class TerrainChannels
             maxWidth = Mathf.Max(maxWidth, width[c]);
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
-        Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills), " +
+        Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
                     $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
 
     /// <summary>
+    /// Discharge: each cell's own runoff plus inflow, gathered downstream over the filled landform, highest cells
+    /// first (both receivers of a cell lie lower, so its donors are done). Water follows steepest descent, but where
+    /// the ground also falls away steeply a second way (at least 90 degrees apart) it divides as multiple-flow routing
+    /// does: the second way takes slope2^e / (slope1^e + slope2^e), with e the spreading exponent divided by the
+    /// cell's spread nudge. A division is kept only where the second share is itself a channel; otherwise all water
+    /// stays on the main way, so splits form only where a lot of water meets ground falling away two ways.
+    /// </summary>
+    private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
+        float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
+        out bool[] world, out int[] secondary, out int[] branchFrom, out int splits)
+    {
+        int n = filled.Length;
+        var order = new int[n];
+        for (int i = 0; i < n; i++)
+            order[i] = i;
+        System.Array.Sort(order, (a, b) => filled[b].CompareTo(filled[a]));
+        var discharge = new float[n];
+        world = new bool[n];
+        secondary = new int[n];
+        branchFrom = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            discharge[i] = runoff + inflow[i];
+            world[i] = worldSource[i];
+            secondary[i] = branchFrom[i] = -1;
+        }
+        splits = 0;
+        foreach (int c in order)
+        {
+            int r = receiver[c];
+            if (r < 0)
+                continue;
+            float share = 0f;
+            int second = -1;
+            if (discharge[c] * 0.5f >= threshold)
+            {
+                float factor = spread != null && spread[c] > 0f ? spread[c] : mapSpread;
+                second = SecondWay(filled, c, r, sizeX, sizeZ, out float main, out float other);
+                if (second >= 0)
+                {
+                    float e = p.spreadExponent / Mathf.Max(factor, 0.1f);
+                    float a = Mathf.Pow(main, e), b = Mathf.Pow(other, e);
+                    share = b / (a + b);
+                    if (discharge[c] * share < threshold)
+                        second = -1;
+                }
+            }
+            if (second >= 0)
+            {
+                discharge[second] += discharge[c] * share;
+                world[second] |= world[c];
+                secondary[c] = second;
+                if (branchFrom[second] < 0 || discharge[c] > discharge[branchFrom[second]])
+                    branchFrom[second] = c;
+                splits++;
+            }
+            discharge[r] += discharge[c] * (1f - share);
+            world[r] |= world[c];
+        }
+        return discharge;
+    }
+
+    /// <summary>The steepest downhill neighbour at least 90 degrees from the main way, with both slopes; -1 if none.</summary>
+    private static int SecondWay(float[] h, int c, int primary, int sizeX, int sizeZ, out float mainSlope, out float slope)
+    {
+        int cx = c % sizeX, cz = c / sizeX;
+        var toPrimary = new Vector2(primary % sizeX - cx, primary / sizeX - cz);
+        mainSlope = (h[c] - h[primary]) / toPrimary.magnitude;
+        slope = 0f;
+        int best = -1;
+        for (int dz = -1; dz <= 1; dz++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int x = cx + dx, z = cz + dz;
+                if ((dx == 0 && dz == 0) || x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                    continue;
+                if (Vector2.Dot(new Vector2(dx, dz), toPrimary) > 0f)
+                    continue;
+                int nb = z * sizeX + x;
+                float s = (h[c] - h[nb]) / Mathf.Sqrt(dx * dx + dz * dz);
+                if (s > slope)
+                {
+                    slope = s;
+                    best = nb;
+                }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Discharge entering the map: world rivers with the discharge that gives their vanilla width, the region's other
     /// channels with the runoff of the area they drain. On a tile the world gives no river, nothing entering is larger
-    /// than a creek, as in vanilla. A world river with no inflow (headwater) rises at the river centre.
+    /// than a creek, as in vanilla. A world river that does not enter (headwater) rises at the river centre.
     /// </summary>
     private static float[] Inflow(List<ChannelCourse> courses, int sizeX, int sizeZ, Vector2 riverCentre, float runoff,
-        TerrainChannelSettings p, SimpleCurve worldRiverWidth, out bool[] worldSource, out float vanillaWidth)
+        bool riverEnters, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out bool[] worldSource, out float vanillaWidth)
     {
         int n = sizeX * sizeZ;
         var inflow = new float[n];
@@ -214,11 +310,14 @@ public static class TerrainChannels
             int cell = RiverChannels.Index(course.Points[first], sizeX, sizeZ);
             if (course.VanillaWidth > 0f)
             {
+                // At a headwater the world river does not come from beyond the map: it rises here.
+                if (!riverEnters)
+                    continue;
                 inflow[cell] += DischargeFor(course.VanillaWidth);
                 worldSource[cell] = worldEnters = true;
             }
             else
-                inflow[cell] += anyWorldRiver ? course.EntryArea * runoff : Mathf.Min(course.EntryArea * runoff, creek);
+                inflow[cell] += anyWorldRiver && riverEnters ? course.EntryArea * runoff : Mathf.Min(course.EntryArea * runoff, creek);
         }
         if (anyWorldRiver && !worldEnters)
         {
@@ -237,7 +336,7 @@ public static class TerrainChannels
     /// </summary>
     private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
         Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
-        Dictionary<string, int> regimes)
+        float[] spread, Dictionary<string, int> regimes)
     {
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
@@ -280,6 +379,7 @@ public static class TerrainChannels
             depth[c] = Mathf.Max(p.minDepth, p.depthPerDischarge * Mathf.Pow(q, p.depthExponent) * scour * nudge.depth
                                              * (1f + Mathf.Clamp(p.depthNoise * nudge.depthNoise, 0f, 0.9f) * (float)depthNoise.GetValue(x, 0.0, z)));
             bankAmplitude[c] = Mathf.Clamp(p.bankNoise * nudge.bankNoise, 0f, 0.8f);
+            spread[c] = nudge.spread;
         }
         return bankAmplitude;
     }
@@ -336,7 +436,7 @@ public static class TerrainChannels
     /// brings the most water, and ends where it joins a larger one or leaves the map. Channels carrying a world river's
     /// water take its vanilla width; the one leaving the map is the world river.
     /// </summary>
-    private static List<RiverPlan> Trace(List<int> cells, int[] receiver, int[] main, float[] discharge, float[] inflow, bool[] world, float[] width,
+    private static List<RiverPlan> Trace(List<int> cells, int[] receiver, int[] main, int[] branchFrom, float[] discharge, float[] inflow, bool[] world, float[] width,
         int sizeX, int sizeZ, float runoff, float vanillaWidth, out int[] planOf)
     {
         int n = receiver.Length;
@@ -353,7 +453,14 @@ public static class TerrainChannels
             {
                 // A head: no channel flows into this cell as its main donor.
                 planOf[c] = plans.Count;
-                plans.Add(new RiverPlan());
+                var plan = new RiverPlan();
+                // A branch starts where it divided from its channel.
+                if (branchFrom[c] >= 0)
+                {
+                    plan.Main.Add(Centre(branchFrom[c]));
+                    plan.MainWidth.Add(Mathf.Max(1f, Mathf.Round(width[c])));
+                }
+                plans.Add(plan);
                 ends.Add(c);
                 parents.Add(-1);
             }

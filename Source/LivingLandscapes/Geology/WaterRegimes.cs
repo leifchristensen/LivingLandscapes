@@ -9,12 +9,13 @@ namespace LivingLandscapes.Geology;
 
 /// <summary>
 /// Gentle nudges on the channel processes (Docs/WATER-AUDIT.md, step 4): factors on width and depth (hydraulic
-/// geometry), on the width, depth and bank noise, and (water regimes only) on the discharge where channels start
-/// (below 1: a denser network). 1 leaves a process as it is; keep factors within about 0.5..2.
+/// geometry), on the width, depth and bank noise, on flow spreading (above 1: water divides more readily where the
+/// ground falls away more than one way, so channels split around islands), and (water regimes only) on the discharge
+/// where channels start (below 1: a denser network). 1 leaves a process as it is; keep factors within about 0.5..3.
 /// </summary>
 public class ChannelNudges
 {
-    public float width = 1f, depth = 1f, widthNoise = 1f, depthNoise = 1f, bankNoise = 1f, discharge = 1f;
+    public float width = 1f, depth = 1f, widthNoise = 1f, depthNoise = 1f, bankNoise = 1f, spread = 1f, discharge = 1f;
 
     public static readonly ChannelNudges None = new ChannelNudges();
 
@@ -22,7 +23,7 @@ public class ChannelNudges
     public static ChannelNudges Blend(List<(ChannelNudges nudges, float weight)> parts, float neutralWeight)
     {
         float total = neutralWeight;
-        float w = 0f, d = 0f, wn = 0f, dn = 0f, bn = 0f, q = 0f;
+        float w = 0f, d = 0f, wn = 0f, dn = 0f, bn = 0f, sp = 0f, q = 0f;
         foreach ((ChannelNudges n, float weight) in parts)
         {
             if (weight <= 0f)
@@ -33,6 +34,7 @@ public class ChannelNudges
             wn += weight * Mathf.Log(n.widthNoise);
             dn += weight * Mathf.Log(n.depthNoise);
             bn += weight * Mathf.Log(n.bankNoise);
+            sp += weight * Mathf.Log(n.spread);
             q += weight * Mathf.Log(n.discharge);
         }
         if (total <= 0f)
@@ -40,14 +42,16 @@ public class ChannelNudges
         return new ChannelNudges
         {
             width = Mathf.Exp(w / total), depth = Mathf.Exp(d / total), widthNoise = Mathf.Exp(wn / total),
-            depthNoise = Mathf.Exp(dn / total), bankNoise = Mathf.Exp(bn / total), discharge = Mathf.Exp(q / total),
+            depthNoise = Mathf.Exp(dn / total), bankNoise = Mathf.Exp(bn / total), spread = Mathf.Exp(sp / total),
+            discharge = Mathf.Exp(q / total),
         };
     }
 
     public ChannelNudges Times(ChannelNudges o) => new ChannelNudges
     {
         width = width * o.width, depth = depth * o.depth, widthNoise = widthNoise * o.widthNoise,
-        depthNoise = depthNoise * o.depthNoise, bankNoise = bankNoise * o.bankNoise, discharge = discharge * o.discharge,
+        depthNoise = depthNoise * o.depthNoise, bankNoise = bankNoise * o.bankNoise, spread = spread * o.spread,
+        discharge = discharge * o.discharge,
     };
 }
 
@@ -87,6 +91,18 @@ public class WaterRegimeDef : Def
 
     /// <summary>0..1: how much damp ground becomes marsh (ground rules field Marshland), for wetlands.</summary>
     public float marshland;
+
+    /// <summary>
+    /// Terrain nudges for the world river's mutator structures (step 5, <see cref="WaterTerrainNudges"/>): a
+    /// depression (metres) or a knob of resistant rock (metres, rock strength) at the river centre, this share of the
+    /// map's size across; and relief eased toward base level (0..1) within this share of the map's size of the exit.
+    /// </summary>
+    public FloatRange centreDepression = FloatRange.Zero;
+    public FloatRange centreKnob = FloatRange.Zero;
+    public float knobRockStrength = 0.9f;
+    public float centreRadiusShare = 0.08f;
+    public float exitFlatten;
+    public float exitReachShare = 0.4f;
 
     /// <summary>Map-wide nudges on the channel processes (multiplied with the channel regimes' blend).</summary>
     public ChannelNudges nudges = new ChannelNudges();

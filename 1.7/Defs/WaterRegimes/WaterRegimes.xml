@@ -13,7 +13,11 @@
     marshland: 0..1, how much damp ground becomes marsh (ground rules field Marshland).
     channelRegimes: weights on channel regimes (0 forbids; unlisted weigh 1; exclusive regimes only where listed).
     nudges: map-wide factors on the channel processes (Docs/WATER-AUDIT.md, step 4): discharge (where channels start;
-    below 1 a denser network), width, depth, widthNoise, depthNoise, bankNoise. Keep within about 0.5..2.
+    below 1 a denser network), width, depth, widthNoise, depthNoise, bankNoise, spread (water divides more readily).
+    Keep within about 0.5..3.
+    Terrain nudges (step 5): centreDepression or centreKnob (metres, at the river centre, centreRadiusShare of the map
+    across; a knob is resistant rock, knobRockStrength), exitFlatten (0..1, relief eased toward base level within
+    exitReachShare of the map of the river's exit).
     replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
     World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
     a confluence), sourceLakeWidths (lake the river rises from), deltaAtExit with deltaBranches and
@@ -23,10 +27,12 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Delta</defName>
     <label>delta</label>
+    <exitFlatten>0.8</exitFlatten>
     <nudges>
       <width>1.3</width>
       <depth>0.8</depth>
       <depthNoise>1.4</depthNoise>
+      <spread>2.5</spread>
     </nudges>
     <order>10</order>
     <mutators><li>RiverDelta</li></mutators>
@@ -59,8 +65,10 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_RiverIsland</defName>
     <label>river island</label>
+    <centreKnob>3~6</centreKnob>
     <nudges>
       <widthNoise>1.3</widthNoise>
+      <spread>2</spread>
     </nudges>
     <order>12</order>
     <mutators><li>RiverIsland</li></mutators>
@@ -76,6 +84,8 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Headwater</defName>
     <label>headwater</label>
+    <riverInflow>false</riverInflow>
+    <centreDepression>2~4</centreDepression>
     <nudges>
       <discharge>0.7</discharge>
       <depth>0.9</depth>
@@ -100,6 +110,7 @@
       <width>0.8</width>
       <depth>0.6</depth>
       <bankNoise>1.6</bankNoise>
+      <spread>2.5</spread>
     </nudges>
     <order>14</order>
     <mutators><li>Wetland</li><li>Marshy</li></mutators>
@@ -153,6 +164,7 @@
       <width>1.4</width>
       <depth>0.5</depth>
       <depthNoise>1.5</depthNoise>
+      <spread>1.8</spread>
     </nudges>
     <order>20</order>
     <conditions>
