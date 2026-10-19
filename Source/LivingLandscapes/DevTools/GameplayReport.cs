@@ -16,6 +16,15 @@ public static class GameplayReport
 
     public static void Append(Map map, StringBuilder summary)
     {
+        int rock = 0, roofed = 0;
+        foreach (IntVec3 c in map.AllCells)
+        {
+            if (c.GetEdifice(map)?.def.building?.isNaturalRock == true)
+                rock++;
+            if (c.GetRoof(map)?.isNatural == true)
+                roofed++;
+        }
+        summary.AppendLine($"terrain: rock {rock * 100f / map.Area:0.0}% of cells, natural roof {roofed * 100f / map.Area:0.0}%, hilliness {map.TileInfo.hilliness}");
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null || !environment.StartSpot.IsValid)
             return;

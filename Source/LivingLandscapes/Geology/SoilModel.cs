@@ -1,3 +1,4 @@
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -35,6 +36,36 @@ public class SoilModelExtension : DefModExtension
     /// <summary>Below this soil depth bedrock is bare (ground rules: RockDepth, RockDistance).</summary>
     public float rockWallDepth = 0.05f;
 
+    /// <summary>
+    /// Share of the map that stands as mountain rock (bare ground at least <see cref="mountainDepth"/> metres from soil), by tile
+    /// hilliness: the range vanilla's own maps fall in (measured over seeds). A map draws its target in the range, then
+    /// soil depth is shifted evenly until the geology's rock covers that share, so a tile's hilliness means what it does in
+    /// vanilla whatever the relief the erosion model produced. Zero range: no calibration.
+    /// </summary>
+    public FloatRange rockShareFlat = new FloatRange(0.03f, 0.08f);
+    public FloatRange rockShareSmallHills = new FloatRange(0.08f, 0.15f);
+    public FloatRange rockShareLargeHills = new FloatRange(0.14f, 0.23f);
+    public FloatRange rockShareMountainous = new FloatRange(0.22f, 0.32f);
+    public FloatRange rockShareImpassable = new FloatRange(0.35f, 0.5f);
+
+    /// <summary>Metres of bare rock from soil at which ground becomes mountain (the ground rules' mountain class).</summary>
+    public float mountainDepth = 4f;
+
+    /// <summary>Gaussian radius (cells) of the soil depth the rock calibration works on: the size of the outcrops it makes.</summary>
+    public float outcropSigma = 3f;
+
+    public FloatRange RockShareFor(Hilliness hilliness)
+    {
+        switch (hilliness)
+        {
+            case Hilliness.Flat: return rockShareFlat;
+            case Hilliness.SmallHills: return rockShareSmallHills;
+            case Hilliness.LargeHills: return rockShareLargeHills;
+            case Hilliness.Mountainous: return rockShareMountainous;
+            case Hilliness.Impassable: return rockShareImpassable;
+            default: return FloatRange.Zero;
+        }
+    }
 
 }
 
@@ -45,8 +76,46 @@ public class SoilModelExtension : DefModExtension
 /// </summary>
 public static class SoilModel
 {
+    /// <summary>
+    /// Thins soil so the share of mountain rock equals <paramref name="target"/>; returns the shift in metres. The shift is applied
+    /// to the soil depth smoothed over <see cref="SoilModelExtension.outcropSigma"/> cells, so the rock that appears is outcrops and
+    /// knolls where the soil is thinnest over a neighbourhood (crests, strong beds), not single cells. Which ground turns to rock still
+    /// follows slope, convergence and rock strength: only how much changes.
+    /// </summary>
+    public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target)
+    {
+        var ones = new float[soil.Length];
+        for (int i = 0; i < ones.Length; i++)
+            ones[i] = 1f;
+        float[] smooth = GridMath.MaskedBlur(soil, ones, sizeX, sizeZ, p.outcropSigma);
+        float Share(float shift)
+        {
+            float[] depth = GridMath.DistanceTo(i => smooth[i] - shift >= p.rockWallDepth, sizeX, sizeZ);
+            int rock = 0;
+            for (int i = 0; i < depth.Length; i++)
+            {
+                if (depth[i] * cellSize >= p.mountainDepth)
+                    rock++;
+            }
+            return rock / (float)depth.Length;
+        }
+        float low = 0f, high = 3f;
+        for (int step = 0; step < 14; step++)
+        {
+            float mid = (low + high) / 2f;
+            if (Share(mid) < target)
+                low = mid;
+            else
+                high = mid;
+        }
+        float shift = (low + high) / 2f;
+        for (int i = 0; i < soil.Length; i++)
+            soil[i] = Mathf.Min(soil[i], Mathf.Max(0f, smooth[i] - shift));
+        return shift;
+    }
+
     /// <param name="rockStrength">Rock strength (0..1) per cell, or null when unknown (no rock effect).</param>
-    public static float[] SoilDepth(float[] height, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float[] rockStrength = null)
+    public static float[] SoilDepth(float[] height, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float[] rockStrength = null, float bareSlopeScale = 1f)
     {
         float[] slope = GridMath.Slope(height, sizeX, sizeZ);
         float[] area = GridMath.FlowAccumulationMfd(height, sizeX, sizeZ);
@@ -58,7 +127,7 @@ public static class SoilModel
             float convergence = Mathf.Clamp01(Mathf.Log10(area[i]) / 3f);
             float landform = 1f + p.hollowBonus * convergence - p.crestLoss * (1f - convergence);
             float strength = rockStrength == null ? -1f : rockStrength[i];
-            float bareSlope = strength < 0f ? p.bareRockSlope : p.bareRockSlope * Mathf.Lerp(p.bareSlopeOnWeakRock, p.bareSlopeOnStrongRock, strength);
+            float bareSlope = bareSlopeScale * (strength < 0f ? p.bareRockSlope : p.bareRockSlope * Mathf.Lerp(p.bareSlopeOnWeakRock, p.bareSlopeOnStrongRock, strength));
             float steepness = Mathf.Clamp01(1f - gradient / bareSlope);
             float rock = strength < 0f ? 1f : Mathf.Lerp(p.soilOnWeakRock, p.soilOnStrongRock, strength);
             soil[i] = Mathf.Max(0f, p.baseSoilDepth * landform * steepness * rock);

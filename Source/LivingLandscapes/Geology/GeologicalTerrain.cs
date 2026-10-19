@@ -12,7 +12,8 @@ public static class GeologicalTerrain
     /// </summary>
     public static bool AppliesTo(Map map)
     {
-        if (!LivingLandscapesMod.Settings.geologicalTerrain || map?.TileInfo == null)
+        // "-ll-geology=off" gives vanilla terrain for A/B runs.
+        if (!LivingLandscapesMod.Settings.geologicalTerrain || map?.TileInfo == null || (GenCommandLine.TryGetCommandLineArg("ll-geology", out string mode) && mode == "off"))
             return false;
         if (map.generatorDef != null && map.generatorDef.isUnderground)
             return false;
