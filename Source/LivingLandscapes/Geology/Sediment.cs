@@ -50,6 +50,15 @@ public class SedimentSettings
 
     /// <summary>Thinner than this (metres, after scaling) counts as no alluvium.</summary>
     public float minThickness = 0.05f;
+
+    /// <summary>
+    /// Land building at base level: where a river drops its load into the sea or a lake, the floor there rises by this share of
+    /// the alluvium laid on it. Ground built above the water becomes delta land, which the water then has to find its way across.
+    /// </summary>
+    public float landBuilding = 1.2f;
+
+    /// <summary>Flow spreading over delta land is multiplied by this: on the flat, fresh deposit the river divides into distributaries.</summary>
+    public float deltaSpread = 3f;
 }
 
 /// <summary>
@@ -70,12 +79,36 @@ public static class Sediment
         float[] width, float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system,
         out string summary)
     {
+        Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p,
+            out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded);
+        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
+        system.Alluvium = alluvium;
+        system.GrainSize = grainSize;
+        int covered = 0;
+        float thickest = 0f;
+        foreach (float a in alluvium)
+        {
+            if (a > 0.05f)
+                covered++;
+            thickest = Mathf.Max(thickest, a);
+        }
+        summary = $"sediment: {eroded:0} supplied, {total:0} deposited ({(total > 0f ? 100f * atBase / total : 0f):0}% at base level), " +
+                  $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
+    }
+
+    /// <summary>The load and capacity walk down the network: what each channel cell deposits, and its grain size.</summary>
+    public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
+        float[] width, float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded)
+    {
         int n = filled.Length;
         var load = new float[n];
         var grainLoad = new float[n];
-        var deposit = new float[n];
-        var depositGrain = new float[n];
-        float total = 0f, atBase = 0f, eroded = 0f;
+        deposit = new float[n];
+        depositGrain = new float[n];
+        total = 0f;
+        atBase = 0f;
+        eroded = 0f;
         foreach (int c in cells)
         {
             float q = discharge[c] * dischargeScale;
@@ -112,19 +145,6 @@ public static class Sediment
                 grainLoad[r] += carried * grain;
             }
         }
-        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
-        system.Alluvium = alluvium;
-        system.GrainSize = grainSize;
-        int covered = 0;
-        float thickest = 0f;
-        foreach (float a in alluvium)
-        {
-            if (a > 0.05f)
-                covered++;
-            thickest = Mathf.Max(thickest, a);
-        }
-        summary = $"sediment: {eroded:0} supplied, {total:0} deposited ({(total > 0f ? 100f * atBase / total : 0f):0}% at base level), " +
-                  $"alluvium over {100f * covered / n:0.0}% of the map, thickest {thickest:0.00} m";
     }
 
     /// <summary>Water drop per cell over the next few cells downstream (single steps across filled flats are nearly zero).</summary>
@@ -142,7 +162,7 @@ public static class Sediment
     }
 
     /// <summary>Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with distance.</summary>
-    private static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
+    public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
         SedimentSettings p, out float[] alluvium, out float[] grainSize)
     {
         int n = filled.Length;

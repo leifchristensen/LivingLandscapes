@@ -220,8 +220,8 @@ public static class TerrainChannels
         float dischargeScale = 1f;
         bool[] moving = null;
         float[] power = null, deposition = null, sinuosity = null, valley = null;
-        int carvedMeanders = 0, oxbows = 0;
-        for (int pass = 0; pass < 2; pass++)
+        int carvedMeanders = 0, oxbows = 0, deltaCells = 0;
+        for (int pass = 0; pass < 3; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
                 out world, out secondary, out branchFrom, out splits);
@@ -278,6 +278,9 @@ public static class TerrainChannels
                 if (moving[c] && receiver[c] >= 0)
                     moving[receiver[c]] = true;
             }
+            if (pass == 1)
+                deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,
+                    isOutlet, sizeX, sizeZ, p, system, ref receiver);
             if (pass == 0 && p.meander.enabled)
             {
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
@@ -320,9 +323,69 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
+    }
+
+    /// <summary>
+    /// Deltas from the sediment budget (Docs/SEDIMENT-PLAN.md, step 3): where rivers drop their load into the sea or a lake the
+    /// floor rises by the alluvium laid on it; ground built above the water is delta land, flow over it spreads (distributaries),
+    /// and the water is routed again over the new ground. Returns the number of delta land cells.
+    /// </summary>
+    private static int BuildDeltas(float[] height, float[] filled, List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] width,
+        float[] inflow, float[] rockStrength, float[] depth, bool[] sea, float[] spread, System.Func<int, bool> isOutlet, int sizeX, int sizeZ,
+        TerrainChannelSettings p, RiverSystem system, ref int[] receiverOut)
+    {
+        int n = height.Length;
+        var baseLevel = new bool[n];
+        float seaLevel = float.MinValue;
+        bool anyBase = false;
+        for (int i = 0; i < n; i++)
+        {
+            bool inSea = sea != null && sea[i];
+            baseLevel[i] = inSea || filled[i] - height[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
+            anyBase |= baseLevel[i];
+            if (inSea)
+                seaLevel = Mathf.Max(seaLevel, height[i]);
+        }
+        if (!anyBase)
+            return 0;
+        Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p.sediment,
+            out float[] deposit, out float[] grain, out _, out float atBase, out _);
+        if (atBase <= 0f)
+            return 0;
+        // Only what settled at base level builds land: rivers drop everything there; floodplains upstream keep their shape.
+        for (int i = 0; i < n; i++)
+        {
+            if (!baseLevel[i])
+                deposit[i] = 0f;
+        }
+        Sediment.Spread(cells, receiver, null, deposit, grain, width, filled, height, sizeX, sizeZ, p.sediment, out float[] built, out _);
+        system.DeltaLand = new bool[n];
+        int land = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (!baseLevel[i] || built[i] <= 0f)
+                continue;
+            float raise = built[i] * p.sediment.landBuilding;
+            height[i] += raise;
+            filled[i] = Mathf.Max(filled[i], height[i]);
+            spread[i] = Mathf.Max(spread[i], 1f) * p.sediment.deltaSpread;
+            if (sea != null && sea[i] && height[i] > seaLevel + 0.05f)
+            {
+                system.DeltaLand[i] = true;
+                land++;
+            }
+        }
+        GridMath.FillDepressions(filled, sizeX, sizeZ, isOutlet, p.fillGradient, includeEdges: false);
+        receiverOut = GridMath.Receivers(filled, sizeX, sizeZ);
+        for (int i = 0; i < n; i++)
+        {
+            if (isOutlet(i))
+                receiverOut[i] = -1;
+        }
+        return land;
     }
 
     /// <summary>

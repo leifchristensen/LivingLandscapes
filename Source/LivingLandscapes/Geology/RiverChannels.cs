@@ -160,6 +160,9 @@ public class RiverSystem
     /// <summary>Grain size of that alluvium, 0 clay and silt to 1 gravel (0 where there is none).</summary>
     public float[] GrainSize;
 
+    /// <summary>Cells where river deposits built land above the sea (delta land): the coast mutator must not paint sea there.</summary>
+    public bool[] DeltaLand;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 
