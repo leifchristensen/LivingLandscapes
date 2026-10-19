@@ -527,7 +527,6 @@ public static class TerrainChannels
         var bankAmplitude = new float[natural.Length];
         var widthNoise = new Perlin(1.0 / p.widthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var depthNoise = new Perlin(1.0 / p.depthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
-        var shoalNoise = new Perlin(1.0 / p.shoalWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var fields = new Dictionary<string, float>();
         for (int k = 0; k < cells.Count; k++)
         {
@@ -549,11 +548,6 @@ public static class TerrainChannels
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));
             depth[c] = Mathf.Max(p.minDepth, p.depthPerDischarge * Mathf.Pow(q, p.depthExponent) * scour * nudge.depth
                                              * (1f + Mathf.Clamp(p.depthNoise * nudge.depthNoise, 0f, 0.9f) * (float)depthNoise.GetValue(x, 0.0, z)));
-            if (width[c] >= p.minShoalWidth)
-            {
-                float shoal = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.shoalThreshold, p.shoalThreshold + 0.25f, (float)shoalNoise.GetValue(x, 0.0, z)));
-                depth[c] = Mathf.Max(p.minDepth, depth[c] * Mathf.Lerp(1f, p.shoalShare, shoal));
-            }
             bankAmplitude[c] = Mathf.Clamp(p.bankNoise * nudge.bankNoise, 0f, 0.8f);
             spread[c] = nudge.spread;
             deposition[c] = nudge.deposition;
@@ -844,6 +838,7 @@ public static class TerrainChannels
         }
         int inHollows = 0;
         var bank = new Perlin(1.0 / p.bankNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+        var shoalNoise = new Perlin(1.0 / p.shoalWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         foreach (int c in cells)
         {
             if (filled[c] - height[c] > depth[c])
@@ -875,7 +870,11 @@ public static class TerrainChannels
                     if (r > 0f && height[z * sizeX + x] > filled[c] + p.maxBankCut)
                         continue;
                     float t = r / edge;
-                    float d = Mathf.Max(p.minDepth, depth[c] * (1f - t * t));
+                    float d = depth[c] * (1f - t * t);
+                    // Shoals are sampled per cell, so their edges follow the noise, not the channel's cells.
+                    if (width[c] >= p.minShoalWidth)
+                        d *= Mathf.Lerp(1f, p.shoalShare, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.shoalThreshold, p.shoalThreshold + 0.25f, (float)shoalNoise.GetValue(x, 0.0, z))));
+                    d = Mathf.Max(p.minDepth, d);
                     int i = z * sizeX + x;
                     if (d > best[i] || (d == best[i] && owner[i] >= 0 && filled[c] < filled[owner[i]]))
                     {
