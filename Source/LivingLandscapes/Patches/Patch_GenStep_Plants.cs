@@ -33,6 +33,10 @@ public static class Patch_GenStep_Plants
                     Patch_TileMutatorWorker_River_GenerateRiverGraph.LayChannels(map, environment.PlannedRivers, false, out _, out _, out _);
             }
             environment?.ComputeLayers(GenerationStage.Plants);
+            // Clustering species are seeded as clumps before vanilla's single random pass fills the rest.
+            var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
+            if (ecology != null && ecology.Ready)
+                Flora.PlantSeeder.Seed(map, ecology);
         }
         catch (Exception e)
         {

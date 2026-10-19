@@ -29,12 +29,36 @@ public class PlantEcologyDef : Def
     public float clusterGainPerNeighbour = 7.4f;
 
     /// <summary>
-    /// Clustering fades out as a species' share of the map's plants rises from the first of these to the second times its
-    /// adjusted target share, so a species that has its fair share stops starting clumps. Vanilla cuts it off at 110% of
-    /// the unadjusted target.
+    /// Seeding a new clump: the weight of a clustering species away from any plant of its own kind is multiplied by this
+    /// (1 = vanilla's rate). Below 1 the same number of plants gathers into fewer, larger clumps: with a share cap on each
+    /// species, many weak seeds make many tiny clumps. Scaled by the habitat strength.
     /// </summary>
-    public float clusterShareFadeStart = 1f;
-    public float clusterShareFadeEnd = 1.3f;
+    public float clusterNucleation = 0.2f;
+
+    /// <summary>The same for the larger scale (away from the species at that scale).</summary>
+    public float clusterNucleation2 = 0.5f;
+
+    /// <summary>Weight per plant (Gaussian-weighted) of the second, larger cluster scale; there are many more plants within reach, so it is smaller.</summary>
+    public float clusterGain2PerNeighbour = 0.5f;
+
+    /// <summary>
+    /// Inside a clump a clustering species is at most this many times likelier than away from its own kind (vanilla's own
+    /// ratio is cluster weight x pi x radius^2, often in the thousands). Capped so the share bias can still balance the
+    /// species mix; the nucleation factor sets how rarely a clump starts.
+    /// </summary>
+    public float clusterMaxRatio = 60f;
+
+    /// <summary>
+    /// The initial planting seeds clumps first (<see cref="PlantSeeder"/>): this share of each clustering species' target
+    /// is placed as parents with Gaussian offspring before vanilla's random pass fills the rest. 0 turns the seeder off.
+    /// </summary>
+    public float seedShare = 0.6f;
+
+    /// <summary>A seed settles with chance (fitness / this) ^ exponent, so ground that scores this or more always takes it.</summary>
+    public float seedFitnessReference = 0.5f;
+
+    /// <summary>Offspring per parent: the share of the cells within two sigma of a parent that its clump fills.</summary>
+    public float seedFill = 0.15f;
 
     /// <summary>The cluster footprint of a plant reaches this many sigma (beyond it the weight is under 2%).</summary>
     public float clusterReach = 3f;

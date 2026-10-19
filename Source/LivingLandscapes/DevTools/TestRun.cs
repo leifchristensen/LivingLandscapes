@@ -26,12 +26,16 @@ public static class TestRun
             return;
         if (!GenCommandLine.CommandLineArgPassed("ll-export") && !GenCommandLine.CommandLineArgPassed("ll-quit") && !BenchRequested)
             return;
+        Log.Message("[LivingLandscapes] Test run: map generated, waiting for the long event to finish.");
         LongEventHandler.ExecuteWhenFinished(() =>
         {
+            Log.Message("[LivingLandscapes] Test run: exporting and benchmarking.");
             if (GenCommandLine.CommandLineArgPassed("ll-export"))
                 LayerImageExporter.ExportAll(map);
+            Log.Message("[LivingLandscapes] Test run: export done.");
             if (BenchRequested)
                 PlantBenchmark.Run(map);
+            Log.Message("[LivingLandscapes] Test run: benchmark done.");
             if (!GenCommandLine.CommandLineArgPassed("ll-quit"))
                 return;
 

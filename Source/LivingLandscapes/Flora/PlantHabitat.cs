@@ -80,6 +80,14 @@ public class PlantHabitat : DefModExtension
     /// <summary>True if the species has any ground requirement; without one the ground does not sort it.</summary>
     public bool HasSiteCurves => wetness != null || soilDepth != null || slope != null || sun != null || fertility != null;
 
+    /// <summary>
+    /// A second, larger dispersal scale (sigma, cells; 0 none) for patchiness beyond the clump: forests and clearings,
+    /// meadows. A cell near many plants of the species at this scale is boosted up to <see cref="clusterStrength2"/> times.
+    /// Costs one more footprint per plant, so only species that need it (canopy trees) set it.
+    /// </summary>
+    public float clusterRadius2;
+    public float clusterStrength2 = 1f;
+
     private static readonly Dictionary<ThingDef, PlantHabitat> derived = new Dictionary<ThingDef, PlantHabitat>();
 
     /// <summary>The species' habitat: its XML extension, or defaults derived from vanilla fields.</summary>

@@ -7,15 +7,29 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// Vitality of the choice and clusters (Docs/FLORA-REVIEW.md, 3.1 and 3.2): the weight vanilla computed (commonality,
-/// share bias, local balance) is multiplied by the species' fitness on the cell, and for clustering species by a boost
-/// that grows with how many of its own kind stand nearby (Gaussian-weighted), up to vanilla's own inside/outside ratio.
-/// Vanilla's share bias still steers each species toward its commonality, so the map's species mix stays on target.
+/// The species choice (Docs/FLORA-REVIEW.md, 3.1 to 3.3). The weight vanilla computed (commonality, share bias, local
+/// balance, its own cluster factor) is changed in three ways:
+/// 1. Share bias: vanilla pulls each species toward its commonality with a steep curve of its current share. Species the
+///    ground cannot host here (fertility-limited trees, water plants) leave their share unfilled, so every other species
+///    runs "over target" and is wrongly suppressed. The bias is re-evaluated against a target adjusted for that
+///    (<see cref="MapComponent_Ecology.ShareScale"/>).
+/// 2. Fitness: the weight is multiplied by the species' fitness on the cell.
+/// 3. Clusters: vanilla multiplies a clustering species by about 1 / (pi r^2) away from its own kind, but only while its
+///    share is under 110%; above that it applies nothing, so late plants land at random and clumps stop forming. Here the
+///    "away from its kind" suppression applies at all times, and weight rises with the Gaussian-weighted crowding of its
+///    own kind (and at a second, larger scale for species that set one), up to a capped ratio so the share bias can still
+///    balance the mix.
 /// </summary>
 [HarmonyPatch(typeof(WildPlantSpawner), "PlantChoiceWeight")]
 public static class Patch_WildPlantSpawner_PlantChoiceWeight
 {
     private static readonly AccessTools.FieldRef<WildPlantSpawner, Map> MapOf = AccessTools.FieldRefAccess<WildPlantSpawner, Map>("map");
+
+    private static readonly SimpleCurve ShareBias =
+        (SimpleCurve)AccessTools.Field(typeof(WildPlantSpawner), "GlobalPctSelectionWeightBias").GetValue(null);
+
+    /// <summary>Vanilla stops applying its cluster factor above this share of the target.</summary>
+    private const float VanillaClusterCutoff = 1.1f;
 
     public static void Postfix(WildPlantSpawner __instance, ref float __result, ThingDef plantDef, IntVec3 c)
     {
@@ -29,36 +43,46 @@ public static class Patch_WildPlantSpawner_PlantChoiceWeight
         PlantEcologyDef tuning = PlantEcologyDef.Current;
         int index = map.cellIndices.CellToIndex(c);
 
-        float fitness = ecology.Fitness(plantDef, index);
-        __result *= Mathf.Lerp(1f, Mathf.Pow(fitness, tuning.fitnessExponent), strength);
+        // 1. Share bias against the adjusted target.
+        float raw = RawShare(map, __instance, plantDef);
+        float scale = ecology.ShareScale(__instance);
+        if (raw >= 0f && scale > 1.01f)
+            __result *= Mathf.Pow(ShareBias.Evaluate(raw / scale) / Mathf.Max(ShareBias.Evaluate(raw), 0.01f), strength);
 
+        // 2. Fitness.
+        __result *= Mathf.Lerp(1f, Mathf.Pow(ecology.Fitness(plantDef, index), tuning.fitnessExponent), strength);
+
+        // 3. Clusters.
         PlantHabitat habitat = PlantHabitat.For(plantDef);
         if (habitat.ClusterSigma(plantDef) <= 0f)
             return;
-        float throttle = ShareThrottle(map, __instance, ecology, plantDef, tuning);
-        if (throttle <= 0f)
-            return;
-        // Neighbours of the same kind near this cell pull the weight from "outside a cluster" toward "inside one".
+        float radius = plantDef.plant.wildClusterRadius;
+        // Make "away from its own kind" the same at every share: vanilla applied about 1 / (pi r^2) only under 110%.
+        if (raw >= VanillaClusterCutoff)
+            __result *= Mathf.Pow(1f / (Mathf.PI * radius * radius), strength);
+
         float crowding = ecology.ClusterDensity(plantDef, index) * tuning.clusterGainPerNeighbour;
-        float ratio = Mathf.Lerp(1f, habitat.ClusterRatio(plantDef), strength * throttle);
-        __result *= 1f + (ratio - 1f) * (1f - Mathf.Exp(-crowding));
+        float inside = Mathf.Lerp(1f, Mathf.Min(habitat.ClusterRatio(plantDef), tuning.clusterMaxRatio), strength);
+        float outside = Mathf.Lerp(1f, tuning.clusterNucleation, strength);
+        __result *= outside + (inside - outside) * (1f - Mathf.Exp(-crowding));
+
+        // The larger scale: forests and clearings.
+        if (habitat.clusterRadius2 > 0f && habitat.clusterStrength2 > 1f)
+        {
+            float wide = ecology.ClusterDensity2(plantDef, index) * tuning.clusterGain2PerNeighbour;
+            float inside2 = Mathf.Lerp(1f, habitat.clusterStrength2, strength);
+            float outside2 = Mathf.Lerp(1f, tuning.clusterNucleation2, strength);
+            __result *= outside2 + (inside2 - outside2) * (1f - Mathf.Exp(-wide));
+        }
     }
 
-    /// <summary>
-    /// Vanilla clusters a species only while its share of the map's plants is under 110% of its target. Species that
-    /// cannot be placed (fertility-limited trees, water plants) leave a surplus, which lifts every ordinary species over
-    /// 110% before the map fills and switches clustering off for most of the pass. Here the share is measured against a
-    /// target adjusted for that surplus (<see cref="MapComponent_Ecology.ShareScale"/>), and clustering fades out between
-    /// the def's start and end ratios (default 100% to 130%), so clumps start until a species has its fair share.
-    /// </summary>
-    private static float ShareThrottle(Map map, WildPlantSpawner spawner, MapComponent_Ecology ecology, ThingDef plantDef, PlantEcologyDef tuning)
+    /// <summary>The species' share of the map's plants over its target share (vanilla's own measure); -1 while there are no plants.</summary>
+    private static float RawShare(Map map, WildPlantSpawner spawner, ThingDef plantDef)
     {
         int total = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).Count;
         float target = spawner.GetCommonalityPctOfPlant(plantDef);
         if (total <= 0 || target <= 0f)
-            return 1f;
-        // Against the target adjusted for species the ground cannot host here.
-        float share = map.listerThings.ThingsOfDef(plantDef).Count / (float)total / target / ecology.ShareScale(spawner);
-        return 1f - Mathf.InverseLerp(tuning.clusterShareFadeStart, tuning.clusterShareFadeEnd, share);
+            return -1f;
+        return map.listerThings.ThingsOfDef(plantDef).Count / (float)total / target;
     }
 }

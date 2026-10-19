@@ -31,6 +31,7 @@ public class MapComponent_Ecology : MapComponent
     private float[] shadeLog;
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
     private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
     private bool tried, built;
@@ -137,6 +138,12 @@ public class MapComponent_Ecology : MapComponent
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
             Apply(grid, at.x, at.z, ClusterKernel(sigma), sign);
+        }
+        if (habitat.clusterRadius2 > 0f && sigma > 0f)
+        {
+            if (!density2.TryGetValue(def, out float[] grid2))
+                density2[def] = grid2 = new float[sizeX * sizeZ];
+            Apply(grid2, at.x, at.z, ClusterKernel(habitat.clusterRadius2), sign);
         }
         if (habitat.shadeCast > 0f)
         {
@@ -245,6 +252,8 @@ public class MapComponent_Ecology : MapComponent
         Compare("shade", shadeLog, fresh.shadeLog);
         foreach (KeyValuePair<ThingDef, float[]> pair in density)
             Compare(pair.Key.defName, pair.Value, fresh.density.TryGetValue(pair.Key, out float[] other) ? other : null);
+        foreach (KeyValuePair<ThingDef, float[]> pair in density2)
+            Compare(pair.Key.defName + " (second scale)", pair.Value, fresh.density2.TryGetValue(pair.Key, out float[] other2) ? other2 : null);
         detail = where;
         return worst;
     }
@@ -279,6 +288,9 @@ public class MapComponent_Ecology : MapComponent
         shareScale = (1f - stuckShare) / Mathf.Max(1f - stuckTarget, 0.1f);
         return shareScale;
     }
+
+    /// <summary>Crowding at the second, larger cluster scale.</summary>
+    public float ClusterDensity2(ThingDef def, int index) => density2.TryGetValue(def, out float[] grid) ? grid[index] : 0f;
 
     /// <summary>Crowding of a cell by its own species: the sum of Gaussian weights of the plants around it.</summary>
     public float ClusterDensity(ThingDef def, int index) => density.TryGetValue(def, out float[] grid) ? grid[index] : 0f;

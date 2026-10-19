@@ -202,7 +202,7 @@ public static class PlantBenchmark
         {
             ThingDef def = group.Key;
             float share = group.Count() / (float)total, target = map.wildPlantSpawner.GetCommonalityPctOfPlant(def);
-            double fitness = 0;
+            double fitness = 0, crowding = 0, crowding2 = 0;
             float available = 0f;
             if (ready)
             {
@@ -218,8 +218,16 @@ public static class PlantBenchmark
                 }
                 available = good / (float)Mathf.Max(dry, 1);
                 foreach (Plant plant in group)
-                    fitness += ecology.Fitness(def, map.cellIndices.CellToIndex(plant.Position));
+                {
+                    int cell = map.cellIndices.CellToIndex(plant.Position);
+                    fitness += ecology.Fitness(def, cell);
+                    // Neighbours' crowding at the plant's own cell (its own weight, 1, removed).
+                    crowding += ecology.ClusterDensity(def, cell) - 1.0;
+                    crowding2 += ecology.ClusterDensity2(def, cell) - (PlantHabitat2(def) ? 1.0 : 0.0);
+                }
                 fitness /= group.Count();
+                crowding /= group.Count();
+                crowding2 /= group.Count();
             }
             // Clark-Evans on a sample of up to 1500 plants (nearest neighbour among all plants of the species).
             double clark = double.NaN;
@@ -244,8 +252,19 @@ public static class PlantBenchmark
                 double density = positions.Count / (double)map.Area;
                 clark = sum / sample.Count / (0.5 / Mathf.Sqrt((float)density));
             }
+            // Index of dispersion over 25x25 blocks: variance / mean of the species' plants per block (1 random, above 1 patchy).
+            double dispersion = double.NaN;
+            if (group.Count() >= 30)
+            {
+                int blocksX = map.Size.x / 25, blocksZ = map.Size.z / 25;
+                var counts = new int[blocksX * blocksZ];
+                foreach (Plant plant in group)
+                    counts[Mathf.Min(plant.Position.z / 25, blocksZ - 1) * blocksX + Mathf.Min(plant.Position.x / 25, blocksX - 1)]++;
+                double mean = counts.Average(), variance = counts.Select(c => (c - mean) * (c - mean)).Average();
+                dispersion = variance / mean;
+            }
             Log.Message($"[LivingLandscapes] Plant census:   {def.defName,-24} {group.Count(),6}  share {share * 100f,5:F1}% (target {target * 100f,5:F1}%)  " +
-                        $"fitness {(ready ? fitness.ToString("0.00") : "  - ")} (suits {(ready ? (available * 100f).ToString("F0") : " -")}% of land)  clark-evans {(double.IsNaN(clark) ? "  - " : clark.ToString("0.00"))}");
+                        $"fitness {(ready ? fitness.ToString("0.00") : "  - ")} (suits {(ready ? (available * 100f).ToString("F0") : " -")}% of land)  clark-evans {(double.IsNaN(clark) ? "  - " : clark.ToString("0.00"))}  patchiness {(double.IsNaN(dispersion) ? "  - " : dispersion.ToString("0.0"))}  crowding {crowding:0.0}/{crowding2:0.0}");
         }
         System.IO.Directory.CreateDirectory(LayerImageExporter.Folder);
         ExportPlantMap(map, System.IO.Path.Combine(LayerImageExporter.Folder, "PlantMap.png"));
@@ -260,6 +279,8 @@ public static class PlantBenchmark
             Log.Message($"[LivingLandscapes] Plant census: {shaded * 100f / map.Area:F0}% of cells under canopy shade above 30%.");
         }
     }
+
+    private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;
 
     private static double Share(double microsPerTick, int ticksPerSecond) => microsPerTick / (1e6 / ticksPerSecond);
 
