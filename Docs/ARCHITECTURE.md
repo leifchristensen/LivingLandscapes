@@ -148,7 +148,8 @@ Current focus: geological features that read well on the map, worked from the ow
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
 3. Height cues: stage tint, hillshading (cliff shadows and south faces are done).
 4. Remaining landforms: Basin, Hollow, Chasm, Crevasse, coasts, river variants. Landform shapes are too rounded.
-5. Water from the heightmap: lakes, ponds, marsh.
+5. Water from the heightmap: done (lakes by water balance, streams, marsh and mud from the ground rules). Next:
+   channel patterns (meanders, splits), sediment fill on low relief (F3), surface rock (`Docs/SURFACE-ROCK-PLAN.md`).
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
 8. Toggle icons per layer (art).

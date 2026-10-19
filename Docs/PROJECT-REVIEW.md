@@ -188,3 +188,6 @@ G. **Invariants as the definition of done.** Add checks 3-7 (single channel in r
 
 Recommended order: F (cleanup), A (water), B + C (classifier and rock exposure, together), D, E. Water first, because
 it is the current branch and the largest single gap.
+
+**Progress (2026-10-19, branch feature/water):** F, A, B and C done. D (sediment fill), E (channel patterns) and G
+(remaining invariants) are next; surface rock is planned in `SURFACE-ROCK-PLAN.md`.
