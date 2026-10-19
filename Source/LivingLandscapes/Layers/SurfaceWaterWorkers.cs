@@ -27,9 +27,11 @@ public class SurfaceWaterExtension : DefModExtension
 
     /// <summary>
     /// Streams (W2, W3): water flows in a channel where the drainage area times the climate wetness reaches this
-    /// (log10 cells). Channel width grows with the square root of that area (hydraulic geometry).
+    /// (log10 cells). Channel width grows with the square root of that area (hydraulic geometry). The planned channel
+    /// network already carries the map's creeks and rivers, so this sits above the network's source threshold: it
+    /// only adds water where drainage gathers beyond the network.
     /// </summary>
-    public float streamArea = 2.8f;
+    public float streamArea = 3.3f;
     public float widthPerSqrtArea = 0.04f;
     public float maxStreamWidth = 6f;
 
@@ -40,13 +42,6 @@ public class SurfaceWaterExtension : DefModExtension
     /// <summary>Flow speed 0..1 of the smallest and of a stream this much larger (log10 cells).</summary>
     public float minFlow = 0.4f;
     public float fullFlowAreaAbove = 1.5f;
-
-    /// <summary>
-    /// The drainage area (cells) a channel of this width drains under the stream width rule, read backwards: how much
-    /// land a world river entering the map already drains, given the width vanilla gives it.
-    /// </summary>
-    public float AreaForWidth(float width, float climate) =>
-        Mathf.Pow(width / widthPerSqrtArea, 2f) / Mathf.Max(climate, 1e-3f);
 }
 
 /// <summary>
@@ -71,9 +66,9 @@ public static class SurfaceWaterModel
         float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
         var result = new Result { Depth = new float[n], Flow = new float[n] };
 
-        // A world river's channels hold water up to the surface the carving gave them, flowing at full speed. Streams
-        // and lakes join them there rather than overlaying them.
-        float[] river = map.GetComponent<MapComponent_Environment>()?.PlannedRiver?.WaterLevel;
+        // The planned channels hold water up to the surface the carving gave them, flowing at full speed. Streams and
+        // lakes join them there rather than overlaying them.
+        float[] river = map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.WaterLevel;
         bool InRiver(int i) => river != null && !float.IsNaN(river[i]);
         for (int i = 0; river != null && i < n; i++)
         {

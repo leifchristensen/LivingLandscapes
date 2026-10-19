@@ -24,10 +24,11 @@ public class MapComponent_Environment : MapComponent
     public Map Map => map;
 
     /// <summary>
-    /// The channels a world river takes across this map (main channel, side branches, cut-off loops), planned by the
-    /// geology during generation. Not saved: only used while the river is placed.
+    /// The map's channel network (the world river and the map's own creeks and rivers, with side branches and cut-off
+    /// loops) and the water level and flow the carving left, planned by the geology during generation. Not saved:
+    /// only used while the map is generated.
     /// </summary>
-    public Geology.RiverPlan PlannedRiver { get; set; }
+    public Geology.RiverSystem PlannedRivers { get; set; }
 
     /// <summary>
     /// Rock beds planned by the geology: strength (0..1) and rock type beneath each cell. Strength is kept as the

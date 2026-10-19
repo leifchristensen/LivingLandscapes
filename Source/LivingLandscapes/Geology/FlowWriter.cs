@@ -6,26 +6,26 @@ using Verse;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// Writes the flow of our streams (LL_WaterFlow) into vanilla's river flow map, so their moving water animates,
-/// turns watermills and floats items downstream. Direction is the smoothed downhill direction of the landform, so it
-/// follows the valley rather than hummocks. Vanilla rebuilds the flow map for its own river after fog, filling only
-/// cells near the river's segments, so this runs again then (<see cref="Patches.Patch_TileMutatorWorker_River_GeneratePostFog"/>)
-/// and only fills cells vanilla left empty.
+/// Writes the flow of all moving water into vanilla's river flow map, so it animates, turns watermills and floats
+/// items downstream. Vanilla stores one direction per cell (unit length on its own rivers) and the water shader
+/// averages it with the neighbouring river cells. Cells of a planned channel take the channel's downstream direction
+/// (the tangent of its centre line, as vanilla does for its river); other moving water takes the smoothed downhill
+/// direction of the landform. Every moving-water cell is written, replacing whatever vanilla left: vanilla rebuilds
+/// the map after fog for its own river segments only, so this runs again then
+/// (<see cref="Patches.Patch_TileMutatorWorker_River_GeneratePostFog"/>).
 /// </summary>
 public static class FlowWriter
 {
-    /// <summary>Smoothing (cells) of the landform whose downhill direction sets the flow.</summary>
+    /// <summary>Smoothing (cells) of the landform whose downhill direction sets the flow outside planned channels.</summary>
     private const float FlowSmoothing = 3f;
 
     public static void Apply(Map map)
     {
         var environment = map.GetComponent<MapComponent_Environment>();
-        if (environment == null
-            || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_WaterFlow, out EnvironmentGrid flowGrid)
-            || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landformGrid))
+        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landformGrid))
             return;
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = sizeX * sizeZ;
-        float[] speed = flowGrid.ToArray();
+        RiverSystem rivers = environment.PlannedRivers;
 
         var ones = new float[n];
         for (int i = 0; i < n; i++)
@@ -41,24 +41,28 @@ public static class FlowWriter
             map.waterInfo.riverFlowMap = flow;
         }
 
-        int written = 0;
+        int channel = 0, downhill = 0;
         for (int i = 0; i < n; i++)
         {
-            if (speed[i] <= 0f)
-                continue;
             IntVec3 c = map.cellIndices.IndexToCell(i);
             if (!c.GetTerrain(map).IsRiver)
                 continue;
+            Vector2 direction;
+            if (rivers?.ChannelOf != null && rivers.ChannelOf[i] >= 0 && rivers.Flow[i] != Vector2.zero)
+            {
+                direction = rivers.Flow[i];
+                channel++;
+            }
+            else
+            {
+                direction = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
+                downhill++;
+            }
             // Vanilla's flow map is indexed x * sizeZ + z.
             int f = (c.x * sizeZ + c.z) * 2;
-            bool empty = float.IsNaN(flow[f]) || float.IsNaN(flow[f + 1]) || (flow[f] == 0f && flow[f + 1] == 0f);
-            if (!empty)
-                continue;
-            flow[f] = Mathf.Cos(aspect[i]) * speed[i];
-            flow[f + 1] = Mathf.Sin(aspect[i]) * speed[i];
-            written++;
+            flow[f] = direction.x;
+            flow[f + 1] = direction.y;
         }
-        if (written > 0)
-            Log.Message($"[LivingLandscapes] Stream flow written for {written} moving water cells on {map}.");
+        Log.Message($"[LivingLandscapes] Flow written for {channel + downhill} moving water cells on {map} ({channel} along channels, {downhill} downhill).");
     }
 }

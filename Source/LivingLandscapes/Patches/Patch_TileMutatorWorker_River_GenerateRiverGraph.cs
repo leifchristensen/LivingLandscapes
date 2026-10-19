@@ -43,7 +43,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         WorldContext world = WorldContext.For(map, 1f);
         if (!world.HasRiver)
             return true;
-        RiverPlan plan = environment.PlannedRiver;
+        RiverPlan plan = environment.PlannedRivers?.WorldRiver;
         if (plan == null)
         {
             Log.Warning($"[LivingLandscapes] No planned river course crosses {map}; using vanilla's river.");

@@ -82,32 +82,63 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
+        <!-- Channel network (rules V1-V3): channels first, valleys follow; widths compressed to map scale. -->
+        <network>
+          <sourceShare>0.02</sourceShare>
+          <minLengthInside>20</minLengthInside>
+          <!-- Vanilla width by class (creek 4, river 6, large 14, huge 30) to map width. -->
+          <worldRiverWidth>
+            <points>
+              <li>(4, 3)</li>
+              <li>(6, 6)</li>
+              <li>(14, 12)</li>
+              <li>(30, 24)</li>
+            </points>
+          </worldRiverWidth>
+          <!-- The map's own channels by stream order. -->
+          <widthByOrder>
+            <points>
+              <li>(1, 2.5)</li>
+              <li>(2, 3.5)</li>
+              <li>(3, 5)</li>
+              <li>(4, 7)</li>
+              <li>(6, 10)</li>
+            </points>
+          </widthByOrder>
+          <tributaryShare>0.7</tributaryShare>
+        </network>
+        <!-- Channel shapes and splits (V4, V5). -->
         <channels>
           <spacing>2</spacing>
           <meanderSteps>500</meanderSteps>
           <migrationRate>4</migrationRate>
+          <migrationStepWidths>0.02</migrationStepWidths>
           <localWeight>-1</localWeight>
           <upstreamWeight>2.5</upstreamWeight>
           <decayWidths>0.6</decayWidths>
           <upstreamMaps>2</upstreamMaps>
-          <seedWobble>3</seedWobble>
-          <seedWavelengthWidths>10</seedWavelengthWidths>
+          <wobbleWidths>1</wobbleWidths>
+          <wobbleCells>1.5~3</wobbleCells>
+          <wobbleWavelengthWidths>5</wobbleWavelengthWidths>
+          <wobbleWavelengthCells>10~20</wobbleWavelengthCells>
           <cutoffWidths>1.7</cutoffWidths>
           <wallHeight>1.5</wallHeight>
           <bankStrengthExponent>1</bankStrengthExponent>
           <splitConfinement>6</splitConfinement>
-          <depositionRatio>0.5</depositionRatio>
+          <releaseRatio>2.5</releaseRatio>
           <upstreamWidths>10</upstreamWidths>
-          <minSlope>0.0005</minSlope>
           <floodDepth>1.5</floodDepth>
+          <deltaWidths>8</deltaWidths>
           <islandWidths>3</islandWidths>
           <minIslandLength>24</minIslandLength>
           <branchWidthShare>0.6</branchWidthShare>
+          <minIslandErodibility>0.2</minIslandErodibility>
         </channels>
+        <!-- Channel beds and valleys (V1, V6, W5). -->
         <riverBed>
-          <bankHeight>0.3</bankHeight>
           <depthPerSqrtWidth>0.35</depthPerSqrtWidth>
           <rimDepth>0.2</rimDepth>
+          <riffleMinWidth>12</riffleMinWidth>
           <riffleShare>0.35</riffleShare>
           <poolSpacingWidths>6</poolSpacingWidths>
           <thalwegShift>0.6</thalwegShift>
@@ -115,6 +146,11 @@
           <outerBankFactor>0.3</outerBankFactor>
           <innerBankFactor>2</innerBankFactor>
           <sharpBendWidths>3</sharpBendWidths>
+          <floorHeightPerSqrtWidth>0.25</floorHeightPerSqrtWidth>
+          <floorSlope>0.003</floorSlope>
+          <floorWidths>4</floorWidths>
+          <maxFloorCells>40</maxFloorCells>
+          <wallWidth>10</wallWidth>
           <oxbowDepth>0.6</oxbowDepth>
           <oxbowWidthShare>0.7</oxbowWidthShare>
         </riverBed>
@@ -358,7 +394,7 @@
         <runoffShare>0.3</runoffShare>
         <minLakeDepth>0.25</minLakeDepth>
         <minLakeCells>12</minLakeCells>
-        <streamArea>2.8</streamArea>
+        <streamArea>3.3</streamArea>
         <widthPerSqrtArea>0.04</widthPerSqrtArea>
         <maxStreamWidth>6</maxStreamWidth>
         <streamDepth>0.3</streamDepth>

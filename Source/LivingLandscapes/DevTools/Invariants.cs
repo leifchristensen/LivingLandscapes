@@ -9,8 +9,8 @@ namespace LivingLandscapes.DevTools;
 
 /// <summary>
 /// Checks the water invariants of Docs/GEOLOGY-RULES.md section 9 on a generated map and reports them for the export
-/// summary, on the natural landform that water flows over: rivers never climb (1), split channels rejoin (4), lakes lie
-/// in closed depressions (2).
+/// summary, on the natural landform that water flows over: rivers never climb (1), split channels rejoin (4), channels
+/// end at a base level (5), lakes lie in closed depressions (2).
 /// </summary>
 public static class Invariants
 {
@@ -41,68 +41,87 @@ public static class Invariants
     }
 
     /// <summary>
-    /// Invariant 1: walks every river segment's centre line downstream and measures how far the water surface climbs
-    /// above the lowest point already passed.
+    /// Invariants 1, 4 and 5 over the planned channel network: walking each channel's centre line downstream inside
+    /// the map, the water surface never climbs above the lowest point already passed (1); side branches rejoin their
+    /// channel or reach the sea at the map edge (4); every channel ends at a base level: the channel it joins, the map
+    /// edge, or standing water (5).
     /// </summary>
     private static void RiverDownhill(Map map, float[] h, StringBuilder summary)
     {
-        var graph = map.waterInfo?.riverGraph;
-        if (graph == null || graph.Count == 0)
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null || rivers.Channels.Count == 0)
             return;
-        // Each segment is walked downstream on its own: channels branch and rejoin, so there is no single course.
-        int steps = 0, climbing = 0;
-        float maxRise = 0f;
+        int steps = 0, climbing = 0, sides = 0, rejoin = 0, ended = 0, loops = 0;
+        float maxRise = 0f, length = 0f, straight = 0f;
         IntVec3 worst = IntVec3.Invalid;
-        foreach (RiverNode node in graph)
+        for (int k = 0; k < rivers.Channels.Count; k++)
         {
-            float length = (node.end - node.start).magnitude, lowest = float.MaxValue;
-            for (float t = 0f; t <= length; t += 1f)
+            RiverPlan plan = rivers.Channels[k];
+            float lowest = float.MaxValue;
+            Vector2? first = null, last = null;
+            for (int i = 0; i < plan.Main.Count - 1; i++)
             {
-                IntVec3 cell = Vector3.Lerp(node.start, node.end, length < 1e-3f ? 0f : t / length).ToIntVec3();
-                if (!cell.InBounds(map) || !cell.GetTerrain(map).IsRiver)
-                    continue;
-                float v = h[map.cellIndices.CellToIndex(cell)];
-                steps++;
-                if (v > lowest + Tolerance)
+                Vector2 a = plan.Main[i], b = plan.Main[i + 1];
+                float segment = (b - a).magnitude;
+                for (float t = 0f; t < segment; t += 1f)
                 {
-                    climbing++;
-                    if (v - lowest > maxRise)
+                    Vector2 v = Vector2.Lerp(a, b, t / Mathf.Max(segment, 1e-3f));
+                    if (!Inside(map, v))
+                        continue;
+                    int index = RiverChannels.Index(v, map.Size.x, map.Size.z);
+                    if (rivers.ChannelOf[index] != k)
+                        continue;
+                    steps++;
+                    if (h[index] > lowest + Tolerance)
                     {
-                        maxRise = v - lowest;
-                        worst = cell;
+                        climbing++;
+                        if (h[index] - lowest > maxRise)
+                        {
+                            maxRise = h[index] - lowest;
+                            worst = map.cellIndices.IndexToCell(index);
+                        }
                     }
+                    lowest = Mathf.Min(lowest, h[index]);
                 }
-                lowest = Mathf.Min(lowest, v);
+                if (Inside(map, a) && Inside(map, b))
+                {
+                    first ??= a;
+                    last = b;
+                    length += segment;
+                }
             }
-        }
-        summary.AppendLine($"invariant 1 (river downhill): {(climbing == 0 ? "ok" : "FAIL")} | {steps} centre-line cells in {graph.Count} segments, " +
-                           $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst}" : "")}");
+            if (first.HasValue)
+                straight += (last.Value - first.Value).magnitude;
 
-        RiverPlan plan = map.GetComponent<MapComponent_Environment>()?.PlannedRiver;
-        if (plan == null)
-            return;
-        float length2 = 0f;
-        Vector2? first = null, last = null;
-        for (int i = 1; i < plan.Main.Count; i++)
-        {
-            Vector2 a = plan.Main[i - 1], b = plan.Main[i];
-            if (!Inside(map, a) || !Inside(map, b))
-                continue;
-            first ??= a;
-            last = b;
-            length2 += (b - a).magnitude;
+            foreach (RiverPlan.SideBranch side in plan.Sides)
+            {
+                sides++;
+                Vector2 end = side.Points[side.Points.Count - 1];
+                bool joins = (side.Points[0] - plan.Main[side.From]).magnitude <= plan.NominalWidth
+                             && (side.ToBaseLevel ? !Inside(map, end) || NearEdge(map, end, plan.NominalWidth)
+                                 : (end - plan.Main[side.To]).magnitude <= plan.NominalWidth);
+                if (joins)
+                    rejoin++;
+            }
+            loops += plan.Oxbows.Count;
+
+            Vector2 mouth = plan.Main[plan.Main.Count - 1];
+            bool atBase = plan.Parent >= 0 || !Inside(map, mouth) || NearEdge(map, mouth, plan.NominalWidth)
+                          || map.terrainGrid.TerrainAt(RiverChannels.Index(mouth, map.Size.x, map.Size.z)).IsWater;
+            if (atBase)
+                ended++;
         }
-        float straight = first.HasValue ? (last.Value - first.Value).magnitude : 0f;
-        int rejoin = 0;
-        foreach (RiverPlan.SideBranch side in plan.Sides)
-        {
-            if ((side.Points[0] - plan.Main[side.From]).magnitude <= plan.NominalWidth
-                && (side.Points[side.Points.Count - 1] - plan.Main[side.To]).magnitude <= plan.NominalWidth)
-                rejoin++;
-        }
-        summary.AppendLine($"invariant 4 (split channels rejoin): {(rejoin == plan.Sides.Count ? "ok" : "FAIL")} | {rejoin} of {plan.Sides.Count} side channels rejoin; " +
-                           $"sinuosity {(straight > 1f ? length2 / straight : 1f):F2}, {plan.Oxbows.Count} cut-off loops, width {plan.NominalWidth:F0}");
+        summary.AppendLine($"invariant 1 (water flows downhill): {(climbing == 0 ? "ok" : "FAIL")} | {steps} centre-line cells in {rivers.Channels.Count} channels, " +
+                           $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst}" : "")}");
+        summary.AppendLine($"invariant 4 (split channels rejoin or reach the sea): {(rejoin == sides ? "ok" : "FAIL")} | {rejoin} of {sides} side channels; " +
+                           $"sinuosity {(straight > 1f ? length / straight : 1f):F2}, {loops} cut-off loops, widths " +
+                           string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
+        summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
+                           "end in another channel, at the map edge or in standing water");
     }
+
+    private static bool NearEdge(Map map, Vector2 v, float distance) =>
+        v.x < distance || v.y < distance || v.x > map.Size.x - distance || v.y > map.Size.z - distance;
 
     private static bool Inside(Map map, Vector2 v) => v.x >= 0f && v.y >= 0f && v.x < map.Size.x && v.y < map.Size.z;
 

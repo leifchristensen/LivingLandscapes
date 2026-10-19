@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
 using UnityEngine;
@@ -76,8 +77,9 @@ public class WetnessWorker : EnvironmentLayerWorker
         int n = height.Length;
 
         // The water table meets a river at its water surface, not its bed.
-        float[] riverLevel = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRiver?.WaterLevel;
-        float[] drainageHeight = DrainageLineHeight(height, drainage, riverLevel, p.channelArea, context.SizeX, context.SizeZ, out float[] lineArea);
+        RiverSystem rivers = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        float[] drainageHeight = DrainageLineHeight(height, drainage, rivers?.WaterLevel, rivers?.ChannelOf, p.channelArea,
+            context.SizeX, context.SizeZ, out float[] lineArea);
 
         float exponent = Mathf.Lerp(p.aridSharpening, 1f, p.ClimateOf(context.Map));
         var wetness = new float[n];
@@ -102,8 +104,8 @@ public class WetnessWorker : EnvironmentLayerWorker
     /// neighbour is already resolved. Pits and map edges without a channel count as their own drainage line.
     /// <paramref name="lineArea"/> is the drainage area (log10 cells) of that line where the cell reaches it.
     /// </summary>
-    private static float[] DrainageLineHeight(float[] height, float[] drainage, float[] riverLevel, float channelArea, int sizeX, int sizeZ,
-        out float[] lineArea)
+    private static float[] DrainageLineHeight(float[] height, float[] drainage, float[] riverLevel, int[] channelOf, float channelArea,
+        int sizeX, int sizeZ, out float[] lineArea)
     {
         int n = height.Length;
         var order = new int[n];
@@ -112,19 +114,19 @@ public class WetnessWorker : EnvironmentLayerWorker
         System.Array.Sort(order, (a, b) => height[a].CompareTo(height[b]));
         var result = new float[n];
         var area = new float[n];
-        // A river's discharge belongs to its whole channel, rims included.
-        float riverArea = 0f;
-        for (int i = 0; riverLevel != null && i < n; i++)
+        // A channel's discharge belongs to its whole width, rims included.
+        var channelAreas = new Dictionary<int, float>();
+        for (int i = 0; channelOf != null && i < n; i++)
         {
-            if (!float.IsNaN(riverLevel[i]))
-                riverArea = Mathf.Max(riverArea, drainage[i]);
+            if (channelOf[i] >= 0)
+                channelAreas[channelOf[i]] = Mathf.Max(channelAreas.TryGetValue(channelOf[i], out float a) ? a : 0f, drainage[i]);
         }
         foreach (int c in order)
         {
             if (riverLevel != null && !float.IsNaN(riverLevel[c]))
             {
                 result[c] = riverLevel[c];
-                area[c] = riverArea;
+                area[c] = channelOf != null && channelOf[c] >= 0 ? channelAreas[channelOf[c]] : drainage[c];
                 continue;
             }
             if (drainage[c] >= channelArea)

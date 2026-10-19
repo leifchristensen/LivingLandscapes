@@ -3,16 +3,13 @@ using UnityEngine;
 
 namespace LivingLandscapes.Geology;
 
-/// <summary>River bed settings (part of <see cref="GeologyGenerationExtension"/>).</summary>
+/// <summary>River bed and valley settings (part of <see cref="GeologyGenerationExtension"/>).</summary>
 public class RiverBedSettings
 {
-    /// <summary>The water surface lies this far (metres) below the valley floor beside the channel (bank height).</summary>
-    public float bankHeight = 0.3f;
-
     /// <summary>
-    /// Channel depth (metres) at the deepest point of a pool: this times the square root of the channel width in cells
-    /// (hydraulic geometry: depth grows more slowly than width). Creeks stay shallow enough to wade; large rivers get a
-    /// deep core.
+    /// Channel depth (metres) at the deepest point: this times the square root of the channel width in cells
+    /// (hydraulic geometry: depth grows more slowly than width). Creeks stay shallow enough to wade; rivers from about
+    /// six cells wide carry a continuous deep thread (rule V6).
     /// </summary>
     public float depthPerSqrtWidth = 0.35f;
 
@@ -20,20 +17,19 @@ public class RiverBedSettings
     public float rimDepth = 0.2f;
 
     /// <summary>
-    /// Pools and riffles: the channel alternates between deep pools (at bends) and shallow riffles (where the flow
-    /// crosses from one bend to the next). A riffle keeps this share of a pool's depth. On straight reaches pools
-    /// repeat every <see cref="poolSpacingWidths"/> channel widths.
+    /// Pools and riffles, for channels at least <see cref="riffleMinWidth"/> cells wide: deep pools at bends, shallow
+    /// riffles (fords) where the flow crosses from one bend to the next. A riffle keeps this share of a pool's depth;
+    /// on straight reaches pools repeat every <see cref="poolSpacingWidths"/> widths. Narrower channels keep their
+    /// deep thread unbroken.
     /// </summary>
+    public float riffleMinWidth = 12f;
     public float riffleShare = 0.35f;
     public float poolSpacingWidths = 6f;
 
-    /// <summary>
-    /// At a sharp bend the deepest line moves this share of the half-width toward the outer bank, and the inner bank
-    /// becomes a shallow bar (point bar).
-    /// </summary>
+    /// <summary>At a sharp bend the deepest line moves this share of the half-width toward the outer bank (inner point bar).</summary>
     public float thalwegShift = 0.6f;
 
-    /// <summary>Cells beyond the channel over which the banks ease back to the natural ground.</summary>
+    /// <summary>Cells beyond the channel over which the bank rises from the water to the valley floor.</summary>
     public float bankWidth = 4f;
 
     /// <summary>
@@ -46,20 +42,35 @@ public class RiverBedSettings
     /// <summary>Bends tighter than this radius (in channel widths) count as sharp: full asymmetry, a full pool.</summary>
     public float sharpBendWidths = 3f;
 
+    /// <summary>
+    /// Valley floors (rule V1): channels come first, valleys follow them. Beyond the banks a flat floor lies this
+    /// height above the water (metres, times the square root of the width: bankfull depth) and reaches out this many
+    /// channel widths times the rock's erodibility (soft rock: basins; hard rock: narrows), at most
+    /// <see cref="maxFloorCells"/>. Beyond the floor the valley walls ease back to the natural ground over
+    /// <see cref="wallWidth"/> cells. Ground is only ever lowered, so on flat tiles the floor is the plain itself.
+    /// </summary>
+    public float floorHeightPerSqrtWidth = 0.25f;
+
+    /// <summary>The floor rises this much (metres per cell) away from the channel, so it drains to it like a floodplain.</summary>
+    public float floorSlope = 0.003f;
+    public float floorWidths = 4f;
+    public float maxFloorCells = 40f;
+    public float wallWidth = 10f;
+
     /// <summary>Cut-off loops are carved this deep (metres) below their surroundings and this share of the river's width.</summary>
     public float oxbowDepth = 0.6f;
     public float oxbowWidthShare = 0.7f;
 }
 
 /// <summary>
-/// Carves the river's channels into the landform. Water flows downhill or level (rule W1): the map's terrain is finer
-/// than the erosion model, so the valley floor along a course can rise and fall by more than the river drops across
-/// the map. The water surface therefore follows the closest never-rising profile of the valley floor, a little below
-/// it. Under the surface the bed has a cross-section: a deep core shifted to the outside of bends, a shallow rim and an
-/// inner bar, and an alternation of deep pools at bends and shallow riffles between them (fords). Banks ease back to
-/// the natural ground, steep on the outside of bends and gentle on the inside (W5). Side branches run between the main
-/// channel's water levels where they leave and rejoin it. Cut-off loops are carved as closed hollows, plugged where they
-/// met the river, for the lake model to fill or leave dry.
+/// Carves the channel network into the landform, larger channels first. Water flows downhill or level (rule W1):
+/// each channel's water surface follows the closest never-rising profile of the ground along it, and a tributary's
+/// never lies below its parent's where they join. Under the surface the bed has a cross-section: a deep core shifted
+/// to the outside of bends, a shallow rim and an inner bar; wide rivers alternate deep pools with shallow riffles
+/// (fords). Banks rise steep on the outside of bends and gently on the inside to a valley floor whose width follows
+/// the rock (V1), and the valley walls ease back to the natural ground. Side branches run between the main channel's
+/// water levels where they leave and rejoin it. Cut-off loops are carved as closed hollows, plugged where they met the
+/// river, for the lake model to fill or leave dry.
 /// </summary>
 public static class RiverCarver
 {
@@ -79,110 +90,171 @@ public static class RiverCarver
 
         public float At(float[] values, Nearest n) =>
             Mathf.Lerp(values[n.Segment], values[Mathf.Min(n.Segment + 1, values.Length - 1)], n.T);
+
+        public Vector2 Direction(Nearest n) => (Line[Mathf.Min(n.Segment + 1, Line.Count - 1)] - Line[n.Segment]).normalized;
     }
 
-    /// <summary>Carves the plan into <paramref name="height"/> and sets <see cref="RiverPlan.WaterLevel"/>.</summary>
-    public static void Carve(float[] height, int sizeX, int sizeZ, RiverPlan plan, RiverBedSettings p)
+    /// <summary>What every carving pass reads and writes.</summary>
+    private class Canvas
     {
-        if (plan == null || plan.Main.Count < 2)
+        public float[] Natural, Carved, Level, RockStrength;
+        public Vector2[] Flow;
+        public int[] ChannelOf;
+        public int SizeX, SizeZ;
+    }
+
+    /// <summary>Carves every channel into <paramref name="height"/> and fills the system's per-cell water level, flow and channel.</summary>
+    public static void Carve(float[] height, float[] rockStrength, int sizeX, int sizeZ, RiverSystem system, RiverBedSettings p)
+    {
+        if (system == null || system.Channels.Count == 0)
             return;
         int n = sizeX * sizeZ;
-        Channel main = Build(plan.Main, plan.NominalWidth, sizeX, sizeZ, p);
+        var canvas = new Canvas
+        {
+            Natural = height, Carved = (float[])height.Clone(), Level = new float[n], RockStrength = rockStrength,
+            Flow = new Vector2[n], ChannelOf = new int[n], SizeX = sizeX, SizeZ = sizeZ,
+        };
+        for (int i = 0; i < n; i++)
+        {
+            canvas.Level[i] = float.NaN;
+            canvas.ChannelOf[i] = -1;
+        }
+        for (int k = 0; k < system.Channels.Count; k++)
+            CarvePlan(canvas, k, system.Channels[k], p);
 
-        // Water surface along the main channel: the valley floor's never-rising profile, below the bank top.
-        float bankHalf = plan.NominalWidth * 0.5f;
+        System.Array.Copy(canvas.Carved, height, n);
+        system.WaterLevel = canvas.Level;
+        system.Flow = canvas.Flow;
+        system.ChannelOf = canvas.ChannelOf;
+    }
+
+    private static void CarvePlan(Canvas canvas, int index, RiverPlan plan, RiverBedSettings p)
+    {
+        if (plan.Main.Count < 2)
+            return;
+        float reach = plan.NominalWidth * 0.5f + p.bankWidth * p.innerBankFactor + p.maxFloorCells + p.wallWidth;
+        Channel main = Build(plan.Main, plan.NominalWidth, reach, canvas, p);
+
+        // Water surface along the channel: the ground's never-rising profile, a bankfull depth below the valley floor,
+        // and never below the parent's water where the channel joins it.
+        float floorAbove = p.floorHeightPerSqrtWidth * Mathf.Sqrt(plan.NominalWidth);
         int bins = Mathf.CeilToInt(main.Cumulative[main.Line.Count - 1]) + 1;
-        float[] surface = Profile(height, main.Near, bankHalf, bins);
+        float[] surface = Profile(canvas.Natural, main.Near, plan.NominalWidth * 0.5f, bins);
         if (surface == null)
             return;
+        float junction = float.MinValue;
+        if (plan.Parent >= 0)
+        {
+            float parentLevel = canvas.Level[RiverChannels.Index(plan.Main[plan.Main.Count - 1], canvas.SizeX, canvas.SizeZ)];
+            if (!float.IsNaN(parentLevel))
+                junction = parentLevel;
+        }
         for (int b = 0; b < bins; b++)
-            surface[b] -= p.bankHeight;
+            surface[b] = Mathf.Max(surface[b] - floorAbove, junction);
         float SurfaceAt(float along) => surface[Mathf.Clamp((int)along, 0, bins - 1)];
 
-        var carved = (float[])height.Clone();
-        var level = new float[n];
-        for (int i = 0; i < n; i++)
-            level[i] = float.NaN;
-
         float[] mainWidth = plan.MainWidth.ToArray();
-        CarveChannel(height, carved, level, main, i => SurfaceAt(main.Near[i].Along), i => main.At(mainWidth, main.Near[i]),
-            plan.NominalWidth, p);
+        CarveChannel(canvas, index, main, i => SurfaceAt(main.Near[i].Along), i => main.At(mainWidth, main.Near[i]),
+            plan.NominalWidth, floorAbove, p);
 
+        // A side branch's point j lies beside main point From + j: it shares the main channel's water surface there,
+        // so where the two overlap their levels agree.
         foreach (RiverPlan.SideBranch side in plan.Sides)
         {
-            float startLevel = SurfaceAt(main.Cumulative[side.From]), endLevel = SurfaceAt(main.Cumulative[side.To]);
-            Channel branch = Build(side.Points, side.Width, sizeX, sizeZ, p);
-            float length = Mathf.Max(branch.Cumulative[side.Points.Count - 1], 1f);
-            CarveChannel(height, carved, level, branch, i => Mathf.Lerp(startLevel, endLevel, branch.Near[i].Along / length),
-                _ => side.Width, side.Width, p);
+            Channel branch = Build(side.Points, side.Width, reach, canvas, p);
+            float BranchSurface(int i)
+            {
+                Nearest near = branch.Near[i];
+                int a = Mathf.Min(side.From + near.Segment, main.Cumulative.Length - 1), b = Mathf.Min(a + 1, main.Cumulative.Length - 1);
+                return SurfaceAt(Mathf.Lerp(main.Cumulative[a], main.Cumulative[b], near.T));
+            }
+            CarveChannel(canvas, index, branch, BranchSurface, _ => side.Width, side.Width, floorAbove, p);
         }
 
         // Cut-off loops: sediment plugs the ends where the loop met the river, so only the part well away from every
         // live channel is carved, and never into a live channel.
         float loopWidth = plan.NominalWidth * p.oxbowWidthShare;
-        float plug = bankHalf + p.bankWidth * p.innerBankFactor + loopWidth * 0.5f + p.bankWidth;
+        float plug = plan.NominalWidth * 0.5f + p.bankWidth * p.innerBankFactor + loopWidth * 0.5f + p.bankWidth;
         foreach (List<Vector2> loop in plan.Oxbows)
         {
-            List<Vector2> body = LongestRun(loop, v => main.Near[RiverChannels.Index(v, sizeX, sizeZ)].Distance >= plug);
+            List<Vector2> body = LongestRun(loop, v => main.Near[RiverChannels.Index(v, canvas.SizeX, canvas.SizeZ)].Distance >= plug);
             if (body.Count < 4)
                 continue;
-            Channel oxbow = Build(body, loopWidth, sizeX, sizeZ, p);
+            Channel oxbow = Build(body, loopWidth, loopWidth + p.bankWidth, canvas, p);
             float floor = float.MaxValue;
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < canvas.Natural.Length; i++)
             {
-                if (oxbow.Near[i].Distance <= loopWidth * 0.5f && float.IsNaN(level[i]))
-                    floor = Mathf.Min(floor, height[i]);
+                if (oxbow.Near[i].Distance <= loopWidth * 0.5f && float.IsNaN(canvas.Level[i]))
+                    floor = Mathf.Min(floor, canvas.Natural[i]);
             }
-            if (floor == float.MaxValue)
-                continue;
-            CarveHollow(height, carved, level, oxbow, floor - p.oxbowDepth, loopWidth * 0.5f, p);
+            if (floor < float.MaxValue)
+                CarveHollow(canvas, oxbow, floor - p.oxbowDepth, loopWidth * 0.5f, p);
         }
-
-        System.Array.Copy(carved, height, n);
-        plan.WaterLevel = level;
     }
 
-    private static Channel Build(List<Vector2> line, float width, int sizeX, int sizeZ, RiverBedSettings p)
+    private static Channel Build(List<Vector2> line, float width, float reach, Canvas canvas, RiverBedSettings p)
     {
         var c = new Channel { Line = line, Cumulative = Cumulative(line) };
         c.Curvature = Curvature(line, width * 0.5f / Mathf.Max(c.Cumulative[line.Count - 1] / Mathf.Max(line.Count - 1, 1), 0.1f));
         c.Pool = Pools(c.Cumulative, c.Curvature, width, p);
-        c.Near = NearestTo(line, c.Cumulative, sizeX, sizeZ);
+        c.Near = NearestTo(line, c.Cumulative, reach, canvas.SizeX, canvas.SizeZ);
         return c;
     }
 
     /// <summary>
-    /// Inside the channel the bed lies below the water surface by the cross-section's depth; beyond it the banks ease
-    /// from the water's edge back to the natural ground (never raising it). Where channels overlap the deeper bed wins.
+    /// Inside the channel the bed lies below the water surface by the cross-section's depth. Beyond it the bank rises
+    /// to the valley floor, the floor reaches out by the rock's erodibility, and the walls ease back to the natural
+    /// ground (never raising it). Cells another channel already carved keep that channel.
     /// </summary>
-    private static void CarveChannel(float[] natural, float[] carved, float[] level, Channel channel,
-        System.Func<int, float> surfaceAt, System.Func<int, float> widthAt, float nominalWidth, RiverBedSettings p)
+    private static void CarveChannel(Canvas canvas, int index, Channel channel, System.Func<int, float> surfaceAt,
+        System.Func<int, float> widthAt, float nominalWidth, float floorAbove, RiverBedSettings p)
     {
         float sharp = 1f / Mathf.Max(1f, p.sharpBendWidths * nominalWidth);
-        for (int i = 0; i < natural.Length; i++)
+        for (int i = 0; i < canvas.Natural.Length; i++)
         {
             Nearest near = channel.Near[i];
+            if (near.Distance == float.MaxValue)
+                continue;
+            if (canvas.ChannelOf[i] >= 0 && canvas.ChannelOf[i] != index)
+                continue;
             float width = widthAt(i), half = width * 0.5f;
             float curvature = channel.At(channel.Curvature, near);
             // Outer bank: the side away from the bend's centre (the centre lies on the side the curvature points to).
             float bend = Mathf.Clamp01(Mathf.Abs(curvature) / sharp);
             bool outer = curvature * near.Side < 0f;
             float bank = p.bankWidth * Mathf.Lerp(1f, outer ? p.outerBankFactor : p.innerBankFactor, bend);
-            if (near.Distance > half + bank)
+            float erodibility = canvas.RockStrength == null ? 0.5f : Mathf.Clamp01(1f - canvas.RockStrength[i]);
+            float floorEdge = half + bank + Mathf.Min(p.floorWidths * nominalWidth * erodibility, p.maxFloorCells);
+            if (near.Distance > floorEdge + p.wallWidth)
                 continue;
             float surface = surfaceAt(i);
             if (near.Distance <= half)
             {
                 float bed = surface - Depth(near.Distance / half, outer, bend, channel.At(channel.Pool, near), width, p);
-                carved[i] = float.IsNaN(level[i]) ? bed : Mathf.Min(carved[i], bed);
-                level[i] = float.IsNaN(level[i]) ? surface : Mathf.Max(level[i], surface);
+                bool mine = canvas.ChannelOf[i] == index;
+                canvas.Carved[i] = mine ? Mathf.Min(canvas.Carved[i], bed) : bed;
+                canvas.Level[i] = mine ? Mathf.Max(canvas.Level[i], surface) : surface;
+                canvas.ChannelOf[i] = index;
+                canvas.Flow[i] = channel.Direction(near);
+                continue;
             }
-            else if (float.IsNaN(level[i]))
-            {
-                float t = (near.Distance - half) / bank;
-                carved[i] = Mathf.Min(carved[i], Mathf.Lerp(surface, natural[i], t * t * (3f - 2f * t)));
-            }
+            if (canvas.ChannelOf[i] == index)
+                continue;
+            float floor = surface + floorAbove + p.floorSlope * Mathf.Max(0f, near.Distance - half - bank), target;
+            if (near.Distance <= half + bank)
+                target = Mathf.Lerp(surface, floor, Smooth((near.Distance - half) / bank));
+            else if (near.Distance <= floorEdge)
+                target = floor;
+            else
+                target = Mathf.Lerp(floor, canvas.Natural[i], Smooth((near.Distance - floorEdge) / p.wallWidth));
+            canvas.Carved[i] = Mathf.Min(canvas.Carved[i], target);
         }
+    }
+
+    private static float Smooth(float t)
+    {
+        t = Mathf.Clamp01(t);
+        return t * t * (3f - 2f * t);
     }
 
     /// <summary>
@@ -201,18 +273,25 @@ public static class RiverCarver
     }
 
     /// <summary>
-    /// Pool (1) or riffle (0) at each point. Where the channel bends, pools lie at the bends and riffles at the
-    /// crossings between them; on straight reaches they alternate every <see cref="RiverBedSettings.poolSpacingWidths"/>.
+    /// Pool (1) or riffle (0) at each point, for channels wide enough to have them (otherwise all pool: an unbroken
+    /// deep thread). Where the channel bends, pools lie at the bends and riffles at the crossings between them; on
+    /// straight reaches they alternate every <see cref="RiverBedSettings.poolSpacingWidths"/>.
     /// </summary>
     private static float[] Pools(float[] cumulative, float[] curvature, float width, RiverBedSettings p)
     {
         int n = cumulative.Length;
+        var pool = new float[n];
+        if (width < p.riffleMinWidth)
+        {
+            for (int i = 0; i < n; i++)
+                pool[i] = 1f;
+            return pool;
+        }
         float sharp = 1f / Mathf.Max(1f, p.sharpBendWidths * width);
         float spacing = p.poolSpacingWidths * width;
         var bend = new float[n];
         for (int i = 0; i < n; i++)
             bend[i] = Mathf.Clamp01(Mathf.Abs(curvature[i]) / sharp);
-        var pool = new float[n];
         for (int i = 0, lo = 0, hi = 0; i < n; i++)
         {
             // How strongly the reach around this point (half a pool spacing either way) bends.
@@ -229,15 +308,14 @@ public static class RiverCarver
     }
 
     /// <summary>A closed hollow along a line: flat floor, banks easing back to the natural ground; live channels untouched.</summary>
-    private static void CarveHollow(float[] natural, float[] carved, float[] level, Channel channel, float floor, float half, RiverBedSettings p)
+    private static void CarveHollow(Canvas canvas, Channel channel, float floor, float half, RiverBedSettings p)
     {
-        for (int i = 0; i < natural.Length; i++)
+        for (int i = 0; i < canvas.Natural.Length; i++)
         {
             float d = channel.Near[i].Distance;
-            if (d > half + p.bankWidth || !float.IsNaN(level[i]))
+            if (d > half + p.bankWidth || canvas.ChannelOf[i] >= 0)
                 continue;
-            float t = Mathf.Clamp01((d - half) / p.bankWidth);
-            carved[i] = Mathf.Min(carved[i], Mathf.Lerp(floor, natural[i], t * t * (3f - 2f * t)));
+            canvas.Carved[i] = Mathf.Min(canvas.Carved[i], Mathf.Lerp(floor, canvas.Natural[i], Smooth((d - half) / p.bankWidth)));
         }
     }
 
@@ -271,7 +349,7 @@ public static class RiverCarver
         var count = new int[bins];
         for (int i = 0; i < height.Length; i++)
         {
-            if (nearest[i].Distance > halfWidth)
+            if (nearest[i].Distance > Mathf.Max(halfWidth, 1f))
                 continue;
             int b = Mathf.Clamp((int)nearest[i].Along, 0, bins - 1);
             sum[b] += height[i];
@@ -304,13 +382,26 @@ public static class RiverCarver
         return result;
     }
 
-    /// <summary>Each cell's distance to a polyline, position along it, nearest segment and which side the cell is on.</summary>
-    private static Nearest[] NearestTo(List<Vector2> line, float[] cumulative, int sizeX, int sizeZ)
+    /// <summary>
+    /// Each cell's distance to a polyline, position along it, nearest segment and which side the cell is on. Cells
+    /// farther than <paramref name="reach"/> from the line's bounds are skipped (distance <see cref="float.MaxValue"/>).
+    /// </summary>
+    private static Nearest[] NearestTo(List<Vector2> line, float[] cumulative, float reach, int sizeX, int sizeZ)
     {
         var result = new Nearest[sizeX * sizeZ];
-        for (int z = 0; z < sizeZ; z++)
+        for (int i = 0; i < result.Length; i++)
+            result[i].Distance = float.MaxValue;
+        Vector2 lo = line[0], hi = line[0];
+        foreach (Vector2 v in line)
         {
-            for (int x = 0; x < sizeX; x++)
+            lo = Vector2.Min(lo, v);
+            hi = Vector2.Max(hi, v);
+        }
+        int x0 = Mathf.Max(0, Mathf.FloorToInt(lo.x - reach)), x1 = Mathf.Min(sizeX - 1, Mathf.CeilToInt(hi.x + reach));
+        int z0 = Mathf.Max(0, Mathf.FloorToInt(lo.y - reach)), z1 = Mathf.Min(sizeZ - 1, Mathf.CeilToInt(hi.y + reach));
+        for (int z = z0; z <= z1; z++)
+        {
+            for (int x = x0; x <= x1; x++)
             {
                 var cell = new Vector2(x + 0.5f, z + 0.5f);
                 float best = float.MaxValue;

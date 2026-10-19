@@ -27,23 +27,25 @@ public class LandformWorker : EnvironmentLayerWorker
 
         if (StageFor(map) == GenerationStage.Elevation)
         {
-            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse,
+            float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var channels,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
-            // The river's channel pattern (meanders, cutoffs, islands), then its bed carved so water flows downhill
-            // or level (W1, W4, W5).
-            RiverPlan river = RiverChannels.Plan(generated, rockStrength, map.Size.x, map.Size.z,
-                RiverCourse.FromPlan(riverCourse, map.Size.x, map.Size.z), RiverCourse.WidthOnMap(map.TileInfo), generation.channels);
-            RiverCarver.Carve(generated, map.Size.x, map.Size.z, river, generation.riverBed);
+            // The channel network first (V1-V5: widths, shapes, islands), then carved with its valleys so water flows
+            // downhill or level (W1, W5).
+            RiverSystem rivers = RiverChannels.PlanNetwork(generated, rockStrength, map.Size.x, map.Size.z, channels,
+                RiverCourse.WidthOnMap(map.TileInfo), world.SeaDirection, generation.network, generation.channels);
+            RiverCarver.Carve(generated, rockStrength, map.Size.x, map.Size.z, rivers, generation.riverBed);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
-                environment.PlannedRiver = river.Main.Count >= 2 ? river : null;
+                environment.PlannedRivers = rivers.Channels.Count > 0 ? rivers : null;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRock = rock;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"flowing ({world.RiverFlow.x:F2}, {world.RiverFlow.y:F2})" : "none")}, " +
+                        $"{rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
+                        $"{rivers.Channels.Sum(c => c.Sides.Count)} side branches, {rivers.Channels.Sum(c => c.Oxbows.Count)} cut-off loops), " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
                         $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +
                         $"{strata.BedCount} rock beds dipping {strata.DipDegrees:F0} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");

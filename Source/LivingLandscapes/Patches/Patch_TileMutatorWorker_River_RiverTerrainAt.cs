@@ -22,5 +22,5 @@ public static class Patch_TileMutatorWorker_River_RiverTerrainAt
     }
 
     public static bool HasCarvedRiver(Map map) =>
-        map.GetComponent<MapComponent_Environment>()?.PlannedRiver?.WaterLevel != null;
+        map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.WorldRiver != null;
 }
