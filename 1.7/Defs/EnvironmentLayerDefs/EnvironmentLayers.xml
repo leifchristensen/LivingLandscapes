@@ -48,6 +48,26 @@
     </overlay>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
+        <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
+             absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
+             drainage lines are seeps (saturated ground: marsh, mud). -->
+        <terrainChannels>
+          <absorption>0.3</absorption>
+          <minMovingWidth>2</minMovingWidth>
+          <biomeAbsorption>
+            <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
+            <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>
+            <li><biome>ColdBog</biome><absorption>0</absorption></li>
+            <li><biome>Tundra</biome><absorption>0.1</absorption></li>
+            <li><biome>IceSheet</biome><absorption>0.1</absorption></li>
+            <li><biome>TropicalRainforest</biome><absorption>0.3</absorption></li>
+            <li><biome>BorealForest</biome><absorption>0.3</absorption></li>
+            <li><biome>TemperateForest</biome><absorption>0.4</absorption></li>
+            <li><biome>AridShrubland</biome><absorption>0.5</absorption></li>
+            <li><biome>Desert</biome><absorption>0.6</absorption></li>
+            <li><biome>ExtremeDesert</biome><absorption>0.7</absorption></li>
+          </biomeAbsorption>
+        </terrainChannels>
         <cellSize>1</cellSize>
         <strata>
           <bedThickness>8~30</bedThickness>

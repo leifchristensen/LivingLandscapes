@@ -148,6 +148,12 @@ public class RiverSystem
     /// <summary>Cells of a channel's still water (a source lake): no current.</summary>
     public bool[] Still;
 
+    /// <summary>
+    /// Drainage lines whose water the ground absorbs before it can run as a channel at least two cells wide: seeps,
+    /// saturated ground (marsh, mud) rather than moving water.
+    /// </summary>
+    public bool[] Seep;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 

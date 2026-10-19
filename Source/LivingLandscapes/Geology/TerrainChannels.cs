@@ -6,9 +6,41 @@ using Verse.Noise;
 
 namespace LivingLandscapes.Geology;
 
+/// <summary>How much of the rain a biome's ground absorbs before water runs off (0..1 of the climate wetness).</summary>
+public class BiomeAbsorption
+{
+    public string biome;
+    public float absorption;
+}
+
 /// <summary>Channel settings (part of <see cref="GeologyGenerationExtension"/>). Discharge in map cells of runoff.</summary>
 public class TerrainChannelSettings
 {
+    /// <summary>
+    /// The ground absorbs water first: runoff per cell is the climate wetness (from rainfall) above what the ground
+    /// absorbs, as a share of what is left: (climate - absorption) / (1 - absorption). Absorption by biome (defName);
+    /// <see cref="absorption"/> for biomes not listed. Only runoff gathers into channels.
+    /// </summary>
+    public float absorption = 0.3f;
+    public List<BiomeAbsorption> biomeAbsorption = new List<BiomeAbsorption>();
+
+    /// <summary>
+    /// Moving water is at least this wide (cells). Where a drainage line's runoff makes a narrower channel, the water
+    /// seeps: saturated ground (marsh, mud) instead of a stream, so drainage visibly gathers before it flows.
+    /// </summary>
+    public float minMovingWidth = 2f;
+
+    public float RunoffOf(float climate, string biome)
+    {
+        float absorbed = absorption;
+        foreach (BiomeAbsorption b in biomeAbsorption)
+        {
+            if (b.biome == biome)
+                absorbed = b.absorption;
+        }
+        return Mathf.Clamp01((climate - absorbed) / Mathf.Max(1f - absorbed, 0.05f));
+    }
+
     /// <summary>A channel starts where the discharge (drainage area times climate, plus inflow) reaches this.</summary>
     public float channelDischarge = 1500f;
 
@@ -105,12 +137,13 @@ public static class TerrainChannels
     /// <param name="riverCentre">Where world rivers meet (map cells); a world river rising on the map (headwater) rises here.</param>
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
-        float climate, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
+        float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
         {
             Regime = water, WaterLevel = new float[n], Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n],
+            Seep = new bool[n],
         };
         for (int i = 0; i < n; i++)
         {
@@ -118,7 +151,8 @@ public static class TerrainChannels
             system.ChannelOf[i] = -1;
         }
 
-        float runoff = Mathf.Max(climate, 0.05f);
+        // Only what the ground cannot absorb runs off (a trickle is kept so drainage still orders the cells).
+        float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth);
 
@@ -134,6 +168,7 @@ public static class TerrainChannels
         Dictionary<string, int> regimes = null;
         int splits = 0;
         float dischargeScale = 1f;
+        bool[] moving = null;
         for (int pass = 0; pass < 2; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -180,12 +215,18 @@ public static class TerrainChannels
             }
             dischargeScale = scale;
             bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, scale, direction, sizeX, sizeZ, water, p,
-                width, depth, spread, regimes);
+                width, depth, spread, moving = new bool[n], regimes);
+            // Once water runs as a channel it keeps running downstream (cells are ordered highest first).
+            foreach (int c in cells)
+            {
+                if (moving[c] && receiver[c] >= 0)
+                    moving[receiver[c]] = true;
+            }
         }
 
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
-        int inHollows = Paint(height, filled, cells, width, depth, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
+        int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
         int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
         int painted = 0;
@@ -201,7 +242,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells (own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
+                    $"{painted} water cells, {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -432,7 +473,7 @@ public static class TerrainChannels
     private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
         float dischargeScale,
         Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
-        float[] spread, Dictionary<string, int> regimes)
+        float[] spread, bool[] moving, Dictionary<string, int> regimes)
     {
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
@@ -469,6 +510,8 @@ public static class TerrainChannels
             string key = dominant?.defName ?? "none";
             regimes[key] = regimes.TryGetValue(key, out int count) ? count + 1 : 1;
 
+            // Moving water by the width without noise, so a channel near the limit does not flicker between the two.
+            moving[c] = baseWidth * nudge.width >= p.minMovingWidth;
             width[c] = Mathf.Max(p.minWidth, baseWidth * nudge.width
                                              * (1f + p.widthNoise * nudge.widthNoise * (float)widthNoise.GetValue(x, 0.0, z)));
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));
@@ -675,7 +718,7 @@ public static class TerrainChannels
     /// surface lies deeper above the ground than the channel's own depth the channel crosses a hollow: the lake model
     /// fills it.
     /// </summary>
-    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, float[] bankAmplitude, Vector2[] direction,
+    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, bool[] moving, float[] bankAmplitude, Vector2[] direction,
         int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
     {
         int n = height.Length;
@@ -695,8 +738,13 @@ public static class TerrainChannels
                 inHollows++;
                 continue;
             }
+            if (!moving[c])
+            {
+                system.Seep[c] = true;
+                continue;
+            }
             int cx = c % sizeX, cz = c / sizeX;
-            float half = width[c] * 0.5f;
+            float half = Mathf.Max(width[c], p.minMovingWidth) * 0.5f;
             int reach = Mathf.CeilToInt(half * (1f + bankAmplitude[c]) + 0.5f);
             for (int dz = -reach; dz <= reach; dz++)
             {

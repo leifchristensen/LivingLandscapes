@@ -43,6 +43,9 @@ public class WetnessExtension : DefModExtension
     /// <summary>Rainfall share assumed when the tile reports none (pocket maps, mod-made tiles).</summary>
     public float unknownRainfall = 0.4f;
 
+    /// <summary>Wetness of the ground beside a seep (the seep itself is saturated).</summary>
+    public float seepFringe = 0.85f;
+
     /// <summary>
     /// 0..1 climate wetness of a map's tile from its rainfall, shifted by the map's water regime (a wetland is wet
     /// whatever its rainfall).
@@ -99,6 +102,18 @@ public class WetnessWorker : EnvironmentLayerWorker
             float groundwater = Mathf.Exp(-aboveDrainage / floodScale);
             float topographic = p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);
+        }
+
+        // Seeps: drainage lines the ground soaks up are saturated, and the ground beside them nearly so.
+        if (rivers?.Seep != null)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (!rivers.Seep[i])
+                    continue;
+                wetness[i] = 1f;
+                GridMath.ForEachNeighbour(i, context.SizeX, context.SizeZ, nb => wetness[nb] = Mathf.Max(wetness[nb], p.seepFringe));
+            }
         }
         return wetness;
     }
