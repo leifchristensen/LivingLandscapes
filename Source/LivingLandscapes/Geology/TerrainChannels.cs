@@ -54,11 +54,11 @@ public class TerrainChannelSettings
     /// Relief (metres) left on ground a delta flattens: low swells and swales the distributaries divide around.
     /// Wavelength in cells.
     /// </summary>
-    public float deltaApronRelief = 1.2f;
+    public float deltaApronRelief = 1.5f;
     public float deltaApronWavelength = 24f;
 
     /// <summary>Ground more than this (metres) above a channel's water surface is not cut into the channel's width.</summary>
-    public float maxBankCut = 1f;
+    public float maxBankCut = 0.3f;
 
     /// <summary>
     /// Flow spreading (step 3): how readily water divides where the ground falls away two ways. Higher is more

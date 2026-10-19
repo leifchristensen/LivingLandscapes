@@ -48,8 +48,10 @@ public static class WaterTerrainNudges
                 // The knob is flat-topped over the inner quarter and falls away by six tenths of the radius.
                 float inner = depression > 0f ? 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.6f, d)) : f;
                 height[i] += knob * inner - depression * f;
+                // Swell crests rise from the hollow's floor to above the ground around it: water fills the troughs
+                // and divides around the crests, which stand as bars and islands.
                 if (depression > 0f)
-                    height[i] += p.deltaApronRelief * (0.5f + 0.5f * (float)swells.GetValue(x, 0.0, z)) * f;
+                    height[i] += (depression + p.deltaApronRelief) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.5f, (float)swells.GetValue(x, 0.0, z))) * f;
                 // Resistant enough to stand in the river, but soil still holds on its top.
                 if (knob > 0f && rockStrength != null)
                     rockStrength[i] = Mathf.Lerp(rockStrength[i], Mathf.Max(rockStrength[i], water.knobRockStrength), inner * 0.5f);
