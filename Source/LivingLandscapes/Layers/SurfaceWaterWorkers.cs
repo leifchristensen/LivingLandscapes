@@ -24,29 +24,11 @@ public class SurfaceWaterExtension : DefModExtension
     /// <summary>Hollows shallower (metres) or smaller (cells) than this hold no lake; they stay damp ground.</summary>
     public float minLakeDepth = 0.25f;
     public int minLakeCells = 12;
-
-    /// <summary>
-    /// Streams (W2, W3): water flows in a channel where the drainage area times the climate wetness reaches this
-    /// (log10 cells). Channel width grows with the square root of that area (hydraulic geometry). The planned channel
-    /// network already carries the map's creeks and rivers, so this sits above the network's source threshold: it
-    /// only adds water where drainage gathers beyond the network.
-    /// </summary>
-    public float streamArea = 3.3f;
-    public float widthPerSqrtArea = 0.04f;
-    public float maxStreamWidth = 6f;
-
-    /// <summary>Water depth (metres) in a stream: a base plus a share of its width.</summary>
-    public float streamDepth = 0.3f;
-    public float streamDepthPerWidth = 0.1f;
-
-    /// <summary>Flow speed 0..1 of the smallest and of a stream this much larger (log10 cells).</summary>
-    public float minFlow = 0.4f;
-    public float fullFlowAreaAbove = 1.5f;
 }
 
 /// <summary>
-/// The surface water the landform holds: lakes in closed hollows, filled from a water balance (W6), and streams along
-/// drainage lines, sized by the area they drain (W2, W3). Computed from the natural landform before any terrain is
+/// The surface water the landform holds: lakes in closed hollows, filled from a water balance (W6), and the channels
+/// <see cref="TerrainChannels"/> laid along drainage lines (W2, W3). Computed from the natural landform before any terrain is
 /// placed, so terrain, cliffs and plants all follow one water plan.
 /// </summary>
 public static class SurfaceWaterModel
@@ -66,8 +48,8 @@ public static class SurfaceWaterModel
         float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
         var result = new Result { Depth = new float[n], Flow = new float[n] };
 
-        // The planned channels hold water up to the surface the carving gave them, flowing at full speed. Streams and
-        // lakes join them there rather than overlaying them.
+        // The channels hold water up to the surface the carving gave them, flowing at full speed. Lakes join them there
+        // rather than overlaying them.
         RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
         float[] river = rivers?.WaterLevel;
         bool InRiver(int i) => river != null && !float.IsNaN(river[i]);
@@ -79,7 +61,6 @@ public static class SurfaceWaterModel
             result.Flow[i] = rivers.Still != null && rivers.Still[i] ? 0f : 1f;
         }
 
-        Streams(landform, drainage, sizeX, sizeZ, climate, p, result, InRiver);
         int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver);
 
         if (!log)
@@ -92,42 +73,6 @@ public static class SurfaceWaterModel
         }
         Log.Message($"[LivingLandscapes] Surface water on {map}: {lakes} lakes, {water} water cells ({flowing} flowing), climate {climate:F2}.");
         return result;
-    }
-
-    /// <summary>
-    /// Stream channels: every cell whose drainage area times the climate wetness reaches <see cref="SurfaceWaterExtension.streamArea"/>
-    /// is on a channel; the channel is widened around it to its width.
-    /// </summary>
-    private static void Streams(float[] landform, float[] drainage, int sizeX, int sizeZ, float climate, SurfaceWaterExtension p,
-        Result result, System.Func<int, bool> inRiver)
-    {
-        float climateLog = Mathf.Log10(Mathf.Max(climate, 1e-3f));
-        for (int i = 0; i < landform.Length; i++)
-        {
-            float runoff = drainage[i] + climateLog;
-            if (runoff < p.streamArea || inRiver(i))
-                continue;
-            float width = Mathf.Clamp(p.widthPerSqrtArea * Mathf.Sqrt(Mathf.Pow(10f, runoff)), 1f, p.maxStreamWidth);
-            float depth = p.streamDepth + p.streamDepthPerWidth * width;
-            float flow = Mathf.Lerp(p.minFlow, 1f, Mathf.InverseLerp(p.streamArea, p.streamArea + p.fullFlowAreaAbove, runoff));
-            float reach = (width - 1f) * 0.5f;
-            int r = Mathf.CeilToInt(reach);
-            int cx = i % sizeX, cz = i / sizeX;
-            for (int dz = -r; dz <= r; dz++)
-            {
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    int x = cx + dx, z = cz + dz;
-                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ || dx * dx + dz * dz > reach * reach + 0.25f)
-                        continue;
-                    int c = z * sizeX + x;
-                    if (inRiver(c))
-                        continue;
-                    result.Depth[c] = Mathf.Max(result.Depth[c], depth);
-                    result.Flow[c] = Mathf.Max(result.Flow[c], flow);
-                }
-            }
-        }
     }
 
     /// <summary>

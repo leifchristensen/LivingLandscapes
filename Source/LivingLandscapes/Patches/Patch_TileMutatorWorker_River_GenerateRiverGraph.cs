@@ -90,7 +90,9 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
                 if (i < plan.Main.Count && plan.MainWidth[i] == plan.MainWidth[start])
                     continue;
                 List<Vector2> piece = plan.Main.GetRange(start, Mathf.Min(i + 1, plan.Main.Count) - start);
-                bool upstreamEdge = start == 0 && plan.SourceLakeRadius <= 0f;
+                // Channels entering from beyond the map run on past the edge; those rising on the map start where they rise.
+                Vector2 head = plan.Main[0];
+                bool upstreamEdge = start == 0 && Mathf.Min(Mathf.Min(head.x, head.y), Mathf.Min(map.Size.x - head.x, map.Size.z - head.y)) <= 2f;
                 segments += AddNodes(map, piece, plan.MainWidth[start], upstreamEdge, i >= plan.Main.Count && plan.Parent < 0);
                 start = i;
             }

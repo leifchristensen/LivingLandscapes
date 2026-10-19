@@ -80,6 +80,9 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>Channel patterns: meanders, cutoffs and islands (W4, W5).</summary>
     public RiverChannelSettings channels = new RiverChannelSettings();
 
+    /// <summary>Channels from the landform's own drainage: where they form, hydraulic geometry and noise.</summary>
+    public TerrainChannelSettings terrainChannels = new TerrainChannelSettings();
+
     /// <summary>The river's bed: carved so it never rises along the course (W1).</summary>
     public RiverBedSettings riverBed = new RiverBedSettings();
 

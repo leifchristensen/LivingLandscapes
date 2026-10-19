@@ -52,20 +52,13 @@ public class LandformWorker : EnvironmentLayerWorker
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out WaterRegimeDef water, out var channels,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
-            // The channel network first (V1-V5: widths, shapes, islands), then carved with its valleys so water flows
-            // downhill or level (W1, W5).
-            RiverSystem rivers = RiverChannels.PlanNetwork(channels, new RiverChannels.Context
-            {
-                Height = generated, RockStrength = rockStrength, SizeX = map.Size.x, SizeZ = map.Size.z,
-                SeaDirection = world.SeaDirection,
-                RiverCentre = new UnityEngine.Vector2(map.Size.x * (0.5f + world.RiverCentre.x), map.Size.z * 0.5f + world.RiverCentre.y * map.Size.x),
-                // The river system isn't on the map yet, so its regime's climate offset is added here.
-                Climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
-                                        + (water?.climateOffset ?? 0f)),
-                Relief = generation.ReliefFor(world.Hilliness), Water = water,
-                Network = generation.network, Channels = generation.channels,
-            });
-            RiverCarver.Carve(generated, rockStrength, map.Size.x, map.Size.z, rivers, generation.riverBed);
+            // Channels from the landform's own drainage, sized by discharge and carved to a never-rising water surface
+            // (Docs/WATER-AUDIT.md). The river system isn't on the map yet, so its regime's climate offset is added here.
+            float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
+                                          + (water?.climateOffset ?? 0f));
+            var riverCentre = new UnityEngine.Vector2(map.Size.x * (0.5f + world.RiverCentre.x), map.Size.z * 0.5f + world.RiverCentre.y * map.Size.x);
+            RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, water,
+                generation.terrainChannels, generation.network.worldRiverWidth);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {

@@ -269,6 +269,28 @@ public static class GridMath
     public static float[] FlowAccumulation(float[] h, int sizeX, int sizeZ)
     {
         int n = h.Length;
+        int[] receiver = Receivers(h, sizeX, sizeZ);
+
+        var order = new int[n];
+        for (int i = 0; i < n; i++)
+            order[i] = i;
+        Array.Sort(order, (a, b) => h[b].CompareTo(h[a]));
+
+        var area = new float[n];
+        for (int i = 0; i < n; i++)
+            area[i] = 1f;
+        foreach (int c in order)
+        {
+            if (receiver[c] >= 0)
+                area[receiver[c]] += area[c];
+        }
+        return area;
+    }
+
+    /// <summary>D8 steepest-descent neighbour of each cell (-1 where no neighbour is lower).</summary>
+    public static int[] Receivers(float[] h, int sizeX, int sizeZ)
+    {
+        int n = h.Length;
         var receiver = new int[n];
         for (int c = 0; c < n; c++)
         {
@@ -290,21 +312,7 @@ public static class GridMath
             }
             receiver[c] = best;
         }
-
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        Array.Sort(order, (a, b) => h[b].CompareTo(h[a]));
-
-        var area = new float[n];
-        for (int i = 0; i < n; i++)
-            area[i] = 1f;
-        foreach (int c in order)
-        {
-            if (receiver[c] >= 0)
-                area[receiver[c]] += area[c];
-        }
-        return area;
+        return receiver;
     }
 
     /// <summary>Gradient magnitude (height units per cell), central differences, one-sided at the edges.</summary>

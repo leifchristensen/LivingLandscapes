@@ -389,13 +389,6 @@
         <runoffShare>0.3</runoffShare>
         <minLakeDepth>0.25</minLakeDepth>
         <minLakeCells>12</minLakeCells>
-        <streamArea>3.3</streamArea>
-        <widthPerSqrtArea>0.04</widthPerSqrtArea>
-        <maxStreamWidth>6</maxStreamWidth>
-        <streamDepth>0.3</streamDepth>
-        <streamDepthPerWidth>0.1</streamDepthPerWidth>
-        <minFlow>0.4</minFlow>
-        <fullFlowAreaAbove>1.5</fullFlowAreaAbove>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
