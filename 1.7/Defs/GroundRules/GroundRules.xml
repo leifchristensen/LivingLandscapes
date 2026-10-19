@@ -5,7 +5,7 @@
     Ground rules (soil and surface rule S3): every cell takes the first rule whose conditions all hold
     (min inclusive, max exclusive). Fields: any environment layer by defName, plus RockDepth and RockDistance (metres
     into / to bare rock), WaterDistance (cells to surface water), Hollow (metres below a closed hollow's spill level)
-    and Climate (0..1 from tile rainfall). elevation is the value written into vanilla's elevation grid
+    Climate (0..1 from tile rainfall) and Marshland (0..1 from the map's water regime: a wetland's damp ground is marsh). elevation is the value written into vanilla's elevation grid
     (> 0.798 overhead mountain, > 0.728 thin roof, > 0.70 rock wall, 0.61-0.70 rough stone, 0.55-0.61 gravel,
     below that soil chosen by fertility). cover places water, marsh or mud.
   -->
@@ -77,6 +77,14 @@
         <conditions>
           <li><field>LL_Wetness</field><min>0.88</min></li>
           <li><field>Climate</field><min>0.5</min></li>
+        </conditions>
+        <cover>Marsh</cover>
+      </li>
+      <li>
+        <label>wetland marsh</label>
+        <conditions>
+          <li><field>Marshland</field><min>0.5</min></li>
+          <li><field>LL_Wetness</field><min>0.45</min></li>
         </conditions>
         <cover>Marsh</cover>
       </li>

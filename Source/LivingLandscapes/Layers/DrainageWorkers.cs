@@ -23,10 +23,29 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
             return null;
         var filled = (float[])height.Clone();
         GridMath.FillDepressions(filled, context.SizeX, context.SizeZ, _ => false, FillGradient);
-        float[] area = GridMath.FlowAccumulationMfd(filled, context.SizeX, context.SizeZ);
+        float[] area = GridMath.FlowAccumulationMfd(filled, context.SizeX, context.SizeZ, inflow: RiverInflow(context));
         for (int i = 0; i < area.Length; i++)
             area[i] = Mathf.Log10(area[i]);
         return area;
+    }
+
+    /// <summary>
+    /// Channels entering from beyond the map bring the water of all the land upstream: the drainage area the erosion
+    /// model gathered for them enters where each crosses into the map.
+    /// </summary>
+    private static float[] RiverInflow(EnvironmentContext context)
+    {
+        RiverSystem rivers = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null)
+            return null;
+        var inflow = new float[context.SizeX * context.SizeZ];
+        foreach (RiverPlan channel in rivers.Channels)
+        {
+            int entry = channel.Main.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < context.SizeX && v.y < context.SizeZ);
+            if (entry >= 0 && channel.EntryArea > 0f)
+                inflow[RiverChannels.Index(channel.Main[entry], context.SizeX, context.SizeZ)] += channel.EntryArea;
+        }
+        return inflow;
     }
 }
 

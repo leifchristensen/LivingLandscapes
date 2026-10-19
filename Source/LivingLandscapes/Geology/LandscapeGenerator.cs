@@ -74,6 +74,15 @@ public class GeologyGenerationExtension : DefModExtension
         shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
     };
 
+    /// <summary>The channel network: where channels start and how wide each is (V1-V3).</summary>
+    public RiverNetworkSettings network = new RiverNetworkSettings();
+
+    /// <summary>Channel patterns: meanders, cutoffs and islands (W4, W5).</summary>
+    public RiverChannelSettings channels = new RiverChannelSettings();
+
+    /// <summary>Channels from the landform's own drainage: where they form, hydraulic geometry and noise.</summary>
+    public TerrainChannelSettings terrainChannels = new TerrainChannelSettings();
+
     /// <summary>The river's bed: carved so it never rises along the course (W1).</summary>
     public RiverBedSettings riverBed = new RiverBedSettings();
 
@@ -115,11 +124,13 @@ public static class LandscapeGenerator
 
     /// <param name="rockStrength">Strength (0..1) of the rock beneath each map cell, from <paramref name="strata"/>.</param>
     /// <param name="rock">Rock type beneath each map cell (null where the tile has no rock types).</param>
-    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out List<Vector2> riverCourse,
-        out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
+    /// <param name="channels">The channel network crossing the map, larger channels first (see <see cref="RiverNetwork"/>).</param>
+    /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
+    public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
+        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
     {
-        riverCourse = null;
         world = WorldContext.For(map, p.tileSpacingMetres);
+        water = WaterRegimes.Select(map, world);
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
         float mapCellsPerModelCell = metresPerModelCell / p.cellSize;
@@ -146,19 +157,22 @@ public static class LandscapeGenerator
                 sites[z * gx + x] = strata.At((x - originX) * mapCellsPerModelCell, (z - originZ) * mapCellsPerModelCell);
         }
 
-        bool[] outlet = Outlets(world, gx, gz, out int riverEntry);
+        // The river centre in model cells: rivers enter and leave along rays from it, as vanilla lays them.
+        var riverCentre = new Vector2(originX + (0.5f + world.RiverCentre.x) * sizeX / mapCellsPerModelCell,
+                                      originZ + (0.5f * sizeZ + world.RiverCentre.y * sizeX) / mapCellsPerModelCell);
+        bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out int riverExit);
         float[] inflow = new float[gx * gz];
-        if (riverEntry >= 0)
-            inflow[riverEntry] = p.riverInflow * gx * gz;
+        float mainWidth = entries.Count > 0 ? Mathf.Max(entries[0].width, 1f) : 1f;
+        foreach ((int cell, float width) in entries)
+            inflow[cell] += p.riverInflow * gx * gz * width / mainWidth;
 
-        float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, strata, sites, reliefCells, out int[] receiver, out float modelTop);
-        if (riverEntry >= 0)
-        {
-            // The river's course is the channel the model carved from its entry: follow the receivers downstream.
-            riverCourse = new List<Vector2>();
-            for (int c = riverEntry; c >= 0 && riverCourse.Count <= gx * gz; c = receiver[c])
-                riverCourse.Add(new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell));
-        }
+        float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
+            out float[] area, out float modelTop);
+        // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
+        channels = RiverNetwork.Extract(receiver, area, gx, gz,
+            c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
+            mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
+            water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];
@@ -250,9 +264,11 @@ public static class LandscapeGenerator
 
     /// <summary>
     /// Base-level cells: edges facing downhill (all edges on level ground), the sea side, and the river's exit.
-    /// Returns the river's entry cell (upstream edge) or -1.
+    /// Returns the cells where world rivers enter (with vanilla's width): the main river, plus every other river link
+    /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
-    private static bool[] Outlets(WorldContext world, int gx, int gz, out int riverEntry)
+    private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
+        out List<(int cell, float width)> entries, out int riverExit)
     {
         var outlet = new bool[gx * gz];
         var centre = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
@@ -270,21 +286,31 @@ public static class LandscapeGenerator
             }
         }
 
-        riverEntry = -1;
+        entries = new List<(int, float)>();
+        riverExit = -1;
         if (world.HasRiver)
         {
-            int exit = EdgeCellToward(world.RiverFlow, gx, gz);
-            riverEntry = EdgeCellToward(-world.RiverFlow, gx, gz);
-            outlet[exit] = true;
-            outlet[riverEntry] = false;
+            riverExit = EdgeCellToward(world.RiverExit, gx, gz, riverCentre);
+            outlet[riverExit] = true;
+            if (water == null || water.riverInflow)
+            {
+                for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
+                {
+                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre);
+                    if (entry == riverExit)
+                        continue;
+                    outlet[entry] = false;
+                    entries.Add((entry, world.RiverInflows[i].Width));
+                }
+            }
         }
         return outlet;
     }
 
-    private static int EdgeCellToward(Vector2 direction, int gx, int gz)
+    private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null)
     {
-        // Walk from the centre along the direction until leaving the grid.
-        var pos = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
+        // Walk from the start (default: the centre) along the direction until leaving the grid.
+        Vector2 pos = from ?? new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
         Vector2 step = direction.normalized * 0.5f;
         int last = Mathf.RoundToInt(pos.y) * gx + Mathf.RoundToInt(pos.x);
         for (int i = 0; i < (gx + gz) * 4; i++)
@@ -307,7 +333,7 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, int gx, int gz,
         GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float modelTop)
+        out int[] receiverOut, out float[] areaOut, out float modelTop)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -429,6 +455,7 @@ public static class LandscapeGenerator
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
         }
         receiverOut = receiver;
+        areaOut = area;
         modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
     }
