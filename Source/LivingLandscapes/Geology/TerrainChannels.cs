@@ -18,7 +18,13 @@ public class TerrainChannelSettings
     /// scale by <see cref="RiverNetworkSettings.worldRiverWidth"/>), so vanilla's class scales the river, nothing else.
     /// </summary>
     public float widthPerSqrtDischarge = 0.04f;
-    public float minWidth = 1.5f;
+    public float minWidth = 1f;
+
+    /// <summary>
+    /// On a tile without a world river the map's own channels stay below a creek: their discharge is scaled so the
+    /// largest is at most this wide (vanilla's creek is 4 cells, 3 at map scale).
+    /// </summary>
+    public float maxWidthWithoutWorldRiver = 2.5f;
     public float depthPerDischarge = 0.045f;
     public float depthExponent = 0.3f;
     public float minDepth = 0.15f;
@@ -127,6 +133,7 @@ public static class TerrainChannels
         Vector2[] direction = null;
         Dictionary<string, int> regimes = null;
         int splits = 0;
+        float dischargeScale = 1f;
         for (int pass = 0; pass < 2; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -160,7 +167,19 @@ public static class TerrainChannels
             depth = new float[n];
             spread = new float[n];
             regimes = new Dictionary<string, int>();
-            bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, direction, sizeX, sizeZ, water, p,
+            // On a tile the world gives no river, the world says nothing here carries more than a creek: the map's own
+            // discharge is scaled so its largest channel stays below a creek, keeping every channel's share, so
+            // streams still visibly add up where they join.
+            float scale = 1f;
+            if (vanillaWidth <= 0f)
+            {
+                float largest = 0f;
+                foreach (int c in cells)
+                    largest = Mathf.Max(largest, discharge[c]);
+                scale = Mathf.Min(1f, Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f) / Mathf.Max(largest, 1f));
+            }
+            dischargeScale = scale;
+            bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, scale, direction, sizeX, sizeZ, water, p,
                 width, depth, spread, regimes);
         }
 
@@ -182,7 +201,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells{(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
+                    $"{painted} water cells (own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -411,6 +430,7 @@ public static class TerrainChannels
     /// noise amplitude per cell and counts the dominant regime per cell for the log.
     /// </summary>
     private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
+        float dischargeScale,
         Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
         float[] spread, Dictionary<string, int> regimes)
     {
@@ -439,7 +459,7 @@ public static class TerrainChannels
         for (int k = 0; k < cells.Count; k++)
         {
             int c = cells[k], x = c % sizeX, z = c / sizeX;
-            float q = discharge[c];
+            float q = discharge[c] * dischargeScale;
             float baseWidth = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(q));
             fields["Discharge"] = Mathf.Log10(q);
             fields["Slope"] = slope[k];
