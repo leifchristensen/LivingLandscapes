@@ -155,6 +155,16 @@ different data the spread should be wide; across maps with the same regime, reco
    - `WorldContext` now has river inflows and an exit, so headwaters and river mouths work;
    - the test harness swaps mutators that conflict with a forced one.
 
+**World river geometry, as in vanilla (2026-10-19):**
+- Rivers meet at a river centre, a fixed point per tile near the middle of the map (vanilla: 0.3-0.7).
+- Each inflow enters along a valley from its side of the map, and the river leaves along one toward its exit. Inflows
+  and exits sit on those rays, on the region's edge.
+- A link to a water-covered tile is the mouth; every land link flows in, the widest being the main river.
+- Deltas measure their distance to the coastline (vanilla's coast offset), not the map edge.
+- Without a world river the map's own channels are capped at creek width.
+- Flow vectors are about 2 long, as vanilla's are, so the water animates at vanilla speed.
+- Maps without a world river get our channels in the river graph, so vanilla's flow debug view draws.
+
 Still open: braided reaches that rejoin into loops between neighbouring channels (the marsh web has only short side
 loops), rock cores on islands, and the Lakeland, Coastal and Basin regimes beyond density.
 

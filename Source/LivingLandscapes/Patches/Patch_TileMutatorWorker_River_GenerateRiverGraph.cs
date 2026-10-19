@@ -64,12 +64,25 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         if (map.waterInfo.riverGraph.Any(IsGeologicalNode))
             return false;
 
-        int segments = 0, worldRivers = 0, sides = 0;
+        LayChannels(map, rivers, true, out int segments, out int worldRivers, out int sides);
+        Log.Message($"[LivingLandscapes] Rivers on {map} ({rivers.Regime?.defName ?? "no water regime"}) follow the terrain: " +
+                    $"{worldRivers} world rivers in {segments} segments, {sides} side channels.");
+        return false;
+    }
+
+    /// <summary>
+    /// Lays planned channels into the river graph as segments: world rivers only on a tile with a world river (vanilla's
+    /// river worker builds a depth map per segment, so creeks stay out of it), every channel on a tile without one
+    /// (nothing reads the graph there but vanilla's flow debug view, which draws nothing on an empty graph).
+    /// </summary>
+    public static void LayChannels(Map map, RiverSystem rivers, bool worldRiversOnly, out int segments, out int channels, out int sides)
+    {
+        segments = channels = sides = 0;
         foreach (RiverPlan plan in rivers.Channels)
         {
-            if (plan.VanillaWidth <= 0f)
+            if (worldRiversOnly && plan.VanillaWidth <= 0f)
                 continue;
-            worldRivers++;
+            channels++;
             // The main channel in pieces of equal width (narrower beside islands), then the side branches.
             int start = 0;
             for (int i = 1; i <= plan.Main.Count; i++)
@@ -85,9 +98,6 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
                 segments += AddNodes(map, side.Points, side.Width, false, side.ToBaseLevel);
             sides += plan.Sides.Count;
         }
-        Log.Message($"[LivingLandscapes] Rivers on {map} ({rivers.Regime?.defName ?? "no water regime"}) follow the terrain: " +
-                    $"{worldRivers} world rivers in {segments} segments, {sides} side channels.");
-        return false;
     }
 
     /// <summary>Lays a polyline as river segments, overlapping at joints; ends at the map edge run on past it.</summary>

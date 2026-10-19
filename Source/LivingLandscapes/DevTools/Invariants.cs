@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
@@ -37,6 +38,7 @@ public static class Invariants
                 surface[i] += depth[i];
         }
         RiverDownhill(map, surface, summary);
+        MovingWaterFlows(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
     }
 
@@ -122,6 +124,28 @@ public static class Invariants
                            (loose.Length > 0 ? $"; loose:{loose}" : ""));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
                            "end in another channel, at the map edge or in standing water");
+    }
+
+    /// <summary>
+    /// Invariant 6: every cell of moving water has a flow direction in vanilla's flow map (so it animates, turns
+    /// watermills and carries items). Also reports the river graph's size: vanilla's flow debug view draws nothing on
+    /// a map whose river graph is empty, whatever the flow map holds.
+    /// </summary>
+    private static void MovingWaterFlows(Map map, StringBuilder summary)
+    {
+        List<float> flow = map.waterInfo.riverFlowMap;
+        int moving = 0, flowing = 0;
+        foreach (IntVec3 cell in map.AllCells)
+        {
+            if (!cell.GetTerrain(map).IsRiver)
+                continue;
+            moving++;
+            int f = (cell.x * map.Size.z + cell.z) * 2;
+            if (flow != null && f + 1 < flow.Count && !float.IsNaN(flow[f]) && (flow[f] != 0f || flow[f + 1] != 0f))
+                flowing++;
+        }
+        summary.AppendLine($"invariant 6 (moving water flows): {(flowing == moving ? "ok" : "FAIL")} | {flowing} of {moving} moving water cells have a flow direction; " +
+                           $"river graph {map.waterInfo.riverGraph?.Count ?? 0} segments");
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>

@@ -26,7 +26,12 @@ public static class Patch_GenStep_Plants
             if (environment != null)
                 environment.PlannedCover = null;
             if (Geology.GeologicalTerrain.AppliesTo(map))
+            {
                 Geology.FlowWriter.Apply(map);
+                // Without a world river no river worker lays a graph; lay our channels so the flow debug view works.
+                if (environment?.PlannedRivers != null && map.waterInfo.riverGraph.NullOrEmpty())
+                    Patch_TileMutatorWorker_River_GenerateRiverGraph.LayChannels(map, environment.PlannedRivers, false, out _, out _, out _);
+            }
             environment?.ComputeLayers(GenerationStage.Plants);
         }
         catch (Exception e)

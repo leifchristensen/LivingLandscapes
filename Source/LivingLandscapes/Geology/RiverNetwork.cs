@@ -33,6 +33,12 @@ public class RiverNetworkSettings
 
     /// <summary>A tributary is at most this share of the width of the channel it joins.</summary>
     public float tributaryShare = 0.7f;
+
+    /// <summary>
+    /// On a tile the world gives no river, the map's own channels are creeks at most this wide: river-sized water
+    /// comes only from world rivers, as in vanilla.
+    /// </summary>
+    public float maxWidthWithoutWorldRiver = 3f;
 }
 
 /// <summary>One channel of the network as the erosion model drew it: map cells, upstream to downstream.</summary>

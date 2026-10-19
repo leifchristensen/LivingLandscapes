@@ -154,7 +154,10 @@ public static class LandscapeGenerator
                 sites[z * gx + x] = strata.At((x - originX) * mapCellsPerModelCell, (z - originZ) * mapCellsPerModelCell);
         }
 
-        bool[] outlet = Outlets(world, water, gx, gz, out List<(int cell, float width)> entries, out int riverExit);
+        // The river centre in model cells: rivers enter and leave along rays from it, as vanilla lays them.
+        var riverCentre = new Vector2(originX + (0.5f + world.RiverCentre.x) * sizeX / mapCellsPerModelCell,
+                                      originZ + (0.5f * sizeZ + world.RiverCentre.y * sizeX) / mapCellsPerModelCell);
+        bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out int riverExit);
         float[] inflow = new float[gx * gz];
         float mainWidth = entries.Count > 0 ? Mathf.Max(entries[0].width, 1f) : 1f;
         foreach ((int cell, float width) in entries)
@@ -261,8 +264,8 @@ public static class LandscapeGenerator
     /// Returns the cells where world rivers enter (with vanilla's width): the main river, plus every other river link
     /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
-    private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, out List<(int cell, float width)> entries,
-        out int riverExit)
+    private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
+        out List<(int cell, float width)> entries, out int riverExit)
     {
         var outlet = new bool[gx * gz];
         var centre = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
@@ -284,13 +287,13 @@ public static class LandscapeGenerator
         riverExit = -1;
         if (world.HasRiver)
         {
-            riverExit = EdgeCellToward(world.RiverExit, gx, gz);
+            riverExit = EdgeCellToward(world.RiverExit, gx, gz, riverCentre);
             outlet[riverExit] = true;
             if (water == null || water.riverInflow)
             {
                 for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
                 {
-                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz);
+                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre);
                     if (entry == riverExit)
                         continue;
                     outlet[entry] = false;
@@ -301,10 +304,10 @@ public static class LandscapeGenerator
         return outlet;
     }
 
-    private static int EdgeCellToward(Vector2 direction, int gx, int gz)
+    private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null)
     {
-        // Walk from the centre along the direction until leaving the grid.
-        var pos = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
+        // Walk from the start (default: the centre) along the direction until leaving the grid.
+        Vector2 pos = from ?? new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
         Vector2 step = direction.normalized * 0.5f;
         int last = Mathf.RoundToInt(pos.y) * gx + Mathf.RoundToInt(pos.x);
         for (int i = 0; i < (gx + gz) * 4; i++)

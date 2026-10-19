@@ -45,6 +45,13 @@ public class WorldContext
     public Vector2 RiverExit;
     public float RiverExitWidth;
 
+    /// <summary>
+    /// Where the world rivers meet, as a fraction of the map width from its centre. As in vanilla, each river runs
+    /// from its own side of the map to this point (vanilla picks it between 0.3 and 0.7 of the map), and the river
+    /// leaves from here toward its exit. Fixed per tile, so every part of generation agrees.
+    /// </summary>
+    public Vector2 RiverCentre;
+
     /// <summary>Direction the river flows (towards its downstream neighbour).</summary>
     public Vector2 RiverFlow;
 
@@ -87,12 +94,17 @@ public class WorldContext
         {
             // Same ordering vanilla uses to orient the river on the map: upstream links first, the downstream one last.
             // A single link is the river's upstream at a river mouth (by the sea) and its downstream at a headwater.
+            // As in vanilla's confluence, a link to a water-covered tile (sea or lake) is the river's mouth, and every
+            // link over land flows in, the widest being the main river.
             List<SurfaceTile.RiverLink> links = surface.Rivers.OrderBy(rl => -((SurfaceTile)Find.WorldGrid[rl.neighbor]).riverDist).ToList();
-            bool mouth = links.Count == 1 && context.SeaDirection != Vector2.zero;
-            SurfaceTile.RiverLink downstream = links.Last();
-            List<SurfaceTile.RiverLink> upstream = mouth ? links : links.Take(links.Count - 1).ToList();
+            List<SurfaceTile.RiverLink> toWater = links.Where(rl => Find.WorldGrid[rl.neighbor].WaterCovered).ToList();
+            bool mouth = toWater.Count > 0 || (links.Count == 1 && context.SeaDirection != Vector2.zero);
+            SurfaceTile.RiverLink downstream = toWater.Count > 0 ? toWater.First() : links.Last();
+            List<SurfaceTile.RiverLink> upstream = toWater.Count > 0
+                ? links.Where(rl => !toWater.Contains(rl)).OrderByDescending(rl => rl.river.widthOnMap).ToList()
+                : mouth ? links : links.Take(links.Count - 1).ToList();
             context.HasRiver = true;
-            context.RiverExit = mouth ? context.SeaDirection : Heading(Find.WorldGrid.GetHeadingFromTo(here, downstream.neighbor));
+            context.RiverExit = toWater.Count == 0 && mouth ? context.SeaDirection : Heading(Find.WorldGrid.GetHeadingFromTo(here, downstream.neighbor));
             context.RiverExitWidth = links.Max(rl => rl.river.widthOnMap);
             foreach (SurfaceTile.RiverLink link in upstream)
             {
@@ -105,6 +117,9 @@ public class WorldContext
             context.RiverFlow = context.RiverInflows.Count > 0
                 ? (context.RiverExit - context.RiverInflows[0].From).normalized
                 : context.RiverExit;
+            Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
+            context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
+            Rand.PopState();
         }
         return context;
     }

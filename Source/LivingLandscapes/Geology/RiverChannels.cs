@@ -64,8 +64,11 @@ public class RiverChannelSettings
     public float upstreamWidths = 10f;
     public float floodDepth = 1.5f;
 
-    /// <summary>Within this many channel widths of a sea edge (base level) the channel fans into distributaries that reach the sea.</summary>
+    /// <summary>Within this many channel widths of the coast (base level) the channel fans into distributaries that reach the sea.</summary>
     public float deltaWidths = 8f;
+
+    /// <summary>The coastline lies this share of the map's size inside the map edge facing the sea (vanilla's coast: 0.1-0.2).</summary>
+    public float coastOffset = 0.15f;
 
     /// <summary>Shortest island (cells), and the width each branch keeps.</summary>
     public float minIslandLength = 24f;
@@ -165,6 +168,9 @@ public static class RiverChannels
         public int SizeX, SizeZ;
         public float Climate, Relief;
         public Vector2 SeaDirection;
+
+        /// <summary>Where the world rivers meet, in map cells (a headwater's lake lies here).</summary>
+        public Vector2 RiverCentre;
         public WaterRegimeDef Water;
         public RiverNetworkSettings Network;
         public RiverChannelSettings Channels;
@@ -176,6 +182,7 @@ public static class RiverChannels
         var system = new RiverSystem { Regime = c.Water };
         if (courses == null)
             return system;
+        bool worldRiver = courses.Exists(course => course.VanillaWidth > 0f);
         var planned = new RiverPlan[courses.Count];
         for (int k = 0; k < courses.Count; k++)
         {
@@ -187,16 +194,18 @@ public static class RiverChannels
                 : c.Network.widthByOrder.Evaluate(course.Order);
             if (parent != null && course.VanillaWidth <= 0f)
                 width = Mathf.Min(width, parent.NominalWidth * c.Network.tributaryShare);
+            if (!worldRiver)
+                width = Mathf.Min(width, c.Network.maxWidthWithoutWorldRiver);
             List<Vector2> line = RiverCourse.FromPlan(course.Points, c.SizeX, c.SizeZ);
             if (line == null)
                 continue;
-            // Headwater: the world river rises from a lake near the map's centre; its course above the lake is dropped,
-            // and channels that joined it there now feed the lake.
+            // Headwater: the world river rises from a lake where the rivers would meet (the river centre); its course
+            // above the lake is dropped, and channels that joined it there now feed the lake.
             float sourceLake = course.WorldRiver && c.Water != null ? c.Water.sourceLakeWidths.RandomInRange * width * 0.5f : 0f;
             Vector2 source = Vector2.zero;
             if (sourceLake > 0f)
             {
-                var centre = new Vector2(c.SizeX * 0.5f, c.SizeZ * 0.5f);
+                Vector2 centre = c.RiverCentre;
                 int nearest = 0;
                 for (int i = 1; i < line.Count; i++)
                 {
@@ -371,7 +380,7 @@ public static class RiverChannels
                 narrowest = Mathf.Min(narrowest, confinements[k]);
             Vector2 middle = points[(a + b) / 2];
             float remaining = (total - cumulative[(a + b) / 2]) / width;
-            float baseLevel = Mathf.Min(leavesMap ? remaining : 999f, SeaDistance(middle, c.SeaDirection, sizeX, sizeZ) / width);
+            float baseLevel = Mathf.Min(leavesMap ? remaining : 999f, CoastDistance(middle, c) / width);
             var fields = new Dictionary<string, float>
             {
                 ["Discharge"] = Mathf.Log10(Mathf.Max(1f, source.AreaNear(middle) * c.Climate)),
@@ -537,7 +546,7 @@ public static class RiverChannels
         {
             if (!Inside(pts[i], sizeX, sizeZ))
                 continue;
-            float reach = Mathf.Min(SeaDistance(pts[i], c.SeaDirection, sizeX, sizeZ), exitDelta ? total - along[i] : float.MaxValue);
+            float reach = Mathf.Min(CoastDistance(pts[i], c), exitDelta ? total - along[i] : float.MaxValue);
             if (reach <= p.deltaWidths * width)
                 delta = i;
         }
@@ -646,6 +655,11 @@ public static class RiverChannels
             from = to + islandPoints / 2;
         }
     }
+
+    /// <summary>Distance (cells) to the coastline: the map edge facing the sea, less vanilla's coast offset.</summary>
+    private static float CoastDistance(Vector2 v, Context c) =>
+        c.SeaDirection == Vector2.zero ? float.MaxValue
+            : Mathf.Max(0f, SeaDistance(v, c.SeaDirection, c.SizeX, c.SizeZ) - c.Channels.coastOffset * Mathf.Max(c.SizeX, c.SizeZ));
 
     private static float SeaDistance(Vector2 v, Vector2 seaDirection, int sizeX, int sizeZ)
     {
