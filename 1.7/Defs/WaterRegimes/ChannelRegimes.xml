@@ -2,133 +2,115 @@
 <Defs>
 
   <!--
-    Channel regimes (reach scale, Docs/WATER-REGIMES.md). Every reach of every channel takes the matching regime its
-    map's water regime weighs highest; ties go to the lower order. Fields per reach:
-      Discharge     log10 of drainage area (cells) times the climate's wetness
-      Slope         water drop per cell (metres per cell)
+    Channel regimes (Docs/WATER-AUDIT.md, step 4): gentle nudges, not shapes. At every channel cell each regime
+    weighs in by how fully the cell's data matches its conditions (soft edges: within "soft" of a min or max the
+    condition holds partly), times the map's water regime weight for it. The weighted factors are blended with a
+    neutral weight of 1, so a weak match nudges little and no regime switches anything on or off. Fields per cell:
+      Discharge     log10 of discharge (drainage area times climate wetness, plus inflow)
+      Slope         water drop per cell over the next few cells (metres per cell)
+      BankStrength  rock strength under the channel, 0..1
       Confinement   valley floor width over channel width
-      Opening       confinement over its narrowest in the reaches just upstream (above 1 where the valley opens out)
-      BankStrength  rock strength along the banks, 0..1
-      Sediment      upstream erodibility times relief (/100 m)
-      BaseLevel     distance to the sea or where the channel leaves the map, in channel widths
-      Order         stream order
-    Parameters are ranges, drawn once per channel: wobble (widths) and its wavelength (widths), meander (share of full
-    bend migration), splitChance and islandWidths (where the valley opens out), depthScale, riffles (pools and fords
-    in wide channels), floorWidths (valley floor reach at full erodibility).
+    Nudges (factors, keep within about 0.5..2): width, depth, widthNoise, depthNoise, bankNoise.
   -->
 
+  <!-- Narrow, deep, even channels cut into strong rock. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_Gorge</defName>
     <label>gorge</label>
     <order>10</order>
     <conditions>
-      <li><field>Confinement</field><max>3</max></li>
-      <li><field>BankStrength</field><min>0.45</min></li>
+      <li><field>Confinement</field><max>3</max><soft>1.5</soft></li>
+      <li><field>BankStrength</field><min>0.45</min><soft>0.1</soft></li>
     </conditions>
-    <wobbleWidths>0.1~0.3</wobbleWidths>
-    <wobbleWavelengthWidths>8~12</wobbleWavelengthWidths>
-    <meander>0~0</meander>
-    <splitChance>0~0</splitChance>
-    <depthScale>1.2~1.4</depthScale>
-    <riffles>false</riffles>
-    <floorWidths>0~0.3</floorWidths>
+    <nudges>
+      <width>0.7</width>
+      <depth>1.4</depth>
+      <widthNoise>0.5</widthNoise>
+      <bankNoise>0.6</bankNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
+  <!-- Steep, shallow, broken water: patchy depth (rapids), ragged banks. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_Torrent</defName>
     <label>torrent</label>
     <order>20</order>
     <conditions>
-      <li><field>Slope</field><min>0.2</min></li>
+      <li><field>Slope</field><min>0.2</min><soft>0.1</soft></li>
     </conditions>
-    <wobbleWidths>0.4~0.9</wobbleWidths>
-    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
-    <meander>0~0</meander>
-    <splitChance>0~0.1</splitChance>
-    <depthScale>0.7~0.9</depthScale>
-    <floorWidths>0.5~1.5</floorWidths>
+    <nudges>
+      <width>0.85</width>
+      <depth>0.75</depth>
+      <depthNoise>1.8</depthNoise>
+      <bankNoise>1.5</bankNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
+  <!-- Wide and shallow on moderate slopes in open valleys: shallow bars through the channel. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_Braided</defName>
     <label>braided</label>
     <order>30</order>
     <conditions>
-      <li><field>Sediment</field><min>0.6</min></li>
-      <li><field>Slope</field><min>0.01</min><max>0.2</max></li>
-      <li><field>Confinement</field><min>5</min></li>
+      <li><field>Slope</field><min>0.02</min><max>0.2</max><soft>0.01</soft></li>
+      <li><field>Confinement</field><min>5</min><soft>2</soft></li>
+      <li><field>Discharge</field><min>3.3</min><soft>0.3</soft></li>
     </conditions>
-    <wobbleWidths>0.5~1</wobbleWidths>
-    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
-    <meander>0~0.1</meander>
-    <splitChance>0.7~0.9</splitChance>
-    <islandWidths>1.5~2.5</islandWidths>
-    <depthScale>0.6~0.8</depthScale>
-    <floorWidths>4~6</floorWidths>
+    <nudges>
+      <width>1.6</width>
+      <depth>0.6</depth>
+      <depthNoise>2</depthNoise>
+      <bankNoise>1.4</bankNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
+  <!-- Large rivers in broad valleys: wider, with varied width. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_Anabranching</defName>
     <label>anabranching</label>
     <order>40</order>
     <conditions>
-      <li><field>Confinement</field><min>6</min></li>
-      <li><field>Opening</field><min>2</min></li>
-      <li><field>Discharge</field><min>3.5</min></li>
+      <li><field>Confinement</field><min>6</min><soft>2</soft></li>
+      <li><field>Discharge</field><min>4</min><soft>0.4</soft></li>
     </conditions>
-    <wobbleWidths>0.4~0.8</wobbleWidths>
-    <wobbleWavelengthWidths>5~8</wobbleWavelengthWidths>
-    <meander>0.1~0.3</meander>
-    <splitChance>0.5~0.8</splitChance>
-    <islandWidths>3~5</islandWidths>
-    <floorWidths>3~5</floorWidths>
+    <nudges>
+      <width>1.3</width>
+      <depth>0.9</depth>
+      <widthNoise>1.6</widthNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
-  <LivingLandscapes.Geology.ChannelRegimeDef>
-    <defName>LL_Meandering</defName>
-    <label>meandering</label>
-    <order>50</order>
-    <conditions>
-      <li><field>Slope</field><max>0.01</max></li>
-      <li><field>Confinement</field><min>5</min></li>
-      <li><field>BankStrength</field><max>0.55</max></li>
-    </conditions>
-    <wobbleWidths>0.8~1.2</wobbleWidths>
-    <wobbleWavelengthWidths>4~6</wobbleWavelengthWidths>
-    <meander>0.6~1</meander>
-    <splitChance>0~0</splitChance>
-    <floorWidths>3~5</floorWidths>
-  </LivingLandscapes.Geology.ChannelRegimeDef>
-
-  <!-- Marsh web: threads that split and rejoin into loops on flat, wet ground. Only where a water regime lists it. -->
+  <!-- Marsh threads: narrow, shallow, ragged water on flat, wet ground. Only where a water regime lists it. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_MarshThread</defName>
     <label>marsh thread</label>
     <order>45</order>
     <exclusive>true</exclusive>
     <conditions>
-      <li><field>Slope</field><max>0.02</max></li>
+      <li><field>Slope</field><max>0.02</max><soft>0.01</soft></li>
     </conditions>
-    <wobbleWidths>0.8~1.4</wobbleWidths>
-    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
-    <meander>0.2~0.4</meander>
-    <splitChance>0.8~1</splitChance>
-    <islandWidths>2~4</islandWidths>
-    <depthScale>0.5~0.6</depthScale>
-    <riffles>false</riffles>
-    <floorWidths>2~3</floorWidths>
+    <nudges>
+      <width>0.7</width>
+      <depth>0.5</depth>
+      <bankNoise>2</bankNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
-  <!-- The default: matches every reach. -->
+  <!-- Gentle slopes in soft ground: deeper, steadier water with varied width. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
-    <defName>LL_Wandering</defName>
-    <label>wandering</label>
-    <order>100</order>
-    <wobbleWidths>0.6~1.2</wobbleWidths>
-    <wobbleWavelengthWidths>4~7</wobbleWavelengthWidths>
-    <meander>0.1~0.3</meander>
-    <splitChance>0~0</splitChance>
-    <floorWidths>2~4</floorWidths>
+    <defName>LL_Meandering</defName>
+    <label>meandering</label>
+    <order>50</order>
+    <conditions>
+      <li><field>Slope</field><max>0.02</max><soft>0.01</soft></li>
+      <li><field>Confinement</field><min>4</min><soft>2</soft></li>
+      <li><field>BankStrength</field><max>0.55</max><soft>0.1</soft></li>
+    </conditions>
+    <nudges>
+      <depth>1.15</depth>
+      <widthNoise>1.4</widthNoise>
+      <depthNoise>0.8</depthNoise>
+    </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
 </Defs>

@@ -12,6 +12,8 @@
     climateOffset: added to the tile's climate wetness (0..1 from rainfall) for every water and wet ground rule.
     marshland: 0..1, how much damp ground becomes marsh (ground rules field Marshland).
     channelRegimes: weights on channel regimes (0 forbids; unlisted weigh 1; exclusive regimes only where listed).
+    nudges: map-wide factors on the channel processes (Docs/WATER-AUDIT.md, step 4): discharge (where channels start;
+    below 1 a denser network), width, depth, widthNoise, depthNoise, bankNoise. Keep within about 0.5..2.
     replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
     World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
     a confluence), sourceLakeWidths (lake the river rises from), deltaAtExit with deltaBranches and
@@ -21,6 +23,11 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Delta</defName>
     <label>delta</label>
+    <nudges>
+      <width>1.3</width>
+      <depth>0.8</depth>
+      <depthNoise>1.4</depthNoise>
+    </nudges>
     <order>10</order>
     <mutators><li>RiverDelta</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
@@ -52,6 +59,9 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_RiverIsland</defName>
     <label>river island</label>
+    <nudges>
+      <widthNoise>1.3</widthNoise>
+    </nudges>
     <order>12</order>
     <mutators><li>RiverIsland</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
@@ -66,6 +76,10 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Headwater</defName>
     <label>headwater</label>
+    <nudges>
+      <discharge>0.7</discharge>
+      <depth>0.9</depth>
+    </nudges>
     <order>13</order>
     <mutators><li>Headwater</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
@@ -81,6 +95,12 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_MarshWeb</defName>
     <label>marsh web</label>
+    <nudges>
+      <discharge>0.5</discharge>
+      <width>0.8</width>
+      <depth>0.6</depth>
+      <bankNoise>1.6</bankNoise>
+    </nudges>
     <order>14</order>
     <mutators><li>Wetland</li><li>Marshy</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
@@ -98,6 +118,9 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Lakeland</defName>
     <label>lakeland</label>
+    <nudges>
+      <depth>1.1</depth>
+    </nudges>
     <order>15</order>
     <mutators><li>Lake</li><li>LakeWithIsland</li><li>LakeWithIslands</li><li>Pond</li><li>Lakeshore</li><li>Oasis</li><li>CaveLakes</li></mutators>
     <sourceShare>0.02~0.03</sourceShare>
@@ -114,6 +137,9 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Basin</defName>
     <label>basin</label>
+    <nudges>
+      <width>1.1</width>
+    </nudges>
     <order>17</order>
     <mutators><li>Basin</li></mutators>
     <sourceShare>0.015~0.025</sourceShare>
@@ -122,6 +148,12 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_AridWashes</defName>
     <label>arid washes</label>
+    <nudges>
+      <discharge>2</discharge>
+      <width>1.4</width>
+      <depth>0.5</depth>
+      <depthNoise>1.5</depthNoise>
+    </nudges>
     <order>20</order>
     <conditions>
       <li><field>Rainfall</field><max>400</max></li>
@@ -137,6 +169,10 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_DryGround</defName>
     <label>dry ground</label>
+    <nudges>
+      <discharge>2</discharge>
+      <depth>0.6</depth>
+    </nudges>
     <order>21</order>
     <mutators><li>DryGround</li></mutators>
     <sourceShare>0.04~0.06</sourceShare>
@@ -149,6 +185,11 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_MountainTorrents</defName>
     <label>mountain torrents</label>
+    <nudges>
+      <discharge>0.8</discharge>
+      <width>0.85</width>
+      <depth>1.1</depth>
+    </nudges>
     <order>30</order>
     <conditions>
       <li><field>Hilliness</field><min>4</min></li>
@@ -164,6 +205,9 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_HillCreeks</defName>
     <label>hill creeks</label>
+    <nudges>
+      <discharge>0.9</discharge>
+    </nudges>
     <order>31</order>
     <conditions>
       <li><field>Hilliness</field><min>2</min></li>

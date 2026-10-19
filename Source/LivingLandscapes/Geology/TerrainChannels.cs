@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Verse;
 using Verse.Noise;
@@ -43,6 +44,13 @@ public class TerrainChannelSettings
     /// <summary>Steps up and down a channel over which its flow direction is averaged (D8 steps are 45 degrees apart).</summary>
     public int flowSmoothingSteps = 3;
 
+    /// <summary>
+    /// Confinement field for the channel regimes: the valley floor is ground no higher than this (metres) above the
+    /// water, measured across the channel up to this many channel widths each side.
+    /// </summary>
+    public float valleyFloorHeight = 1.5f;
+    public float maxConfinementWidths = 8f;
+
     /// <summary>The map edge within this many cells of where water enters does not drain (the land beyond slopes in).</summary>
     public float entryGuardCells = 15f;
 
@@ -66,7 +74,7 @@ public static class TerrainChannels
     /// <param name="riverCentre">Where world rivers meet (map cells); a world river rising on the map (headwater) rises here.</param>
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
-        float climate, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
+        float climate, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
@@ -129,10 +137,12 @@ public static class TerrainChannels
             world[r] |= world[c];
         }
 
+        // Where channels start; the water regime nudges it (a denser or sparser network).
+        float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
         var cells = new List<int>();
         for (int c = 0; c < n; c++)
         {
-            if (discharge[c] >= p.channelDischarge)
+            if (discharge[c] >= threshold)
                 cells.Add(c);
         }
         if (cells.Count == 0)
@@ -146,16 +156,18 @@ public static class TerrainChannels
         foreach (int c in cells)
         {
             int r = receiver[c];
-            if (r >= 0 && discharge[r] >= p.channelDischarge && (main[r] < 0 || discharge[c] > discharge[main[r]]))
+            if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
                 main[r] = c;
         }
 
-        float[] width = new float[n], depth = new float[n];
-        Shape(cells, filled, receiver, discharge, sizeX, p, width, depth);
         Vector2[] direction = Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
+        float[] width = new float[n], depth = new float[n];
+        var regimes = new Dictionary<string, int>();
+        float[] bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, direction, sizeX, sizeZ, water, p,
+            width, depth, regimes);
 
         List<RiverPlan> plans = Trace(cells, receiver, main, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
-        int inHollows = Paint(height, filled, cells, width, depth, direction, planOf, sizeX, sizeZ, p, system);
+        int inHollows = Paint(height, filled, cells, width, depth, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
         int painted = 0;
         for (int i = 0; i < n; i++)
@@ -170,7 +182,8 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills), " +
-                    $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}.");
+                    $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
+                    $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
 
@@ -216,9 +229,15 @@ public static class TerrainChannels
         return inflow;
     }
 
-    /// <summary>Width and depth of each channel cell from its discharge, stream power and noise.</summary>
-    private static void Shape(List<int> cells, float[] filled, int[] receiver, float[] discharge, int sizeX, TerrainChannelSettings p,
-        float[] width, float[] depth)
+    /// <summary>
+    /// Width and depth of each channel cell from its discharge, stream power and noise, nudged by the channel regimes
+    /// its data matches (Docs/WATER-AUDIT.md, step 4). Fields: Discharge (log10), Slope (water drop per cell over a few
+    /// cells), BankStrength (rock strength 0..1), Confinement (valley floor width over channel width). Returns the bank
+    /// noise amplitude per cell and counts the dominant regime per cell for the log.
+    /// </summary>
+    private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
+        Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
+        Dictionary<string, int> regimes)
     {
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
@@ -238,17 +257,57 @@ public static class TerrainChannels
         System.Array.Sort(sorted);
         float reference = Mathf.Max(sorted[sorted.Length / 2], 1e-4f);
 
+        var bankAmplitude = new float[natural.Length];
         var widthNoise = new Perlin(1.0 / p.widthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var depthNoise = new Perlin(1.0 / p.depthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+        var fields = new Dictionary<string, float>();
         for (int k = 0; k < cells.Count; k++)
         {
             int c = cells[k], x = c % sizeX, z = c / sizeX;
             float q = discharge[c];
-            width[c] = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(q) * (1f + p.widthNoise * (float)widthNoise.GetValue(x, 0.0, z)));
+            float baseWidth = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(q));
+            fields["Discharge"] = Mathf.Log10(q);
+            fields["Slope"] = slope[k];
+            fields["BankStrength"] = rockStrength != null ? rockStrength[c] : 0.5f;
+            fields["Confinement"] = ValleyFloor(natural, filled[c], c, direction[c], baseWidth, sizeX, sizeZ, p) / baseWidth;
+            ChannelNudges nudge = WaterRegimes.Nudges(fields, water, out ChannelRegimeDef dominant);
+            string key = dominant?.defName ?? "none";
+            regimes[key] = regimes.TryGetValue(key, out int count) ? count + 1 : 1;
+
+            width[c] = Mathf.Max(p.minWidth, baseWidth * nudge.width
+                                             * (1f + p.widthNoise * nudge.widthNoise * (float)widthNoise.GetValue(x, 0.0, z)));
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));
-            depth[c] = Mathf.Max(p.minDepth, p.depthPerDischarge * Mathf.Pow(q, p.depthExponent) * scour
-                                            * (1f + p.depthNoise * (float)depthNoise.GetValue(x, 0.0, z)));
+            depth[c] = Mathf.Max(p.minDepth, p.depthPerDischarge * Mathf.Pow(q, p.depthExponent) * scour * nudge.depth
+                                             * (1f + Mathf.Clamp(p.depthNoise * nudge.depthNoise, 0f, 0.9f) * (float)depthNoise.GetValue(x, 0.0, z)));
+            bankAmplitude[c] = Mathf.Clamp(p.bankNoise * nudge.bankNoise, 0f, 0.8f);
         }
+        return bankAmplitude;
+    }
+
+    /// <summary>
+    /// Width (cells) of the valley floor across a channel cell: ground no higher than the water surface plus
+    /// <see cref="TerrainChannelSettings.valleyFloorHeight"/>, measured both ways across the flow, up to
+    /// <see cref="TerrainChannelSettings.maxConfinementWidths"/> channel widths each side.
+    /// </summary>
+    private static float ValleyFloor(float[] natural, float level, int c, Vector2 direction, float width, int sizeX, int sizeZ, TerrainChannelSettings p)
+    {
+        var across = new Vector2(-direction.y, direction.x);
+        if (across == Vector2.zero)
+            return width;
+        float limit = Mathf.Max(width, 2f) * p.maxConfinementWidths, floor = 1f;
+        var start = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
+        foreach (float sign in new[] { -1f, 1f })
+        {
+            for (float t = 1f; t <= limit; t += 1f)
+            {
+                Vector2 v = start + across * (sign * t);
+                int x = (int)v.x, z = (int)v.y;
+                if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ || natural[z * sizeX + x] > level + p.valleyFloorHeight)
+                    break;
+                floor += 1f;
+            }
+        }
+        return floor;
     }
 
     /// <summary>Downstream direction of each channel cell, averaged over a few steps up and down the channel.</summary>
@@ -362,7 +421,7 @@ public static class TerrainChannels
     /// surface lies deeper above the ground than the channel's own depth the channel crosses a hollow: the lake model
     /// fills it.
     /// </summary>
-    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, Vector2[] direction,
+    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, float[] bankAmplitude, Vector2[] direction,
         int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
     {
         int n = height.Length;
@@ -384,7 +443,7 @@ public static class TerrainChannels
             }
             int cx = c % sizeX, cz = c / sizeX;
             float half = width[c] * 0.5f;
-            int reach = Mathf.CeilToInt(half * (1f + p.bankNoise) + 0.5f);
+            int reach = Mathf.CeilToInt(half * (1f + bankAmplitude[c]) + 0.5f);
             for (int dz = -reach; dz <= reach; dz++)
             {
                 for (int dx = -reach; dx <= reach; dx++)
@@ -392,7 +451,7 @@ public static class TerrainChannels
                     int x = cx + dx, z = cz + dz;
                     if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
                         continue;
-                    float edge = half * (1f + p.bankNoise * (float)bank.GetValue(x, 0.0, z)) + 0.5f;
+                    float edge = half * (1f + bankAmplitude[c] * (float)bank.GetValue(x, 0.0, z)) + 0.5f;
                     float r = Mathf.Sqrt(dx * dx + dz * dz);
                     if (r >= edge)
                         continue;

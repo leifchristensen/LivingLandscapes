@@ -57,7 +57,7 @@ public class LandformWorker : EnvironmentLayerWorker
             float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
                                           + (water?.climateOffset ?? 0f));
             var riverCentre = new UnityEngine.Vector2(map.Size.x * (0.5f + world.RiverCentre.x), map.Size.z * 0.5f + world.RiverCentre.y * map.Size.x);
-            RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, water,
+            RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, rockStrength, water,
                 generation.terrainChannels, generation.network.worldRiverWidth);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)

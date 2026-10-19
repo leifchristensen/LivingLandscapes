@@ -174,3 +174,11 @@ processes continuously, never switch shapes.
   - #12: straight runs across filled flats;
   - #13: channel heads start abruptly.
 - Confluence and coast need checking on a real tile: #7.
+- 2026-10-19, step 4 (soft regimes):
+  - `FieldCondition.soft` gives each condition smooth ramps (ground rules keep hard edges).
+  - Every `ChannelRegimeDef` weighs in by how fully a channel cell's data matches (Discharge, Slope, BankStrength,
+    Confinement), times the water regime's weight for it.
+  - `ChannelNudges` (width, depth, width, depth and bank noise) are blended as a weighted geometric mean with a
+    neutral weight of 1, then multiplied by the water regime's own nudges; `discharge` nudges where channels start.
+  - Old shape fields (wobble, meander, splits, floors) are dead and go in step 6. The log reports the dominant regime
+    share per map, for example s1: Meandering 27%, Torrent 22%, Braided 20%, Gorge 14%.

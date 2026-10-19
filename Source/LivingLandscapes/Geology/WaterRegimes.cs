@@ -7,6 +7,50 @@ using Verse;
 
 namespace LivingLandscapes.Geology;
 
+/// <summary>
+/// Gentle nudges on the channel processes (Docs/WATER-AUDIT.md, step 4): factors on width and depth (hydraulic
+/// geometry), on the width, depth and bank noise, and (water regimes only) on the discharge where channels start
+/// (below 1: a denser network). 1 leaves a process as it is; keep factors within about 0.5..2.
+/// </summary>
+public class ChannelNudges
+{
+    public float width = 1f, depth = 1f, widthNoise = 1f, depthNoise = 1f, bankNoise = 1f, discharge = 1f;
+
+    public static readonly ChannelNudges None = new ChannelNudges();
+
+    /// <summary>The weighted geometric mean of each factor; the neutral weight pulls every factor toward 1.</summary>
+    public static ChannelNudges Blend(List<(ChannelNudges nudges, float weight)> parts, float neutralWeight)
+    {
+        float total = neutralWeight;
+        float w = 0f, d = 0f, wn = 0f, dn = 0f, bn = 0f, q = 0f;
+        foreach ((ChannelNudges n, float weight) in parts)
+        {
+            if (weight <= 0f)
+                continue;
+            total += weight;
+            w += weight * Mathf.Log(n.width);
+            d += weight * Mathf.Log(n.depth);
+            wn += weight * Mathf.Log(n.widthNoise);
+            dn += weight * Mathf.Log(n.depthNoise);
+            bn += weight * Mathf.Log(n.bankNoise);
+            q += weight * Mathf.Log(n.discharge);
+        }
+        if (total <= 0f)
+            return None;
+        return new ChannelNudges
+        {
+            width = Mathf.Exp(w / total), depth = Mathf.Exp(d / total), widthNoise = Mathf.Exp(wn / total),
+            depthNoise = Mathf.Exp(dn / total), bankNoise = Mathf.Exp(bn / total), discharge = Mathf.Exp(q / total),
+        };
+    }
+
+    public ChannelNudges Times(ChannelNudges o) => new ChannelNudges
+    {
+        width = width * o.width, depth = depth * o.depth, widthNoise = widthNoise * o.widthNoise,
+        depthNoise = depthNoise * o.depthNoise, bankNoise = bankNoise * o.bankNoise, discharge = discharge * o.discharge,
+    };
+}
+
 /// <summary>How strongly a water regime favours a channel regime (0 forbids it; regimes not listed weigh 1).</summary>
 public class RegimeWeight
 {
@@ -43,6 +87,9 @@ public class WaterRegimeDef : Def
 
     /// <summary>0..1: how much damp ground becomes marsh (ground rules field Marshland), for wetlands.</summary>
     public float marshland;
+
+    /// <summary>Map-wide nudges on the channel processes (multiplied with the channel regimes' blend).</summary>
+    public ChannelNudges nudges = new ChannelNudges();
 
     /// <summary>Channel regimes this water regime favours or forbids.</summary>
     public List<RegimeWeight> channelRegimes = new List<RegimeWeight>();
@@ -105,6 +152,22 @@ public class ChannelRegimeDef : Def
 
     /// <summary>Only used where a water regime lists it (marsh threads, washes).</summary>
     public bool exclusive;
+
+    /// <summary>What this regime does to the channel where it holds, in proportion to how fully it holds.</summary>
+    public ChannelNudges nudges = new ChannelNudges();
+
+    /// <summary>How fully the channel's data matches, 0..1 (soft conditions; a missing field counts as not matching).</summary>
+    public float Membership(IReadOnlyDictionary<string, float> fields)
+    {
+        float m = 1f;
+        foreach (FieldCondition condition in conditions)
+        {
+            if (!fields.TryGetValue(condition.field, out float value))
+                return 0f;
+            m *= condition.Membership(value);
+        }
+        return m;
+    }
 
     /// <summary>Lateral wobble amplitude and wavelength, in channel widths.</summary>
     public FloatRange wobbleWidths = new FloatRange(0.6f, 1.2f);
@@ -169,6 +232,32 @@ public static class WaterRegimes
                 return def;
         }
         return null;
+    }
+
+    /// <summary>
+    /// The channel nudges at one place: every channel regime weighs in by how fully the place matches it, times the
+    /// water regime's weight for it, blended with a neutral weight of 1 (so a weak match nudges little); then the water
+    /// regime's own nudges. <paramref name="dominant"/> is the regime weighing most (null if none), for logs.
+    /// </summary>
+    public static ChannelNudges Nudges(IReadOnlyDictionary<string, float> fields, WaterRegimeDef water, out ChannelRegimeDef dominant)
+    {
+        var parts = new List<(ChannelNudges, float)>();
+        dominant = null;
+        float top = 0f;
+        foreach (ChannelRegimeDef def in DefDatabase<ChannelRegimeDef>.AllDefsListForReading)
+        {
+            float weight = (water != null ? water.Weight(def) : (def.exclusive ? 0f : 1f)) * def.Membership(fields);
+            if (weight <= 0f)
+                continue;
+            parts.Add((def.nudges, weight));
+            if (weight > top)
+            {
+                top = weight;
+                dominant = def;
+            }
+        }
+        ChannelNudges blend = ChannelNudges.Blend(parts, 1f);
+        return water != null ? blend.Times(water.nudges) : blend;
     }
 
     /// <summary>The matching channel regime the water regime weighs highest (earlier order wins ties); null if none.</summary>

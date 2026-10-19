@@ -29,7 +29,26 @@ public class FieldCondition
     public float min = float.NegativeInfinity;
     public float max = float.PositiveInfinity;
 
+    /// <summary>
+    /// Half-width of a soft edge, in the field's units: within it the condition holds partly (0..1), so neighbouring
+    /// values never switch abruptly. 0: a hard edge.
+    /// </summary>
+    public float soft;
+
     public bool Holds(float value) => value >= min && value < max;
+
+    /// <summary>How fully the condition holds, 0..1: smooth ramps of <see cref="soft"/> around min and max.</summary>
+    public float Membership(float value)
+    {
+        if (soft <= 0f)
+            return Holds(value) ? 1f : 0f;
+        float m = 1f;
+        if (!float.IsNegativeInfinity(min))
+            m *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(min - soft, min + soft, value));
+        if (!float.IsPositiveInfinity(max))
+            m *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(max - soft, max + soft, value));
+        return m;
+    }
 
     /// <summary>All conditions hold; a field missing from <paramref name="fields"/> fails its condition.</summary>
     public static bool All(List<FieldCondition> conditions, IReadOnlyDictionary<string, float> fields)
