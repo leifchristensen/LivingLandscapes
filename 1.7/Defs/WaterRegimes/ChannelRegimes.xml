@@ -11,7 +11,8 @@
       BankStrength  rock strength under the channel, 0..1
       Confinement   valley floor width over channel width
     Nudges (factors, keep within about 0.5..3): width, depth, widthNoise, depthNoise, bankNoise, spread (water
-    divides more readily where ground falls away two ways: splits and islands).
+    divides more readily where ground falls away two ways: splits), deposition (bars settle more readily where the
+    flow loses power: islands and fords).
   -->
 
   <!-- Narrow, deep, even channels cut into strong rock. -->
@@ -29,6 +30,7 @@
       <widthNoise>0.5</widthNoise>
       <bankNoise>0.6</bankNoise>
       <spread>0.5</spread>
+      <deposition>0.3</deposition>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -46,6 +48,7 @@
       <depthNoise>1.8</depthNoise>
       <bankNoise>1.5</bankNoise>
       <spread>0.8</spread>
+      <deposition>0.5</deposition>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -65,6 +68,7 @@
       <depthNoise>2</depthNoise>
       <bankNoise>1.4</bankNoise>
       <spread>2</spread>
+      <deposition>1.8</deposition>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -82,6 +86,7 @@
       <depth>0.9</depth>
       <widthNoise>1.6</widthNoise>
       <spread>1.6</spread>
+      <deposition>1.5</deposition>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
@@ -99,6 +104,7 @@
       <depth>0.5</depth>
       <bankNoise>2</bankNoise>
       <spread>2.5</spread>
+      <deposition>1.2</deposition>
     </nudges>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 

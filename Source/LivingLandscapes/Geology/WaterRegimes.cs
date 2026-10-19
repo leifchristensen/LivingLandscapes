@@ -17,13 +17,16 @@ public class ChannelNudges
 {
     public float width = 1f, depth = 1f, widthNoise = 1f, depthNoise = 1f, bankNoise = 1f, spread = 1f, discharge = 1f;
 
+    /// <summary>How readily sediment settles into bars where the flow loses power (islands, fords).</summary>
+    public float deposition = 1f;
+
     public static readonly ChannelNudges None = new ChannelNudges();
 
     /// <summary>The weighted geometric mean of each factor; the neutral weight pulls every factor toward 1.</summary>
     public static ChannelNudges Blend(List<(ChannelNudges nudges, float weight)> parts, float neutralWeight)
     {
         float total = neutralWeight;
-        float w = 0f, d = 0f, wn = 0f, dn = 0f, bn = 0f, sp = 0f, q = 0f;
+        float w = 0f, d = 0f, wn = 0f, dn = 0f, bn = 0f, sp = 0f, q = 0f, dep = 0f;
         foreach ((ChannelNudges n, float weight) in parts)
         {
             if (weight <= 0f)
@@ -35,6 +38,7 @@ public class ChannelNudges
             dn += weight * Mathf.Log(n.depthNoise);
             bn += weight * Mathf.Log(n.bankNoise);
             sp += weight * Mathf.Log(n.spread);
+            dep += weight * Mathf.Log(n.deposition);
             q += weight * Mathf.Log(n.discharge);
         }
         if (total <= 0f)
@@ -43,7 +47,7 @@ public class ChannelNudges
         {
             width = Mathf.Exp(w / total), depth = Mathf.Exp(d / total), widthNoise = Mathf.Exp(wn / total),
             depthNoise = Mathf.Exp(dn / total), bankNoise = Mathf.Exp(bn / total), spread = Mathf.Exp(sp / total),
-            discharge = Mathf.Exp(q / total),
+            discharge = Mathf.Exp(q / total), deposition = Mathf.Exp(dep / total),
         };
     }
 
@@ -51,7 +55,7 @@ public class ChannelNudges
     {
         width = width * o.width, depth = depth * o.depth, widthNoise = widthNoise * o.widthNoise,
         depthNoise = depthNoise * o.depthNoise, bankNoise = bankNoise * o.bankNoise, spread = spread * o.spread,
-        discharge = discharge * o.discharge,
+        discharge = discharge * o.discharge, deposition = deposition * o.deposition,
     };
 }
 

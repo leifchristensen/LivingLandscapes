@@ -95,6 +95,23 @@ public class TerrainChannelSettings
     public float deltaApronRelief = 1.5f;
     public float deltaApronWavelength = 24f;
 
+    /// <summary>
+    /// Bars (deposition): where a channel's stream power per unit width falls below its average over the reach
+    /// upstream (the channel widens or flattens), sediment settles. Share of the drop, times the regimes' deposition
+    /// nudge and <see cref="deposition"/>, from <see cref="barThreshold"/> up builds a bar in mid-channel: elongated
+    /// along the flow (<see cref="barLengthWidths"/> and <see cref="barWidthShare"/> of the channel), outline warped
+    /// by noise, crest from the bed (at the threshold) to <see cref="barRise"/> above the water (at the full drop):
+    /// high bars are islands, low ones fords. Only in channels at least <see cref="minBarChannelWidth"/> wide, with
+    /// bars at least one bar length apart. The upstream average runs over <see cref="powerReachCells"/> cells.
+    /// </summary>
+    public float deposition = 1f;
+    public float barThreshold = 0.35f;
+    public float barLengthWidths = 2f;
+    public float barWidthShare = 0.5f;
+    public float barRise = 1.2f;
+    public float minBarChannelWidth = 6f;
+    public float powerReachCells = 12f;
+
     /// <summary>A headwater's springs pool where the filled surface lies more than this (metres) above the ground.</summary>
     public float springLakeDepth = 0.1f;
 
@@ -169,6 +186,7 @@ public static class TerrainChannels
         int splits = 0;
         float dischargeScale = 1f;
         bool[] moving = null;
+        float[] power = null, deposition = null;
         for (int pass = 0; pass < 2; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -201,6 +219,8 @@ public static class TerrainChannels
             width = new float[n];
             depth = new float[n];
             spread = new float[n];
+            power = new float[n];
+            deposition = new float[n];
             regimes = new Dictionary<string, int>();
             // On a tile the world gives no river, the world says nothing here carries more than a creek: the map's own
             // discharge is scaled so its largest channel stays below a creek, keeping every channel's share, so
@@ -215,7 +235,7 @@ public static class TerrainChannels
             }
             dischargeScale = scale;
             bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, scale, direction, sizeX, sizeZ, water, p,
-                width, depth, spread, moving = new bool[n], regimes);
+                width, depth, spread, moving = new bool[n], power, deposition, regimes);
             // Once water runs as a channel it keeps running downstream (cells are ordered highest first).
             foreach (int c in cells)
             {
@@ -228,6 +248,7 @@ public static class TerrainChannels
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
+        int bars = Bars(height, cells, main, width, depth, moving, power, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
         int painted = 0;
         for (int i = 0; i < n; i++)
@@ -242,7 +263,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -473,7 +494,7 @@ public static class TerrainChannels
     private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
         float dischargeScale,
         Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
-        float[] spread, bool[] moving, Dictionary<string, int> regimes)
+        float[] spread, bool[] moving, float[] power, float[] deposition, Dictionary<string, int> regimes)
     {
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
@@ -519,6 +540,9 @@ public static class TerrainChannels
                                              * (1f + Mathf.Clamp(p.depthNoise * nudge.depthNoise, 0f, 0.9f) * (float)depthNoise.GetValue(x, 0.0, z)));
             bankAmplitude[c] = Mathf.Clamp(p.bankNoise * nudge.bankNoise, 0f, 0.8f);
             spread[c] = nudge.spread;
+            deposition[c] = nudge.deposition;
+            // Stream power per unit width: the flow's capacity to carry sediment.
+            power[c] = q * Mathf.Max(slope[k], 0f) / Mathf.Max(width[c], 1f);
         }
         return bankAmplitude;
     }
@@ -658,6 +682,79 @@ public static class TerrainChannels
                 planOf[i] = index[planOf[i]];
         }
         return result;
+    }
+
+    /// <summary>
+    /// Bars where the flow loses power (see <see cref="TerrainChannelSettings.deposition"/>): raises the bed into
+    /// mid-channel bars; cells raised above the water become dry (islands). Returns the number of bars.
+    /// </summary>
+    private static int Bars(float[] height, List<int> cells, int[] main, float[] width, float[] depth, bool[] moving, float[] power,
+        float[] deposition, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands)
+    {
+        int n = height.Length;
+        islands = 0;
+        // Average power over the reach upstream, carried down the channel (cells are ordered highest first).
+        var upstream = new float[n];
+        float keep = 1f - 1f / Mathf.Max(p.powerReachCells, 1f);
+        foreach (int c in cells)
+        {
+            int m = main[c];
+            upstream[c] = m >= 0 ? keep * upstream[m] + (1f - keep) * power[m] : power[c];
+        }
+        var candidates = new List<(int cell, float strength)>();
+        foreach (int c in cells)
+        {
+            if (!moving[c] || width[c] < p.minBarChannelWidth || upstream[c] <= 0f || float.IsNaN(system.WaterLevel[c]))
+                continue;
+            float drop = Mathf.Clamp01((upstream[c] - power[c]) / upstream[c]) * deposition[c] * p.deposition;
+            if (drop >= p.barThreshold)
+                candidates.Add((c, Mathf.Min(drop, 1f)));
+        }
+        candidates.Sort((a, b) => b.strength.CompareTo(a.strength));
+
+        var placed = new List<(Vector2 at, float length)>();
+        var warp = new Perlin(0.15, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+        foreach ((int c, float strength) in candidates)
+        {
+            var at = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
+            float length = p.barLengthWidths * width[c], half = p.barWidthShare * width[c] * 0.5f;
+            if (placed.Exists(b => (b.at - at).magnitude < Mathf.Max(b.length, length)))
+                continue;
+            placed.Add((at, length));
+            float level = system.WaterLevel[c];
+            float bed = level - depth[c];
+            float crest = bed + (depth[c] + p.barRise) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.barThreshold, 1f, strength));
+            Vector2 along = direction[c] == Vector2.zero ? Vector2.right : direction[c], across = new Vector2(-along.y, along.x);
+            int reach = Mathf.CeilToInt(length * 0.5f + 1f);
+            for (int dz = -reach; dz <= reach; dz++)
+            {
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    int x = c % sizeX + dx, z = c / sizeX + dz;
+                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                        continue;
+                    int i = z * sizeX + x;
+                    if (float.IsNaN(system.WaterLevel[i]))
+                        continue;
+                    var v = new Vector2(dx, dz);
+                    float a = Vector2.Dot(v, along) / (length * 0.5f), b = Vector2.Dot(v, across) / Mathf.Max(half, 0.5f);
+                    float e = Mathf.Sqrt(a * a + b * b) * (1f + 0.3f * (float)warp.GetValue(x, 0.0, z));
+                    if (e >= 1f)
+                        continue;
+                    float surface = Mathf.Lerp(crest, bed, e * e);
+                    height[i] = Mathf.Max(height[i], surface);
+                    if (height[i] >= level)
+                    {
+                        // Above the water: an island.
+                        system.WaterLevel[i] = float.NaN;
+                        system.ChannelOf[i] = -1;
+                        system.Flow[i] = Vector2.zero;
+                        islands++;
+                    }
+                }
+            }
+        }
+        return placed.Count;
     }
 
     /// <summary>
