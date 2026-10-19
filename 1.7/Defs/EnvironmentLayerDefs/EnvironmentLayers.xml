@@ -394,4 +394,68 @@
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Sun</defName>
+    <label>sun exposure</label>
+    <description>0 to 1: how much sun a site gets. Level ground is mid-high; slopes facing the sun (south in the northern hemisphere) more, slopes facing away less. Aspect matters less near the equator.</description>
+    <workerClass>LivingLandscapes.Layers.SunWorker</workerClass>
+    <dependsOn>
+      <li>LL_Slope</li>
+      <li>LL_Aspect</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.6</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.15, 0.15, 0.45, 0.8)</color></li>
+        <li><value>0.5</value><color>(1.0, 0.95, 0.6, 0.1)</color></li>
+        <li><value>1</value><color>(1.0, 0.75, 0.1, 0.85)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.SunExtension">
+        <flatExposure>0.7</flatExposure>
+        <slopeGain>1.5</slopeGain>
+        <fullAspectLatitude>40</fullAspectLatitude>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Shade</defName>
+    <label>canopy shade</label>
+    <description>0 to 1: light blocked by the plants standing on the map, shifted towards the pole. Zero before plants are placed.</description>
+    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.7</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.1, 0.2, 0.1, 0)</color></li>
+        <li><value>1</value><color>(0.05, 0.12, 0.05, 0.9)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Fitness</defName>
+    <label>plant fitness</label>
+    <description>Dev view: 0 to 1, how well the chosen species (debug action "Plant fitness: choose species", else the best of the biome's plants) would grow on each cell, from moisture, soil depth, slope, sun, fertility and shade.</description>
+    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
+    <dependsOn>
+      <li>LL_Moisture</li>
+      <li>LL_SoilDepth</li>
+      <li>LL_Slope</li>
+      <li>LL_Sun</li>
+      <li>LL_Shade</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.6, 0.1, 0.1, 0.5)</color></li>
+        <li><value>0.5</value><color>(0.9, 0.85, 0.3, 0.5)</color></li>
+        <li><value>1</value><color>(0.1, 0.7, 0.2, 0.85)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
 </Defs>

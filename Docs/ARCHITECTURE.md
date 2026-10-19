@@ -48,6 +48,9 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_Slope | rise over run of LL_Landform (hydrology and slope read the natural surface; terraces only shape walking and cliffs); drawn as a vector field using LL_Aspect |
 | LL_Aspect | downhill direction, radians counter-clockwise from east, 0..2π |
 | LL_WaterDistance, LL_Moisture | water proximity, moisture (wetness raised near water) |
+| LL_Sun | sun exposure 0..1 from slope, aspect and latitude (`SunExtension`): sun-facing slopes high, equator flattens aspect |
+| LL_Shade | canopy shade 0..1 from plants now on the map (`ShadeField`: Gaussian shadow per plant, shifted towards the pole). Zero before plants are placed |
+| LL_Fitness | dev view of one species' fitness (debug action "Plant fitness: choose species"), not an input |
 
 **Slope vector field** = LL_Slope (magnitude) + LL_Aspect (direction); `GridMath.SlopeToward` gives the slope along
 any heading. Intended consumers: runoff and erosion, scree/talus placement, cliff facing, sun exposure (latitude),
@@ -152,6 +155,12 @@ Current focus: geological features that read well on the map, worked from the ow
    channel patterns (meanders, splits), sediment fill on low relief (F3), surface rock (`Docs/SURFACE-ROCK-PLAN.md`).
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
+   Framework done (`Source/LivingLandscapes/Flora`): `PlantHabitat` extension (Gaussian response curves: wetness,
+   soilDepth, slope, sun, fertility; stratum, dominance, shade cast/tolerance, cluster radius/strength; defaults
+   derived from vanilla fields), `HabitatSampler.Fitness` (product of responses x shade response), `ShadeField`,
+   layers LL_Sun/LL_Shade/LL_Fitness. Next: write habitats for vanilla plants and tune with the fitness overlay;
+   then the placement pass (strata canopy to ground, parent points + Gaussian clusters, soft-max pick) and the
+   `WildPlantSpawner` regrowth patch using the same scores.
 8. Toggle icons per layer (art).
 9. Revisit rock formation: sedimentary, igneous and metamorphic rock form and erode differently (see
    `GEOLOGY-RULES.md` section 3). The simplified layered-beds model stands until then.

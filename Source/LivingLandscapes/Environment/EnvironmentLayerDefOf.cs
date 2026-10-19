@@ -19,6 +19,9 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_WaterFlow;
     public static EnvironmentLayerDef LL_WaterDistance;
     public static EnvironmentLayerDef LL_Moisture;
+    public static EnvironmentLayerDef LL_Sun;
+    public static EnvironmentLayerDef LL_Shade;
+    public static EnvironmentLayerDef LL_Fitness;
 
     static EnvironmentLayerDefOf()
     {
