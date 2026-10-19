@@ -232,6 +232,7 @@
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_RockStrength</li>
+      <li>LL_Alluvium</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>

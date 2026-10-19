@@ -51,6 +51,8 @@ public static class Patch_GenStep_Plants
 
         RemoveCliffsInWater(map);
         SpawnTalus(map);
+        if (Geology.GeologicalTerrain.AppliesTo(map))
+            Geology.GroundScatter.Apply(map);
         TestRun.OnMapGenerated(map);
     }
 

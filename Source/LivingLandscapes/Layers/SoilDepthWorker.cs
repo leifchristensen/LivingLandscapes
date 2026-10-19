@@ -57,6 +57,13 @@ public class SoilDepthWorker : EnvironmentLayerWorker
                 how = "kept";
             Log.Message($"[LivingLandscapes] Rock share on {context.Map} ({context.Map.TileInfo.HillinessForElevationGen}): the erosion model gave {before:P0}, the tile's range is {share.min:P0} to {share.max:P0}; {how} for {target:P0}.");
         }
+        // Alluvium is soil the rivers laid down: floodplains, levees and bars are deep ground.
+        float[] alluvium = context.Get(EnvironmentLayerDefOf.LL_Alluvium);
+        if (alluvium != null && StageFor(context.Map) == GenerationStage.Elevation)
+        {
+            for (int i = 0; i < soil.Length; i++)
+                soil[i] += alluvium[i];
+        }
         if (StageFor(context.Map) == GenerationStage.Plants)
         {
             TerrainFeature[] features = TerrainFeatures.Classify(context.Map);

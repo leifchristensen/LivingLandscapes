@@ -46,7 +46,7 @@ public class SettlementWorker : EnvironmentLayerWorker
             IntVec3 c = map.cellIndices.IndexToCell(i);
             rock[i] = elevation[c] > Impassable;
             bool deepWater = cover[i] == GroundCover.DeepWater || cover[i] == GroundCover.DeepMovingWater;
-            bool wet = cover[i] != GroundCover.None;
+            bool wet = GroundCovers.IsWetCover(cover[i]);
             bool cliff = cliffs != null && cliffs.Kind[i] != CliffKind.None;
             bool dry = !rock[i] && !wet && !cliff && elevation[c] < Soil;
             open[i] = dry ? 1f : 0f;

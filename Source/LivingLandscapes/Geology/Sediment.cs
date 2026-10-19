@@ -32,6 +32,12 @@ public class SedimentSettings
     public float floodplainWidths = 4f;
     public float maxReach = 30f;
 
+    /// <summary>
+    /// Point bars: in a bend the flow spirals and sweeps sediment to the inner bank. A deposit's spread leans toward the inside of
+    /// the bend by this much at full curvature, and stays coarse there, while the outer (cut) bank gets little and fine.
+    /// </summary>
+    public float bendBias = 2.5f;
+
     /// <summary>Grain size falls off with distance from the channel over this many channel widths (levees and bars coarse, back swamps fine).</summary>
     public float finingWidths = 1.5f;
 
@@ -106,7 +112,7 @@ public static class Sediment
                 grainLoad[r] += carried * grain;
             }
         }
-        Spread(cells, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
+        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         int covered = 0;
@@ -136,7 +142,7 @@ public static class Sediment
     }
 
     /// <summary>Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with distance.</summary>
-    private static void Spread(List<int> cells, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
+    private static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
         SedimentSettings p, out float[] alluvium, out float[] grainSize)
     {
         int n = filled.Length;
@@ -151,6 +157,17 @@ public static class Sediment
             float reach = Mathf.Min(p.floodplainWidths * w, p.maxReach);
             float sigma = Mathf.Max(reach * 0.5f, 1f);
             float level = filled[c] + p.floodHeight;
+            // The inside of the bend: the side the flow turns toward over the next few cells, and how sharply.
+            Vector2 inner = Vector2.zero;
+            if (flow != null && flow[c] != Vector2.zero)
+            {
+                int ahead = c;
+                for (int s = 0; s < 3 && receiver[ahead] >= 0; s++)
+                    ahead = receiver[ahead];
+                Vector2 f1 = flow[c], f2 = flow[ahead] != Vector2.zero ? flow[ahead] : f1;
+                float turn = f1.x * f2.y - f1.y * f2.x;
+                inner = new Vector2(-f1.y, f1.x) * turn;
+            }
             int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
             weights.Clear();
             float sum = 0f;
@@ -165,7 +182,8 @@ public static class Sediment
                     int i = z * sizeX + x;
                     if (d > reach || natural[i] > level)
                         continue;
-                    float weight = Mathf.Exp(-d * d / (2f * sigma * sigma));
+                    float lean = d > 0f ? Vector2.Dot(inner, new Vector2(dx, dz)) / d : 0f;
+                    float weight = Mathf.Exp(-d * d / (2f * sigma * sigma)) * Mathf.Max(0.1f, 1f + p.bendBias * lean);
                     weights.Add((i, weight, d));
                     sum += weight;
                 }
@@ -176,7 +194,10 @@ public static class Sediment
             {
                 float thickness = deposit[c] * weight / sum;
                 alluvium[i] += thickness;
-                grainSum[i] += thickness * depositGrain[c] * Mathf.Exp(-d / Mathf.Max(p.finingWidths * w, 0.5f));
+                int x = i % sizeX - cx, z = i / sizeX - cz;
+                float lean = d > 0f ? Mathf.Max(0f, Vector2.Dot(inner, new Vector2(x, z)) / d) : 0f;
+                float fining = Mathf.Max(p.finingWidths * w * (1f + p.bendBias * lean), 0.5f);
+                grainSum[i] += thickness * depositGrain[c] * Mathf.Exp(-d / fining);
             }
         }
         var covered = new List<float>();

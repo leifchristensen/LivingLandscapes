@@ -16,6 +16,15 @@ public enum GroundCover
     DeepMovingWater,
     Marsh,
     Mud,
+
+    /// <summary>The biome's gravel (river bars of coarse alluvium).</summary>
+    Gravel,
+
+    /// <summary>The biome's lake beach sand (sandy banks and levees).</summary>
+    Sand,
+
+    /// <summary>The biome's most fertile soil (fine alluvium of floodplains).</summary>
+    RichSoil,
 }
 
 /// <summary>
@@ -170,6 +179,9 @@ public static class GroundCovers
     public static bool IsWater(GroundCover cover) =>
         cover == GroundCover.ShallowWater || cover == GroundCover.DeepWater || cover == GroundCover.ShallowMovingWater || cover == GroundCover.DeepMovingWater;
 
+    /// <summary>Water, marsh or mud: wet ground (sediment covers like gravel and sand are dry).</summary>
+    public static bool IsWetCover(GroundCover cover) => IsWater(cover) || cover == GroundCover.Marsh || cover == GroundCover.Mud;
+
     public static TerrainDef TerrainFor(GroundCover cover, IntVec3 cell, Map map)
     {
         switch (cover)
@@ -180,8 +192,21 @@ public static class GroundCovers
             case GroundCover.DeepMovingWater: return MapGenUtility.DeepMovingWaterTerrainAt(cell, map);
             case GroundCover.Marsh: return TerrainDefOf.Marsh;
             case GroundCover.Mud: return MapGenUtility.MudTerrainAt(cell, map);
+            case GroundCover.Gravel: return map.BiomeAt(cell).gravelTerrain ?? TerrainDefOf.Gravel;
+            case GroundCover.Sand: return DryBeach(MapGenUtility.LakeshoreTerrainAt(cell, map));
+            case GroundCover.RichSoil: return RichestSoil(map.BiomeAt(cell));
             default: return null;
         }
+    }
+
+    /// <summary>The biome's lake beach where it is dry ground (sand, gravel, ice); sand where the biome's beach is marsh or mud.</summary>
+    private static TerrainDef DryBeach(TerrainDef beach) => beach != null && !IsWetGround(beach) ? beach : TerrainDefOf.Sand;
+
+    /// <summary>The biome's soil for its highest fertility (rich soil in most biomes).</summary>
+    private static TerrainDef RichestSoil(BiomeDef biome)
+    {
+        List<TerrainThreshold> soils = biome.terrainsByFertility;
+        return soils.NullOrEmpty() ? TerrainDefOf.SoilRich : soils[soils.Count - 1].terrain;
     }
 
     /// <summary>Water, marsh or mud: ground the geology places, so vanilla's noise must not.</summary>
