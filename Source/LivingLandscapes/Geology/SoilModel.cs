@@ -82,7 +82,22 @@ public static class SoilModel
     /// knolls where the soil is thinnest over a neighbourhood (crests, strong beds), not single cells. Which ground turns to rock still
     /// follows slope, convergence and rock strength: only how much changes.
     /// </summary>
-    public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target)
+    /// <summary>Share of the land (cells not under the sea) that stands as mountain rock, from each cell's distance to soil in cells.</summary>
+    public static float RockShare(float[] depthCells, float cellSize, SoilModelExtension p, bool[] sea)
+    {
+        int rock = 0, land = 0;
+        for (int i = 0; i < depthCells.Length; i++)
+        {
+            if (sea != null && sea[i])
+                continue;
+            land++;
+            if (depthCells[i] * cellSize >= p.mountainDepth)
+                rock++;
+        }
+        return rock / (float)Mathf.Max(land, 1);
+    }
+
+    public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target, bool[] sea = null)
     {
         var ones = new float[soil.Length];
         for (int i = 0; i < ones.Length; i++)
@@ -91,13 +106,7 @@ public static class SoilModel
         float Share(float shift)
         {
             float[] depth = GridMath.DistanceTo(i => smooth[i] - shift >= p.rockWallDepth, sizeX, sizeZ);
-            int rock = 0;
-            for (int i = 0; i < depth.Length; i++)
-            {
-                if (depth[i] * cellSize >= p.mountainDepth)
-                    rock++;
-            }
-            return rock / (float)depth.Length;
+            return RockShare(depth, cellSize, p, sea);
         }
         float low = 0f, high = 3f;
         for (int step = 0; step < 14; step++)

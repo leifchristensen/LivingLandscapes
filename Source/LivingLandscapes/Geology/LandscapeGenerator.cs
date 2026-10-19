@@ -21,6 +21,9 @@ public class GeologyGenerationExtension : DefModExtension
     public float reliefMountainous = 180f;
     public float reliefImpassable = 300f;
 
+    /// <summary>How the sea and the land by it are shaped where a coast mutator paints water.</summary>
+    public CoastlineExtension coast = new CoastlineExtension();
+
     /// <summary>Distance between neighbouring world tile centres, used for the regional slope.</summary>
     public float tileSpacingMetres = 30000f;
 
@@ -221,6 +224,9 @@ public static class LandscapeGenerator
                 result[z * sizeX + x] = world.Elevation + (rel - 0.5f) * relief + tilt + rough;
             }
         }
+        int sea = Coastline.Apply(map, result, p.coast);
+        if (sea > 0)
+            Log.Message($"[LivingLandscapes] Coastline on {map}: {sea} sea cells set below the beach, land eased down to it.");
         return result;
     }
 

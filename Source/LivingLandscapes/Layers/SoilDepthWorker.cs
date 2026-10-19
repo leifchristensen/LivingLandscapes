@@ -26,8 +26,9 @@ public class SoilDepthWorker : EnvironmentLayerWorker
         FloatRange share = p.RockShareFor(context.Map.TileInfo.HillinessForElevationGen);
         if (StageFor(context.Map) == GenerationStage.Elevation && share.max > 0f)
         {
+            bool[] sea = Coastline.SeaCells(context.Map);
             float target = share.RandomInRange;
-            float before = Share(soil, context, cellSize, p);
+            float before = Share(soil, context, cellSize, p, sea);
             string how;
             if (before > share.max)
             {
@@ -39,7 +40,7 @@ public class SoilDepthWorker : EnvironmentLayerWorker
                 {
                     float mid = (low + high) / 2f;
                     float[] trial = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p, rockStrength, mid);
-                    if (Share(trial, context, cellSize, p) > target)
+                    if (Share(trial, context, cellSize, p, sea) > target)
                         low = mid;
                     else
                         high = mid;
@@ -49,7 +50,7 @@ public class SoilDepthWorker : EnvironmentLayerWorker
             }
             else if (before < share.min)
             {
-                float shift = SoilModel.CalibrateRock(soil, context.SizeX, context.SizeZ, cellSize, p, target);
+                float shift = SoilModel.CalibrateRock(soil, context.SizeX, context.SizeZ, cellSize, p, target, sea);
                 how = $"soil shifted {shift:+0.00;-0.00} m";
             }
             else
@@ -68,15 +69,9 @@ public class SoilDepthWorker : EnvironmentLayerWorker
         return soil;
     }
 
-    private static float Share(float[] soil, EnvironmentContext context, float cellSize, SoilModelExtension p)
+    private static float Share(float[] soil, EnvironmentContext context, float cellSize, SoilModelExtension p, bool[] sea)
     {
         float[] depth = GridMath.DistanceTo(i => soil[i] >= p.rockWallDepth, context.SizeX, context.SizeZ);
-        int rock = 0;
-        foreach (float d in depth)
-        {
-            if (d * cellSize >= p.mountainDepth)
-                rock++;
-        }
-        return rock / (float)depth.Length;
+        return SoilModel.RockShare(depth, cellSize, p, sea);
     }
 }
