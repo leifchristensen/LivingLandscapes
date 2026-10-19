@@ -182,3 +182,13 @@ processes continuously, never switch shapes.
     neutral weight of 1, then multiplied by the water regime's own nudges; `discharge` nudges where channels start.
   - Old shape fields (wobble, meander, splits, floors) are dead and go in step 6. The log reports the dominant regime
     share per map, for example s1: Meandering 27%, Torrent 22%, Braided 20%, Gorge 14%.
+- 2026-10-19, steps 3 and 5 (commit 0e981e5):
+  - Splits: water divides where the ground also falls away a second way (at least 90 degrees from the main way),
+    with a multiple-flow share slope2^e / (slope1^e + slope2^e). e = spreadExponent / spread nudge, and a split is
+    kept only if the share is itself a channel. Routing runs twice: the first pass reads the regime nudges, the second
+    splits with them.
+  - Mutators as terrain nudges (`WaterTerrainNudges`): centre depression (headwater, which now also sets
+    riverInflow=false), resistant centre knob (river island), relief eased toward the exit (delta).
+  - Invariants pass on s5, s7 and the forced Delta, Headwater and River Island maps.
+  - Follow-ups: #15 (island knob deflects instead of splitting), #16 (delta is one broad body), #17 (headwater has no
+    visible source lake). Step 6 (removing the old code) is #14, for the local model.
