@@ -75,6 +75,16 @@ public class TerrainChannelSettings
     public float widthNoise = 0.15f;
     public float widthNoiseWavelength = 40f;
     public float depthNoise = 0.35f;
+
+    /// <summary>
+    /// Shoals (vanilla's "shallowizer"): where a second, slower noise passes the threshold the bed rises toward the
+    /// surface, leaving this share of the depth, so wide deep rivers break into deep pools and shallow fords. Only in
+    /// channels at least <see cref="minShoalWidth"/> cells wide; wavelength in cells.
+    /// </summary>
+    public float shoalShare = 0.2f;
+    public float shoalThreshold = 0.05f;
+    public float shoalWavelength = 26f;
+    public float minShoalWidth = 5f;
     public float depthNoiseWavelength = 18f;
     public float bankNoise = 0.2f;
     public float bankNoiseWavelength = 6f;
@@ -517,6 +527,7 @@ public static class TerrainChannels
         var bankAmplitude = new float[natural.Length];
         var widthNoise = new Perlin(1.0 / p.widthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var depthNoise = new Perlin(1.0 / p.depthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+        var shoalNoise = new Perlin(1.0 / p.shoalWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var fields = new Dictionary<string, float>();
         for (int k = 0; k < cells.Count; k++)
         {
@@ -538,6 +549,11 @@ public static class TerrainChannels
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));
             depth[c] = Mathf.Max(p.minDepth, p.depthPerDischarge * Mathf.Pow(q, p.depthExponent) * scour * nudge.depth
                                              * (1f + Mathf.Clamp(p.depthNoise * nudge.depthNoise, 0f, 0.9f) * (float)depthNoise.GetValue(x, 0.0, z)));
+            if (width[c] >= p.minShoalWidth)
+            {
+                float shoal = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.shoalThreshold, p.shoalThreshold + 0.25f, (float)shoalNoise.GetValue(x, 0.0, z)));
+                depth[c] = Mathf.Max(p.minDepth, depth[c] * Mathf.Lerp(1f, p.shoalShare, shoal));
+            }
             bankAmplitude[c] = Mathf.Clamp(p.bankNoise * nudge.bankNoise, 0f, 0.8f);
             spread[c] = nudge.spread;
             deposition[c] = nudge.deposition;
