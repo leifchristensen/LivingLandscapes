@@ -8,8 +8,8 @@
       <xpath>/Defs/TileMutatorDef[defName="MixedBiome"]</xpath>
       <value>
         <li Class="LivingLandscapes.Gameplay.EcotoneExtension">
-          <halfWidth>16</halfWidth>
-          <patchScale>7</patchScale>
+          <halfWidth>40</halfWidth>
+          <patchScale>10</patchScale>
         </li>
       </value>
     </match>

@@ -10,10 +10,10 @@ namespace LivingLandscapes.Gameplay;
 public class EcotoneExtension : DefModExtension
 {
     /// <summary>Half-width (cells) of the transition zone on each side of vanilla's boundary.</summary>
-    public float halfWidth = 16f;
+    public float halfWidth = 40f;
 
     /// <summary>Wavelength (cells) of the patches the two biomes interleave in across the zone.</summary>
-    public float patchScale = 7f;
+    public float patchScale = 10f;
 }
 
 /// <summary>
