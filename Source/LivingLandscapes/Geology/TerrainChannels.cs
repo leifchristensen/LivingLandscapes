@@ -43,6 +43,9 @@ public class TerrainChannelSettings
     /// <summary>Steps up and down a channel over which its flow direction is averaged (D8 steps are 45 degrees apart).</summary>
     public int flowSmoothingSteps = 3;
 
+    /// <summary>The map edge within this many cells of where water enters does not drain (the land beyond slopes in).</summary>
+    public float entryGuardCells = 15f;
+
     /// <summary>Gradient (metres per cell) across filled hollows, so water crosses them toward the spill point.</summary>
     public float fillGradient = 1e-3f;
 }
@@ -76,12 +79,33 @@ public static class TerrainChannels
             system.ChannelOf[i] = -1;
         }
 
-        var filled = (float[])height.Clone();
-        GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, p.fillGradient);
-        int[] receiver = GridMath.Receivers(filled, sizeX, sizeZ);
-
         float runoff = Mathf.Max(climate, 0.05f);
         float[] inflow = Inflow(courses, sizeX, sizeZ, riverCentre, runoff, p, worldRiverWidth, out bool[] worldSource, out float vanillaWidth);
+
+        // The map edge drains, except where water enters: there the land beyond slopes in, so it is no outlet.
+        var entries = new List<Vector2>();
+        for (int i = 0; i < n; i++)
+        {
+            if (inflow[i] > 0f)
+                entries.Add(new Vector2(i % sizeX, i / sizeX));
+        }
+        bool IsOutlet(int i)
+        {
+            int x = i % sizeX, z = i / sizeX;
+            if (x != 0 && z != 0 && x != sizeX - 1 && z != sizeZ - 1)
+                return false;
+            var v = new Vector2(x, z);
+            return entries.TrueForAll(e => (e - v).sqrMagnitude > p.entryGuardCells * p.entryGuardCells);
+        }
+        var filled = (float[])height.Clone();
+        GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
+        int[] receiver = GridMath.Receivers(filled, sizeX, sizeZ);
+        // Water reaching a draining edge leaves the map there rather than running along the edge.
+        for (int i = 0; i < n; i++)
+        {
+            if (IsOutlet(i))
+                receiver[i] = -1;
+        }
 
         // Discharge: each cell's own runoff plus inflow, gathered downstream. Every cell adds runoff, so a receiver
         // always carries more than its donors and sorting by discharge orders donors before receivers.
@@ -131,8 +155,22 @@ public static class TerrainChannels
         Vector2[] direction = Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
 
         List<RiverPlan> plans = Trace(cells, receiver, main, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
-        Paint(height, filled, cells, width, depth, direction, planOf, sizeX, sizeZ, p, system);
+        int inHollows = Paint(height, filled, cells, width, depth, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
+        int painted = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (system.ChannelOf[i] >= 0)
+                painted++;
+        }
+        float maxWidth = 0f, maxDepth = 0f;
+        foreach (int c in cells)
+        {
+            maxWidth = Mathf.Max(maxWidth, width[c]);
+            maxDepth = Mathf.Max(maxDepth, depth[c]);
+        }
+        Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills), " +
+                    $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}.");
         return system;
     }
 
@@ -324,7 +362,7 @@ public static class TerrainChannels
     /// surface lies deeper above the ground than the channel's own depth the channel crosses a hollow: the lake model
     /// fills it.
     /// </summary>
-    private static void Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, Vector2[] direction,
+    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, Vector2[] direction,
         int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
     {
         int n = height.Length;
@@ -335,11 +373,15 @@ public static class TerrainChannels
             best[i] = 0f;
             owner[i] = -1;
         }
+        int inHollows = 0;
         var bank = new Perlin(1.0 / p.bankNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         foreach (int c in cells)
         {
             if (filled[c] - height[c] > depth[c])
+            {
+                inHollows++;
                 continue;
+            }
             int cx = c % sizeX, cz = c / sizeX;
             float half = width[c] * 0.5f;
             int reach = Mathf.CeilToInt(half * (1f + p.bankNoise) + 0.5f);
@@ -376,5 +418,6 @@ public static class TerrainChannels
             system.ChannelOf[i] = planOf[c];
             height[i] = Mathf.Min(height[i], level - best[i]);
         }
+        return inHollows;
     }
 }
