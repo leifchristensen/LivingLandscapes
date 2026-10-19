@@ -45,6 +45,22 @@ public class TerrainChannelSettings
     public int flowSmoothingSteps = 3;
 
     /// <summary>
+    /// A world river rising on the map (headwater) is fed by springs over this share of the water regime's centre
+    /// hollow (<see cref="WaterRegimeDef.centreRadiusShare"/>), so its source is a lake rather than a point.
+    /// </summary>
+    public float sourceRadiusShare = 0.5f;
+
+    /// <summary>
+    /// Relief (metres) left on ground a delta flattens: low swells and swales the distributaries divide around.
+    /// Wavelength in cells.
+    /// </summary>
+    public float deltaApronRelief = 1.2f;
+    public float deltaApronWavelength = 24f;
+
+    /// <summary>Ground more than this (metres) above a channel's water surface is not cut into the channel's width.</summary>
+    public float maxBankCut = 1f;
+
+    /// <summary>
     /// Flow spreading (step 3): how readily water divides where the ground falls away two ways. Higher is more
     /// single-thread; regimes divide it by their spread nudge (braided reaches, deltas and wetlands spread more).
     /// </summary>
@@ -94,33 +110,8 @@ public static class TerrainChannels
         }
 
         float runoff = Mathf.Max(climate, 0.05f);
-        float[] inflow = Inflow(courses, sizeX, sizeZ, riverCentre, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
-            out bool[] worldSource, out float vanillaWidth);
-
-        // The map edge drains, except where water enters: there the land beyond slopes in, so it is no outlet.
-        var entries = new List<Vector2>();
-        for (int i = 0; i < n; i++)
-        {
-            if (inflow[i] > 0f)
-                entries.Add(new Vector2(i % sizeX, i / sizeX));
-        }
-        bool IsOutlet(int i)
-        {
-            int x = i % sizeX, z = i / sizeX;
-            if (x != 0 && z != 0 && x != sizeX - 1 && z != sizeZ - 1)
-                return false;
-            var v = new Vector2(x, z);
-            return entries.TrueForAll(e => (e - v).sqrMagnitude > p.entryGuardCells * p.entryGuardCells);
-        }
-        var filled = (float[])height.Clone();
-        GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
-        int[] receiver = GridMath.Receivers(filled, sizeX, sizeZ);
-        // Water reaching a draining edge leaves the map there rather than running along the edge.
-        for (int i = 0; i < n; i++)
-        {
-            if (IsOutlet(i))
-                receiver[i] = -1;
-        }
+        Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth);
 
         // Two passes: the first routes along steepest descent only and reads each channel cell's regime nudges; the
         // second lets water divide where those nudges spread it (splits emerge, step 3), then shapes the result.
@@ -189,6 +180,73 @@ public static class TerrainChannels
                     $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
+    }
+
+    /// <summary>
+    /// The drainage the channels follow: water entering the map, the depression-filled landform and each cell's
+    /// steepest-descent receiver. The map edge drains, except where water enters: there the land beyond slopes in.
+    /// Water reaching a draining edge leaves the map there rather than running along the edge.
+    /// </summary>
+    private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
+        WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
+        out float[] inflow, out bool[] worldSource, out float vanillaWidth)
+    {
+        int n = sizeX * sizeZ;
+        float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
+        inflow = Inflow(courses, sizeX, sizeZ, riverCentre, sourceRadius, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
+            out worldSource, out vanillaWidth);
+        var entries = new List<Vector2>();
+        for (int i = 0; i < n; i++)
+        {
+            int x = i % sizeX, z = i / sizeX;
+            if (inflow[i] > 0f && (x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1))
+                entries.Add(new Vector2(x, z));
+        }
+        bool IsOutlet(int i)
+        {
+            int x = i % sizeX, z = i / sizeX;
+            if (x != 0 && z != 0 && x != sizeX - 1 && z != sizeZ - 1)
+                return false;
+            var v = new Vector2(x, z);
+            return entries.TrueForAll(e => (e - v).sqrMagnitude > p.entryGuardCells * p.entryGuardCells);
+        }
+        filled = (float[])height.Clone();
+        GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
+        receiver = GridMath.Receivers(filled, sizeX, sizeZ);
+        for (int i = 0; i < n; i++)
+        {
+            if (IsOutlet(i))
+                receiver[i] = -1;
+        }
+    }
+
+    /// <summary>
+    /// The cell of the world river's course (steepest descent from where it enters) nearest to <paramref name="point"/>,
+    /// or <paramref name="point"/> itself if no world river enters. Mutator structures that sit in the river (an
+    /// island's knob) are placed there.
+    /// </summary>
+    public static Vector2 NearestOnWorldRiver(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 point,
+        WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
+    {
+        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _);
+        Vector2 best = point;
+        float bestDistance = float.MaxValue;
+        for (int i = 0; i < worldSource.Length; i++)
+        {
+            if (!worldSource[i])
+                continue;
+            for (int c = i, steps = 0; c >= 0 && steps < worldSource.Length; c = receiver[c], steps++)
+            {
+                var v = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
+                float d = (v - point).sqrMagnitude;
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    best = v;
+                }
+            }
+        }
+        return best;
     }
 
     /// <summary>
@@ -288,7 +346,7 @@ public static class TerrainChannels
     /// channels with the runoff of the area they drain. On a tile the world gives no river, nothing entering is larger
     /// than a creek, as in vanilla. A world river that does not enter (headwater) rises at the river centre.
     /// </summary>
-    private static float[] Inflow(List<ChannelCourse> courses, int sizeX, int sizeZ, Vector2 riverCentre, float runoff,
+    private static float[] Inflow(List<ChannelCourse> courses, int sizeX, int sizeZ, Vector2 riverCentre, float sourceRadius, float runoff,
         bool riverEnters, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out bool[] worldSource, out float vanillaWidth)
     {
         int n = sizeX * sizeZ;
@@ -321,9 +379,22 @@ public static class TerrainChannels
         }
         if (anyWorldRiver && !worldEnters)
         {
-            int cell = RiverChannels.Index(riverCentre, sizeX, sizeZ);
-            inflow[cell] += DischargeFor(vanillaWidth);
-            worldSource[cell] = true;
+            // Springs feeding the river's source: its discharge rises over the hollow at the river centre (the lake
+            // model fills it and the river leaves at its spill point), or at the centre cell if there is no hollow.
+            var springs = new List<int>();
+            for (int i = 0; i < n && sourceRadius > 0f; i++)
+            {
+                if ((new Vector2(i % sizeX + 0.5f, i / sizeX + 0.5f) - riverCentre).sqrMagnitude <= sourceRadius * sourceRadius)
+                    springs.Add(i);
+            }
+            if (springs.Count == 0)
+                springs.Add(RiverChannels.Index(riverCentre, sizeX, sizeZ));
+            float each = DischargeFor(vanillaWidth) / springs.Count;
+            foreach (int cell in springs)
+            {
+                inflow[cell] += each;
+                worldSource[cell] = true;
+            }
         }
         return inflow;
     }
@@ -561,6 +632,10 @@ public static class TerrainChannels
                     float edge = half * (1f + bankAmplitude[c] * (float)bank.GetValue(x, 0.0, z)) + 0.5f;
                     float r = Mathf.Sqrt(dx * dx + dz * dz);
                     if (r >= edge)
+                        continue;
+                    // Water spreads over ground near its surface, not through high ground: banks, knobs and valley
+                    // sides higher than this stay dry, so the channel narrows there and splits around islands.
+                    if (r > 0f && height[z * sizeX + x] > filled[c] + p.maxBankCut)
                         continue;
                     float t = r / edge;
                     float d = Mathf.Max(p.minDepth, depth[c] * (1f - t * t));
