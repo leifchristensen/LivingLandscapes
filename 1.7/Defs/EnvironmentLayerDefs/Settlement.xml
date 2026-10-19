@@ -33,7 +33,7 @@
         <refugeInner>10</refugeInner>
         <refugeOuter>32</refugeOuter>
         <anchorSigma>6</anchorSigma>
-        <centralFraction>0.5</centralFraction>
+        <centralFraction>0.4</centralFraction>
         <anchorSharpness>8</anchorSharpness>
         <searchRadius>14</searchRadius>
         <terms>
