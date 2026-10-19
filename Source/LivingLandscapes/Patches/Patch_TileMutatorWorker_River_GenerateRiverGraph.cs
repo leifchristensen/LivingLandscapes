@@ -11,13 +11,25 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// With geological terrain on, a world river follows the valley the geology carved for it instead of vanilla's
-/// straight line: its course becomes a chain of river segments, which vanilla then fills with water, banks and flow.
-/// Variants with their own river layout (confluence, delta, river island, headwater) keep vanilla's behaviour.
+/// With geological terrain on, world rivers follow the channels the geology planned and carved instead of vanilla's
+/// straight lines: every world river channel (the main river, a confluence's other rivers, side branches and delta
+/// distributaries) becomes a chain of river segments. River variants (delta, confluence, river island, headwater) are
+/// taken over too: their layout comes from the map's water regime. If a tile has several river mutators, only the
+/// first lays the segments.
 /// </summary>
-[HarmonyPatch(typeof(TileMutatorWorker_River), "GenerateRiverGraph")]
+[HarmonyPatch]
 public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
 {
+    /// <summary>The base method and every river variant's override (delta, confluence, river island, headwater, modded).</summary>
+    public static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly;
+        return new[] { typeof(TileMutatorWorker_River) }.Concat(typeof(TileMutatorWorker_River).AllSubclassesNonAbstract())
+            .Select(type => type.GetMethod("GenerateRiverGraph", flags, null, new[] { typeof(Map) }, null))
+            .Where(method => method != null);
+    }
+
     /// <summary>River segments extend this far past the map edge, as vanilla's do.</summary>
     private const float EdgeOverhang = 25f;
 
@@ -32,7 +44,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
 
     public static bool Prefix(TileMutatorWorker_River __instance, Map map)
     {
-        if (__instance.GetType() != typeof(TileMutatorWorker_River) || !GeologicalTerrain.AppliesTo(map))
+        if (!GeologicalTerrain.AppliesTo(map))
             return true;
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null)
@@ -43,24 +55,71 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         WorldContext world = WorldContext.For(map, 1f);
         if (!world.HasRiver)
             return true;
-        List<Vector2> course = RiverCourse.FromPlan(environment.PlannedRiverCourse, map.Size.x, map.Size.z);
-        if (course == null)
+        RiverSystem rivers = environment.PlannedRivers;
+        if (rivers?.WorldRiver == null)
         {
             Log.Warning($"[LivingLandscapes] No planned river course crosses {map}; using vanilla's river.");
             return true;
         }
+        if (map.waterInfo.riverGraph.Any(IsGeologicalNode))
+            return false;
 
-        float width = RiverCourse.WidthOnMap(surface);
-        course[0] -= (course[1] - course[0]).normalized * EdgeOverhang;
+        LayChannels(map, rivers, true, out int segments, out int worldRivers, out int sides);
+        Log.Message($"[LivingLandscapes] Rivers on {map} ({rivers.Regime?.defName ?? "no water regime"}) follow the terrain: " +
+                    $"{worldRivers} world rivers in {segments} segments, {sides} side channels.");
+        return false;
+    }
+
+    /// <summary>
+    /// Lays planned channels into the river graph as segments: world rivers only on a tile with a world river (vanilla's
+    /// river worker builds a depth map per segment, so creeks stay out of it), every channel on a tile without one
+    /// (nothing reads the graph there but vanilla's flow debug view, which draws nothing on an empty graph).
+    /// </summary>
+    public static void LayChannels(Map map, RiverSystem rivers, bool worldRiversOnly, out int segments, out int channels, out int sides)
+    {
+        segments = channels = sides = 0;
+        foreach (RiverPlan plan in rivers.Channels)
+        {
+            if (worldRiversOnly && plan.VanillaWidth <= 0f)
+                continue;
+            channels++;
+            // The main channel in pieces of equal width (narrower beside islands), then the side branches.
+            int start = 0;
+            for (int i = 1; i <= plan.Main.Count; i++)
+            {
+                if (i < plan.Main.Count && plan.MainWidth[i] == plan.MainWidth[start])
+                    continue;
+                List<Vector2> piece = plan.Main.GetRange(start, Mathf.Min(i + 1, plan.Main.Count) - start);
+                // Channels entering from beyond the map run on past the edge; those rising on the map start where they rise.
+                Vector2 head = plan.Main[0];
+                bool upstreamEdge = start == 0 && Mathf.Min(Mathf.Min(head.x, head.y), Mathf.Min(map.Size.x - head.x, map.Size.z - head.y)) <= 2f;
+                segments += AddNodes(map, piece, plan.MainWidth[start], upstreamEdge, i >= plan.Main.Count && plan.Parent < 0);
+                start = i;
+            }
+            foreach (RiverPlan.SideBranch side in plan.Sides)
+                segments += AddNodes(map, side.Points, side.Width, false, side.ToBaseLevel);
+            sides += plan.Sides.Count;
+        }
+    }
+
+    /// <summary>Lays a polyline as river segments, overlapping at joints; ends at the map edge run on past it.</summary>
+    private static int AddNodes(Map map, List<Vector2> line, float width, bool upstreamEdge, bool downstreamEdge)
+    {
+        List<Vector2> course = RiverCourse.Simplify(line, 1f);
+        if (course.Count < 2)
+            return 0;
         int last = course.Count - 1;
-        course[last] += (course[last] - course[last - 1]).normalized * EdgeOverhang;
+        if (upstreamEdge)
+            course[0] -= (course[1] - course[0]).normalized * EdgeOverhang;
+        if (downstreamEdge)
+            course[last] += (course[last] - course[last - 1]).normalized * EdgeOverhang;
         for (int i = 0; i < last; i++)
         {
             Vector2 a = course[i], b = course[i + 1];
             Vector2 overlap = (b - a).normalized * width * JointOverlap;
-            if (i > 0)
+            if (i > 0 || !upstreamEdge)
                 a -= overlap;
-            if (i < last - 1)
+            if (i < last - 1 || !downstreamEdge)
                 b += overlap;
             var node = new RiverNode
             {
@@ -71,7 +130,6 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
             geologicalNodes.Add(node, null);
             map.waterInfo.riverGraph.Add(node);
         }
-        Log.Message($"[LivingLandscapes] River on {map} follows the terrain in {last} segments.");
-        return false;
+        return last;
     }
 }

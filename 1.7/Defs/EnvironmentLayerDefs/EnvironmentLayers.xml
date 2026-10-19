@@ -48,6 +48,26 @@
     </overlay>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
+        <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
+             absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
+             drainage lines are seeps (saturated ground: marsh, mud). -->
+        <terrainChannels>
+          <absorption>0.3</absorption>
+          <minMovingWidth>2</minMovingWidth>
+          <biomeAbsorption>
+            <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
+            <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>
+            <li><biome>ColdBog</biome><absorption>0</absorption></li>
+            <li><biome>Tundra</biome><absorption>0.1</absorption></li>
+            <li><biome>IceSheet</biome><absorption>0.1</absorption></li>
+            <li><biome>TropicalRainforest</biome><absorption>0.3</absorption></li>
+            <li><biome>BorealForest</biome><absorption>0.3</absorption></li>
+            <li><biome>TemperateForest</biome><absorption>0.4</absorption></li>
+            <li><biome>AridShrubland</biome><absorption>0.5</absorption></li>
+            <li><biome>Desert</biome><absorption>0.6</absorption></li>
+            <li><biome>ExtremeDesert</biome><absorption>0.7</absorption></li>
+          </biomeAbsorption>
+        </terrainChannels>
         <cellSize>1</cellSize>
         <strata>
           <bedThickness>8~30</bedThickness>
@@ -82,10 +102,72 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
+        <!-- Channel network (rules V1-V3): channels first, valleys follow; widths compressed to map scale. -->
+        <network>
+          <sourceShare>0.02</sourceShare>
+          <minLengthInside>20</minLengthInside>
+          <!-- Vanilla width by class (creek 4, river 6, large 14, huge 30) to map width. -->
+          <worldRiverWidth>
+            <points>
+              <li>(4, 3)</li>
+              <li>(6, 6)</li>
+              <li>(14, 12)</li>
+              <li>(30, 24)</li>
+            </points>
+          </worldRiverWidth>
+          <!-- The map's own channels by stream order. -->
+          <widthByOrder>
+            <points>
+              <li>(1, 2.5)</li>
+              <li>(2, 3.5)</li>
+              <li>(3, 5)</li>
+              <li>(4, 7)</li>
+              <li>(6, 10)</li>
+            </points>
+          </widthByOrder>
+          <tributaryShare>0.7</tributaryShare>
+        </network>
+        <!-- Channel processes (V4, V5); how much each acts per reach comes from the channel regimes (Defs/WaterRegimes). -->
+        <channels>
+          <spacing>2</spacing>
+          <reachWidths>5</reachWidths>
+          <minReachLength>20</minReachLength>
+          <meanderSteps>500</meanderSteps>
+          <migrationRate>4</migrationRate>
+          <migrationStepWidths>0.02</migrationStepWidths>
+          <localWeight>-1</localWeight>
+          <upstreamWeight>2.5</upstreamWeight>
+          <decayWidths>0.6</decayWidths>
+          <upstreamMaps>2</upstreamMaps>
+          <cutoffWidths>1.7</cutoffWidths>
+          <wallHeight>1.5</wallHeight>
+          <bankStrengthExponent>1</bankStrengthExponent>
+          <splitConfinement>6</splitConfinement>
+          <upstreamWidths>10</upstreamWidths>
+          <floodDepth>1.5</floodDepth>
+          <deltaWidths>8</deltaWidths>
+          <minIslandLength>24</minIslandLength>
+          <branchWidthShare>0.6</branchWidthShare>
+          <minIslandErodibility>0.2</minIslandErodibility>
+        </channels>
+        <!-- Channel beds and valleys (V1, V6, W5). -->
         <riverBed>
-          <depth>0.6</depth>
+          <depthPerSqrtWidth>0.35</depthPerSqrtWidth>
+          <rimDepth>0.2</rimDepth>
+          <riffleMinWidth>12</riffleMinWidth>
+          <riffleShare>0.35</riffleShare>
+          <poolSpacingWidths>6</poolSpacingWidths>
+          <thalwegShift>0.6</thalwegShift>
           <bankWidth>4</bankWidth>
-          <margin>2</margin>
+          <outerBankFactor>0.3</outerBankFactor>
+          <innerBankFactor>2</innerBankFactor>
+          <sharpBendWidths>3</sharpBendWidths>
+          <floorHeightPerSqrtWidth>0.25</floorHeightPerSqrtWidth>
+          <floorSlope>0.003</floorSlope>
+          <maxFloorCells>40</maxFloorCells>
+          <wallWidth>10</wallWidth>
+          <oxbowDepth>0.6</oxbowDepth>
+          <oxbowWidthShare>0.7</oxbowWidthShare>
         </riverBed>
         <microRelief>0.3</microRelief>
         <microWavelength>6</microWavelength>
@@ -302,6 +384,7 @@
     <label>surface water</label>
     <description>Depth of standing and flowing water in metres, from the landform: lakes fill closed hollows to the level where rain on their catchment balances evaporation; streams run where enough ground drains, wider the more it drains. Terrain, cliffs and plants all follow it.</description>
     <workerClass>LivingLandscapes.Layers.SurfaceWaterWorker</workerClass>
+    <precision>UShort</precision>
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_DrainageArea</li>
@@ -326,13 +409,6 @@
         <runoffShare>0.3</runoffShare>
         <minLakeDepth>0.25</minLakeDepth>
         <minLakeCells>12</minLakeCells>
-        <streamArea>2.8</streamArea>
-        <widthPerSqrtArea>0.04</widthPerSqrtArea>
-        <maxStreamWidth>6</maxStreamWidth>
-        <streamDepth>0.3</streamDepth>
-        <streamDepthPerWidth>0.1</streamDepthPerWidth>
-        <minFlow>0.4</minFlow>
-        <fullFlowAreaAbove>1.5</fullFlowAreaAbove>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

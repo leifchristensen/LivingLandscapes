@@ -64,7 +64,7 @@ public static class RiverCourse
         return points;
     }
 
-    private static List<Vector2> Simplify(List<Vector2> points, float tolerance)
+    public static List<Vector2> Simplify(List<Vector2> points, float tolerance)
     {
         if (points.Count < 3)
             return points;

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Channel regimes (Docs/WATER-AUDIT.md, step 4): gentle nudges, not shapes. At every channel cell each regime
+    weighs in by how fully the cell's data matches its conditions (soft edges: within "soft" of a min or max the
+    condition holds partly), times the map's water regime weight for it. The weighted factors are blended with a
+    neutral weight of 1, so a weak match nudges little and no regime switches anything on or off. Fields per cell:
+      Discharge     log10 of discharge (drainage area times climate wetness, plus inflow)
+      Slope         water drop per cell over the next few cells (metres per cell)
+      BankStrength  rock strength under the channel, 0..1
+      Confinement   valley floor width over channel width
+    Nudges (factors, keep within about 0.5..3): width, depth, widthNoise, depthNoise, bankNoise, spread (water
+    divides more readily where ground falls away two ways: splits), deposition (bars settle more readily where the
+    flow loses power: islands and fords).
+  -->
+
+  <!-- Narrow, deep, even channels cut into strong rock. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Gorge</defName>
+    <label>gorge</label>
+    <order>10</order>
+    <conditions>
+      <li><field>Confinement</field><max>3</max><soft>1.5</soft></li>
+      <li><field>BankStrength</field><min>0.45</min><soft>0.1</soft></li>
+    </conditions>
+    <nudges>
+      <width>0.7</width>
+      <depth>1.4</depth>
+      <widthNoise>0.5</widthNoise>
+      <bankNoise>0.6</bankNoise>
+      <spread>0.5</spread>
+      <deposition>0.3</deposition>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- Steep, shallow, broken water: patchy depth (rapids), ragged banks. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Torrent</defName>
+    <label>torrent</label>
+    <order>20</order>
+    <conditions>
+      <li><field>Slope</field><min>0.2</min><soft>0.1</soft></li>
+    </conditions>
+    <nudges>
+      <width>0.85</width>
+      <depth>0.75</depth>
+      <depthNoise>1.8</depthNoise>
+      <bankNoise>1.5</bankNoise>
+      <spread>0.8</spread>
+      <deposition>0.5</deposition>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- Wide and shallow on moderate slopes in open valleys: shallow bars through the channel. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Braided</defName>
+    <label>braided</label>
+    <order>30</order>
+    <conditions>
+      <li><field>Slope</field><min>0.02</min><max>0.2</max><soft>0.01</soft></li>
+      <li><field>Confinement</field><min>5</min><soft>2</soft></li>
+      <li><field>Discharge</field><min>3.3</min><soft>0.3</soft></li>
+    </conditions>
+    <nudges>
+      <width>1.6</width>
+      <depth>0.6</depth>
+      <depthNoise>2</depthNoise>
+      <bankNoise>1.4</bankNoise>
+      <spread>2</spread>
+      <deposition>1.8</deposition>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- Large rivers in broad valleys: wider, with varied width. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Anabranching</defName>
+    <label>anabranching</label>
+    <order>40</order>
+    <conditions>
+      <li><field>Confinement</field><min>6</min><soft>2</soft></li>
+      <li><field>Discharge</field><min>4</min><soft>0.4</soft></li>
+    </conditions>
+    <nudges>
+      <width>1.3</width>
+      <depth>0.9</depth>
+      <widthNoise>1.6</widthNoise>
+      <spread>1.6</spread>
+      <deposition>1.5</deposition>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- Marsh threads: narrow, shallow, ragged water on flat, wet ground. Only where a water regime lists it. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_MarshThread</defName>
+    <label>marsh thread</label>
+    <order>45</order>
+    <exclusive>true</exclusive>
+    <conditions>
+      <li><field>Slope</field><max>0.02</max><soft>0.01</soft></li>
+    </conditions>
+    <nudges>
+      <width>0.7</width>
+      <depth>0.5</depth>
+      <bankNoise>2</bankNoise>
+      <spread>2.5</spread>
+      <deposition>1.2</deposition>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+  <!-- Gentle slopes in soft ground: deeper, steadier water with varied width. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_Meandering</defName>
+    <label>meandering</label>
+    <order>50</order>
+    <conditions>
+      <li><field>Slope</field><max>0.02</max><soft>0.01</soft></li>
+      <li><field>Confinement</field><min>4</min><soft>2</soft></li>
+      <li><field>BankStrength</field><max>0.55</max><soft>0.1</soft></li>
+    </conditions>
+    <nudges>
+      <depth>1.15</depth>
+      <widthNoise>1.4</widthNoise>
+      <depthNoise>0.8</depthNoise>
+    </nudges>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
+</Defs>

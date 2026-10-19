@@ -14,6 +14,8 @@ public enum LandformShape
     Ramp,
     /// <summary>A round area (plateaus, domes, craters). <see cref="LandformExtension.size"/> is its radius.</summary>
     Disk,
+    /// <summary>A band along a half-line from a point (a river valley from where rivers meet to the map edge). <see cref="LandformExtension.size"/> is its half-width.</summary>
+    Ray,
 }
 
 public enum LandformOrientation
@@ -64,10 +66,11 @@ public class LandformExtension : DefModExtension
 /// <summary>A tile's landforms, resolved to directions for one map.</summary>
 public class Landforms
 {
-    private readonly List<(LandformExtension form, Vector2 direction)> forms = new List<(LandformExtension, Vector2)>();
+    private readonly List<(LandformExtension form, Vector2 direction, Vector2 origin)> forms = new List<(LandformExtension, Vector2, Vector2)>();
     private readonly Perlin warpX;
     private readonly Perlin warpZ;
 
+    /// <param name="riverValley">The valley world rivers run in: laid as rays from the river centre (see <see cref="WorldContext.RiverCentre"/>).</param>
     public Landforms(Map map, WorldContext world, LandformExtension riverValley = null)
     {
         warpX = new Perlin(4.0, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
@@ -76,10 +79,20 @@ public class Landforms
         {
             var form = mutator.GetModExtension<LandformExtension>();
             if (form != null)
-                forms.Add((form, Direction(form.orientation, world)));
+                forms.Add((form, Direction(form.orientation, world), Vector2.zero));
         }
+        // World rivers: a valley from where the rivers meet toward each river's side of the map, and one toward the exit.
         if (riverValley != null && world.HasRiver)
-            forms.Add((riverValley, world.RiverFlow));
+        {
+            var ray = new LandformExtension
+            {
+                shape = LandformShape.Ray, size = riverValley.size, edge = riverValley.edge, upliftInside = riverValley.upliftInside,
+                upliftOutside = riverValley.upliftOutside, erodibilityInside = riverValley.erodibilityInside, warp = riverValley.warp,
+            };
+            foreach (WorldContext.RiverInflow inflow in world.RiverInflows)
+                forms.Add((ray, inflow.From, world.RiverCentre));
+            forms.Add((ray, world.RiverExit, world.RiverCentre));
+        }
     }
 
     public bool Any => forms.Count > 0;
@@ -99,9 +112,9 @@ public class Landforms
     /// <summary>Adjusts uplift and erodibility at a point given in map-width fractions from the map centre.</summary>
     public void Apply(Vector2 p, ref float uplift, ref float erodibility)
     {
-        foreach ((LandformExtension form, Vector2 dir) in forms)
+        foreach ((LandformExtension form, Vector2 dir, Vector2 origin) in forms)
         {
-            Vector2 q = p + form.warp * new Vector2((float)warpX.GetValue(p.x, 0.0, p.y), (float)warpZ.GetValue(p.x, 0.0, p.y));
+            Vector2 q = p + form.warp * new Vector2((float)warpX.GetValue(p.x, 0.0, p.y), (float)warpZ.GetValue(p.x, 0.0, p.y)) - origin;
             float inside = Inside(form, dir, q);
             uplift += form.upliftInside * inside + form.upliftOutside * (1f - inside);
             erodibility *= Mathf.Lerp(1f, form.erodibilityInside, inside);
@@ -119,6 +132,13 @@ public class Landforms
                 // Axis runs along dir, shifted sideways by offset.
                 var normal = new Vector2(-dir.y, dir.x);
                 float distance = Mathf.Abs(Vector2.Dot(q, normal) - form.offset);
+                return 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(form.size - edge, form.size + edge, distance));
+            }
+            case LandformShape.Ray:
+            {
+                // Along the half-line from the origin, with a round end at the origin.
+                float along = Vector2.Dot(q, dir);
+                float distance = along < 0f ? q.magnitude : Mathf.Abs(Vector2.Dot(q, new Vector2(-dir.y, dir.x)));
                 return 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(form.size - edge, form.size + edge, distance));
             }
             case LandformShape.Ramp:
