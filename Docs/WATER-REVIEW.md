@@ -194,3 +194,59 @@ physical. Targets 11-13 (custom maps) show the look wanted. These are the rules 
 
 Owner decisions needed: channel widths compressed to targets 11-13 (instead of vanilla's world widths), and
 channels first with valleys built around them (instead of terrain first).
+
+### 5.4 The rules tested against targets 1-10
+
+✓ holds, ~ holds in part, ✗ contradicted, - not applicable.
+
+| Target | V1 channels first | V2 network | V3 narrow width | V4 curves + wobble | V5 fans | V6 deep thread | V7 base level | V8 thin wet banks |
+|---|---|---|---|---|---|---|---|---|
+| 1 Valley through mountains | ~ centred, but floor width set by rock (basins, narrows), not by the channel | ~ one river, few gullies | ✓ | ✓ | - | ✗ pools and runs, water comes and goes | ✓ lakes | ~ wide green strip |
+| 2 Desert delta | ~ canyon yes; on the open plain no valley | ~ one river | ✓ 8-10 | ✗ wide meanders, oxbow | ✓ delta at the coast | ✓ | ✓ sea | ✓ |
+| 3 Marsh | ✗ flat, no valleys; spires stand alone | ✗ a web of loops, not a tree | ✓ 2-5 | ✓ | - | ✗ all shallow | ✓ | ✗ marsh everywhere |
+| 4 Mountain foot | ~ valley heads yes, open plain no | ✓ tree | ✓ 4-6 | ✗ loops on the plain | ~ fans at the foot | ✓ | ✓ edge | ✓ green patches |
+| 5 Lakes | - | - | - | - | - | - | ✓ lakes in hollows | ✓ |
+| 6 Entrenched meanders | ✓ rock walls follow the bends | ~ one river | ✓ 8-12 | ✗ tight meanders cut into rock | ~ side channels, bars | ✓ | ✓ | ✓ bars |
+| 7 Basin between narrows | ✓ the basin around the river | ~ one river | ✓ 8-15 per channel | ✓ | ~ splits, but **rejoin** before the next narrows | ✓ | ✓ | ✗ whole basin wet |
+| 8 Glacial plain | ~ open plain, no valleys | ✓ converge, then fan again | ✓ 5-10 | ✓ | ✓ mouths at the coast | ✓ | ✓ sea | ✓ |
+| 9 Cove, cave river | ✓ cut through rock | - | ✓ about 6 | ✓ almost straight | - | ✓ | ✓ bay | - |
+| 10 Broad river | ✓ midpoint of the valley | ~ one river | ✗ about 30 | ✓ gentle | - | ✓ deep centre | ✓ edges | ✗ broad floodplain band |
+
+**Verdict:** V7 holds everywhere, and V3, V4 and V6 hold in most targets. Every contradiction has a clear
+condition, so each becomes a variant chosen by a rule instead of an exception.
+
+### 5.5 Revised rules
+
+- **V1 Channels first; valleys scale with relief.** Lay out channels first. The valley floor's width comes from the
+  channel's size and the rock strength along it: soft rock gives basins, hard rock gives narrows (1, 7). The valley's
+  depth comes from the tile's relief, so on flat tiles channels lie on open ground (2, 3, 4, 8) without
+  contradicting the rule.
+- **V2 Tree by default; loops on flat, wet or heavily loaded ground.** Channels join into a tree. Where the ground
+  is nearly flat with a high water table (marsh, 3) or heavily loaded with sediment (meltwater, 8), channels split
+  and rejoin into loops.
+- **V3 Width by class, compressed to map scale.** A ladder of classes: creek 2-4 cells, stream or river 6-10, large
+  river 12-20, great river 25-30 (10). Vanilla's river class picks the rung, so vanilla's scaling is kept as an
+  order, but the width fits the map. Tributaries take the rung below their trunk.
+- **V4 Shape from confinement and slope.**
+  - Confined or sloping channels: gentle curves with a small wobble (default; 1, 9, 11-13).
+  - Open, nearly flat ground: real meanders with loops and oxbows, their size scaled to the channel's width
+    (2, 4, 10 gently).
+  - Hard rock under the meanders: the bends cut into rock, as entrenched meanders (6).
+- **V5 Splits where confinement ends.** At a base level (sea, lake): a fan of distributaries around teardrop islands
+  (2, 8, 12). In a basin between narrows: anabranches that rejoin before the next narrows (7). At a mountain foot:
+  alluvial fans (4). Islands are seeded on rock knobs and high points.
+- **V6 Deep thread from width and water supply.** A continuous deep thread runs through rivers from about 6 cells
+  wide. Creeks and marsh webs stay shallow (3, 11). In arid valleys with deep gravel the river may sink and
+  reappear, as pools and runs (1).
+- **V7 Every channel ends at a base level** (unchanged).
+- **V8 Wet band scales with channel size and climate.** 1-2 cells along creeks and on arid tiles (2, 11). A broad
+  floodplain band along great rivers (10) and wet basins (1, 7). Marsh covers flat ground with a high water table
+  (3).
+
+### 5.6 What carries over from the current branch
+
+- Meander migration stays, but only for open, flat ground (V4), with bends scaled to the compressed width.
+- Splitting (V5) moves from a deposition test to confinement release plus base level.
+- The carved cross-section stays (V6). Pools and riffles stay only for larger rivers, as fords.
+- Floodplain wetness from drainage area stays (V8).
+- New work: the channel network plan (V1, V2) and the width ladder (V3).
