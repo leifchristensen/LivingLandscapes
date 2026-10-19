@@ -22,6 +22,7 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Sun;
     public static EnvironmentLayerDef LL_Shade;
     public static EnvironmentLayerDef LL_Fitness;
+    public static EnvironmentLayerDef LL_Settlement;
 
     static EnvironmentLayerDefOf()
     {

@@ -50,6 +50,18 @@ public class MapComponent_Environment : MapComponent
     /// <summary>Rock chunks to scatter below cliff faces once terrain and water are final. Not saved.</summary>
     public System.Collections.Generic.List<(IntVec3 cell, ThingDef chunk)> PlannedTalus { get; set; }
 
+    /// <summary>
+    /// Where the map's best settlement ground lies (<see cref="Gameplay.SettlementSiting"/>), chosen before rocks, roads and
+    /// resources so they can use it; the start spot is picked near it. Invalid when siting is off. Not saved.
+    /// </summary>
+    public IntVec3 SettlementAnchor { get; set; } = IntVec3.Invalid;
+
+    /// <summary>The colony's start spot as map generation left it (vanilla's or the one moved to the anchor); for tests and exports. Not saved.</summary>
+    public IntVec3 StartSpot { get; set; } = IntVec3.Invalid;
+
+    /// <summary>LL_Settlement smoothed over the neighbourhood of a camp, per cell. Not saved.</summary>
+    public float[] SettlementSmoothed { get; set; }
+
     public EnvironmentOverlay Overlay { get; }
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);

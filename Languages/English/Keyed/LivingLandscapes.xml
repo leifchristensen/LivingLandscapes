@@ -25,4 +25,6 @@ In development: this option has no effect yet.</LL_GeologicalTerrainDesc>
   <LL_SupportedTerrainMods>Supported terrain and world mods active: {0}</LL_SupportedTerrainMods>
   <LL_UnsupportedTerrainMods>Other mods that change terrain generation: {0}. If maps look wrong, turn geologically driven terrain off.</LL_UnsupportedTerrainMods>
 
+  <LL_GameplaySiting>Gameplay siting</LL_GameplaySiting>
+  <LL_GameplaySitingTip>Shape what vanilla places around the terrain for play: the start spot on good settlement ground (level, near water, room to farm, defensible), ore in veins that follow the rock and grow rarer with distance, discoveries in interesting ground. Off: vanilla's random placement. Applies to new maps.</LL_GameplaySitingTip>
 </LanguageData>

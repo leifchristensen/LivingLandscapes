@@ -93,6 +93,7 @@ public static class LayerImageExporter
             }
         }
 
+        MarkStartSpot(map, pixels, width);
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
         texture.SetPixels(pixels);
         texture.Apply();
@@ -152,11 +153,39 @@ public static class LayerImageExporter
                 }
             }
         }
+        MarkStartSpot(map, pixels, sizeX * PixelsPerCell);
         var texture = new Texture2D(sizeX * PixelsPerCell, sizeZ * PixelsPerCell, TextureFormat.RGBA32, false);
         texture.SetPixels(pixels);
         texture.Apply();
         texture.SaveAsPNG(path);
         Object.Destroy(texture);
+    }
+
+    /// <summary>A magenta ring round the start spot, a cyan dot on the settlement anchor.</summary>
+    private static void MarkStartSpot(Map map, Color[] pixels, int width)
+    {
+        var environment = map.GetComponent<MapComponent_Environment>();
+        if (environment == null)
+            return;
+        void Ring(IntVec3 cell, int radius, Color color)
+        {
+            if (!cell.IsValid)
+                return;
+            int cx = cell.x * PixelsPerCell + PixelsPerCell / 2, cy = cell.z * PixelsPerCell + PixelsPerCell / 2;
+            for (int dy = -radius; dy <= radius; dy++)
+            {
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    int d2 = dx * dx + dy * dy;
+                    int x = cx + dx, y = cy + dy;
+                    if (d2 > radius * radius || d2 < (radius - 2) * (radius - 2) || x < 0 || y < 0 || x >= width || y * width + x >= pixels.Length)
+                        continue;
+                    pixels[y * width + x] = color;
+                }
+            }
+        }
+        Ring(environment.StartSpot, 3 * PixelsPerCell, Color.magenta);
+        Ring(environment.SettlementAnchor, PixelsPerCell, Color.cyan);
     }
 
     private static Color GroundColor(TerrainDef terrain)
