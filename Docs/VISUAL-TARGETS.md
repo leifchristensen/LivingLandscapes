@@ -349,3 +349,36 @@ itself. Far from the mountains it is free to fan out. Rich soil forms along the 
 - The floodplain band has roughly even width along the river; rich soil is densest next to the banks.
 - A road crossing the river gets a bridge (or a ford), not a gap.
 - On arid tiles, sand streaks run along the valley.
+
+## 11-13. River targets (custom maps, 2026-10-19)
+
+The owner's preferred river look, from three hand-made maps. The rules derived from them are in `WATER-REVIEW.md`
+section 5.
+
+**11. Dendritic creeks in arid mountains**
+- About ten narrow channels (2-4 cells) form one branching tree. They enter from the top and right edges and leave at
+  the bottom and left, joining at acute angles that point downstream.
+- Every channel runs down the middle of a sandy valley floor. The rock masses are the ground between the valleys.
+  The floor has a fairly even width along each channel and widens where channels join.
+- Width is almost constant along a channel and grows only slightly downstream. A tributary is nearly as wide as the
+  trunk.
+- Each course is a long gentle curve with a small, short wobble (1-3 cells over 10-20 cells). There are no meander
+  loops.
+- A darker core line runs inside a lighter shallow edge. A thin dark wet band lines each bank, and a small lake sits
+  at a low point near the bottom.
+
+**12. Gorge opening into a delta fan**
+- A trunk about 20 cells wide, deep across its whole width, leaves a narrow rock gorge at the bottom edge.
+- At the gorge mouth the valley opens into a funnel of roughly 90 degrees, widening toward the sea at the top.
+  Water covers about half of the fan.
+- The trunk divides at Y junctions two or three times. Deep channels, each narrower than the one it left, thread
+  through a broad shallow sheet.
+- Islands are teardrop-shaped, long along the flow and pointed upstream. Many have a rock core. Large islands sit in
+  the middle and get smaller toward the edges and the sea.
+- Sand bars fringe the fan's outer shore. The deep channels connect without a break from the gorge to the sea.
+
+**13. Highland creek descending to coastal flats**
+- A creek (about 2 cells) winds tightly across a plateau, at times splitting into two parallel threads.
+- It drops into a wide lowland that is almost all shallow water and wet flats, with blob-shaped islands of higher
+  ground. The lowland merges into the sea.
+- The creek continues across the flats as a slightly darker winding thread: a channel inside the shallow water.

@@ -139,3 +139,58 @@ follow-ups on the same branch.
    enters an open basin.
 6. **Gameplay checks deferred** to a later "dial back to fun" stage. Note for that stage: every vanilla river
    width now has fordable riffles (riffle depth under the deep-water threshold below about 48 cells wide).
+
+## 5. River rules reverse-engineered from the owner's preferred maps (targets 11-13)
+
+The owner judged the rivers from section 4 as looking increasingly wrong, even though the rules behind them are
+physical. Targets 11-13 (custom maps) show the look wanted. These are the rules that would produce them. Targets 2,
+4, 6 and 7 fit the same rules.
+
+### 5.1 The rules
+
+| # | Rule | Evidence |
+|---|---|---|
+| V1 | **Channels first, terrain around them.** The channel network is laid out first. The valley floor is ground within a set distance of a channel, wider for larger channels and at confluences. Rock rises beyond it. Rivers always sit in the middle of their valley because the valley is made from the river | 11: every channel is centred on an even-width floor; 12: the gorge, then the fan, follow the channel |
+| V2 | **A network, not one river.** Several channels per map form a tree: sources in the highlands and at map edges, acute junctions pointing downstream, an exit at the lowest edge or a lake or sea | 11: about ten channels; 13: a creek reaching the coast |
+| V3 | **Narrow, readable, nearly constant width.** 2-4 cells for creeks, about 6-10 for rivers, about 20 only for a trunk leaving a gorge. Width rises in steps at junctions, not continuously | 11, 12, 13 |
+| V4 | **Shape: gentle curves plus a small wobble.** A smooth course with a 1-3 cell wobble over 10-20 cells. No meander loops on confined or sloping ground; tight winding only on flat plateaus or flats | 11, 13; vanilla paints rivers the same way (displaced segments with bend noise) |
+| V5 | **Fan where confinement ends.** Where a channel leaves narrow ground (gorge to basin, valley to coast), the floor opens into a funnel and the channel branches repeatedly into narrower distributaries. Teardrop islands form, seeded on rock knobs or high points, and get smaller outward | 12; also targets 2, 7 and 8 |
+| V6 | **A continuous deep thread.** A darker deep line runs without a break through every channel to the base level. Shallow water covers the margins, and in fans a wide shallow sheet | 11, 12, 13 |
+| V7 | **Base levels hold water.** Channels end in a lake, the sea, a wide shallow flat or the map edge, never in the open | 11 (lake), 12 (sea), 13 (coastal flats) |
+| V8 | **Thin wet banks.** A 1-2 cell dark wet band along each channel. The valley floor is sand or soil, and gravel lies at the foot of the rock | 11, 12 |
+
+### 5.2 How this differs from our generator
+
+- **Order is reversed.** We generate terrain first and fit the river into it afterwards (planning, carving, meander
+  migration). The targets build the channel network first and let the valleys follow it (V1). That is why our rivers
+  can look out of place even when they are physically correct.
+- **Width.** We use vanilla's world width: 30 cells for s7's river, a whole valley floor. The targets' main channels
+  are 2-10 cells, with about 20 only at a gorge.
+- **One world river plus ragged streams.** Our streams come from a drainage-area threshold on the final surface. On
+  flat ground they break into noise. The targets have a clean, designed tree (V2).
+- **Meander migration** produces either nothing (wide river) or large loops. The targets want gentle curves with a
+  small wobble (V4).
+- **No fans.** Splits by deposition don't trigger on our test seeds. The targets fan at every release of
+  confinement (V5).
+
+### 5.3 How it could be built (proposal; owner to decide)
+
+1. **Network plan** (new step before landform detail):
+   - Take the coarse erosion model's drainage tree, which already exists for the world river.
+   - Keep the channels above a drainage threshold, plus the world river's course and any streams entering from map
+     edges in the uphill direction.
+   - Rank each channel by Strahler order and set its width from that order. The world river's vanilla class sets the
+     trunk's order.
+   - Shape each course as a smoothed polyline with a small noise wobble (V3, V4).
+2. **Valleys from the network.** The landform generator lowers ground toward each channel: floor half-width from
+   the channel's order, walls beyond. Rock and terraces then follow the valleys. This fits the existing erosion model
+   (channel incision) rather than replacing it.
+3. **Fans** where a channel's valley-floor width jumps (confinement release) or reaches a base level. Branch into
+   two or three distributaries per level and leave teardrop islands, kept where rock strength is high (V5).
+4. **Depth** from the existing carver cross-section, without pools and riffles and with a continuous deep thread
+   above a width threshold (V6).
+5. **Retire** meander migration and splitting by deposition for now, or keep them only for flat lowlands
+   (target 13's flats).
+
+Owner decisions needed: channel widths compressed to targets 11-13 (instead of vanilla's world widths), and
+channels first with valleys built around them (instead of terrain first).
