@@ -32,34 +32,10 @@ public class SoilModelExtension : DefModExtension
     public float bareSlopeOnWeakRock = 1.3f;
     public float bareSlopeOnStrongRock = 0.5f;
 
-    /// <summary>Below this soil depth bedrock forms a wall (impassable natural rock).</summary>
+    /// <summary>Below this soil depth bedrock is bare (ground rules: RockDepth, RockDistance).</summary>
     public float rockWallDepth = 0.05f;
 
-    /// <summary>Below this soil depth bedrock shows through as rough stone floor.</summary>
-    public float rockFloorDepth = 0.3f;
 
-    /// <summary>Scree (gravel) collects within this distance below rock walls, on slopes steeper than <see cref="screeMinSlope"/>.</summary>
-    public float screeReach = 5f;
-    public float screeMinSlope = 0.2f;
-
-    /// <summary>Bare rock this far (metres) inside a rock mass is mountain: solid, mineable rock. Nearer the edge,
-    /// bare rock is rough stone floor.</summary>
-    public float massiveRockDepth = 4f;
-
-
-    /// <summary>
-    /// Passes: where a cross-strike joint cuts a ridge, the ridge is broken by a gap of rough stone this many cells
-    /// either side of the joint. Only rock within <see cref="passMaxDepth"/> metres of the rock edge is opened, so
-    /// ridges and mountain fringes get gaps and notches while massive mountain interiors stay solid. Joints whose
-    /// network is less open than <see cref="passMinOpen"/> stay closed, so passes are irregular.
-    /// </summary>
-    public float passHalfWidth = 3f;
-    public float passMaxDepth = 12f;
-    public float passMinOpen = 0.25f;
-
-    /// <summary>Depth into a rock mass (metres from its edge) where a thin roof starts, and where it becomes overhead mountain.</summary>
-    public float thinRoofDepth = 3f;
-    public float thickRoofDepth = 7f;
 }
 
 /// <summary>

@@ -19,11 +19,13 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | Step | Hook | What we do |
 |---|---|---|
 | (all steps) | `Patch_MapGenerator_GenerateContentsIntoMap` | Skip scattered ruins while the setting is off (`GenStepFilterDef` LL_ScatteredRuins) |
-| ElevationFertility (10) | `Patch_GenStep_ElevationFertility_Generate` postfix | Compute the Elevation stage layers; write vanilla elevation (rock, washes) and fertility and wet patches (`GroundWriter`); rock types follow strata; plan cliffs |
+| ElevationFertility (10) | `Patch_GenStep_ElevationFertility_Generate` postfix | Compute the Elevation stage layers (incl. surface water); classify ground by the ground rules into vanilla elevation (rock, floor, gravel) and planned cover (water, marsh, mud); fertility rank-mapped (`GroundWriter`); rock types follow strata; plan cliffs on dry ground |
+| Terrain (210) | `Patch_MapGenUtility_GetNaturalTerrainAt` postfix | Planned cover replaces vanilla's choice; vanilla's noise water, marsh and mud elsewhere become dry ground |
 | Mutators (20) | `Patch_TileMutatorWorker_GeneratePostElevationFertility` | Skip elevation rewrites of mutators we model as landforms |
 | River graph | `Patch_TileMutatorWorker_River_*` | Rivers follow the erosion model's trunk channel (straight segments, no vanilla meander) |
 | RocksFromGrid (200) | `Patch_GenStep_RocksFromGrid_Generate` | Spawn cliff bands, steps; plan talus |
-| Plants (900) | `Patch_GenStep_Plants` | Compute the Plants stage layers; remove cliffs in water; spawn talus |
+| Plants (900) | `Patch_GenStep_Plants` | Write stream flow (`FlowWriter`); compute the Plants stage layers; remove cliffs under water vanilla painted later; spawn talus |
+| After fog | `Patch_TileMutatorWorker_River_GeneratePostFog` | Vanilla rebuilt the flow map for its river: write our stream flow again |
 
 ## Environment layer framework (`Source/LivingLandscapes/Environment`)
 - New environment data = new `EnvironmentLayerDef` (XML, `1.7/Defs/EnvironmentLayerDefs`) + `EnvironmentLayerWorker`
@@ -38,11 +40,14 @@ neighbours); never generate it. Stack on top of world-gen mods (Realistic Planet
 | LL_Height | walkable height: landform stepped into terraces where steep (`TerraceExtension`) |
 | LL_RockStrength | strength 0..1 of the rock bed beneath each cell (On mode only) |
 | LL_SoilDepth | soil thickness from slope, convergence and rock strength (`SoilModelExtension`) |
-| LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled surface, log10 cells |
+| LL_DrainageArea | multiple-flow-direction upslope area over the depression-filled landform, log10 cells |
 | LL_Wetness | topographic wetness 0..1: wetness index + height above the drainage line a cell drains to, sharpened on dry tiles |
-| LL_Slope | rise over run of LL_Height; drawn as a vector field using LL_Aspect |
+| LL_Debris | rockfall debris collected where the slope eases below bare rock faces (faces feeding each cell) |
+| LL_SurfaceWater | water depth (m): lakes fill closed hollows to the water-balance level (rain on the catchment vs evaporation from tile temperature), streams where drainage area x climate passes `streamArea`, width ~ sqrt(area) |
+| LL_WaterFlow | flow speed 0..1 in stream channels (0 in lakes); moving water in game |
+| LL_Slope | rise over run of LL_Landform (hydrology and slope read the natural surface; terraces only shape walking and cliffs); drawn as a vector field using LL_Aspect |
 | LL_Aspect | downhill direction, radians counter-clockwise from east, 0..2π |
-| LL_WaterDistance, LL_Moisture, LL_Soil | water proximity, moisture (wetness raised near water), soil class |
+| LL_WaterDistance, LL_Moisture | water proximity, moisture (wetness raised near water) |
 
 **Slope vector field** = LL_Slope (magnitude) + LL_Aspect (direction); `GridMath.SlopeToward` gives the slope along
 any heading. Intended consumers: runoff and erosion, scree/talus placement, cliff facing, sun exposure (latitude),
@@ -59,15 +64,21 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   strength, solubility), soft interbeds, warped, two partly open joint sets. Erodibility and creep per cell come from
   the bed exposed at its current height, so hard beds become ridges and soft beds strike valleys. `StrataRockNoise`
   replaces vanilla's rock-type noises so rock walls and floors show the beds. Tile mutators become `LandformExtension`s in XML (`1.7/Patches/TileMutatorLandforms.xml`).
-- `GroundWriter` (`GroundWriterExtension` on LL_Wetness): vanilla's fertility grid and the biome's wet patch makers
-  (mud, marsh, ponds, rich soil) are rank-mapped from wetness and soil depth, so each biome keeps its ground shares
-  but soil, rich soil, mud and ponds sit where water collects. Dry washes: gravel beds along drainage lines on dry tiles.
-- Passes (`SoilModelExtension` pass*): ridges must not be unbroken walls in a 2D map. Where an open joint crosses a
-  ridge (joint line within 45 degrees of the ridge's across direction, from the structure tensor of the rock mask),
-  rock within `passMaxDepth` of the rock edge becomes rough stone. The writer logs the number of walkable areas.
-- `StreamWriter` (Plants prefix): narrow standing shallow water on drainage lines (log area >= `streamArea`) becomes
-  moving water, with flow from the smoothed downhill direction written into vanilla's river flow map.
-- `SoilModel`, `VanillaTerrainWriter`: soil depth (thinner, and bare at gentler slopes, on strong rock) → vanilla elevation classes (rock, roof thickness, gravel, soil).
+- **Ground rules** (`GroundRulesDef` LL_GroundRules, `1.7/Defs/GroundRules/GroundRules.xml`): one ordered rule table
+  classifies every cell (first match wins) into water, mountain, rough stone, marsh, mud, scree, washes, soil. Rules
+  test any layer by defName plus derived fields (RockDepth, RockDistance, WaterDistance, Hollow, Climate; see
+  `GroundFields`). Each class sets vanilla's elevation value and optional cover. Tuning terrain = editing this table.
+- `GroundWriter`: vanilla's fertility grid and the biome's rich-soil patch makers are rank-mapped from wetness and soil
+  depth, so each biome keeps its soil shares but rich soil sits where water collects. Water, marsh and mud never come
+  from vanilla noise.
+- Passes: ridges must not be unbroken walls in a 2D map. Open joints weaken the rock (`jointWeakness`), so erosion
+  notches ridges along them and soil holds there; no separate pass-cutting step. The writer logs walkable areas.
+- `LL_Debris` (rule S4): fragments from bare rock faces roll down the steepest way until the slope eases and collect
+  there; scree lies where debris is high (fans and aprons below rock instead of a fixed-width ring).
+- `FlowWriter`: stream flow (LL_WaterFlow, smoothed downhill direction) into vanilla's river flow map, so streams
+  animate and turn watermills; rewritten after vanilla's own river rebuilds the map after fog.
+- `SoilModel` (soil depth: thinner, and bare at gentler slopes, on strong rock), `VanillaTerrainWriter` (runs the
+  ground rules, passes, rock knobs, cliff plan).
 - `Terraces` + `CliffPlan`: steep ground (above `gentleSlope`) is stepped into stages; cliffs only at stage edges where
   contours crowd together. Steps (ramps) every `stepSpacing` cells.
 
@@ -126,6 +137,7 @@ or relative), bands, contours with labelled index lines, optional `icon`, and `d
 - Slope stored as two scalar layers (magnitude, aspect) rather than a packed vector, to reuse the layer framework.
 
 ## Roadmap / open items
+Latest review (data, principles, gaps against the targets, systemic clean-up plan): `Docs/PROJECT-REVIEW.md`.
 Current focus: geological features that read well on the map, worked from the owner's reference maps in
 `Docs/VISUAL-TARGETS.md` (1: river valley through mountains; 2: desert river, delta and dunes; 3: marsh with rock spires; 4: mountain foot with tilted strata and caves; 5: lakes, broken ridges, impact site; 6: entrenched meanders, mountain apron; 7: river splitting in an open basin; 8: boreal forest meets glacial plain; 9: cove with a cave river; 10: broad valley between ranges, bridge). The rules that produce them, and the build order, are in
 `Docs/GEOLOGY-RULES.md`; it supersedes items 1, 2, 4 and 5 below where they overlap.
@@ -136,7 +148,8 @@ Current focus: geological features that read well on the map, worked from the ow
 2. Use the vector field for runoff/erosion, scree and talus, sun exposure.
 3. Height cues: stage tint, hillshading (cliff shadows and south faces are done).
 4. Remaining landforms: Basin, Hollow, Chasm, Crevasse, coasts, river variants. Landform shapes are too rounded.
-5. Water from the heightmap: lakes, ponds, marsh.
+5. Water from the heightmap: done (lakes by water balance, streams, marsh and mud from the ground rules). Next:
+   channel patterns (meanders, splits), sediment fill on low relief (F3), surface rock (`Docs/SURFACE-ROCK-PLAN.md`).
 6. Off-mode calibration against On.
 7. Plants: habitat rules per species in XML (`PlantHabitat`), strata, shade, clustering, regrowth consistency.
 8. Toggle icons per layer (art).

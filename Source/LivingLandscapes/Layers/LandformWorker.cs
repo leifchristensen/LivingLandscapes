@@ -29,13 +29,15 @@ public class LandformWorker : EnvironmentLayerWorker
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out var riverCourse,
                 out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
+            // Water flows downhill or level: carve the river's channel along its course (W1).
+            RiverCarver.Carve(generated, map.Size.x, map.Size.z, RiverCourse.FromPlan(riverCourse, map.Size.x, map.Size.z),
+                RiverCourse.WidthOnMap(map.TileInfo), generation.riverBed);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
                 environment.PlannedRiverCourse = riverCourse;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRock = rock;
-                environment.PlannedStrata = strata;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +

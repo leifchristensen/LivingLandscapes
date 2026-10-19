@@ -74,6 +74,9 @@ public class GeologyGenerationExtension : DefModExtension
         shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
     };
 
+    /// <summary>The river's bed: carved so it never rises along the course (W1).</summary>
+    public RiverBedSettings riverBed = new RiverBedSettings();
+
     /// <summary>Tilted rock beds and joints: hard beds resist erosion, soft beds wear away (sizes in map cells).</summary>
     public RockStrataSettings strata = new RockStrataSettings();
 

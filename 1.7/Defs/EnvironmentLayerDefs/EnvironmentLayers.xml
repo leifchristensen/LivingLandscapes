@@ -82,6 +82,11 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
+        <riverBed>
+          <depth>0.6</depth>
+          <bankWidth>4</bankWidth>
+          <margin>2</margin>
+        </riverBed>
         <microRelief>0.3</microRelief>
         <microWavelength>6</microWavelength>
       </li>
@@ -166,15 +171,34 @@
         <bareSlopeOnWeakRock>1.3</bareSlopeOnWeakRock>
         <bareSlopeOnStrongRock>0.5</bareSlopeOnStrongRock>
         <rockWallDepth>0.15</rockWallDepth>
-        <rockFloorDepth>0.3</rockFloorDepth>
-        <screeReach>5</screeReach>
-        <screeMinSlope>0.2</screeMinSlope>
-        <thinRoofDepth>3</thinRoofDepth>
-        <thickRoofDepth>7</thickRoofDepth>
-        <massiveRockDepth>4</massiveRockDepth>
-        <passHalfWidth>3</passHalfWidth>
-        <passMaxDepth>12</passMaxDepth>
-        <passMinOpen>0.25</passMinOpen>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Debris</defName>
+    <label>rock debris</label>
+    <description>Rock fragments shed by bare rock faces, collected where they come to rest as the slope eases: the number of faces feeding each cell. Scree lies where it is high.</description>
+    <workerClass>LivingLandscapes.Layers.DebrisWorker</workerClass>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_SoilDepth</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.6, 0.6, 0.6, 0)</color></li>
+        <li><value>1</value><color>(0.6, 0.55, 0.5, 0.6)</color></li>
+        <li><value>10</value><color>(0.3, 0.25, 0.2, 1)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.DebrisExtension">
+        <faceSlope>0.5</faceSlope>
+        <restSlope>0.25</restSlope>
+        <maxRun>40</maxRun>
+        <spread>1.5</spread>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -185,7 +209,7 @@
     <description>Upslope area draining through each cell (log10 of cells): 0 on ridges, high along gullies and valley floors.</description>
     <workerClass>LivingLandscapes.Layers.DrainageAreaWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <unit>log10 cells</unit>
     <overlay>
@@ -207,7 +231,7 @@
     <description>Steepness of the ground, rise over run (0.1 is about 6 degrees, 1 is 45). Drawn as arrows pointing downhill; longer and redder is steeper.</description>
     <workerClass>LivingLandscapes.Layers.SlopeWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <overlay>
       <relativeColors>true</relativeColors>
@@ -229,7 +253,7 @@
     <description>Downhill direction of the ground in radians, counter-clockwise from east (0 east, 1.57 north, 3.14 west, 4.71 south).</description>
     <workerClass>LivingLandscapes.Layers.AspectWorker</workerClass>
     <dependsOn>
-      <li>LL_Height</li>
+      <li>LL_Landform</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.00</labelFormat>
@@ -269,14 +293,71 @@
         <fertilitySoilDepth>0.35</fertilitySoilDepth>
         <fertilityNoise>0.1</fertilityNoise>
         <deepSoil>2</deepSoil>
-        <washAreaArid>2.4</washAreaArid>
-        <washAreaHumid>3.2</washAreaHumid>
-        <washMaxClimate>0.6</washMaxClimate>
-        <wetPatchNoise>0.2</wetPatchNoise>
-        <streamArea>2.8</streamArea>
-        <streamMaxHalfWidth>3</streamMaxHalfWidth>
       </li>
     </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_SurfaceWater</defName>
+    <label>surface water</label>
+    <description>Depth of standing and flowing water in metres, from the landform: lakes fill closed hollows to the level where rain on their catchment balances evaporation; streams run where enough ground drains, wider the more it drains. Terrain, cliffs and plants all follow it.</description>
+    <workerClass>LivingLandscapes.Layers.SurfaceWaterWorker</workerClass>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_DrainageArea</li>
+      <li>LL_Wetness</li>
+    </dependsOn>
+    <unit>m</unit>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.8</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.55, 0.75, 1.00, 0)</color></li>
+        <li><value>0.01</value><color>(0.45, 0.70, 1.00, 0.6)</color></li>
+        <li><value>1.5</value><color>(0.10, 0.30, 0.85, 0.9)</color></li>
+        <li><value>4</value><color>(0.02, 0.08, 0.45, 1)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.SurfaceWaterExtension">
+        <evaporationAtZero>400</evaporationAtZero>
+        <evaporationPerDegree>60</evaporationPerDegree>
+        <minEvaporation>150</minEvaporation>
+        <runoffShare>0.3</runoffShare>
+        <minLakeDepth>0.25</minLakeDepth>
+        <minLakeCells>12</minLakeCells>
+        <streamArea>2.8</streamArea>
+        <widthPerSqrtArea>0.04</widthPerSqrtArea>
+        <maxStreamWidth>6</maxStreamWidth>
+        <streamDepth>0.3</streamDepth>
+        <streamDepthPerWidth>0.1</streamDepthPerWidth>
+        <minFlow>0.4</minFlow>
+        <fullFlowAreaAbove>1.5</fullFlowAreaAbove>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_WaterFlow</defName>
+    <label>water flow</label>
+    <description>Flow speed 0..1 of water in stream channels; 0 in lakes and on land. Flowing water is moving water in game.</description>
+    <workerClass>LivingLandscapes.Layers.WaterFlowWorker</workerClass>
+    <precision>Byte</precision>
+    <dependsOn>
+      <li>LL_Landform</li>
+      <li>LL_DrainageArea</li>
+      <li>LL_SurfaceWater</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.8</fillOpacity>
+      <directionLayer>LL_Aspect</directionLayer>
+      <colors>
+        <li><value>0</value><color>(0.3, 0.9, 0.9, 0)</color></li>
+        <li><value>0.4</value><color>(0.3, 0.8, 0.9, 0.6)</color></li>
+        <li><value>1</value><color>(0.0, 0.4, 0.8, 1)</color></li>
+      </colors>
+    </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -313,27 +394,4 @@
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
-
-  <LivingLandscapes.Environment.EnvironmentLayerDef>
-    <defName>LL_Soil</defName>
-    <label>soil quality</label>
-    <description>0 (bare rock, sand) to 1 (rich soil), from vanilla terrain fertility.</description>
-    <workerClass>LivingLandscapes.Layers.SoilWorker</workerClass>
-    <overlay>
-      <contourInterval>0.1</contourInterval>
-      <indexEvery>5</indexEvery>
-      <labelFormat>0.0</labelFormat>
-      <colors>
-        <li><value>0</value><color>(0.55, 0.55, 0.55)</color></li>
-        <li><value>0.5</value><color>(0.70, 0.65, 0.35)</color></li>
-        <li><value>1</value><color>(0.15, 0.60, 0.20)</color></li>
-      </colors>
-    </overlay>
-    <modExtensions>
-      <li Class="LivingLandscapes.Layers.SoilExtension">
-        <richFertility>1.2</richFertility>
-      </li>
-    </modExtensions>
-  </LivingLandscapes.Environment.EnvironmentLayerDef>
-
 </Defs>

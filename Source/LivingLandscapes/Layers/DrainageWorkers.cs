@@ -5,7 +5,7 @@ using UnityEngine;
 namespace LivingLandscapes.Layers;
 
 /// <summary>
-/// Upslope contributing area of each cell under multiple-flow-direction routing on the geological height, as log10(cells):
+/// Upslope contributing area of each cell under multiple-flow-direction routing on the natural landform, as log10(cells):
 /// 0 on ridges, rising along gullies and valley floors. Drives wetness and where streams would form. Water is routed
 /// over the depression-filled surface: hollows fill and spill on, so boulders and hummocks don't break up drainage.
 /// </summary>
@@ -14,11 +14,11 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
     /// <summary>Slope (height units per cell) given to filled hollows so water still crosses them toward the spill point.</summary>
     private const float FillGradient = 1e-3f;
 
-    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Height.Worker.StageFor(map);
+    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Landform.Worker.StageFor(map);
 
     public override float[] Compute(EnvironmentContext context)
     {
-        float[] height = context.Get(EnvironmentLayerDefOf.LL_Height);
+        float[] height = context.Get(EnvironmentLayerDefOf.LL_Landform);
         if (height == null)
             return null;
         var filled = (float[])height.Clone();
@@ -30,14 +30,14 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
     }
 }
 
-/// <summary>Steepness of the geological height, in height units per cell.</summary>
+/// <summary>Steepness of the natural landform, in height units per cell (terraces only shape walking and cliffs).</summary>
 public class SlopeWorker : EnvironmentLayerWorker
 {
-    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Height.Worker.StageFor(map);
+    public override GenerationStage StageFor(Verse.Map map) => EnvironmentLayerDefOf.LL_Landform.Worker.StageFor(map);
 
     public override float[] Compute(EnvironmentContext context)
     {
-        float[] height = context.Get(EnvironmentLayerDefOf.LL_Height);
+        float[] height = context.Get(EnvironmentLayerDefOf.LL_Landform);
         return height == null ? null : GridMath.Slope(height, context.SizeX, context.SizeZ);
     }
 }

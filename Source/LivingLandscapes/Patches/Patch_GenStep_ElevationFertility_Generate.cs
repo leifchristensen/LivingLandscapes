@@ -9,8 +9,9 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Geological terrain ("On" mode): after vanilla fills its elevation grid, generate the geological height and soil,
-/// then overwrite the grid with bedrock exposure so vanilla's rock, roof, gravel, cave and structure placement
-/// follows the geology. Tile mutators (lakes, rivers, coasts...) still run after this, as in vanilla.
+/// then classify the ground (ground rules): vanilla's elevation grid gets the rock classes, so its rock, roof, gravel,
+/// cave and structure placement follows the geology; water, marsh and mud are planned for when terrain is picked.
+/// Tile mutators (lakes, rivers, coasts...) still run after this, as in vanilla.
 /// </summary>
 [HarmonyPatch(typeof(GenStep_ElevationFertility), nameof(GenStep_ElevationFertility.Generate))]
 public static class Patch_GenStep_ElevationFertility_Generate
@@ -36,11 +37,10 @@ public static class Patch_GenStep_ElevationFertility_Generate
             var terraces = EnvironmentLayerDefOf.LL_Height.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
             var wetnessModel = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<Layers.WetnessExtension>() ?? new Layers.WetnessExtension();
             var ground = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<GroundWriterExtension>() ?? new GroundWriterExtension();
-            float[] drainage = environment.TryGetGrid(EnvironmentLayerDefOf.LL_DrainageArea, out EnvironmentGrid drainageGrid) ? drainageGrid.ToArray() : null;
-            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, soil.ToArray(), landform.ToArray(), generation.cellSize, soilModel, terraces,
-                drainage, wetnessModel.ClimateOf(map), ground, environment.PlannedStrata,
-                environment.TryGetGrid(EnvironmentLayerDefOf.LL_Aspect, out EnvironmentGrid aspect) ? aspect.ToArray() : null);
-            environment.PlannedStrata = null;
+            GroundFields fields = VanillaTerrainWriter.BuildFields(map, environment, soilModel, generation.cellSize, wetnessModel.ClimateOf(map));
+            environment.PlannedCliffs = VanillaTerrainWriter.Write(map, fields, DefDatabase<GroundRulesDef>.GetNamed("LL_GroundRules"),
+                soil.ToArray(), landform.ToArray(), generation.cellSize, terraces, out GroundCover[] cover);
+            environment.PlannedCover = cover;
             if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Wetness, out EnvironmentGrid wetness))
                 GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground);
         }

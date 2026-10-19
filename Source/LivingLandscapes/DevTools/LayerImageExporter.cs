@@ -41,6 +41,7 @@ public static class LayerImageExporter
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
         }
         ExportTerrainMap(map, Path.Combine(Folder, "Map.png"));
+        Invariants.Report(map, summary);
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());
         Log.Message($"[LivingLandscapes] Exported environment layers to {Folder}");
     }
