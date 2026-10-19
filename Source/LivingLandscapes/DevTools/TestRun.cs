@@ -6,6 +6,7 @@ namespace LivingLandscapes.DevTools;
 /// <summary>
 /// Automated test runs, driven by launch arguments and inactive without them:
 /// "-ll-export" writes every environment layer to PNG once the first map is generated;
+/// "-ll-bench-plants" times the plant spawner (<see cref="PlantBenchmark"/>);
 /// "-ll-quit" then closes the game after a pause ("-ll-quit-delay=&lt;seconds&gt;", default 10) during which the
 /// camera shows the whole map, so a person watching can judge the terrain.
 /// </summary>
@@ -17,12 +18,17 @@ public static class TestRun
 
     public static void OnMapGenerated(Map map)
     {
-        if (!GenCommandLine.CommandLineArgPassed("ll-export") && !GenCommandLine.CommandLineArgPassed("ll-quit"))
+        // The benchmark runs vanilla's plant step itself, which would start another test run.
+        if (PlantBenchmark.Running)
+            return;
+        if (!GenCommandLine.CommandLineArgPassed("ll-export") && !GenCommandLine.CommandLineArgPassed("ll-quit") && !GenCommandLine.CommandLineArgPassed("ll-bench-plants"))
             return;
         LongEventHandler.ExecuteWhenFinished(() =>
         {
             if (GenCommandLine.CommandLineArgPassed("ll-export"))
                 LayerImageExporter.ExportAll(map);
+            if (GenCommandLine.CommandLineArgPassed("ll-bench-plants"))
+                PlantBenchmark.Run(map);
             if (!GenCommandLine.CommandLineArgPassed("ll-quit"))
                 return;
 
