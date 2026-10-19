@@ -72,15 +72,13 @@ public class SedimentSettings
 /// </summary>
 public static class Sediment
 {
-    /// <param name="cells">Channel cells, highest water first (donors before receivers).</param>
-    /// <param name="natural">Ground before the channels were carved.</param>
-    /// <param name="baseLevel">Cells where the water stands (sea, lakes): capacity zero.</param>
-    public static void Budget(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled, float[] natural,
-        float[] width, float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system,
-        out string summary)
+    /// <summary>
+    /// Spreads the deposits over the floodplain into the alluvium and grain size fields of <paramref name="system"/>; returns a
+    /// summary for the log.
+    /// </summary>
+    public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
+        float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded)
     {
-        Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p,
-            out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded);
         Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
@@ -92,8 +90,8 @@ public static class Sediment
                 covered++;
             thickest = Mathf.Max(thickest, a);
         }
-        summary = $"sediment: {eroded:0} supplied, {total:0} deposited ({(total > 0f ? 100f * atBase / total : 0f):0}% at base level), " +
-                  $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
+        return $"sediment: {eroded:0} supplied, {total:0} deposited ({(total > 0f ? 100f * atBase / total : 0f):0}% at base level), " +
+               $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
     }
 
     /// <summary>The load and capacity walk down the network: what each channel cell deposits, and its grain size.</summary>

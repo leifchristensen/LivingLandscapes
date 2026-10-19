@@ -52,6 +52,11 @@
              absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
              drainage lines are seeps (saturated ground: marsh, mud). -->
         <terrainChannels>
+          <!-- Sediment budget (Docs/SEDIMENT-PLAN.md): deltas build land at base level and divide over it. -->
+          <sediment>
+            <landBuilding>1.6</landBuilding>
+            <deltaSpread>6</deltaSpread>
+          </sediment>
           <absorption>0.3</absorption>
           <minMovingWidth>2</minMovingWidth>
           <biomeAbsorption>
