@@ -169,6 +169,9 @@ public class TerrainChannelSettings
     /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
     public SedimentSettings sediment = new SedimentSettings();
 
+    /// <summary>Delta distributaries (<see cref="Distributaries"/>).</summary>
+    public DistributarySettings distributaries = new DistributarySettings();
+
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
 
@@ -226,10 +229,11 @@ public static class TerrainChannels
         float dischargeScale = 1f;
         bool[] moving = null;
         float[] power = null, deposition = null, sinuosity = null, valley = null;
-        int carvedMeanders = 0, oxbows = 0, deltaCells = 0;
+        int carvedMeanders = 0, oxbows = 0, deltaCells = 0, deltaBranches = 0;
+        Dictionary<int, (int second, float share)> forcedSplits = null;
         for (int pass = 0; pass < 3; pass++)
         {
-            discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
+            discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p, forcedSplits,
                 out world, out secondary, out branchFrom, out splits);
 
             // Where channels start; the water regime nudges it (a denser or sparser network).
@@ -287,6 +291,30 @@ public static class TerrainChannels
             if (pass == 1)
                 deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
+            if (pass == 1)
+            {
+                deltaBranches = Distributaries.Carve(height, filled, cells, receiver, world, inflow, worldSource, width, sea, spread,
+                    p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, out _, out var deltaSplits);
+                if (deltaBranches > 0)
+                {
+                    GridMath.FillDepressions(filled, sizeX, sizeZ, isOutlet, p.fillGradient, includeEdges: false);
+                    receiver = GridMath.Receivers(filled, sizeX, sizeZ);
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (isOutlet(i))
+                            receiver[i] = -1;
+                    }
+                    forcedSplits = new Dictionary<int, (int second, float share)>();
+                    foreach ((int at, int a, int b, float share) in deltaSplits)
+                    {
+                        if (filled[a] < filled[at] && filled[b] < filled[at])
+                        {
+                            receiver[at] = a;
+                            forcedSplits[at] = (b, 1f - share);
+                        }
+                    }
+                }
+            }
             if (pass == 0 && p.meander.enabled)
             {
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
@@ -334,7 +362,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {deltaBranches} delta branches drawn, {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -618,7 +646,7 @@ public static class TerrainChannels
     /// stays on the main way, so splits form only where a lot of water meets ground falling away two ways.
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
-        float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
+        float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, Dictionary<int, (int second, float share)> forced,
         out bool[] world, out int[] secondary, out int[] branchFrom, out int splits)
     {
         int n = filled.Length;
@@ -644,7 +672,13 @@ public static class TerrainChannels
                 continue;
             float share = 0f;
             int second = -1;
-            if (discharge[c] * 0.5f >= threshold)
+            if (forced != null && forced.TryGetValue(c, out (int second, float share) split))
+            {
+                // A delta split drawn by the distributaries: the water divides between the branches by their widths.
+                second = split.second;
+                share = split.share;
+            }
+            else if (discharge[c] * 0.5f >= threshold)
             {
                 float factor = spread != null && spread[c] > 0f ? spread[c] : mapSpread;
                 second = SecondWay(filled, c, r, sizeX, sizeZ, out float main, out float other);
