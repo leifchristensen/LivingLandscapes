@@ -64,11 +64,21 @@ public class PlantHabitat : DefModExtension
     /// <summary>0: fails in shade. 1: shade makes no difference.</summary>
     public float shadeTolerance = 0.5f;
 
-    /// <summary>Seed dispersal: standard deviation (cells) of the clump around a parent plant.</summary>
-    public float clusterRadius = 4f;
+    /// <summary>
+    /// Seed dispersal: standard deviation sigma (cells) of the clump around a parent plant; 0 takes it from vanilla's
+    /// cluster radius (<see cref="PlantEcologyDef.sigmaPerVanillaRadius"/>). Only species vanilla clusters (a positive
+    /// wildClusterRadius) are clustered.
+    /// </summary>
+    public float clusterRadius;
 
-    /// <summary>How much clustering matters, 0 (even scatter) to 1 (plants only grow in clumps).</summary>
-    public float clusterStrength = 0.3f;
+    /// <summary>
+    /// How much clustering matters, 0 (even scatter) to 1 (vanilla's strength: a plant is thousands of times more
+    /// likely next to its own kind than far from it). Intermediate values scale that boost down.
+    /// </summary>
+    public float clusterStrength = 1f;
+
+    /// <summary>True if the species has any ground requirement; without one the ground does not sort it.</summary>
+    public bool HasSiteCurves => wetness != null || soilDepth != null || slope != null || sun != null || fertility != null;
 
     private static readonly Dictionary<ThingDef, PlantHabitat> derived = new Dictionary<ThingDef, PlantHabitat>();
 
@@ -96,8 +106,27 @@ public class PlantHabitat : DefModExtension
             stratum = tree ? PlantStratum.Canopy : bush ? PlantStratum.Shrub : PlantStratum.Ground,
             shadeCast = tree ? 0.5f : 0f,
             shadeTolerance = tree ? 0.2f : 0.6f,
-            clusterRadius = p != null && p.wildClusterRadius > 0 ? p.wildClusterRadius : 4f,
-            clusterStrength = p != null && p.wildClusterWeight > 0 ? Mathf.Clamp01(p.wildClusterWeight / 20f) : 0.3f,
         };
+    }
+
+    /// <summary>Sigma (cells) of this species' clusters, 0 if it does not cluster.</summary>
+    public float ClusterSigma(ThingDef plant)
+    {
+        PlantProperties p = plant.plant;
+        if (p == null || !p.GrowsInClusters)
+            return 0f;
+        return clusterRadius > 0f ? clusterRadius : p.wildClusterRadius * PlantEcologyDef.Current.sigmaPerVanillaRadius;
+    }
+
+    /// <summary>
+    /// How many times likelier a spawn is inside a cluster than outside, from vanilla's own numbers (cluster weight and
+    /// the cluster area; vanilla gives an outside cell about 1 / (pi r^2) of the inside weight), scaled by
+    /// <see cref="clusterStrength"/>.
+    /// </summary>
+    public float ClusterRatio(ThingDef plant)
+    {
+        PlantProperties p = plant.plant;
+        float vanilla = Mathf.Max(1f, p.wildClusterWeight * Mathf.PI * p.wildClusterRadius * p.wildClusterRadius);
+        return 1f + clusterStrength * (vanilla - 1f);
     }
 }

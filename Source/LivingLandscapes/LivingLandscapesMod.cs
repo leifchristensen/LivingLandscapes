@@ -40,6 +40,14 @@ public class LivingLandscapesMod : Mod
         listing.CheckboxLabeled("LL_ScatteredRuins".Translate(), ref Settings.scatteredRuins, "LL_ScatteredRuinsTip".Translate());
         listing.Gap();
 
+        listing.CheckboxLabeled("LL_PlantEcology".Translate(), ref Settings.plantEcology, "LL_PlantEcologyTip".Translate());
+        if (Settings.plantEcology)
+        {
+            listing.Label("LL_HabitatStrength".Translate(Settings.habitatStrength.ToStringPercent()), tooltip: "LL_HabitatStrengthTip".Translate());
+            Settings.habitatStrength = listing.Slider(Settings.habitatStrength, 0f, 1f);
+        }
+        listing.Gap();
+
         string supported = string.Join(", ", TerrainGenerationMods.ActiveSupported());
         listing.Label("LL_SupportedTerrainMods".Translate(supported.Length == 0 ? "LL_None".Translate().ToString() : supported));
 

@@ -16,18 +16,21 @@ public static class TestRun
 
     private static float quitAt = -1f;
 
+    /// <summary>"-ll-bench-plants" or "-ll-bench-plants=census".</summary>
+    private static bool BenchRequested => GenCommandLine.CommandLineArgPassed("ll-bench-plants") || GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out _);
+
     public static void OnMapGenerated(Map map)
     {
         // The benchmark runs vanilla's plant step itself, which would start another test run.
         if (PlantBenchmark.Running)
             return;
-        if (!GenCommandLine.CommandLineArgPassed("ll-export") && !GenCommandLine.CommandLineArgPassed("ll-quit") && !GenCommandLine.CommandLineArgPassed("ll-bench-plants"))
+        if (!GenCommandLine.CommandLineArgPassed("ll-export") && !GenCommandLine.CommandLineArgPassed("ll-quit") && !BenchRequested)
             return;
         LongEventHandler.ExecuteWhenFinished(() =>
         {
             if (GenCommandLine.CommandLineArgPassed("ll-export"))
                 LayerImageExporter.ExportAll(map);
-            if (GenCommandLine.CommandLineArgPassed("ll-bench-plants"))
+            if (BenchRequested)
                 PlantBenchmark.Run(map);
             if (!GenCommandLine.CommandLineArgPassed("ll-quit"))
                 return;

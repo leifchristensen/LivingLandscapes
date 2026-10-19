@@ -25,6 +25,34 @@ public class HabitatSampler
         shade = shadeOverride ?? context.Get(EnvironmentLayerDefOf.LL_Shade);
     }
 
+    /// <summary>
+    /// A sampler over layer arrays directly, for the running map (<see cref="MapComponent_Ecology"/>), where the shade is
+    /// kept live and read separately.
+    /// </summary>
+    public HabitatSampler(Map map, float[] moisture, float[] soilDepth, float[] slope, float[] sun)
+    {
+        Map = map;
+        this.moisture = moisture;
+        this.soilDepth = soilDepth;
+        this.slope = slope;
+        this.sun = sun;
+    }
+
+    /// <summary>
+    /// The site's fitness 0..1 for a species from the ground alone: wetness, soil depth, slope, sun and fertility. No
+    /// terrain, edifice or shade: those change as the colony builds and plants grow, so callers read them when asked.
+    /// </summary>
+    public float Site(PlantHabitat habitat, int index)
+    {
+        float fitness = Response(habitat.wetness, moisture, index)
+            * Response(habitat.soilDepth, soilDepth, index)
+            * Response(habitat.slope, slope, index)
+            * Response(habitat.sun, sun, index);
+        if (habitat.fertility != null)
+            fitness *= habitat.fertility.Response(Map.fertilityGrid.FertilityAt(Map.cellIndices.IndexToCell(index)));
+        return fitness;
+    }
+
     /// <summary>Fitness 0..1 of a species on one cell: 0 where it cannot live, 1 at its optimum on every factor.</summary>
     public float Fitness(ThingDef plant, PlantHabitat habitat, int index)
     {
