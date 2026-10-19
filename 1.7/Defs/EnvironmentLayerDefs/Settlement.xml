@@ -82,4 +82,33 @@
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Interest</defName>
+    <label>interest</label>
+    <description>0 to 1 (a rank: 0.8 beats 80% of the map): how interesting the ground is for discoveries. Local relief, the edges of rock and water, and a regional noise that gathers finds in recognisable places. Ruins, shrines and geysers favour it.</description>
+    <workerClass>LivingLandscapes.Layers.InterestWorker</workerClass>
+    <dependsOn>
+      <li>LL_Slope</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.6</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.3, 0.3, 0.5, 0.0)</color></li>
+        <li><value>0.7</value><color>(0.8, 0.5, 0.9, 0.4)</color></li>
+        <li><value>1</value><color>(0.7, 0.1, 0.8, 0.9)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.InterestExtension">
+        <reliefSigma>8</reliefSigma>
+        <reliefWeight>1</reliefWeight>
+        <edgeSigma>5</edgeSigma>
+        <edgeWeight>1</edgeWeight>
+        <noiseScale>70</noiseScale>
+        <noiseWeight>1.2</noiseWeight>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
 </Defs>

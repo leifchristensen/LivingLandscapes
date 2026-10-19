@@ -25,20 +25,37 @@ public static class GameplayReport
         summary.AppendLine($"gameplay: start spot {start} ({Vector3.Distance(start.ToVector3(), map.Center.ToVector3()):0} cells from the centre){score}; " +
                            $"{Approaches(map, start)} ways in at {ApproachRadius:0} cells");
 
+        var discoveries = new Dictionary<string, List<float>>();
         var lumps = new Dictionary<ThingDef, List<float>>();
         foreach (Thing thing in map.listerThings.AllThings)
         {
             if (thing.def.building?.isResourceRock != true)
+            {
+                if (thing.def.defName == "SteamGeyser" || thing.def.defName.StartsWith("Ancient"))
+                    Discoveries(thing.def.defName, discoveries).Add((thing.Position - start).LengthHorizontal);
                 continue;
+            }
             if (!lumps.TryGetValue(thing.def, out List<float> distances))
                 lumps[thing.def] = distances = new List<float>();
             distances.Add((thing.Position - start).LengthHorizontal);
+        }
+        foreach (KeyValuePair<string, List<float>> pair in discoveries)
+        {
+            pair.Value.Sort();
+            summary.AppendLine($"gameplay: discovery {pair.Key}: {pair.Value.Count}, nearest {pair.Value[0]:0}, median {pair.Value[pair.Value.Count / 2]:0} cells from the start");
         }
         foreach (KeyValuePair<ThingDef, List<float>> pair in lumps)
         {
             pair.Value.Sort();
             summary.AppendLine($"gameplay: ore {pair.Key.defName}: {pair.Value.Count} cells, nearest {pair.Value[0]:0}, median {pair.Value[pair.Value.Count / 2]:0} cells from the start");
         }
+    }
+
+    private static List<float> Discoveries(string name, Dictionary<string, List<float>> all)
+    {
+        if (!all.TryGetValue(name, out List<float> list))
+            all[name] = list = new List<float>();
+        return list;
     }
 
     /// <summary>Separate stretches of walkable ground where a ring round the start crosses the map: the ways in for a raid.</summary>
