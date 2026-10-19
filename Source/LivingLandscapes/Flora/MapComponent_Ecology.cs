@@ -34,7 +34,7 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
     private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
-    private bool tried, built;
+    private bool built;
     private int sizeX, sizeZ;
     private float latitude, capacityReference = -1f;
 
@@ -67,6 +67,8 @@ public class MapComponent_Ecology : MapComponent
         }
     }
 
+    private int nextAttempt;
+
     /// <summary>True when the ecology applies on this map right now (switched on, and the layers it reads exist).</summary>
     public bool Ready
     {
@@ -74,21 +76,34 @@ public class MapComponent_Ecology : MapComponent
         {
             if (Strength <= 0f)
                 return false;
-            if (!tried)
+            if (!built)
                 Build();
             return built;
         }
     }
 
+    /// <summary>
+    /// Builds the grids from the saved environment layers and the plants standing. While a save is loading the layers may
+    /// not be restored yet, and maps made without Living Landscapes never have them: either way nothing is built and the
+    /// attempt is repeated at most every 2000 ticks, so neither case costs anything or fails for good.
+    /// </summary>
     private void Build()
     {
-        tried = true;
-        var environment = map.GetComponent<MapComponent_Environment>();
-        float[] Grid(EnvironmentLayerDef layer) => environment != null && environment.TryGetGrid(layer, out EnvironmentGrid grid) ? grid.ToArray() : null;
-        float[] moisture = Grid(EnvironmentLayerDefOf.LL_Moisture), soilDepth = Grid(EnvironmentLayerDefOf.LL_SoilDepth),
-            slope = Grid(EnvironmentLayerDefOf.LL_Slope), sun = Grid(EnvironmentLayerDefOf.LL_Sun);
-        if (moisture == null || soilDepth == null || slope == null || sun == null)
+        int now = Find.TickManager?.TicksGame ?? 0;
+        if (now < nextAttempt)
             return;
+        nextAttempt = now + 2000;
+        var environment = map.GetComponent<MapComponent_Environment>();
+        if (environment == null)
+            return;
+        EnvironmentLayerDef[] needed = { EnvironmentLayerDefOf.LL_Moisture, EnvironmentLayerDefOf.LL_SoilDepth, EnvironmentLayerDefOf.LL_Slope, EnvironmentLayerDefOf.LL_Sun };
+        foreach (EnvironmentLayerDef layer in needed)
+        {
+            if (!environment.TryGetGrid(layer, out _))
+                return;
+        }
+        float[] Grid(EnvironmentLayerDef layer) => environment.TryGetGrid(layer, out EnvironmentGrid grid) ? grid.ToArray() : null;
+        float[] moisture = Grid(needed[0]), soilDepth = Grid(needed[1]), slope = Grid(needed[2]), sun = Grid(needed[3]);
 
         sizeX = map.Size.x;
         sizeZ = map.Size.z;
@@ -109,6 +124,19 @@ public class MapComponent_Ecology : MapComponent
         built = true;
         Log.Message($"[LivingLandscapes] Plant ecology ready on {map}: {count} plants indexed in {(Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency:F0} ms, " +
                     $"strength {Strength:0.##}.");
+    }
+
+    /// <summary>For tests: runs the action once the map has finished loading from a save.</summary>
+    public static System.Action<Map> AfterLoad;
+
+    public override void FinalizeInit()
+    {
+        base.FinalizeInit();
+        if (AfterLoad == null)
+            return;
+        System.Action<Map> action = AfterLoad;
+        AfterLoad = null;
+        LongEventHandler.ExecuteWhenFinished(() => action(map));
     }
 
     public void OnSpawned(Plant plant)
@@ -235,6 +263,11 @@ public class MapComponent_Ecology : MapComponent
     {
         var fresh = new MapComponent_Ecology(map);
         fresh.Build();
+        if (!fresh.built)
+        {
+            detail = "rebuild not possible";
+            return -1f;
+        }
         float worst = 0f;
         string where = "none";
         void Compare(string name, float[] live, float[] rebuilt)
@@ -340,13 +373,14 @@ public class MapComponent_Ecology : MapComponent
         return Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.05f);
     }
 
-    /// <summary>Growth rate multiplier of a standing plant from how well its site suits its species.</summary>
+    /// <summary>
+    /// Growth rate multiplier of a standing plant from how well its site suits its species: 1 for plants without habitat
+    /// data, so crops, modded and DLC plants grow exactly as vanilla has them.
+    /// </summary>
     public float Vitality(Plant plant)
     {
         PlantHabitat habitat = PlantHabitat.For(plant.def);
-        if (!habitat.HasSiteCurves && habitat.shadeTolerance >= 1f)
-            return 1f;
-        if (!plant.Position.InBounds(map))
+        if (!habitat.HasSiteCurves || !plant.Position.InBounds(map))
             return 1f;
         float fitness = Fitness(plant.def, map.cellIndices.CellToIndex(plant.Position));
         PlantEcologyDef def = PlantEcologyDef.Current;

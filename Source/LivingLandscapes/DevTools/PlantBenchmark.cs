@@ -113,6 +113,7 @@ public static class PlantBenchmark
             Log.Message($"[LivingLandscapes] Plant benchmark E: live grids against a full rebuild: largest difference {worst:0.#####} ({where}); rebuild {Micros(v0) / 1000.0:F0} ms.");
         }
 
+        Regrowth(map);
         Micro(map);
     }
 
@@ -270,6 +271,12 @@ public static class PlantBenchmark
         ExportPlantMap(map, System.IO.Path.Combine(LayerImageExporter.Folder, "PlantMap.png"));
         if (ready)
         {
+            var curved = plants.Where(p => Flora.PlantHabitat.For(p.def).HasSiteCurves).ToList();
+            if (curved.Count > 0)
+            {
+                float mean = curved.Average(p => ecology.Vitality(p)), min = curved.Min(p => ecology.Vitality(p)), max = curved.Max(p => ecology.Vitality(p));
+                Log.Message($"[LivingLandscapes] Plant census: growth rate multiplier (vitality) over {curved.Count} wild plants: mean {mean:0.00}, min {min:0.00}, max {max:0.00}.");
+            }
             int shaded = 0;
             for (int i = 0; i < map.Area; i++)
             {
@@ -278,6 +285,61 @@ public static class PlantBenchmark
             }
             Log.Message($"[LivingLandscapes] Plant census: {shaded * 100f / map.Area:F0}% of cells under canopy shade above 30%.");
         }
+    }
+
+    /// <summary>
+    /// Regrowth in a running game: clears a block of the densest woodland (as felling or a fire would), fast-forwards the
+    /// spawner, and compares what grows back with what stood there: plants, tree share and the species mix.
+    /// </summary>
+    public static void Regrowth(Map map)
+    {
+        const int block = 36;
+        // The block holding the most trees.
+        var trees = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList();
+        if (trees.Count < 50)
+            return;
+        int bestX = 0, bestZ = 0, best = -1;
+        for (int bx = 0; bx + block <= map.Size.x; bx += 12)
+        {
+            for (int bz = 0; bz + block <= map.Size.z; bz += 12)
+            {
+                int count = trees.Count(t => t.Position.x >= bx && t.Position.x < bx + block && t.Position.z >= bz && t.Position.z < bz + block);
+                if (count > best)
+                {
+                    best = count;
+                    bestX = bx;
+                    bestZ = bz;
+                }
+            }
+        }
+        bool InBlock(IntVec3 c) => c.x >= bestX && c.x < bestX + block && c.z >= bestZ && c.z < bestZ + block;
+        Dictionary<string, int> Mix() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
+            .Where(p => !p.def.IsDeadPlant && InBlock(p.Position)).GroupBy(p => p.def.defName).ToDictionary(g => g.Key, g => g.Count());
+        Dictionary<string, int> before = Mix();
+        int plantsBefore = before.Values.Sum(), treesBefore = before.Where(k => k.Key.Contains("Tree")).Sum(k => k.Value);
+        foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>().Where(p => InBlock(p.Position)).ToList())
+            plant.Destroy();
+
+        bool fast = DebugSettings.fastEcology;
+        DebugSettings.fastEcology = true;
+        // One fast call is 2000 spawner ticks; the biome's regrow days set the pace, so check every 200 calls.
+        int calls = 0;
+        double days = 0;
+        for (int round = 0; round < 40; round++)
+        {
+            for (int i = 0; i < 200; i++)
+                map.wildPlantSpawner.WildPlantSpawnerTick();
+            calls += 200;
+            days = calls * 2000.0 / 60000.0;
+            if (Mix().Values.Sum() >= plantsBefore * 0.9)
+                break;
+        }
+        DebugSettings.fastEcology = fast;
+        Dictionary<string, int> after = Mix();
+        int plantsAfter = after.Values.Sum(), treesAfter = after.Where(k => k.Key.Contains("Tree")).Sum(k => k.Value);
+        string Top(Dictionary<string, int> mix) => string.Join(", ", mix.OrderByDescending(k => k.Value).Take(5).Select(k => $"{k.Key.Replace("Plant_", "")} {k.Value}"));
+        Log.Message($"[LivingLandscapes] Plant regrowth: a {block}x{block} block of woodland at ({bestX}, {bestZ}) held {plantsBefore} plants ({treesBefore} trees; {Top(before)}); cleared, " +
+                    $"after {days:F0} game days it holds {plantsAfter} plants ({treesAfter} trees; {Top(after)}).");
     }
 
     private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;

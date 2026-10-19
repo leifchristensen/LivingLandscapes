@@ -14,7 +14,7 @@ public static class TestRun
 {
     private const float DefaultQuitDelay = 10f;
 
-    private static float quitAt = -1f;
+    private static float quitAt = -1f, roundTripAt = -1f;
 
     /// <summary>"-ll-bench-plants" or "-ll-bench-plants=census".</summary>
     private static bool BenchRequested => GenCommandLine.CommandLineArgPassed("ll-bench-plants") || GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out _);
@@ -36,6 +36,30 @@ public static class TestRun
             if (BenchRequested)
                 PlantBenchmark.Run(map);
             Log.Message("[LivingLandscapes] Test run: benchmark done.");
+            // "-ll-roundtrip": save the game, load it again and check the plant ecology came back whole.
+            if (GenCommandLine.CommandLineArgPassed("ll-roundtrip"))
+            {
+                Flora.MapComponent_Ecology.AfterLoad = loaded =>
+                {
+                    var ecology = loaded.GetComponent<Flora.MapComponent_Ecology>();
+                    bool ready = ecology != null && ecology.Ready;
+                    string detail = "";
+                    float diff = ready ? ecology.VerifyAgainstRebuild(out detail) : -1f;
+                    Log.Message($"[LivingLandscapes] Round trip: loaded map has {loaded.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).Count} plants, ecology ready {ready}, rebuild difference {diff:0.#####} ({detail}).");
+                    PlantBenchmark.Census(loaded);
+                    int checkedPlants = 0;
+                    foreach (Thing thing in loaded.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant))
+                    {
+                        if (thing is RimWorld.Plant plant && checkedPlants++ < 2000)
+                            _ = plant.GrowthRate;
+                    }
+                    Log.Message("[LivingLandscapes] Round trip: growth rates read for " + checkedPlants + " plants without error.");
+                    quitAt = Time.realtimeSinceStartup + 1f;
+                };
+                // The new map's drawer is not ready in this frame; save and reload a few seconds into the running game.
+                roundTripAt = Time.realtimeSinceStartup + 4f;
+                return;
+            }
             if (!GenCommandLine.CommandLineArgPassed("ll-quit"))
                 return;
 
@@ -51,6 +75,14 @@ public static class TestRun
     /// <summary>Called every frame while a map is shown; closes the game when the pause is over.</summary>
     public static void Tick()
     {
+        if (roundTripAt >= 0f && Time.realtimeSinceStartup >= roundTripAt)
+        {
+            roundTripAt = -1f;
+            GameDataSaveLoader.SaveGame("LL_roundtrip");
+            Log.Message("[LivingLandscapes] Round trip: saved, loading again.");
+            GameDataSaveLoader.LoadGame("LL_roundtrip");
+            return;
+        }
         if (quitAt >= 0f && Time.realtimeSinceStartup >= quitAt)
         {
             quitAt = -1f;
