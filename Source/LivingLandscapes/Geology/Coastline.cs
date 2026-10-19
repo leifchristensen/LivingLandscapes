@@ -13,6 +13,9 @@ public class CoastlineExtension
 
     /// <summary>How far inland the land is drawn down to the beach, in the coast noise's units (0.1 is a tenth of the map's width).</summary>
     public float landFalloff = 0.22f;
+
+    /// <summary>Metres the coastal plain rises per cell inland: it slopes gently to the sea instead of lying dead level, so water on it still has somewhere to go.</summary>
+    public float plainSlope = 0.012f;
 }
 
 /// <summary>
@@ -87,7 +90,8 @@ public static class Coastline
             else
             {
                 float inland = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(shore, shore + p.landFalloff, noise[i]));
-                height[i] = Mathf.Lerp(beach, height[i], inland);
+                float plain = beach + p.plainSlope * (noise[i] - shore) * sizeX;
+                height[i] = Mathf.Lerp(plain, height[i], inland);
             }
         }
         return sea;

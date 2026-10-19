@@ -92,7 +92,7 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
 
     /// <summary>
     /// "-ll-coast" (or "-ll-coast=North|East|South|West": the sea lies that way) makes a neighbour ocean. "-ll-rivers=
-    /// Creek,River,~HugeRiver" replaces the tile's river links, one per land neighbour in order; a name prefixed "~"
+    /// Creek,River,~HugeRiver" ("-" skips a neighbour) replaces the tile's river links, one per land neighbour in order; a name prefixed "~"
     /// links to the ocean (a river mouth; needs -ll-coast). The tile's Coast and river mutators then follow from this as
     /// world generation assigns them (<c>WorldGenStep_Mutators</c>): Coast for a coastal tile; RiverDelta for a coastal
     /// tile with more than two links, Headwater for one link, RiverConfluence for more than two, else River. This mirrors
@@ -147,6 +147,11 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             int land = 0;
             foreach (string entry in riverList.Split(','))
             {
+                if (entry == "-")
+                {
+                    land++; // a neighbour without a river, so links can be set on opposite sides
+                    continue;
+                }
                 bool mouth = entry.StartsWith("~");
                 RiverDef river = DefDatabase<RiverDef>.GetNamedSilentFail(mouth ? entry.Substring(1) : entry);
                 PlanetTile to = mouth ? ocean : (land < neighbours.Count ? neighbours[land++] : PlanetTile.Invalid);

@@ -141,6 +141,14 @@ public class TerrainChannelSettings
     public float valleyFloorHeight = 1.5f;
     public float maxConfinementWidths = 8f;
 
+    /// <summary>
+    /// A world river takes the course the erosion model gave it: routing sees a trench this deep (metres) and wide (cells, each side)
+    /// along it. On steep ground the valley is already there and this changes nothing; on flat ground, where micro-relief would
+    /// steer the river along the map edge or into a hollow, it keeps the river on the way the model drained it.
+    /// </summary>
+    public float worldCourseTrench = 0.5f;
+    public float worldCourseTrenchWidth = 3f;
+
     /// <summary>The map edge within this many cells of where water enters does not drain (the land beyond slopes in).</summary>
     public float entryGuardCells = 15f;
 
@@ -303,7 +311,8 @@ public static class TerrainChannels
         for (int i = 0; i < n; i++)
         {
             int x = i % sizeX, z = i / sizeX;
-            if (inflow[i] > 0f && (x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1))
+            // A world river's entry cell lies a cell or two inside the edge (its course is cut to the map), so near the edge counts.
+            if (inflow[i] > 0f && (x <= 2 || z <= 2 || x >= sizeX - 3 || z >= sizeZ - 3))
                 entries.Add(new Vector2(x, z));
         }
         bool IsOutlet(int i)
@@ -320,6 +329,11 @@ public static class TerrainChannels
         var microRelief = new Perlin(1.0 / p.flatNoiseWavelength, 2.0, 0.5, 3, p.flatNoiseSeed, QualityMode.Medium);
         for (int i = 0; i < n; i++)
             filled[i] += p.flatNoise * (float)microRelief.GetValue(i % sizeX, 0.0, i / sizeX);
+        foreach (ChannelCourse course in courses ?? new List<ChannelCourse>())
+        {
+            if (course.VanillaWidth > 0f && (water?.riverInflow ?? true))
+                Trench(filled, sizeX, sizeZ, course, p);
+        }
         GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
         receiver = GridMath.Receivers(filled, sizeX, sizeZ);
         for (int i = 0; i < n; i++)
@@ -327,6 +341,31 @@ public static class TerrainChannels
             if (IsOutlet(i))
                 receiver[i] = -1;
         }
+    }
+
+    /// <summary>Lowers the ground along a course (see <see cref="TerrainChannelSettings.worldCourseTrench"/>), deepest on the line.</summary>
+    private static void Trench(float[] filled, int sizeX, int sizeZ, ChannelCourse course, TerrainChannelSettings p)
+    {
+        int reach = Mathf.CeilToInt(p.worldCourseTrenchWidth);
+        var deepest = new float[filled.Length];
+        foreach (Vector2 v in course.Points)
+        {
+            int cx = Mathf.RoundToInt(v.x - 0.5f), cz = Mathf.RoundToInt(v.y - 0.5f);
+            for (int dz = -reach; dz <= reach; dz++)
+            {
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    int x = cx + dx, z = cz + dz;
+                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                        continue;
+                    float share = 1f - Mathf.Sqrt(dx * dx + dz * dz) / (p.worldCourseTrenchWidth + 0.01f);
+                    if (share > 0f)
+                        deepest[z * sizeX + x] = Mathf.Max(deepest[z * sizeX + x], share * share);
+                }
+            }
+        }
+        for (int i = 0; i < filled.Length; i++)
+            filled[i] -= p.worldCourseTrench * deepest[i];
     }
 
     /// <summary>
