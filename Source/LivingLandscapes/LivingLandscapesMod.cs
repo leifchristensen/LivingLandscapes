@@ -24,6 +24,7 @@ public class LivingLandscapesMod : Mod
         var harmonyVersion = typeof(Harmony).Assembly.GetName().Version;
         Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched. " +
                     $"Geological terrain: {(Settings.geologicalTerrain ? "on" : "off")}.");
+        Log.Message($"[LivingLandscapes] {DevTools.BuildStamp.Text}");
     }
 
     public override string SettingsCategory() => "LL_SettingsCategory".Translate();

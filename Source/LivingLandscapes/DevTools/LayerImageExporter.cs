@@ -29,6 +29,7 @@ public static class LayerImageExporter
             return;
         Directory.CreateDirectory(Folder);
         var summary = new StringBuilder();
+        summary.AppendLine(BuildStamp.Text);
         summary.AppendLine($"map {map} | biome {map.Biome?.defName} | size {map.Size.x}x{map.Size.z} | tile {map.Tile} | hilliness {map.TileInfo?.hilliness} | rainfall {map.TileInfo?.rainfall:F0} mm");
         foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
         {
