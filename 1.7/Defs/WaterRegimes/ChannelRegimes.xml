@@ -100,6 +100,25 @@
     <floorWidths>3~5</floorWidths>
   </LivingLandscapes.Geology.ChannelRegimeDef>
 
+  <!-- Marsh web: threads that split and rejoin into loops on flat, wet ground. Only where a water regime lists it. -->
+  <LivingLandscapes.Geology.ChannelRegimeDef>
+    <defName>LL_MarshThread</defName>
+    <label>marsh thread</label>
+    <order>45</order>
+    <exclusive>true</exclusive>
+    <conditions>
+      <li><field>Slope</field><max>0.02</max></li>
+    </conditions>
+    <wobbleWidths>0.8~1.4</wobbleWidths>
+    <wobbleWavelengthWidths>3~5</wobbleWavelengthWidths>
+    <meander>0.2~0.4</meander>
+    <splitChance>0.8~1</splitChance>
+    <islandWidths>2~4</islandWidths>
+    <depthScale>0.5~0.6</depthScale>
+    <riffles>false</riffles>
+    <floorWidths>2~3</floorWidths>
+  </LivingLandscapes.Geology.ChannelRegimeDef>
+
   <!-- The default: matches every reach. -->
   <LivingLandscapes.Geology.ChannelRegimeDef>
     <defName>LL_Wandering</defName>

@@ -49,8 +49,10 @@ public class LandformWorker : EnvironmentLayerWorker
             RiverSystem rivers = RiverChannels.PlanNetwork(channels, new RiverChannels.Context
             {
                 Height = generated, RockStrength = rockStrength, SizeX = map.Size.x, SizeZ = map.Size.z,
-                VanillaWidth = RiverCourse.WidthOnMap(map.TileInfo), SeaDirection = world.SeaDirection,
-                Climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map),
+                SeaDirection = world.SeaDirection,
+                // The river system isn't on the map yet, so its regime's climate offset is added here.
+                Climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
+                                        + (water?.climateOffset ?? 0f)),
                 Relief = generation.ReliefFor(world.Hilliness), Water = water,
                 Network = generation.network, Channels = generation.channels,
             });

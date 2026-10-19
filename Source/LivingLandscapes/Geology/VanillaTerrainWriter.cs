@@ -62,6 +62,7 @@ public static class VanillaTerrainWriter
             fields.Add("Hollow", filled);
         }
         fields.AddConstant("Climate", climate);
+        fields.AddConstant("Marshland", environment.PlannedRivers?.Regime?.marshland ?? 0f);
         return fields;
     }
 

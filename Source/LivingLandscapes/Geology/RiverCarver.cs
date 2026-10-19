@@ -56,6 +56,9 @@ public class RiverBedSettings
     public float maxFloorCells = 40f;
     public float wallWidth = 10f;
 
+    /// <summary>Depth (metres) of the lake a headwater river rises from, at its centre.</summary>
+    public float sourceLakeDepth = 2.5f;
+
     /// <summary>Cut-off loops are carved this deep (metres) below their surroundings and this share of the river's width.</summary>
     public float oxbowDepth = 0.6f;
     public float oxbowWidthShare = 0.7f;
@@ -104,6 +107,7 @@ public static class RiverCarver
         public float[] Natural, Carved, Level, RockStrength;
         public Vector2[] Flow;
         public int[] ChannelOf;
+        public bool[] Still;
         public int SizeX, SizeZ;
     }
 
@@ -116,7 +120,7 @@ public static class RiverCarver
         var canvas = new Canvas
         {
             Natural = height, Carved = (float[])height.Clone(), Level = new float[n], RockStrength = rockStrength,
-            Flow = new Vector2[n], ChannelOf = new int[n], SizeX = sizeX, SizeZ = sizeZ,
+            Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n], SizeX = sizeX, SizeZ = sizeZ,
         };
         for (int i = 0; i < n; i++)
         {
@@ -130,6 +134,7 @@ public static class RiverCarver
         system.WaterLevel = canvas.Level;
         system.Flow = canvas.Flow;
         system.ChannelOf = canvas.ChannelOf;
+        system.Still = canvas.Still;
     }
 
     private static void CarvePlan(Canvas canvas, int index, RiverPlan plan, RiverBedSettings p)
@@ -157,6 +162,9 @@ public static class RiverCarver
             surface[b] = Mathf.Max(surface[b] - floorAbove, junction);
         float SurfaceAt(float along) => surface[Mathf.Clamp((int)along, 0, bins - 1)];
 
+        if (plan.SourceLakeRadius > 0f)
+            CarveSourceLake(canvas, index, plan, SurfaceAt(0f), floorAbove, p);
+
         float[] mainWidth = plan.MainWidth.ToArray();
         CarveChannel(canvas, index, main, i => SurfaceAt(main.Near[i].Along), i => main.At(mainWidth, main.Near[i]),
             plan.NominalWidth, floorAbove, p);
@@ -165,7 +173,8 @@ public static class RiverCarver
         // so where the two overlap their levels agree.
         foreach (RiverPlan.SideBranch side in plan.Sides)
         {
-            Channel branch = Build(side.Points, plan.MainRegime.GetRange(side.From, side.Points.Count).ToArray(), side.Width, reach, canvas, p);
+            Channel branch = Build(side.Points, plan.MainRegime.GetRange(side.From, Mathf.Min(side.Points.Count, plan.MainRegime.Count - side.From)).ToArray(),
+                side.Width, reach, canvas, p);
             float BranchSurface(int i)
             {
                 Nearest near = branch.Near[i];
@@ -193,6 +202,36 @@ public static class RiverCarver
             }
             if (floor < float.MaxValue)
                 CarveHollow(canvas, oxbow, floor - p.oxbowDepth, loopWidth * 0.5f, p);
+        }
+    }
+
+    /// <summary>
+    /// The lake a headwater river rises from: a round bowl whose water stands at the river's head, deepest in the
+    /// middle, with banks easing back to the natural ground.
+    /// </summary>
+    private static void CarveSourceLake(Canvas canvas, int index, RiverPlan plan, float surface, float floorAbove, RiverBedSettings p)
+    {
+        float radius = plan.SourceLakeRadius;
+        for (int i = 0; i < canvas.Natural.Length; i++)
+        {
+            var cell = new Vector2(i % canvas.SizeX + 0.5f, i / canvas.SizeX + 0.5f);
+            float d = (cell - plan.SourceLake).magnitude;
+            if (d > radius + p.bankWidth + p.wallWidth || (canvas.ChannelOf[i] >= 0 && canvas.ChannelOf[i] != index))
+                continue;
+            if (d <= radius)
+            {
+                float u = d / radius;
+                canvas.Carved[i] = Mathf.Min(canvas.Carved[i], surface - Mathf.Max(p.rimDepth, p.sourceLakeDepth * (1f - u * u)));
+                canvas.Level[i] = surface;
+                canvas.ChannelOf[i] = index;
+                canvas.Still[i] = true;
+                continue;
+            }
+            float floor = surface + floorAbove;
+            float target = d <= radius + p.bankWidth
+                ? Mathf.Lerp(surface, floor, Smooth((d - radius) / p.bankWidth))
+                : Mathf.Lerp(floor, canvas.Natural[i], Smooth((d - radius - p.bankWidth) / p.wallWidth));
+            canvas.Carved[i] = Mathf.Min(canvas.Carved[i], target);
         }
     }
 
@@ -239,6 +278,8 @@ public static class RiverCarver
             if (near.Distance > floorEdge + p.wallWidth)
                 continue;
             float surface = surfaceAt(i);
+            if (canvas.Still[i])
+                continue;
             if (near.Distance <= half)
             {
                 float bed = surface - regime.Depth * Depth(near.Distance / half, outer, bend, channel.At(channel.Pool, near), width, p);

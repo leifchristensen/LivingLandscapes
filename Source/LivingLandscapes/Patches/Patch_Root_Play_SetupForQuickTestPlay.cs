@@ -1,3 +1,4 @@
+using System.Linq;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
@@ -46,7 +47,13 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
                 if (mutator == null)
                     Log.Warning($"[LivingLandscapes] -ll-mutators: no tile mutator named {name}.");
                 else
+                {
+                    // A forced mutator replaces the tile's mutators it conflicts with (a shared category), as world
+                    // generation would have chosen one of them.
+                    foreach (TileMutatorDef existing in tile.Mutators.Where(m => m.categories.Any(mutator.categories.Contains)).ToList())
+                        tile.RemoveMutator(existing);
                     tile.AddMutator(mutator);
+                }
             }
         }
         if (GenCommandLine.TryGetCommandLineArg("ll-hilliness", out string hilliness) && System.Enum.TryParse(hilliness, out Hilliness value))

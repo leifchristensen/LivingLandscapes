@@ -52,8 +52,11 @@ public class ChannelCourse
     /// <summary>Drainage area (map cells) already gathered where the channel enters the map; 0 if it starts inside.</summary>
     public float EntryArea;
 
-    /// <summary>The world river's channel.</summary>
+    /// <summary>The world river's channel: the one that reaches the river's exit.</summary>
     public bool WorldRiver;
+
+    /// <summary>Vanilla's width for a world river entering along this channel (or leaving along it); 0 for the map's own channels.</summary>
+    public float VanillaWidth;
 
     /// <summary>Drainage area (map cells) at the course point nearest to <paramref name="v"/>.</summary>
     public float AreaNear(Vector2 v)
@@ -84,7 +87,8 @@ public static class RiverNetwork
     /// <param name="toMap">Model cell index to map coordinates.</param>
     /// <param name="mapCellsPerModelCell">Map cells along one model cell.</param>
     public static List<ChannelCourse> Extract(int[] receiver, float[] area, int gx, int gz, System.Func<int, Vector2> toMap,
-        float mapCellsPerModelCell, int sizeX, int sizeZ, int riverEntry, float sourceShare, RiverNetworkSettings p)
+        float mapCellsPerModelCell, int sizeX, int sizeZ, List<(int cell, float width)> entries, int riverExit, float exitWidth,
+        float sourceShare, RiverNetworkSettings p)
     {
         int n = gx * gz;
         float cellArea = mapCellsPerModelCell * mapCellsPerModelCell;
@@ -165,7 +169,14 @@ public static class RiverNetwork
             if (first < 0)
                 continue;
             int a = Mathf.Max(0, first - 1), b = Mathf.Min(course.Count - 1, last + 1);
-            var channel = new ChannelCourse { Order = orders[k], WorldRiver = riverEntry >= 0 && course.Contains(riverEntry) };
+            var channel = new ChannelCourse { Order = orders[k], WorldRiver = riverExit >= 0 && course.Contains(riverExit) };
+            foreach ((int cell, float width) in entries)
+            {
+                if (course.Contains(cell))
+                    channel.VanillaWidth = Mathf.Max(channel.VanillaWidth, width);
+            }
+            if (channel.WorldRiver)
+                channel.VanillaWidth = Mathf.Max(channel.VanillaWidth, exitWidth);
             for (int i = a; i <= b; i++)
             {
                 channel.Points.Add(toMap(course[i]));
@@ -177,7 +188,24 @@ public static class RiverNetwork
             for (int i = first; i < last; i++)
                 inside += (toMap(course[i + 1]) - toMap(course[i])).magnitude;
             cut[k] = channel;
-            keep[k] = inside >= p.minLengthInside || channel.WorldRiver;
+            keep[k] = inside >= p.minLengthInside || channel.VanillaWidth > 0f;
+        }
+        // At a headwater nothing enters, and the exit cell may not lie on a channel: the world river is then the channel
+        // that gathers the most water by the time it leaves the map.
+        if (riverExit >= 0 && System.Array.TrueForAll(cut, ch => ch == null || !ch.WorldRiver))
+        {
+            int largest = -1;
+            for (int k = 0; k < count; k++)
+            {
+                if (cut[k] != null && parents[k] < 0 && (largest < 0 || cut[k].Areas[cut[k].Areas.Count - 1] > cut[largest].Areas[cut[largest].Areas.Count - 1]))
+                    largest = k;
+            }
+            if (largest >= 0)
+            {
+                cut[largest].WorldRiver = true;
+                cut[largest].VanillaWidth = Mathf.Max(cut[largest].VanillaWidth, exitWidth);
+                keep[largest] = true;
+            }
         }
         for (bool changed = true; changed;)
         {

@@ -87,6 +87,7 @@ public class GroundRulesDef : Def
 /// <item>WaterDistance: cells to the nearest surface water (0 in it).</item>
 /// <item>Hollow: depth (metres) of a closed hollow at the cell, below its spill level.</item>
 /// <item>Climate: 0..1 climate wetness of the tile from rainfall (the same everywhere).</item>
+/// <item>Marshland: 0..1 how much the map's water regime makes damp ground marsh (a wetland; the same everywhere).</item>
 /// </list>
 /// </summary>
 public class GroundFields

@@ -32,8 +32,52 @@ public class WaterRegimeDef : Def
     /// <summary>Channels start where drainage area reaches this share of the map's area: lower is a denser network.</summary>
     public FloatRange sourceShare = new FloatRange(0.015f, 0.025f);
 
+    /// <summary>
+    /// Floodplain wetness: multiplies how high above a channel the water table stays up (LL_Wetness), so a wetland's
+    /// ground between its threads is marsh and an arid map's channels have only a thin damp strip.
+    /// </summary>
+    public float floodplainScale = 1f;
+
+    /// <summary>Added to the tile's 0..1 climate wetness from rainfall (wetness, wet ground rules, streams).</summary>
+    public float climateOffset;
+
+    /// <summary>0..1: how much damp ground becomes marsh (ground rules field Marshland), for wetlands.</summary>
+    public float marshland;
+
     /// <summary>Channel regimes this water regime favours or forbids.</summary>
     public List<RegimeWeight> channelRegimes = new List<RegimeWeight>();
+
+    /// <summary>
+    /// This regime models its mutators' water (a delta, a headwater lake, a wetland's channels): those mutators' own
+    /// water painting stands aside.
+    /// </summary>
+    public bool replacesMutatorTerrain;
+
+    // World river structure (tied to the river mutators).
+
+    /// <summary>The world river enters from beyond the map. False at a headwater: it rises on the map instead.</summary>
+    public bool riverInflow = true;
+
+    /// <summary>Every river link of the tile enters the map, not only the main one (a confluence).</summary>
+    public bool allRiverLinks;
+
+    /// <summary>The world river rises from a lake near the map's centre, this many channel widths across (0: none).</summary>
+    public FloatRange sourceLakeWidths = FloatRange.Zero;
+
+    /// <summary>
+    /// The world river fans into distributaries where it nears its exit (a delta), not only by the sea: this many
+    /// branches, spread up to this many channel widths apart at the edge.
+    /// </summary>
+    public bool deltaAtExit;
+    public IntRange deltaBranches = new IntRange(2, 2);
+    public FloatRange deltaSpreadWidths = new FloatRange(2f, 2f);
+
+    /// <summary>
+    /// The world river splits around one large island near the map's centre: its length as a share of the map's size
+    /// (0: none) and how far its side channel bows out, in channel widths.
+    /// </summary>
+    public FloatRange centralIsland = FloatRange.Zero;
+    public FloatRange centralIslandWidths = new FloatRange(2f, 3f);
 
     public float Weight(ChannelRegimeDef regime)
     {

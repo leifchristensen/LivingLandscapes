@@ -102,6 +102,13 @@ public class RiverPlan
 
     public bool WorldRiver;
 
+    /// <summary>Vanilla's width for a world river along this channel (0 for the map's own channels).</summary>
+    public float VanillaWidth;
+
+    /// <summary>A lake the channel rises from (headwater): its centre and radius; radius 0 if none.</summary>
+    public Vector2 SourceLake;
+    public float SourceLakeRadius;
+
     /// <summary>Each reach's fields and regime, upstream to downstream (for logs and the variety check).</summary>
     public List<Dictionary<string, float>> ReachFields = new List<Dictionary<string, float>>();
     public List<ReachRegime> Reaches = new List<ReachRegime>();
@@ -135,6 +142,9 @@ public class RiverSystem
     /// <summary>Channel index in each cell of a live channel (-1 elsewhere).</summary>
     public int[] ChannelOf;
 
+    /// <summary>Cells of a channel's still water (a source lake): no current.</summary>
+    public bool[] Still;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 
@@ -153,7 +163,7 @@ public static class RiverChannels
     {
         public float[] Height, RockStrength;
         public int SizeX, SizeZ;
-        public float VanillaWidth, Climate, Relief;
+        public float Climate, Relief;
         public Vector2 SeaDirection;
         public WaterRegimeDef Water;
         public RiverNetworkSettings Network;
@@ -171,27 +181,49 @@ public static class RiverChannels
         {
             ChannelCourse course = courses[k];
             RiverPlan parent = course.Parent >= 0 ? planned[course.Parent] : null;
-            float width = course.WorldRiver && c.VanillaWidth > 0f
-                ? c.Network.worldRiverWidth.Evaluate(c.VanillaWidth)
+            // World rivers keep vanilla's order of classes, compressed to map scale; the map's own channels by stream order.
+            float width = course.VanillaWidth > 0f
+                ? c.Network.worldRiverWidth.Evaluate(course.VanillaWidth)
                 : c.Network.widthByOrder.Evaluate(course.Order);
-            if (parent != null)
+            if (parent != null && course.VanillaWidth <= 0f)
                 width = Mathf.Min(width, parent.NominalWidth * c.Network.tributaryShare);
             List<Vector2> line = RiverCourse.FromPlan(course.Points, c.SizeX, c.SizeZ);
             if (line == null)
                 continue;
+            // Headwater: the world river rises from a lake near the map's centre; its course above the lake is dropped,
+            // and channels that joined it there now feed the lake.
+            float sourceLake = course.WorldRiver && c.Water != null ? c.Water.sourceLakeWidths.RandomInRange * width * 0.5f : 0f;
+            Vector2 source = Vector2.zero;
+            if (sourceLake > 0f)
+            {
+                var centre = new Vector2(c.SizeX * 0.5f, c.SizeZ * 0.5f);
+                int nearest = 0;
+                for (int i = 1; i < line.Count; i++)
+                {
+                    if ((line[i] - centre).sqrMagnitude < (line[nearest] - centre).sqrMagnitude)
+                        nearest = i;
+                }
+                line = line.GetRange(nearest, line.Count - nearest);
+                if (line.Count < 2)
+                    continue;
+                source = line[0];
+            }
             // A tributary ends on its parent's channel as planned, not where the model's grid put the junction: it is
             // cut where it comes closest to the parent and joined to it there. A junction beyond the map is left alone.
             if (parent != null && Inside(line[line.Count - 1], c.SizeX, c.SizeZ))
                 JoinParent(line, parent.Main);
             else
                 parent = null;
-            bool fromEdge = !Inside(course.Points[0], c.SizeX, c.SizeZ);
+            bool fromEdge = sourceLake <= 0f && !Inside(course.Points[0], c.SizeX, c.SizeZ);
             RiverPlan plan = Plan(line, width, fromEdge, parent == null, course, c);
             if (plan.Main.Count < 2)
                 continue;
             plan.Parent = parent != null ? system.Channels.IndexOf(parent) : -1;
             plan.EntryArea = fromEdge ? course.EntryArea : 0f;
             plan.WorldRiver = course.WorldRiver;
+            plan.VanillaWidth = course.VanillaWidth;
+            plan.SourceLake = source;
+            plan.SourceLakeRadius = sourceLake;
             planned[k] = plan;
             system.Channels.Add(plan);
         }
@@ -283,7 +315,7 @@ public static class RiverChannels
             plan.MainWidth.Add(width);
             plan.MainRegime.Add(RegimeAt(along[i] / length));
         }
-        Split(plan, c, width, spacing, Erodibility);
+        Split(plan, c, width, spacing, source.WorldRiver, Erodibility);
         return plan;
     }
 
@@ -468,7 +500,7 @@ public static class RiverChannels
     /// bowing toward the side with more room and rejoining downstream. Near a sea edge the channel fans into
     /// distributaries on both sides that reach the sea.
     /// </summary>
-    private static void Split(RiverPlan plan, Context c, float width, float spacing, System.Func<Vector2, float> erodibility)
+    private static void Split(RiverPlan plan, Context c, float width, float spacing, bool worldRiver, System.Func<Vector2, float> erodibility)
     {
         RiverChannelSettings p = c.Channels;
         int sizeX = c.SizeX, sizeZ = c.SizeZ;
@@ -496,25 +528,79 @@ public static class RiverChannels
         bool HasRoom(int i) => Interior(pts[i]) && confinement[i] >= p.splitConfinement && erodibility(pts[i]) >= p.minIslandErodibility;
         float branchWidth = width * p.branchWidthShare;
 
-        // Near the sea: distributaries on both sides from where the channel comes within reach of the coast.
-        int delta = pts.FindIndex(v => Inside(v, sizeX, sizeZ) && SeaDistance(v, c.SeaDirection, sizeX, sizeZ) <= p.deltaWidths * width);
+        // Delta: distributaries from where the channel comes within reach of the sea, or of its exit on a delta map.
+        float[] along = Cumulative(pts);
+        float total = along[n - 1];
+        bool exitDelta = worldRiver && c.Water != null && c.Water.deltaAtExit;
+        int delta = -1;
+        for (int i = 0; i < n && delta < 0; i++)
+        {
+            if (!Inside(pts[i], sizeX, sizeZ))
+                continue;
+            float reach = Mathf.Min(SeaDistance(pts[i], c.SeaDirection, sizeX, sizeZ), exitDelta ? total - along[i] : float.MaxValue);
+            if (reach <= p.deltaWidths * width)
+                delta = i;
+        }
         if (delta > 0 && delta < n - 3)
         {
             int to = n - 1;
-            foreach (float side in new[] { 1f, -1f })
+            int branches = exitDelta ? c.Water.deltaBranches.RandomInRange : 2;
+            float spread = (exitDelta ? c.Water.deltaSpreadWidths.RandomInRange : 2f) * width;
+            int perSide = Mathf.Max(1, Mathf.CeilToInt(branches * 0.5f));
+            for (int b = 0; b < branches; b++)
             {
+                float side = b % 2 == 0 ? 1f : -1f;
+                float offset = spread * (b / 2 + 1) / perSide;
                 var branch = new RiverPlan.SideBranch { Width = branchWidth, From = delta, To = to, ToBaseLevel = true };
                 for (int k = delta; k <= to; k++)
                 {
                     float f = (k - delta) / (float)(to - delta);
                     Vector2 t = (pts[Mathf.Min(k + 1, n - 1)] - pts[Mathf.Max(k - 1, 0)]).normalized;
-                    branch.Points.Add(pts[k] + new Vector2(-t.y, t.x) * side * Mathf.Pow(f, 0.6f) * 2f * width);
+                    branch.Points.Add(pts[k] + new Vector2(-t.y, t.x) * side * Mathf.Pow(f, 0.6f) * offset);
                 }
+                // Every distributary runs on to the edge (the base level), even where the fan's spread pulls it inward.
+                Vector2 heading = (pts[to] - pts[Mathf.Max(to - 1, 0)]).normalized;
+                Vector2 tail = branch.Points[branch.Points.Count - 1];
+                for (int guard = 0; Inside(tail, sizeX, sizeZ) && guard < sizeX + sizeZ; guard++)
+                    tail += heading * spacing;
+                if (tail != branch.Points[branch.Points.Count - 1])
+                    branch.Points.Add(tail);
                 plan.Sides.Add(branch);
             }
             for (int k = delta; k <= to; k++)
                 plan.MainWidth[k] = branchWidth;
             n = delta;
+        }
+
+        // River island: one large island near the map's centre.
+        int islandFrom = -1, islandTo = -1;
+        float islandShare = worldRiver && c.Water != null ? c.Water.centralIsland.RandomInRange : 0f;
+        if (islandShare > 0f)
+        {
+            var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
+            int middle = 1;
+            for (int i = 1; i < n - 1; i++)
+            {
+                if ((pts[i] - centre).sqrMagnitude < (pts[middle] - centre).sqrMagnitude)
+                    middle = i;
+            }
+            int half = Mathf.CeilToInt(islandShare * Mathf.Max(sizeX, sizeZ) * 0.5f / spacing);
+            islandFrom = Mathf.Max(1, middle - half);
+            islandTo = Mathf.Min(n - 2, middle + half);
+            if (islandTo - islandFrom > 4)
+            {
+                float side = left[middle] >= right[middle] ? 1f : -1f;
+                float offset = c.Water.centralIslandWidths.RandomInRange * width;
+                var branch = new RiverPlan.SideBranch { Width = branchWidth, From = islandFrom, To = islandTo };
+                for (int k = islandFrom; k <= islandTo; k++)
+                {
+                    float f = (k - islandFrom) / (float)(islandTo - islandFrom);
+                    Vector2 t = (pts[k + 1] - pts[k - 1]).normalized;
+                    branch.Points.Add(pts[k] + new Vector2(-t.y, t.x) * side * offset * Mathf.Pow(Mathf.Max(0f, Mathf.Sin(Mathf.PI * f)), 0.6f));
+                    plan.MainWidth[k] = branchWidth;
+                }
+                plan.Sides.Add(branch);
+            }
         }
 
         // Islands that rejoin, where there is room and the reach's regime splits; the next may start after one ends.
@@ -527,6 +613,11 @@ public static class RiverChannels
             int to = from + islandPoints;
             if (to >= n - 1)
                 break;
+            if (islandTo >= 0 && to >= islandFrom && from <= islandTo)
+            {
+                from = islandTo;
+                continue;
+            }
             if (Rand.Value >= regime.SplitChance)
             {
                 from += islandPoints / 2;

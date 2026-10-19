@@ -11,13 +11,25 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// With geological terrain on, a world river follows the valley the geology carved for it instead of vanilla's
-/// straight line: its course becomes a chain of river segments, which vanilla then fills with water, banks and flow.
-/// Variants with their own river layout (confluence, delta, river island, headwater) keep vanilla's behaviour.
+/// With geological terrain on, world rivers follow the channels the geology planned and carved instead of vanilla's
+/// straight lines: every world river channel (the main river, a confluence's other rivers, side branches and delta
+/// distributaries) becomes a chain of river segments. River variants (delta, confluence, river island, headwater) are
+/// taken over too: their layout comes from the map's water regime. If a tile has several river mutators, only the
+/// first lays the segments.
 /// </summary>
-[HarmonyPatch(typeof(TileMutatorWorker_River), "GenerateRiverGraph")]
+[HarmonyPatch]
 public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
 {
+    /// <summary>The base method and every river variant's override (delta, confluence, river island, headwater, modded).</summary>
+    public static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly;
+        return new[] { typeof(TileMutatorWorker_River) }.Concat(typeof(TileMutatorWorker_River).AllSubclassesNonAbstract())
+            .Select(type => type.GetMethod("GenerateRiverGraph", flags, null, new[] { typeof(Map) }, null))
+            .Where(method => method != null);
+    }
+
     /// <summary>River segments extend this far past the map edge, as vanilla's do.</summary>
     private const float EdgeOverhang = 25f;
 
@@ -32,7 +44,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
 
     public static bool Prefix(TileMutatorWorker_River __instance, Map map)
     {
-        if (__instance.GetType() != typeof(TileMutatorWorker_River) || !GeologicalTerrain.AppliesTo(map))
+        if (!GeologicalTerrain.AppliesTo(map))
             return true;
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null)
@@ -43,27 +55,38 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         WorldContext world = WorldContext.For(map, 1f);
         if (!world.HasRiver)
             return true;
-        RiverPlan plan = environment.PlannedRivers?.WorldRiver;
-        if (plan == null)
+        RiverSystem rivers = environment.PlannedRivers;
+        if (rivers?.WorldRiver == null)
         {
             Log.Warning($"[LivingLandscapes] No planned river course crosses {map}; using vanilla's river.");
             return true;
         }
+        if (map.waterInfo.riverGraph.Any(IsGeologicalNode))
+            return false;
 
-        // The main channel in pieces of equal width (narrower beside islands), then the side branches.
-        int segments = 0;
-        int start = 0;
-        for (int i = 1; i <= plan.Main.Count; i++)
+        int segments = 0, worldRivers = 0, sides = 0;
+        foreach (RiverPlan plan in rivers.Channels)
         {
-            if (i < plan.Main.Count && plan.MainWidth[i] == plan.MainWidth[start])
+            if (plan.VanillaWidth <= 0f)
                 continue;
-            List<Vector2> piece = plan.Main.GetRange(start, Mathf.Min(i + 1, plan.Main.Count) - start);
-            segments += AddNodes(map, piece, plan.MainWidth[start], start == 0, i >= plan.Main.Count);
-            start = i;
+            worldRivers++;
+            // The main channel in pieces of equal width (narrower beside islands), then the side branches.
+            int start = 0;
+            for (int i = 1; i <= plan.Main.Count; i++)
+            {
+                if (i < plan.Main.Count && plan.MainWidth[i] == plan.MainWidth[start])
+                    continue;
+                List<Vector2> piece = plan.Main.GetRange(start, Mathf.Min(i + 1, plan.Main.Count) - start);
+                bool upstreamEdge = start == 0 && plan.SourceLakeRadius <= 0f;
+                segments += AddNodes(map, piece, plan.MainWidth[start], upstreamEdge, i >= plan.Main.Count && plan.Parent < 0);
+                start = i;
+            }
+            foreach (RiverPlan.SideBranch side in plan.Sides)
+                segments += AddNodes(map, side.Points, side.Width, false, side.ToBaseLevel);
+            sides += plan.Sides.Count;
         }
-        foreach (RiverPlan.SideBranch side in plan.Sides)
-            segments += AddNodes(map, side.Points, side.Width, false, false);
-        Log.Message($"[LivingLandscapes] River on {map} follows the terrain in {segments} segments ({plan.Sides.Count} side channels, {plan.Oxbows.Count} cut-off loops).");
+        Log.Message($"[LivingLandscapes] Rivers on {map} ({rivers.Regime?.defName ?? "no water regime"}) follow the terrain: " +
+                    $"{worldRivers} world rivers in {segments} segments, {sides} side channels.");
         return false;
     }
 

@@ -154,17 +154,19 @@ public static class LandscapeGenerator
                 sites[z * gx + x] = strata.At((x - originX) * mapCellsPerModelCell, (z - originZ) * mapCellsPerModelCell);
         }
 
-        bool[] outlet = Outlets(world, gx, gz, out int riverEntry);
+        bool[] outlet = Outlets(world, water, gx, gz, out List<(int cell, float width)> entries, out int riverExit);
         float[] inflow = new float[gx * gz];
-        if (riverEntry >= 0)
-            inflow[riverEntry] = p.riverInflow * gx * gz;
+        float mainWidth = entries.Count > 0 ? Mathf.Max(entries[0].width, 1f) : 1f;
+        foreach ((int cell, float width) in entries)
+            inflow[cell] += p.riverInflow * gx * gz * width / mainWidth;
 
         float[] h = Erode(uplift, erodibility, outlet, inflow, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
             out float[] area, out float modelTop);
-        // The channels the model carved, from its drainage tree; the world river is the one from its entry.
+        // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
-            mapCellsPerModelCell, sizeX, sizeZ, riverEntry, water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
+            mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
+            water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];
@@ -256,9 +258,11 @@ public static class LandscapeGenerator
 
     /// <summary>
     /// Base-level cells: edges facing downhill (all edges on level ground), the sea side, and the river's exit.
-    /// Returns the river's entry cell (upstream edge) or -1.
+    /// Returns the cells where world rivers enter (with vanilla's width): the main river, plus every other river link
+    /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
-    private static bool[] Outlets(WorldContext world, int gx, int gz, out int riverEntry)
+    private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, out List<(int cell, float width)> entries,
+        out int riverExit)
     {
         var outlet = new bool[gx * gz];
         var centre = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
@@ -276,13 +280,23 @@ public static class LandscapeGenerator
             }
         }
 
-        riverEntry = -1;
+        entries = new List<(int, float)>();
+        riverExit = -1;
         if (world.HasRiver)
         {
-            int exit = EdgeCellToward(world.RiverFlow, gx, gz);
-            riverEntry = EdgeCellToward(-world.RiverFlow, gx, gz);
-            outlet[exit] = true;
-            outlet[riverEntry] = false;
+            riverExit = EdgeCellToward(world.RiverExit, gx, gz);
+            outlet[riverExit] = true;
+            if (water == null || water.riverInflow)
+            {
+                for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
+                {
+                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz);
+                    if (entry == riverExit)
+                        continue;
+                    outlet[entry] = false;
+                    entries.Add((entry, world.RiverInflows[i].Width));
+                }
+            }
         }
         return outlet;
     }

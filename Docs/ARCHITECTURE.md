@@ -75,7 +75,12 @@ later pawn movement cost (vanilla path cost is per cell and non-directional).
   notches ridges along them and soil holds there; no separate pass-cutting step. The writer logs walkable areas.
 - `LL_Debris` (rule S4): fragments from bare rock faces roll down the steepest way until the slope eases and collect
   there; scree lies where debris is high (fans and aprons below rock instead of a fixed-width ring).
-- **Rivers** (W1, W3-W5): `RiverChannels` plans the world river's channels on the landform. Meander migration
+- **Water regimes** (`Docs/WATER-REGIMES.md`): the river network is data driven. A map's `WaterRegimeDef` is chosen
+  from its tile, with mutators first, then climate and hilliness. It sets network density, channel regime weights,
+  floodplain wetness and climate, and world river structures (delta, confluence, river island, headwater, marsh
+  web). Every channel reach gets a `ChannelRegimeDef` from its own fields, and that regime sets wobble, meandering,
+  splits, depth and valley floor. `RiverNetwork` extracts the channels from the erosion model's drainage tree.
+- **Rivers** (W1, W3-W5): `RiverChannels` plans each channel on the landform. Meander migration
   (Howard-Knutson) is scaled by vanilla's channel width, so creeks bend tightly and great rivers gently. Cutoffs
   leave oxbows. Banks erode by rock strength and stop at valley walls. Splits form around islands where carrying
   capacity (slope over floor width) falls, which means deposition. `RiverCarver` carves the plan:

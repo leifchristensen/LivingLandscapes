@@ -31,6 +31,20 @@ public class WorldContext
 
     public bool HasRiver;
 
+    /// <summary>A world river entering the map: the side it comes from and the width vanilla gives it.</summary>
+    public struct RiverInflow
+    {
+        public Vector2 From;
+        public float Width;
+    }
+
+    /// <summary>World rivers entering the map, the main one first. Empty at a headwater, where the river rises on the map.</summary>
+    public List<RiverInflow> RiverInflows = new List<RiverInflow>();
+
+    /// <summary>Direction in which the world river leaves the map (toward the sea at a river mouth), and its width there.</summary>
+    public Vector2 RiverExit;
+    public float RiverExitWidth;
+
     /// <summary>Direction the river flows (towards its downstream neighbour).</summary>
     public Vector2 RiverFlow;
 
@@ -71,13 +85,26 @@ public class WorldContext
         if (tile is SurfaceTile surface && !surface.Rivers.NullOrEmpty()
             && tile.Mutators.Any(m => m.Worker is TileMutatorWorker_River))
         {
-            // Same ordering vanilla uses to orient the river on the map.
+            // Same ordering vanilla uses to orient the river on the map: upstream links first, the downstream one last.
+            // A single link is the river's upstream at a river mouth (by the sea) and its downstream at a headwater.
             List<SurfaceTile.RiverLink> links = surface.Rivers.OrderBy(rl => -((SurfaceTile)Find.WorldGrid[rl.neighbor]).riverDist).ToList();
-            if (links.Count >= 2)
+            bool mouth = links.Count == 1 && context.SeaDirection != Vector2.zero;
+            SurfaceTile.RiverLink downstream = links.Last();
+            List<SurfaceTile.RiverLink> upstream = mouth ? links : links.Take(links.Count - 1).ToList();
+            context.HasRiver = true;
+            context.RiverExit = mouth ? context.SeaDirection : Heading(Find.WorldGrid.GetHeadingFromTo(here, downstream.neighbor));
+            context.RiverExitWidth = links.Max(rl => rl.river.widthOnMap);
+            foreach (SurfaceTile.RiverLink link in upstream)
             {
-                context.HasRiver = true;
-                context.RiverFlow = Heading(Find.WorldGrid.GetHeadingFromTo(links.First().neighbor, links.Last().neighbor));
+                context.RiverInflows.Add(new RiverInflow
+                {
+                    From = Heading(Find.WorldGrid.GetHeadingFromTo(here, link.neighbor)),
+                    Width = link.river.widthOnMap,
+                });
             }
+            context.RiverFlow = context.RiverInflows.Count > 0
+                ? (context.RiverExit - context.RiverInflows[0].From).normalized
+                : context.RiverExit;
         }
         return context;
     }

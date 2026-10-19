@@ -43,11 +43,15 @@ public class WetnessExtension : DefModExtension
     /// <summary>Rainfall share assumed when the tile reports none (pocket maps, mod-made tiles).</summary>
     public float unknownRainfall = 0.4f;
 
-    /// <summary>0..1 climate wetness of a map's tile from its rainfall.</summary>
+    /// <summary>
+    /// 0..1 climate wetness of a map's tile from its rainfall, shifted by the map's water regime (a wetland is wet
+    /// whatever its rainfall).
+    /// </summary>
     public float ClimateOf(Map map)
     {
         float rainfall = map.TileInfo?.rainfall ?? 0f;
-        return rainfall > 0f ? Mathf.Clamp01(rainfall / wetRainfallMm) : unknownRainfall;
+        float climate = rainfall > 0f ? rainfall / wetRainfallMm : unknownRainfall;
+        return Mathf.Clamp01(climate + (map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.Regime?.climateOffset ?? 0f));
     }
 }
 
@@ -90,7 +94,8 @@ public class WetnessWorker : EnvironmentLayerWorker
             float index = Mathf.Log(area / Mathf.Max(tanSlope, 0.01f));
             float indexWet = Mathf.InverseLerp(p.wetnessIndexRange.min, p.wetnessIndexRange.max, index);
             float aboveDrainage = Mathf.Max(0f, height[i] - drainageHeight[i]);
-            float floodScale = p.heightAboveDrainageScale * (1f + p.floodGrowthPerDecade * Mathf.Max(0f, lineArea[i] - p.channelArea));
+            float floodScale = p.heightAboveDrainageScale * (1f + p.floodGrowthPerDecade * Mathf.Max(0f, lineArea[i] - p.channelArea))
+                               * (rivers?.Regime?.floodplainScale ?? 1f);
             float groundwater = Mathf.Exp(-aboveDrainage / floodScale);
             float topographic = p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);

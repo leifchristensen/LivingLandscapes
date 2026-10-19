@@ -134,6 +134,30 @@ different data the spread should be wide; across maps with the same regime, reco
 
 ## 6. Build order (each step committed, tested on the seed set)
 
+**Progress (2026-10-19):** steps 1, 2 and 4 are done. Steps 3, 5, 6 and 7 are next.
+
+1. **Regime tables.**
+   - `WaterRegimeDef` and `ChannelRegimeDef` in `1.7/Defs/WaterRegimes/`, using the shared `FieldCondition`.
+   - Reach fields include Opening (floor width over its narrowest just upstream).
+2. **Channel regimes drive shape and bed.** They set wobble, meandering, splits, depth, riffles and floor width.
+3. **Mutator structures.** Each is a set of data knobs on the water regime, implemented once in the processes:
+
+   | Knob | Used by |
+   |---|---|
+   | `deltaAtExit`, `deltaBranches`, `deltaSpreadWidths` | Delta |
+   | `allRiverLinks` | Confluence; needs a tile with several river links |
+   | `centralIsland` | River island |
+   | `sourceLakeWidths` | Headwater |
+   | `floodplainScale`, `climateOffset`, `marshland` | Marsh web; `marshland` is a ground rule field that drives a "wetland marsh" rule |
+   | `replacesMutatorTerrain` | Any regime: the mutator's own water painting stands aside |
+
+   Our river graph takes over every river variant. Wider support:
+   - `WorldContext` now has river inflows and an exit, so headwaters and river mouths work;
+   - the test harness swaps mutators that conflict with a forced one.
+
+Still open: braided reaches that rejoin into loops between neighbouring channels (the marsh web has only short side
+loops), rock cores on islands, and the Lakeland, Coastal and Basin regimes beyond density.
+
 1. Defs and selection:
    - `WaterRegimeDef` and `ChannelRegimeDef` with the condition model;
    - map regime chosen and logged;

@@ -68,14 +68,15 @@ public static class SurfaceWaterModel
 
         // The planned channels hold water up to the surface the carving gave them, flowing at full speed. Streams and
         // lakes join them there rather than overlaying them.
-        float[] river = map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.WaterLevel;
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        float[] river = rivers?.WaterLevel;
         bool InRiver(int i) => river != null && !float.IsNaN(river[i]);
         for (int i = 0; river != null && i < n; i++)
         {
             if (!InRiver(i))
                 continue;
             result.Depth[i] = Mathf.Max(0f, river[i] - landform[i]);
-            result.Flow[i] = 1f;
+            result.Flow[i] = rivers.Still != null && rivers.Still[i] ? 0f : 1f;
         }
 
         Streams(landform, drainage, sizeX, sizeZ, climate, p, result, InRiver);

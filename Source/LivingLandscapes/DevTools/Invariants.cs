@@ -52,6 +52,7 @@ public static class Invariants
         if (rivers == null || rivers.Channels.Count == 0)
             return;
         int steps = 0, climbing = 0, sides = 0, rejoin = 0, ended = 0, loops = 0;
+        var loose = new StringBuilder();
         float maxRise = 0f, length = 0f, straight = 0f;
         IntVec3 worst = IntVec3.Invalid;
         for (int k = 0; k < rivers.Channels.Count; k++)
@@ -102,6 +103,8 @@ public static class Invariants
                                  : (end - plan.Main[side.To]).magnitude <= plan.NominalWidth);
                 if (joins)
                     rejoin++;
+                else
+                    loose.Append($" ({side.Points[0].x:F0},{side.Points[0].y:F0})->({end.x:F0},{end.y:F0})");
             }
             loops += plan.Oxbows.Count;
 
@@ -115,7 +118,8 @@ public static class Invariants
                            $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst}" : "")}");
         summary.AppendLine($"invariant 4 (split channels rejoin or reach the sea): {(rejoin == sides ? "ok" : "FAIL")} | {rejoin} of {sides} side channels; " +
                            $"sinuosity {(straight > 1f ? length / straight : 1f):F2}, {loops} cut-off loops, widths " +
-                           string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
+                           string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))) +
+                           (loose.Length > 0 ? $"; loose:{loose}" : ""));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
                            "end in another channel, at the map edge or in standing water");
     }

@@ -7,9 +7,15 @@
     fields: Rainfall (mm), Temperature (C), Hilliness (1 flat, 2 small hills, 3 large hills, 4 mountainous,
     5 impassable), Elevation (m), River (vanilla width of the world river, 0 if none), Coast (1 by the sea).
     sourceShare: channels start where drainage reaches this share of the map's area (lower: denser network).
-    channelRegimes: weights on channel regimes (0 forbids; unlisted weigh 1).
-    Mutator structures (delta, confluence, river island, headwater, marsh web) come in a later step; until then these
-    regimes shape the network through density and channel regime weights only.
+    floodplainScale: how far the water table stays up beside channels (marsh between a wetland's threads, thin damp
+    strips on arid maps).
+    climateOffset: added to the tile's climate wetness (0..1 from rainfall) for every water and wet ground rule.
+    marshland: 0..1, how much damp ground becomes marsh (ground rules field Marshland).
+    channelRegimes: weights on channel regimes (0 forbids; unlisted weigh 1; exclusive regimes only where listed).
+    replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
+    World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
+    a confluence), sourceLakeWidths (lake the river rises from), deltaAtExit with deltaBranches and
+    deltaSpreadWidths (distributaries toward the exit), centralIsland (share of map size) with centralIslandWidths.
   -->
 
   <LivingLandscapes.Geology.WaterRegimeDef>
@@ -17,7 +23,12 @@
     <label>delta</label>
     <order>10</order>
     <mutators><li>RiverDelta</li></mutators>
+    <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.03~0.04</sourceShare>
+    <floodplainScale>1.5</floodplainScale>
+    <deltaAtExit>true</deltaAtExit>
+    <deltaBranches>3~5</deltaBranches>
+    <deltaSpreadWidths>3~4</deltaSpreadWidths>
     <channelRegimes>
       <li><regime>LL_Braided</regime><weight>3</weight></li>
       <li><regime>LL_Anabranching</regime><weight>3</weight></li>
@@ -30,7 +41,9 @@
     <label>confluence</label>
     <order>11</order>
     <mutators><li>RiverConfluence</li></mutators>
+    <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.025~0.035</sourceShare>
+    <allRiverLinks>true</allRiverLinks>
     <channelRegimes>
       <li><regime>LL_Anabranching</regime><weight>2</weight></li>
     </channelRegimes>
@@ -41,7 +54,10 @@
     <label>river island</label>
     <order>12</order>
     <mutators><li>RiverIsland</li></mutators>
+    <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.03~0.04</sourceShare>
+    <centralIsland>0.5~0.7</centralIsland>
+    <centralIslandWidths>1.5~2</centralIslandWidths>
     <channelRegimes>
       <li><regime>LL_Anabranching</regime><weight>4</weight></li>
     </channelRegimes>
@@ -52,7 +68,9 @@
     <label>headwater</label>
     <order>13</order>
     <mutators><li>Headwater</li></mutators>
+    <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.006~0.01</sourceShare>
+    <sourceLakeWidths>3~4</sourceLakeWidths>
     <channelRegimes>
       <li><regime>LL_Torrent</regime><weight>3</weight></li>
       <li><regime>LL_Gorge</regime><weight>2</weight></li>
@@ -65,8 +83,13 @@
     <label>marsh web</label>
     <order>14</order>
     <mutators><li>Wetland</li><li>Marshy</li></mutators>
+    <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.006~0.01</sourceShare>
+    <floodplainScale>3</floodplainScale>
+    <climateOffset>0.5</climateOffset>
+    <marshland>1</marshland>
     <channelRegimes>
+      <li><regime>LL_MarshThread</regime><weight>4</weight></li>
       <li><regime>LL_Anabranching</regime><weight>3</weight></li>
       <li><regime>LL_Meandering</regime><weight>2</weight></li>
     </channelRegimes>
@@ -104,6 +127,7 @@
       <li><field>Rainfall</field><max>400</max></li>
     </conditions>
     <sourceShare>0.04~0.06</sourceShare>
+    <floodplainScale>0.5</floodplainScale>
     <channelRegimes>
       <li><regime>LL_Braided</regime><weight>3</weight></li>
       <li><regime>LL_Meandering</regime><weight>0.5</weight></li>
@@ -116,6 +140,7 @@
     <order>21</order>
     <mutators><li>DryGround</li></mutators>
     <sourceShare>0.04~0.06</sourceShare>
+    <floodplainScale>0.5</floodplainScale>
     <channelRegimes>
       <li><regime>LL_Braided</regime><weight>3</weight></li>
     </channelRegimes>
