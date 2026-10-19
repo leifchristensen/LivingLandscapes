@@ -57,6 +57,9 @@ public class TerrainChannelSettings
     public float deltaApronRelief = 1.5f;
     public float deltaApronWavelength = 24f;
 
+    /// <summary>A headwater's springs pool where the filled surface lies more than this (metres) above the ground.</summary>
+    public float springLakeDepth = 0.1f;
+
     /// <summary>Ground more than this (metres) above a channel's water surface is not cut into the channel's width.</summary>
     public float maxBankCut = 0.3f;
 
@@ -162,8 +165,10 @@ public static class TerrainChannels
         }
 
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
+        var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         system.Channels = plans;
+        int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
         int painted = 0;
         for (int i = 0; i < n; i++)
         {
@@ -177,7 +182,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
+                    $"{painted} water cells{(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -590,6 +595,57 @@ public static class TerrainChannels
                 planOf[i] = index[planOf[i]];
         }
         return result;
+    }
+
+    /// <summary>
+    /// A river rising on the map (headwater) rises from springs; where they rise in a hollow, their water pools to the
+    /// hollow's spill level before it flows on: every cell connected to a spring and lying below the filled surface
+    /// becomes still water at that level, part of the river that leaves it. Returns the number of lake cells.
+    /// </summary>
+    private static int SpringLake(float[] natural, float[] filled, float[] inflow, bool[] worldSource, int[] planOf, int sizeX, int sizeZ,
+        TerrainChannelSettings p, RiverSystem system)
+    {
+        int n = natural.Length;
+        bool InHollow(int i) => filled[i] - natural[i] > p.springLakeDepth;
+        var queue = new Queue<int>();
+        var seen = new bool[n];
+        int plan = -1;
+        for (int i = 0; i < n; i++)
+        {
+            int x = i % sizeX, z = i / sizeX;
+            bool edge = x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1;
+            if (worldSource[i] && inflow[i] > 0f && !edge && InHollow(i))
+            {
+                seen[i] = true;
+                queue.Enqueue(i);
+            }
+        }
+        for (int i = 0; i < n && plan < 0; i++)
+        {
+            if (seen[i] && system.ChannelOf[i] >= 0)
+                plan = system.ChannelOf[i];
+        }
+        if (plan < 0)
+            plan = system.Channels.FindIndex(c => c.WorldRiver);
+        int count = 0;
+        while (queue.Count > 0)
+        {
+            int c = queue.Dequeue();
+            system.WaterLevel[c] = filled[c];
+            system.Still[c] = true;
+            system.Flow[c] = Vector2.zero;
+            system.ChannelOf[c] = plan;
+            count++;
+            GridMath.ForEachNeighbour(c, sizeX, sizeZ, nb =>
+            {
+                if (!seen[nb] && InHollow(nb))
+                {
+                    seen[nb] = true;
+                    queue.Enqueue(nb);
+                }
+            });
+        }
+        return count;
     }
 
     /// <summary>
