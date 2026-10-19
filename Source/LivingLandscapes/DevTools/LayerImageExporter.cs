@@ -45,6 +45,7 @@ public static class LayerImageExporter
         Invariants.Report(map, summary);
         GameplayReport.Append(map, summary);
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());
+        WriteLog();
         Log.Message($"[LivingLandscapes] Exported environment layers to {Folder}");
     }
 
@@ -160,6 +161,21 @@ public static class LayerImageExporter
         texture.Apply();
         texture.SaveAsPNG(path);
         Object.Destroy(texture);
+    }
+
+    /// <summary>
+    /// This run's errors and warnings and the mod's own lines, next to the summary: the game's log file is shared by every
+    /// instance, so parallel test runs read this one (the message queue keeps the last 1000 messages).
+    /// </summary>
+    private static void WriteLog()
+    {
+        var text = new StringBuilder();
+        foreach (LogMessage message in Log.Messages)
+        {
+            if (message.type != LogMessageType.Message || message.text.Contains("[LivingLandscapes]"))
+                text.AppendLine($"{message.type}: {message.text}");
+        }
+        File.WriteAllText(Path.Combine(Folder, "log.txt"), text.ToString());
     }
 
     /// <summary>A magenta ring round the start spot, a cyan dot on the settlement anchor.</summary>
