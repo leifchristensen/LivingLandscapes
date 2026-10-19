@@ -17,10 +17,21 @@ public class LivingLandscapesSettings : ModSettings
     /// </summary>
     public bool scatteredRuins;
 
+    /// <summary>
+    /// Plant ecology: wild plants follow the ground (wetness, soil, slope, sun), cluster by dispersal and shade each other
+    /// (Docs/FLORA-REVIEW.md). Off: vanilla's wild plant placement.
+    /// </summary>
+    public bool plantEcology = true;
+
+    /// <summary>How strongly the ecology applies, 0 (vanilla) to 1 (full).</summary>
+    public float habitatStrength = 1f;
+
     public override void ExposeData()
     {
         base.ExposeData();
         Scribe_Values.Look(ref geologicalTerrain, "geologicalTerrain", true);
         Scribe_Values.Look(ref scatteredRuins, "scatteredRuins", false);
+        Scribe_Values.Look(ref plantEcology, "plantEcology", true);
+        Scribe_Values.Look(ref habitatStrength, "habitatStrength", 1f);
     }
 }

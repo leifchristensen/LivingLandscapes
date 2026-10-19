@@ -1,0 +1,812 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!--
+    Plant habitats (Docs/FLORA-REVIEW.md): what each wild plant of vanilla needs from the ground and the sky, as
+    Gaussian response curves (optimum, tolerance = one standard deviation, in the layer's own units):
+      wetness    LL_Moisture, 0 dry to 1 saturated        soilDepth  LL_SoilDepth, metres over bedrock
+      slope      LL_Slope, rise over run (0.1 ~ 6 degrees) sun        LL_Sun, 0 sheltered to 1 sun-facing (level ground 0.7)
+    A curve left out means the plant does not care. shadeTolerance: 0 fails in shade, 1 indifferent; shadeCast and
+    shadeRadius (cells) make a plant shade the ground beneath it. Species not listed (modded or DLC) get defaults
+    derived from vanilla's own plant fields. Clustering follows vanilla's wildClusterRadius and wildClusterWeight.
+    Each entry is skipped if the plant is not installed.
+  -->
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Grass"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Grass"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.45</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.3</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>0.6</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.35</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>0.6</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.75</optimum><tolerance>0.6</tolerance></sun>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.7</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>9</clusterRadius2>
+          <clusterStrength2>3</clusterStrength2>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.75</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>9</clusterRadius2>
+          <clusterStrength2>3</clusterStrength2>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Moss"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Moss"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.75</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>0.4</optimum><tolerance>1.5</tolerance></soilDepth>
+          <sun><optimum>0.3</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.95</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.45</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.8</optimum><tolerance>0.45</tolerance></sun>
+          <shadeTolerance>0.3</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.35</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>0.5</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.8</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.3</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.4</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.7</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.8</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.3</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Brambles"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Brambles"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.5</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.6</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.5</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.6</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.8</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.55</optimum><tolerance>0.5</tolerance></sun>
+          <clusterRadius2>9</clusterRadius2>
+          <clusterStrength2>3</clusterStrength2>
+          <shadeTolerance>0.7</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.6</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <wetness><optimum>0.4</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bush"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Bush"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.45</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.1</tolerance></soilDepth>
+          <sun><optimum>0.65</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.45</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.1</tolerance></soilDepth>
+          <sun><optimum>0.65</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Berry"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Berry"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.55</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.45</tolerance></sun>
+          <shadeTolerance>0.4</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.55</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.45</tolerance></sun>
+          <shadeTolerance>0.4</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.55</optimum><tolerance>0.35</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.5</optimum><tolerance>0.5</tolerance></sun>
+          <shadeTolerance>0.6</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.35</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.3</optimum><tolerance>0.6</tolerance></soilDepth>
+          <slope><optimum>0.3</optimum><tolerance>0.5</tolerance></slope>
+          <shadeTolerance>0.4</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Reeds"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Reeds"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.92</optimum><tolerance>0.18</tolerance></wetness>
+          <slope><optimum>0.0</optimum><tolerance>0.15</tolerance></slope>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.9</optimum><tolerance>0.18</tolerance></wetness>
+          <slope><optimum>0.0</optimum><tolerance>0.15</tolerance></slope>
+          <shadeTolerance>0.5</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.7</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.4</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.8</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Clivia"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Clivia"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.7</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.0</tolerance></soilDepth>
+          <sun><optimum>0.4</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.8</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Agave"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Agave"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.12</optimum><tolerance>0.25</tolerance></wetness>
+          <soilDepth><optimum>0.5</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.9</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.1</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.12</optimum><tolerance>0.25</tolerance></wetness>
+          <soilDepth><optimum>0.4</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.9</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.1</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.12</optimum><tolerance>0.25</tolerance></wetness>
+          <soilDepth><optimum>0.5</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.9</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.1</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.12</optimum><tolerance>0.25</tolerance></wetness>
+          <soilDepth><optimum>0.5</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.9</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.1</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <wetness><optimum>0.15</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>0.4</optimum><tolerance>0.9</tolerance></soilDepth>
+          <sun><optimum>0.9</optimum><tolerance>0.4</tolerance></sun>
+          <shadeTolerance>0.1</shadeTolerance>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.5</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.4</tolerance></slope>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.4</tolerance></slope>
+          <sun><optimum>0.8</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.25</shadeTolerance>
+          <shadeCast>0.45</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.45</optimum><tolerance>0.5</tolerance></wetness>
+          <soilDepth><optimum>0.9</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.1</optimum><tolerance>0.45</tolerance></slope>
+          <sun><optimum>0.8</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.25</shadeTolerance>
+          <shadeCast>0.4</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePine"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreePine"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.4</optimum><tolerance>0.55</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.3</tolerance></soilDepth>
+          <slope><optimum>0.15</optimum><tolerance>0.5</tolerance></slope>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.55</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.3</optimum><tolerance>0.55</tolerance></wetness>
+          <soilDepth><optimum>0.7</optimum><tolerance>1.3</tolerance></soilDepth>
+          <slope><optimum>0.2</optimum><tolerance>0.5</tolerance></slope>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.55</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.3</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.4</tolerance></slope>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.35</shadeTolerance>
+          <shadeCast>0.55</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.9</optimum><tolerance>0.2</tolerance></wetness>
+          <soilDepth><optimum>1.3</optimum><tolerance>1.5</tolerance></soilDepth>
+          <slope><optimum>0.0</optimum><tolerance>0.15</tolerance></slope>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.35</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.9</optimum><tolerance>0.2</tolerance></wetness>
+          <soilDepth><optimum>1.3</optimum><tolerance>1.5</tolerance></soilDepth>
+          <slope><optimum>0.0</optimum><tolerance>0.15</tolerance></slope>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.5</optimum><tolerance>0.55</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.3</tolerance></soilDepth>
+          <sun><optimum>0.6</optimum><tolerance>0.7</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.4</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.4</optimum><tolerance>0.55</tolerance></wetness>
+          <soilDepth><optimum>0.9</optimum><tolerance>1.3</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.7</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.5</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.4</tolerance></wetness>
+          <soilDepth><optimum>1.3</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.4</tolerance></slope>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.55</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.7</optimum><tolerance>0.35</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.8</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.25</shadeTolerance>
+          <shadeCast>0.45</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.35</tolerance></slope>
+          <sun><optimum>0.8</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.35</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.6</optimum><tolerance>0.45</tolerance></wetness>
+          <soilDepth><optimum>1.0</optimum><tolerance>1.2</tolerance></soilDepth>
+          <slope><optimum>0.05</optimum><tolerance>0.35</tolerance></slope>
+          <sun><optimum>0.8</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.3</shadeTolerance>
+          <shadeCast>0.35</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.75</optimum><tolerance>0.3</tolerance></wetness>
+          <soilDepth><optimum>1.2</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.7</optimum><tolerance>0.6</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.4</shadeTolerance>
+          <shadeCast>0.4</shadeCast>
+          <shadeRadius>1.4</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <wetness><optimum>0.2</optimum><tolerance>0.35</tolerance></wetness>
+          <soilDepth><optimum>0.8</optimum><tolerance>1.2</tolerance></soilDepth>
+          <sun><optimum>0.85</optimum><tolerance>0.5</tolerance></sun>
+          <clusterRadius2>12</clusterRadius2>
+          <clusterStrength2>5</clusterStrength2>
+          <shadeTolerance>0.15</shadeTolerance>
+          <shadeCast>0.4</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+</Patch>

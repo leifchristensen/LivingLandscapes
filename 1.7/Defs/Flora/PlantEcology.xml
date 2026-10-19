@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Plant ecology tuning (Docs/FLORA-REVIEW.md). Layered on vanilla's wild plant spawner: it reweights and filters what
+    the spawner would place, so vanilla's biome plant lists, commonality, density and regrowth pace stay the baseline.
+    The player's habitat strength setting blends every effect (0 = vanilla).
+  -->
+  <LivingLandscapes.Flora.PlantEcologyDef>
+    <defName>LL_PlantEcology</defName>
+    <label>plant ecology</label>
+    <!-- Species with fitness under this (times strength) are not candidates on a cell. -->
+    <minFitness>0.08</minFitness>
+    <!-- Choice weight ~ fitness^this. -->
+    <fitnessExponent>1.5</fitnessExponent>
+    <!-- Clusters: sigma = vanilla cluster radius x this; a neighbour's weight is gain x exp(-d^2 / 2 sigma^2). -->
+    <sigmaPerVanillaRadius>0.5</sigmaPerVanillaRadius>
+    <clusterGainPerNeighbour>7.4</clusterGainPerNeighbour>
+    <clusterReach>3</clusterReach>
+    <!-- The initial planting seeds clumps first: this share of each clustering species' target as parents with Gaussian
+         offspring (seedFill = share of the cells within two sigma of a parent a clump fills), then vanilla's pass fills the rest. -->
+    <seedShare>0.6</seedShare>
+    <seedFill>0.15</seedFill>
+    <!-- A seed settles with chance (fitness / this) ^ fitnessExponent. -->
+    <seedFitnessReference>0.5</seedFitnessReference>
+    <!-- Seeding a new clump away from the species' own kind, relative to vanilla (below 1: fewer, larger clumps). -->
+    <clusterNucleation>0.2</clusterNucleation>
+    <clusterNucleation2>0.5</clusterNucleation2>
+    <clusterGain2PerNeighbour>0.5</clusterGain2PerNeighbour>
+    <!-- Canopy shadows fall toward the pole by this share of their radius. -->
+    <shadowShift>0.5</shadowShift>
+    <!-- A spawn attempt is accepted with a chance from this floor (hopeless ground) to 1 (the best ground). -->
+    <capacityFloor>0.35</capacityFloor>
+    <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
+    <vitalityMin>0.5</vitalityMin>
+    <vitalityMax>1.2</vitalityMax>
+  </LivingLandscapes.Flora.PlantEcologyDef>
+
+</Defs>

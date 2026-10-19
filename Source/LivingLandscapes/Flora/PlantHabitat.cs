@@ -1,0 +1,140 @@
+using System.Collections.Generic;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+namespace LivingLandscapes.Flora;
+
+/// <summary>Which layer of the vegetation a plant belongs to. Strata are placed canopy first; each casts shade on the next.</summary>
+public enum PlantStratum
+{
+    Canopy,
+    Shrub,
+    Ground,
+}
+
+/// <summary>Preferred value of one environment factor, and how far from it the plant still does well.</summary>
+public class HabitatCurve
+{
+    public float optimum;
+
+    /// <summary>Distance from the optimum at which the response has fallen to about 61% (one standard deviation).</summary>
+    public float tolerance = 0.3f;
+
+    public float Response(float value)
+    {
+        float d = (value - optimum) / Mathf.Max(tolerance, 0.001f);
+        return Mathf.Exp(-0.5f * d * d);
+    }
+}
+
+/// <summary>
+/// What a plant needs from the ground and the sky, set per species in XML as a DefModExtension. A curve left out
+/// means the plant does not care about that factor. Plants without this extension get defaults from vanilla's own
+/// fields (<see cref="For"/>), so modded plants still spawn.
+/// </summary>
+public class PlantHabitat : DefModExtension
+{
+    public PlantStratum stratum = PlantStratum.Ground;
+
+    /// <summary>Competitive weight against other plants of the same stratum on the same cell.</summary>
+    public float dominance = 1f;
+
+    /// <summary>Ground wetness, 0 (dry) to 1 (saturated): LL_Moisture.</summary>
+    public HabitatCurve wetness;
+
+    /// <summary>Soil depth over bedrock, metres: LL_SoilDepth.</summary>
+    public HabitatCurve soilDepth;
+
+    /// <summary>Rise over run: LL_Slope.</summary>
+    public HabitatCurve slope;
+
+    /// <summary>Sun exposure of the site, 0 (sheltered, sun-averted) to 1 (sun-facing slope): LL_Sun.</summary>
+    public HabitatCurve sun;
+
+    /// <summary>Soil fertility as vanilla's fertility grid holds it (1 is normal soil).</summary>
+    public HabitatCurve fertility;
+
+    /// <summary>Share of light this plant blocks beneath it, 0..1. Feeds LL_Shade for the strata placed after it.</summary>
+    public float shadeCast;
+
+    /// <summary>Radius in cells over which the shade spreads. 0 takes it from the plant's size.</summary>
+    public float shadeRadius;
+
+    /// <summary>0: fails in shade. 1: shade makes no difference.</summary>
+    public float shadeTolerance = 0.5f;
+
+    /// <summary>
+    /// Seed dispersal: standard deviation sigma (cells) of the clump around a parent plant; 0 takes it from vanilla's
+    /// cluster radius (<see cref="PlantEcologyDef.sigmaPerVanillaRadius"/>). Only species vanilla clusters (a positive
+    /// wildClusterRadius) are clustered.
+    /// </summary>
+    public float clusterRadius;
+
+    /// <summary>
+    /// How much clustering matters, 0 (even scatter) to 1 (vanilla's strength: a plant is thousands of times more
+    /// likely next to its own kind than far from it). Intermediate values scale that boost down.
+    /// </summary>
+    public float clusterStrength = 1f;
+
+    /// <summary>True if the species has any ground requirement; without one the ground does not sort it.</summary>
+    public bool HasSiteCurves => wetness != null || soilDepth != null || slope != null || sun != null || fertility != null;
+
+    /// <summary>
+    /// A second, larger dispersal scale (sigma, cells; 0 none) for patchiness beyond the clump: forests and clearings,
+    /// meadows. A cell near many plants of the species at this scale is boosted up to <see cref="clusterStrength2"/> times.
+    /// Costs one more footprint per plant, so only species that need it (canopy trees) set it.
+    /// </summary>
+    public float clusterRadius2;
+    public float clusterStrength2 = 1f;
+
+    private static readonly Dictionary<ThingDef, PlantHabitat> derived = new Dictionary<ThingDef, PlantHabitat>();
+
+    /// <summary>The species' habitat: its XML extension, or defaults derived from vanilla fields.</summary>
+    public static PlantHabitat For(ThingDef plant)
+    {
+        var habitat = plant.GetModExtension<PlantHabitat>();
+        if (habitat != null)
+            return habitat;
+        if (!derived.TryGetValue(plant, out habitat))
+        {
+            habitat = Derive(plant);
+            derived[plant] = habitat;
+        }
+        return habitat;
+    }
+
+    private static PlantHabitat Derive(ThingDef plant)
+    {
+        PlantProperties p = plant.plant;
+        bool tree = p != null && p.IsTree;
+        bool bush = !tree && p != null && p.visualSizeRange.max > 1.2f;
+        return new PlantHabitat
+        {
+            stratum = tree ? PlantStratum.Canopy : bush ? PlantStratum.Shrub : PlantStratum.Ground,
+            shadeCast = tree ? 0.5f : 0f,
+            shadeTolerance = tree ? 0.2f : 0.6f,
+        };
+    }
+
+    /// <summary>Sigma (cells) of this species' clusters, 0 if it does not cluster.</summary>
+    public float ClusterSigma(ThingDef plant)
+    {
+        PlantProperties p = plant.plant;
+        if (p == null || !p.GrowsInClusters)
+            return 0f;
+        return clusterRadius > 0f ? clusterRadius : p.wildClusterRadius * PlantEcologyDef.Current.sigmaPerVanillaRadius;
+    }
+
+    /// <summary>
+    /// How many times likelier a spawn is inside a cluster than outside, from vanilla's own numbers (cluster weight and
+    /// the cluster area; vanilla gives an outside cell about 1 / (pi r^2) of the inside weight), scaled by
+    /// <see cref="clusterStrength"/>.
+    /// </summary>
+    public float ClusterRatio(ThingDef plant)
+    {
+        PlantProperties p = plant.plant;
+        float vanilla = Mathf.Max(1f, p.wildClusterWeight * Mathf.PI * p.wildClusterRadius * p.wildClusterRadius);
+        return 1f + clusterStrength * (vanilla - 1f);
+    }
+}

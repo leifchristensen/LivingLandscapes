@@ -33,4 +33,25 @@ public static class EnvironmentDebugActions
     {
         Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
     }
+
+    [DebugAction("Living Landscapes", "Plant fitness: choose species", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
+    private static void ChooseFitnessSpecies()
+    {
+        var options = new System.Collections.Generic.List<DebugMenuOption>
+        {
+            new DebugMenuOption("Best of biome", DebugMenuOptionMode.Action, () => ShowFitnessOf(null)),
+        };
+        foreach (ThingDef plant in Find.CurrentMap.Biome.AllWildPlants)
+        {
+            ThingDef chosen = plant;
+            options.Add(new DebugMenuOption(plant.defName, DebugMenuOptionMode.Action, () => ShowFitnessOf(chosen)));
+        }
+        Find.WindowStack.Add(new Dialog_DebugOptionListLister(options));
+    }
+
+    private static void ShowFitnessOf(ThingDef plant)
+    {
+        Layers.FitnessWorker.Selected = plant;
+        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
+    }
 }

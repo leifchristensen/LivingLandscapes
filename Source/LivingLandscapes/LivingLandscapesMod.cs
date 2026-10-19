@@ -24,6 +24,7 @@ public class LivingLandscapesMod : Mod
         var harmonyVersion = typeof(Harmony).Assembly.GetName().Version;
         Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched. " +
                     $"Geological terrain: {(Settings.geologicalTerrain ? "on" : "off")}.");
+        Log.Message($"[LivingLandscapes] {DevTools.BuildStamp.Text}");
     }
 
     public override string SettingsCategory() => "LL_SettingsCategory".Translate();
@@ -38,6 +39,14 @@ public class LivingLandscapesMod : Mod
         listing.Gap();
 
         listing.CheckboxLabeled("LL_ScatteredRuins".Translate(), ref Settings.scatteredRuins, "LL_ScatteredRuinsTip".Translate());
+        listing.Gap();
+
+        listing.CheckboxLabeled("LL_PlantEcology".Translate(), ref Settings.plantEcology, "LL_PlantEcologyTip".Translate());
+        if (Settings.plantEcology)
+        {
+            listing.Label("LL_HabitatStrength".Translate(Settings.habitatStrength.ToStringPercent()), tooltip: "LL_HabitatStrengthTip".Translate());
+            Settings.habitatStrength = listing.Slider(Settings.habitatStrength, 0f, 1f);
+        }
         listing.Gap();
 
         string supported = string.Join(", ", TerrainGenerationMods.ActiveSupported());
