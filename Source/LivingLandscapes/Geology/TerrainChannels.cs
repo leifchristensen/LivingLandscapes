@@ -831,10 +831,12 @@ public static class TerrainChannels
         int n = height.Length;
         var best = new float[n];
         var owner = new int[n];
+        var ownerT = new float[n];
         for (int i = 0; i < n; i++)
         {
             best[i] = 0f;
             owner[i] = -1;
+            ownerT[i] = float.MaxValue;
         }
         int inHollows = 0;
         var bank = new Perlin(1.0 / p.bankNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
@@ -876,10 +878,14 @@ public static class TerrainChannels
                         d *= Mathf.Lerp(1f, p.shoalShare, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.shoalThreshold, p.shoalThreshold + 0.25f, (float)shoalNoise.GetValue(x, 0.0, z))));
                     d = Mathf.Max(p.minDepth, d);
                     int i = z * sizeX + x;
-                    if (d > best[i] || (d == best[i] && owner[i] >= 0 && filled[c] < filled[owner[i]]))
+                    // A cell takes the water of the channel cell it lies nearest to across the channel (distance over
+                    // the channel's own edge): a centre-line cell always keeps its own, never-rising level, and a
+                    // river keeps the cells within its width against a creek joining it.
+                    if (t < ownerT[i] || (t == ownerT[i] && filled[c] < filled[owner[i]]))
                     {
                         best[i] = d;
                         owner[i] = c;
+                        ownerT[i] = t;
                     }
                 }
             }
