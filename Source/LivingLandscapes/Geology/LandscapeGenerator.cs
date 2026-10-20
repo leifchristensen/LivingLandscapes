@@ -202,6 +202,16 @@ public static class LandscapeGenerator
             min = Mathf.Min(min, v);
             max = Mathf.Max(max, v);
         }
+        // The tile's elevation is the height of its typical ground. Without a plains feature that is the middle of the relief;
+        // with one, the plain (most of the map) keeps the tile's elevation and the feature stands above it or cuts below it,
+        // so a butte does not drop the plain below sea level.
+        float level = 0.5f;
+        if (landforms.ExtraRelief > 0f)
+        {
+            var sorted = (float[])window.Clone();
+            System.Array.Sort(sorted);
+            level = (sorted[sorted.Length / 2] - min) / Mathf.Max(max - min, 1e-6f);
+        }
         var micro = new Perlin(p.cellSize / p.microWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
         var result = new float[sizeX * sizeZ];
@@ -222,7 +232,7 @@ public static class LandscapeGenerator
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
-                result[z * sizeX + x] = world.Elevation + (rel - 0.5f) * relief + tilt + rough;
+                result[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt + rough;
             }
         }
         int sea = Coastline.Apply(map, result, p.coast);

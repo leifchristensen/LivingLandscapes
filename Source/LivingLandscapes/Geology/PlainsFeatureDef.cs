@@ -57,6 +57,9 @@ public class PlainsFeatureDef : Def
     /// <summary>The feature for a map, drawn by weight among those that fit; null if none does.</summary>
     public static PlainsFeatureDef For(Map map, WorldContext world)
     {
+        // Test runs: -ll-plains=off compares against the map without a plains feature.
+        if (GenCommandLine.TryGetCommandLineArg("ll-plains", out string mode) && mode == "off")
+            return null;
         List<ThingDef> rocks = Find.World.NaturalRockTypesIn(map.Tile).ToList();
         List<PlainsFeatureDef> fitting = DefDatabase<PlainsFeatureDef>.AllDefsListForReading.Where(d => d.Fits(map.TileInfo, world, rocks)).ToList();
         return fitting.Count == 0 ? null : fitting.RandomElementByWeight(d => d.weight);
