@@ -20,8 +20,7 @@
     exitReachShare of the map of the river's exit).
     replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
     World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
-    a confluence), sourceLakeWidths (lake the river rises from), deltaAtExit with deltaBranches and
-    deltaSpreadWidths (distributaries toward the exit), centralIsland (share of map size) with centralIslandWidths.
+    a confluence).
   -->
 
   <LivingLandscapes.Geology.WaterRegimeDef>
@@ -39,9 +38,6 @@
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.03~0.04</sourceShare>
     <floodplainScale>1.5</floodplainScale>
-    <deltaAtExit>true</deltaAtExit>
-    <deltaBranches>3~5</deltaBranches>
-    <deltaSpreadWidths>3~4</deltaSpreadWidths>
     <channelRegimes>
       <li><regime>LL_Braided</regime><weight>3</weight></li>
       <li><regime>LL_Anabranching</regime><weight>3</weight></li>
@@ -76,8 +72,6 @@
     <mutators><li>RiverIsland</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.03~0.04</sourceShare>
-    <centralIsland>0.5~0.7</centralIsland>
-    <centralIslandWidths>1.5~2</centralIslandWidths>
     <channelRegimes>
       <li><regime>LL_Anabranching</regime><weight>4</weight></li>
     </channelRegimes>
@@ -96,7 +90,6 @@
     <mutators><li>Headwater</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.006~0.01</sourceShare>
-    <sourceLakeWidths>3~4</sourceLakeWidths>
     <channelRegimes>
       <li><regime>LL_Torrent</regime><weight>3</weight></li>
       <li><regime>LL_Gorge</regime><weight>2</weight></li>

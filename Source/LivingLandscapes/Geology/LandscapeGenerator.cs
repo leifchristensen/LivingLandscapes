@@ -80,14 +80,8 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>The channel network: where channels start and how wide each is (V1-V3).</summary>
     public RiverNetworkSettings network = new RiverNetworkSettings();
 
-    /// <summary>Channel patterns: meanders, cutoffs and islands (W4, W5).</summary>
-    public RiverChannelSettings channels = new RiverChannelSettings();
-
     /// <summary>Channels from the landform's own drainage: where they form, hydraulic geometry and noise.</summary>
     public TerrainChannelSettings terrainChannels = new TerrainChannelSettings();
-
-    /// <summary>The river's bed: carved so it never rises along the course (W1).</summary>
-    public RiverBedSettings riverBed = new RiverBedSettings();
 
     /// <summary>Tilted rock beds and joints: hard beds resist erosion, soft beds wear away (sizes in map cells).</summary>
     public RockStrataSettings strata = new RockStrataSettings();

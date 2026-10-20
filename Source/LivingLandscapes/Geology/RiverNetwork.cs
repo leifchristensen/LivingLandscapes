@@ -25,20 +25,6 @@ public class RiverNetworkSettings
         new CurvePoint(4f, 3f), new CurvePoint(6f, 6f), new CurvePoint(14f, 12f), new CurvePoint(30f, 24f),
     };
 
-    /// <summary>Width of the map's own channels by stream order (1 = a source channel, +1 where two equal ones join).</summary>
-    public SimpleCurve widthByOrder = new SimpleCurve
-    {
-        new CurvePoint(1f, 2.5f), new CurvePoint(2f, 3.5f), new CurvePoint(3f, 5f), new CurvePoint(4f, 7f), new CurvePoint(6f, 10f),
-    };
-
-    /// <summary>A tributary is at most this share of the width of the channel it joins.</summary>
-    public float tributaryShare = 0.7f;
-
-    /// <summary>
-    /// On a tile the world gives no river, the map's own channels are creeks at most this wide: river-sized water
-    /// comes only from world rivers, as in vanilla.
-    /// </summary>
-    public float maxWidthWithoutWorldRiver = 3f;
 }
 
 /// <summary>One channel of the network as the erosion model drew it: map cells, upstream to downstream.</summary>

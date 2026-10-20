@@ -64,9 +64,9 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
         if (map.waterInfo.riverGraph.Any(IsGeologicalNode))
             return false;
 
-        LayChannels(map, rivers, true, out int segments, out int worldRivers, out int sides);
+        LayChannels(map, rivers, true, out int segments, out int worldRivers);
         Log.Message($"[LivingLandscapes] Rivers on {map} ({rivers.Regime?.defName ?? "no water regime"}) follow the terrain: " +
-                    $"{worldRivers} world rivers in {segments} segments, {sides} side channels.");
+                    $"{worldRivers} world rivers in {segments} segments.");
         return false;
     }
 
@@ -75,15 +75,15 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
     /// river worker builds a depth map per segment, so creeks stay out of it), every channel on a tile without one
     /// (nothing reads the graph there but vanilla's flow debug view, which draws nothing on an empty graph).
     /// </summary>
-    public static void LayChannels(Map map, RiverSystem rivers, bool worldRiversOnly, out int segments, out int channels, out int sides)
+    public static void LayChannels(Map map, RiverSystem rivers, bool worldRiversOnly, out int segments, out int channels)
     {
-        segments = channels = sides = 0;
+        segments = channels = 0;
         foreach (RiverPlan plan in rivers.Channels)
         {
             if (worldRiversOnly && plan.VanillaWidth <= 0f)
                 continue;
             channels++;
-            // The main channel in pieces of equal width (narrower beside islands), then the side branches.
+            // The channel in pieces of equal width.
             int start = 0;
             for (int i = 1; i <= plan.Main.Count; i++)
             {
@@ -96,9 +96,6 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
                 segments += AddNodes(map, piece, plan.MainWidth[start], upstreamEdge, i >= plan.Main.Count && plan.Parent < 0);
                 start = i;
             }
-            foreach (RiverPlan.SideBranch side in plan.Sides)
-                segments += AddNodes(map, side.Points, side.Width, false, side.ToBaseLevel);
-            sides += plan.Sides.Count;
         }
     }
 

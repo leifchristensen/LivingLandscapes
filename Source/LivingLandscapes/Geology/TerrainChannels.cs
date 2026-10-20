@@ -893,7 +893,7 @@ public static class TerrainChannels
             int first = course.Points.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ);
             if (first < 0)
                 continue;
-            int cell = RiverChannels.Index(course.Points[first], sizeX, sizeZ);
+            int cell = RiverGrid.Index(course.Points[first], sizeX, sizeZ);
             if (course.VanillaWidth > 0f)
             {
                 // At a headwater the world river does not come from beyond the map: it rises here.
@@ -917,7 +917,7 @@ public static class TerrainChannels
             foreach (WorldContext.RiverInflow from in worldInflows)
             {
                 Vector2 edge = WaterTerrainNudges.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
-                int cell = RiverChannels.Index(edge, sizeX, sizeZ);
+                int cell = RiverGrid.Index(edge, sizeX, sizeZ);
                 inflow[cell] += DischargeFor(from.Width);
                 worldSource[cell] = worldEnters = true;
             }
@@ -933,7 +933,7 @@ public static class TerrainChannels
                     springs.Add(i);
             }
             if (springs.Count == 0)
-                springs.Add(RiverChannels.Index(riverCentre, sizeX, sizeZ));
+                springs.Add(RiverGrid.Index(riverCentre, sizeX, sizeZ));
             float each = DischargeFor(vanillaWidth) / springs.Count;
             foreach (int cell in springs)
             {
