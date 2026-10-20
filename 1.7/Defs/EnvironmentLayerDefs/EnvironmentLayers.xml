@@ -80,6 +80,16 @@
         <strata>
           <bedThickness>8~30</bedThickness>
           <dip>5~35</dip>
+          <!-- How the beds lie by the tile's hilliness. Near-horizontal beds outcrop along the contours, so the bands of rock
+               read like a topographic map; bedsAcrossRelief sets how many bands the relief shows. Steep tilts (straight
+               stripes, hogbacks) only on rugged tiles and only sometimes (steepChance). First pass, to be tuned by eye. -->
+          <byHilliness>
+            <li><hilliness>Flat</hilliness><dip>0~1</dip><bedsAcrossRelief>3~4</bedsAcrossRelief></li>
+            <li><hilliness>SmallHills</hilliness><dip>0~2</dip><bedsAcrossRelief>4~6</bedsAcrossRelief></li>
+            <li><hilliness>LargeHills</hilliness><dip>0~4</dip><steepChance>0.1</steepChance><bedsAcrossRelief>6~9</bedsAcrossRelief></li>
+            <li><hilliness>Mountainous</hilliness><dip>2~8</dip><steepChance>0.3</steepChance><steepDip>20~45</steepDip><bedsAcrossRelief>8~12</bedsAcrossRelief></li>
+            <li><hilliness>Impassable</hilliness><dip>3~10</dip><steepChance>0.4</steepChance><steepDip>25~50</steepDip><bedsAcrossRelief>10~14</bedsAcrossRelief></li>
+          </byHilliness>
           <warpAmplitude>12</warpAmplitude>
           <warpScale>60</warpScale>
           <jointSpacing>25~45</jointSpacing>

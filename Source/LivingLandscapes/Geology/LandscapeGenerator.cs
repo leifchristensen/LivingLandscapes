@@ -146,7 +146,8 @@ public static class LandscapeGenerator
         float relief = p.ReliefFor(world.Hilliness);
         float reliefCells = relief / p.cellSize;
         float extent = Mathf.Max(gx, gz) * mapCellsPerModelCell * 0.75f;
-        strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells);
+        strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells,
+            world.Hilliness);
         var sites = new RockStrata.Site[gx * gz];
         for (int z = 0; z < gz; z++)
         {

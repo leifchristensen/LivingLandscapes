@@ -70,7 +70,7 @@ public class LandformWorker : EnvironmentLayerWorker
                         $"), " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
                         $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +
-                        $"{strata.BedCount} rock beds dipping {strata.DipDegrees:F0} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
+                        $"{strata.BedCount} rock beds {strata.BedThickness.min:F0}-{strata.BedThickness.max:F0} m thick dipping {strata.DipDegrees:F1} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
             return generated;
         }
 
