@@ -132,24 +132,6 @@ public class WaterRegimeDef : Def
     /// <summary>Every river link of the tile enters the map, not only the main one (a confluence).</summary>
     public bool allRiverLinks;
 
-    /// <summary>The world river rises from a lake near the map's centre, this many channel widths across (0: none).</summary>
-    public FloatRange sourceLakeWidths = FloatRange.Zero;
-
-    /// <summary>
-    /// The world river fans into distributaries where it nears its exit (a delta), not only by the sea: this many
-    /// branches, spread up to this many channel widths apart at the edge.
-    /// </summary>
-    public bool deltaAtExit;
-    public IntRange deltaBranches = new IntRange(2, 2);
-    public FloatRange deltaSpreadWidths = new FloatRange(2f, 2f);
-
-    /// <summary>
-    /// The world river splits around one large island near the map's centre: its length as a share of the map's size
-    /// (0: none) and how far its side channel bows out, in channel widths.
-    /// </summary>
-    public FloatRange centralIsland = FloatRange.Zero;
-    public FloatRange centralIslandWidths = new FloatRange(2f, 3f);
-
     public float Weight(ChannelRegimeDef regime)
     {
         foreach (RegimeWeight w in channelRegimes)
@@ -192,48 +174,9 @@ public class ChannelRegimeDef : Def
         }
         return m;
     }
-
-    /// <summary>Lateral wobble amplitude and wavelength, in channel widths.</summary>
-    public FloatRange wobbleWidths = new FloatRange(0.6f, 1.2f);
-    public FloatRange wobbleWavelengthWidths = new FloatRange(4f, 7f);
-
-    /// <summary>Meandering: the share of full bend migration (0 keeps the course, 1 grows loops and cutoffs).</summary>
-    public FloatRange meander = new FloatRange(0.1f, 0.3f);
-
-    /// <summary>Chance that a place where the valley opens out splits around an island, and the island's length in widths.</summary>
-    public FloatRange splitChance = new FloatRange(0.1f, 0.3f);
-    public FloatRange islandWidths = new FloatRange(3f, 4f);
-
-    /// <summary>Channel depth relative to hydraulic geometry, and whether wide channels alternate pools and riffles.</summary>
-    public FloatRange depthScale = new FloatRange(1f, 1f);
-    public bool riffles = true;
-
-    /// <summary>Valley floor reach beyond the banks, in channel widths at full erodibility.</summary>
-    public FloatRange floorWidths = new FloatRange(2f, 4f);
 }
 
-/// <summary>A channel regime's parameters as drawn for one channel.</summary>
-public class ReachRegime
-{
-    public ChannelRegimeDef Def;
-    public float Wobble, Wavelength, Meander, SplitChance, IslandWidths, Depth, Floor;
-    public bool Riffles;
-
-    public static ReachRegime Draw(ChannelRegimeDef def) => new ReachRegime
-    {
-        Def = def,
-        Wobble = def.wobbleWidths.RandomInRange,
-        Wavelength = def.wobbleWavelengthWidths.RandomInRange,
-        Meander = def.meander.RandomInRange,
-        SplitChance = def.splitChance.RandomInRange,
-        IslandWidths = def.islandWidths.RandomInRange,
-        Depth = def.depthScale.RandomInRange,
-        Floor = def.floorWidths.RandomInRange,
-        Riffles = def.riffles,
-    };
-}
-
-/// <summary>Chooses a map's water regime and classifies channel reaches.</summary>
+/// <summary>Chooses a map's water regime and the channel nudges at a place.</summary>
 public static class WaterRegimes
 {
     public static WaterRegimeDef Select(Map map, WorldContext world)
@@ -282,22 +225,5 @@ public static class WaterRegimes
         }
         ChannelNudges blend = ChannelNudges.Blend(parts, 1f);
         return water != null ? blend.Times(water.nudges) : blend;
-    }
-
-    /// <summary>The matching channel regime the water regime weighs highest (earlier order wins ties); null if none.</summary>
-    public static ChannelRegimeDef Classify(IReadOnlyDictionary<string, float> reach, WaterRegimeDef water)
-    {
-        ChannelRegimeDef best = null;
-        float bestWeight = 0f;
-        foreach (ChannelRegimeDef def in DefDatabase<ChannelRegimeDef>.AllDefsListForReading.OrderBy(d => d.order))
-        {
-            float weight = water != null ? water.Weight(def) : (def.exclusive ? 0f : 1f);
-            if (weight > bestWeight && FieldCondition.All(def.conditions, reach))
-            {
-                best = def;
-                bestWeight = weight;
-            }
-        }
-        return best;
     }
 }

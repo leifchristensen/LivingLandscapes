@@ -43,7 +43,7 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
         {
             int entry = channel.Main.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < context.SizeX && v.y < context.SizeZ);
             if (entry >= 0 && channel.EntryArea > 0f)
-                inflow[RiverChannels.Index(channel.Main[entry], context.SizeX, context.SizeZ)] += channel.EntryArea;
+                inflow[RiverGrid.Index(channel.Main[entry], context.SizeX, context.SizeZ)] += channel.EntryArea;
         }
         return inflow;
     }

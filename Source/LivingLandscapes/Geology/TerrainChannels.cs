@@ -167,6 +167,12 @@ public class TerrainChannelSettings
     public float worldCourseTrench = 0.5f;
     public float worldCourseTrenchWidth = 3f;
 
+    /// <summary>
+    /// A world river's entry on the map must lie within this cosine of the direction the world says it comes from
+    /// (seen from where the rivers meet); otherwise the river enters at the edge facing that neighbour instead.
+    /// </summary>
+    public float entryAgreement = 0.5f;
+
     /// <summary>On a coast tile the map edge drains only within this many cells of the sea.</summary>
     public float coastEdgeDrain = 6f;
 
@@ -189,6 +195,13 @@ public class TerrainChannelSettings
 
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
+
+    /// <summary>
+    /// A world river that runs into a closed hollow fills it with its own load (lakes silt up): the hollow's floor is raised to
+    /// this many times the river's depth below its spill level, so the river crosses it as a channel through shallow ground
+    /// instead of ending in a deep lake (vanilla's rivers always run through a tile). 0 leaves such lakes as they are.
+    /// </summary>
+    public float riverInfillDepths = 1.2f;
 
     /// <summary>Gradient (metres per cell) across filled hollows, so water crosses them toward the spill point.</summary>
     public float fillGradient = 1e-3f;
@@ -245,7 +258,7 @@ public static class TerrainChannels
         float dischargeScale = 1f;
         bool[] moving = null;
         float[] power = null, deposition = null, sinuosity = null, valley = null;
-        int carvedMeanders = 0, oxbows = 0, deltaCells = 0, deltaBranches = 0;
+        int carvedMeanders = 0, oxbows = 0, deltaCells = 0, deltaBranches = 0, infilled = 0;
         Dictionary<int, (int second, float share)> forcedSplits = null;
         // On a tile the world gives no river, the map's own discharge is scaled to the tile's world flow (below a creek),
         // keeping every channel's share, so streams still visibly add up where they join.
@@ -328,6 +341,8 @@ public static class TerrainChannels
                     }
                 }
             }
+            if (pass == 0 && p.riverInfillDepths > 0f)
+                infilled = InfillRiverHollows(height, filled, cells, world, depth, sizeX, sizeZ, p);
             if (pass == 0 && p.meander.enabled)
             {
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
@@ -374,6 +389,21 @@ public static class TerrainChannels
         int bars = Bars(height, cells, main, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
             deposited, atBase, eroded);
+        var worldEnds = new List<string>();
+        foreach (int c in cells)
+        {
+            if (world[c] && discharge[c] >= p.sediment.mainRiverShare * 0.5f * discharge[cells[0]] && receiver[c] < 0)
+                worldEnds.Add($"({c % sizeX},{c / sizeX})");
+        }
+        Log.Message($"[LivingLandscapes] World water leaves the drainage at {string.Join(" ", worldEnds)}; entries at {string.Join(" ", System.Linq.Enumerable.Range(0, n).Where(i => worldSource[i]).Select(i => $"({i % sizeX},{i / sizeX})"))}.");
+        var dry = new List<string>();
+        for (int i = 0; i < n && dry.Count < 6; i++)
+        {
+            if (system.ChannelOf[i] >= 0 && !float.IsNaN(system.WaterLevel[i]) && height[i] > system.WaterLevel[i] + 0.02f)
+                dry.Add($"({i % sizeX},{i / sizeX}) ground {height[i]:F2} level {system.WaterLevel[i]:F2}");
+        }
+        if (dry.Count > 0)
+            Log.Message($"[LivingLandscapes] Channel cells above their water level at build: {string.Join("; ", dry)}");
         string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p);
         int painted = 0;
         for (int i = 0; i < n; i++)
@@ -388,7 +418,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {deltaBranches} delta branches drawn, {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {deltaBranches} delta branches drawn, {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -771,6 +801,36 @@ public static class TerrainChannels
         return best;
     }
 
+    /// <summary>
+    /// Closed hollows the world river runs into are filled with its load up to a few channel depths below their spill level
+    /// (<see cref="TerrainChannelSettings.riverInfillDepths"/>). Returns the number of cells raised.
+    /// </summary>
+    private static int InfillRiverHollows(float[] height, float[] filled, List<int> cells, bool[] world, float[] depth, int sizeX, int sizeZ,
+        TerrainChannelSettings p)
+    {
+        int n = height.Length;
+        GridMath.LabelRegions(i => filled[i] - height[i] > 1e-4f, sizeX, sizeZ, out int[] labels);
+        var riverDepth = new Dictionary<int, float>();
+        foreach (int c in cells)
+        {
+            if (labels[c] >= 0 && world[c])
+                riverDepth[labels[c]] = Mathf.Max(riverDepth.TryGetValue(labels[c], out float d) ? d : 0f, depth[c]);
+        }
+        int raised = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (labels[i] < 0 || !riverDepth.TryGetValue(labels[i], out float d))
+                continue;
+            float floor = filled[i] - Mathf.Max(d, p.minDepth) * p.riverInfillDepths;
+            if (height[i] < floor)
+            {
+                height[i] = floor;
+                raised++;
+            }
+        }
+        return raised;
+    }
+
     /// <summary>The discharge that gives a world river of this vanilla width its width on the map.</summary>
     private static float DischargeFor(float vanillaWidth, SimpleCurve worldRiverWidth, TerrainChannelSettings p) =>
         Mathf.Pow(worldRiverWidth.Evaluate(vanillaWidth) / p.widthPerSqrtDischarge, 2f);
@@ -833,11 +893,16 @@ public static class TerrainChannels
             int first = course.Points.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ);
             if (first < 0)
                 continue;
-            int cell = RiverChannels.Index(course.Points[first], sizeX, sizeZ);
+            int cell = RiverGrid.Index(course.Points[first], sizeX, sizeZ);
             if (course.VanillaWidth > 0f)
             {
                 // At a headwater the world river does not come from beyond the map: it rises here.
                 if (!riverEnters)
+                    continue;
+                // The world says which sides the river comes from. An erosion course that starts elsewhere (beside the exit, say)
+                // would hand the river over on the wrong side, and it would leave again as soon as it entered.
+                if (worldInflows != null && worldInflows.Count > 0 && !worldInflows.Exists(f =>
+                        Vector2.Dot((course.Points[first] - riverCentre).normalized, f.From) >= p.entryAgreement))
                     continue;
                 inflow[cell] += DischargeFor(course.VanillaWidth);
                 worldSource[cell] = worldEnters = true;
@@ -852,7 +917,7 @@ public static class TerrainChannels
             foreach (WorldContext.RiverInflow from in worldInflows)
             {
                 Vector2 edge = WaterTerrainNudges.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
-                int cell = RiverChannels.Index(edge, sizeX, sizeZ);
+                int cell = RiverGrid.Index(edge, sizeX, sizeZ);
                 inflow[cell] += DischargeFor(from.Width);
                 worldSource[cell] = worldEnters = true;
             }
@@ -868,7 +933,7 @@ public static class TerrainChannels
                     springs.Add(i);
             }
             if (springs.Count == 0)
-                springs.Add(RiverChannels.Index(riverCentre, sizeX, sizeZ));
+                springs.Add(RiverGrid.Index(riverCentre, sizeX, sizeZ));
             float each = DischargeFor(vanillaWidth) / springs.Count;
             foreach (int cell in springs)
             {
@@ -1148,9 +1213,9 @@ public static class TerrainChannels
                         continue;
                     float surface = Mathf.Lerp(crest, bed, e * e);
                     height[i] = Mathf.Max(height[i], surface);
-                    if (height[i] >= level)
+                    if (height[i] >= system.WaterLevel[i])
                     {
-                        // Above the water: an island.
+                        // Above the water (that cell's own level, which falls along the bar): an island.
                         system.WaterLevel[i] = float.NaN;
                         system.ChannelOf[i] = -1;
                         system.Flow[i] = Vector2.zero;

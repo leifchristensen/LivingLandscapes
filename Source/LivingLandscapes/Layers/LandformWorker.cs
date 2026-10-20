@@ -29,20 +29,6 @@ public class LandformWorker : EnvironmentLayerWorker
         return points[(sector % 8 + 8) % 8];
     }
 
-    /// <summary>Each reach field's 10th, 50th and 90th percentile over the map's reaches, for tuning the regime tables.</summary>
-    private static string ReachFieldRanges(RiverSystem rivers)
-    {
-        var fields = rivers.Channels.SelectMany(c => c.ReachFields).ToList();
-        if (fields.Count == 0)
-            return "";
-        return string.Join(", ", fields[0].Keys.Select(key =>
-        {
-            var values = fields.Select(f => f[key]).OrderBy(v => v).ToList();
-            float At(float q) => values[Mathf.Clamp(Mathf.RoundToInt(q * (values.Count - 1)), 0, values.Count - 1)];
-            return $"{key} {At(0.1f):0.###}/{At(0.5f):0.###}/{At(0.9f):0.###}";
-        }));
-    }
-
     public override float[] Compute(EnvironmentContext context)
     {
         Map map = context.Map;
@@ -81,9 +67,7 @@ public class LandformWorker : EnvironmentLayerWorker
                         $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"in from [{string.Join(" ", world.RiverInflows.Select(r => $"{Compass(r.From)} {r.Width:F0}"))}] out toward {Compass(world.RiverExit)}, meeting at ({world.RiverCentre.x:F2}, {world.RiverCentre.y:F2})" : "none")}, " +
                         $"water regime {water?.defName ?? "none"}, {rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
-                        $"reaches {string.Join(" ", rivers.Channels.SelectMany(c => c.Reaches).GroupBy(r => r.Def.defName).Select(g => $"{g.Key} {g.Count()}"))}" +
-                        $" [{ReachFieldRanges(rivers)}]; " +
-                        $"{rivers.Channels.Sum(c => c.Sides.Count)} side branches, {rivers.Channels.Sum(c => c.Oxbows.Count)} cut-off loops), " +
+                        $"), " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
                         $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +
                         $"{strata.BedCount} rock beds dipping {strata.DipDegrees:F0} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
