@@ -93,10 +93,7 @@ public class SettlementWorker : EnvironmentLayerWorker
 
     private static float[] Blur(float[] mask, int sizeX, int sizeZ, float sigma)
     {
-        var ones = new float[mask.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        return GridMath.MaskedBlur(mask, ones, sizeX, sizeZ, sigma);
+        return GridMath.Blur(mask, sizeX, sizeZ, sigma);
     }
 
     /// <summary>Share of <paramref name="mask"/> in the square ring between two half-widths around each cell (cells outside the map don't count).</summary>

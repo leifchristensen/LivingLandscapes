@@ -71,10 +71,7 @@ public static class HeightInference
         // 3. Mountains are high: natural rock never sits below the rock threshold. A light blur afterwards
         //    softens the cell-sized step at mountain edges; rock is clamped again so it stays above the threshold.
         ClampRock(h, features, p.rockThreshold);
-        var ones = new float[n];
-        for (int i = 0; i < n; i++)
-            ones[i] = 1f;
-        h = GridMath.MaskedBlur(h, ones, sizeX, sizeZ, p.rockEdgeSigma);
+        h = GridMath.Blur(h, sizeX, sizeZ, p.rockEdgeSigma);
         ClampRock(h, features, p.rockThreshold);
 
         // 4. Still water is flat and below its lowest shore.

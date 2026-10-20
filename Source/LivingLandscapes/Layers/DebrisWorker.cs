@@ -70,10 +70,7 @@ public class DebrisWorker : EnvironmentLayerWorker
                 rest[c] += 1f;
         }
 
-        var ones = new float[n];
-        for (int i = 0; i < n; i++)
-            ones[i] = 1f;
-        float[] spread = GridMath.MaskedBlur(rest, ones, sizeX, sizeZ, p.spread);
+        float[] spread = GridMath.Blur(rest, sizeX, sizeZ, p.spread);
         float scale = 2f * Mathf.PI * p.spread * p.spread;
         for (int i = 0; i < n; i++)
             spread[i] *= scale;

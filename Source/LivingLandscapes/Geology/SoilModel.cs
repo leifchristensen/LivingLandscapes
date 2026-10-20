@@ -99,10 +99,7 @@ public static class SoilModel
 
     public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target, bool[] sea = null)
     {
-        var ones = new float[soil.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        float[] smooth = GridMath.MaskedBlur(soil, ones, sizeX, sizeZ, p.outcropSigma);
+        float[] smooth = GridMath.Blur(soil, sizeX, sizeZ, p.outcropSigma);
         float Share(float shift)
         {
             float[] depth = GridMath.DistanceTo(i => smooth[i] - shift >= p.rockWallDepth, sizeX, sizeZ);

@@ -88,10 +88,7 @@ public class WetnessWorker : EnvironmentLayerWorker
         if (height == null || drainage == null)
             return null;
         var p = def.GetModExtension<WetnessExtension>() ?? new WetnessExtension();
-        var ones = new float[height.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        float[] slope = GridMath.Slope(GridMath.MaskedBlur(height, ones, context.SizeX, context.SizeZ, p.slopeSmoothing), context.SizeX, context.SizeZ);
+        float[] slope = GridMath.Slope(GridMath.Blur(height, context.SizeX, context.SizeZ, p.slopeSmoothing), context.SizeX, context.SizeZ);
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
         int n = height.Length;
 

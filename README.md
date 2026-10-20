@@ -1,14 +1,13 @@
 # Living Landscapes
 
-A RimWorld mod that brings biological and geological rules to map generation.
+A RimWorld mod that brings geological and biological rules to map generation, so a map reads as a place.
 
-In vanilla RimWorld, wild plants are chosen from the biome's plant list and scattered fairly evenly across the map. Real landscapes don't look like that. Living Landscapes aims to make plant distribution follow real-world patterns:
+- **Terrain from geology:** hills, valleys, cliffs and rock follow the tile's hilliness, rock beds and erosion; rock coverage matches the world map's terrain.
+- **Water that makes sense:** rivers run downhill on the side the world map says they enter, meander and cut off oxbows on flat land, lay down floodplains, gravel bars, islands and deltas, and stop at the sea (the lowest point). Tiles the world gives no river carry at most a creek: trickles become damp ground, marsh or a dry wash.
+- **A playable start:** the colony lands on level ground near water with room to farm, ore follows the rock and grows rarer with distance, and discoveries sit in interesting ground (setting: *Gameplay siting*).
+- **Plants that follow the ground:** species choose wet or dry ground, soil, slope and sun, grow in clumps, shade what grows beneath them, and compete for space.
 
-- **Clustering:** some species grow in dense patches rather than as scattered individuals.
-- **Water dependence:** some plants only grow near rivers, lakes or coastlines.
-- **Canopy and shade:** understory plants favour the shade of forests, and sun-loving plants avoid it.
-
-> **Status:** early development. The features above are the project's goals and are not implemented yet.
+> **Status:** in development. Everything applies to newly generated maps only; existing maps are never changed. Feedback and playtest notes are welcome as GitHub issues.
 
 ## Requirements
 - RimWorld **1.7**
@@ -19,13 +18,16 @@ Subscribe on the Steam Workshop (link coming once published), or download this r
 
 ## Settings
 Options → Mod options → Living Landscapes:
-- **Geologically driven terrain** (on by default): new maps are shaped by geology, so lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn it off if you use a mod that changes map terrain and isn't listed as supported; Living Landscapes then only reads the terrain that mod produces and places plants to match. *(In development: the option has no effect yet.)*
+- **Geologically driven terrain** (on by default): new maps are shaped by geology. Turn it off if you use a mod that changes map terrain and isn't listed as supported; Living Landscapes then only reads the terrain that mod produces and places plants to match.
+- **Scattered ruins and ancient debris** (off by default while the terrain is in development).
+- **Plant ecology** and **habitat strength**: how strongly the ground, shade and neighbours steer wild plants (0% is vanilla).
+- **Gameplay siting**: start spot, ore and discoveries follow the terrain (off: vanilla's random placement).
 
 ## Compatibility
 - **Supported:** [Realistic Planets 2](https://steamcommunity.com/sharedfiles/filedetails/?id=3776715150). It's optional, and Living Landscapes loads after it.
 - Mods that change map terrain generation are listed in the settings window. If maps look wrong with one of them, turn geologically driven terrain off.
 - Safe to add to an existing save. It only affects maps generated, and plants that spawn, after it is enabled.
-- Plants from other mods use sensible defaults. Mod authors can define habitat rules for their own plants in XML (documentation will follow once the format is stable).
+- Plants from other mods use sensible defaults (tried with Vanilla Plants Expanded, ReGrowth 2 and Biomes! Core). Mod authors can define habitat rules for their own plants in XML (documentation will follow once the format is stable).
 
 ## Building from source
 The repository root is the mod itself: `About/` and `1.7/` are what RimWorld loads, and the C# project in `Source/` builds into `1.7/Assemblies`.

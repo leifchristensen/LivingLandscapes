@@ -42,18 +42,16 @@ public class InterestWorker : EnvironmentLayerWorker
         var p = def.GetModExtension<InterestExtension>() ?? new InterestExtension();
         int sizeX = context.SizeX, sizeZ = context.SizeZ, n = context.CellCount;
         MapGenFloatGrid elevation = MapGenerator.Elevation;
-        var ones = new float[n];
         var rock = new float[n];
         var water = new float[n];
         for (int i = 0; i < n; i++)
         {
-            ones[i] = 1f;
             rock[i] = elevation[context.Map.cellIndices.IndexToCell(i)] > 0.7f ? 1f : 0f;
             water[i] = GroundCovers.IsWater(cover[i]) ? 1f : 0f;
         }
-        float[] relief = GridMath.MaskedBlur(slope, ones, sizeX, sizeZ, p.reliefSigma);
-        float[] rockBlur = GridMath.MaskedBlur(rock, ones, sizeX, sizeZ, p.edgeSigma);
-        float[] waterBlur = GridMath.MaskedBlur(water, ones, sizeX, sizeZ, p.edgeSigma);
+        float[] relief = GridMath.Blur(slope, sizeX, sizeZ, p.reliefSigma);
+        float[] rockBlur = GridMath.Blur(rock, sizeX, sizeZ, p.edgeSigma);
+        float[] waterBlur = GridMath.Blur(water, sizeX, sizeZ, p.edgeSigma);
         var noise = new Perlin(1.0 / p.noiseScale, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
 
         var edge = new float[n];

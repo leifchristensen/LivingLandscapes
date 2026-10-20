@@ -57,7 +57,7 @@ public static class Distributaries
     }
 
     /// <returns>Branch segments drawn.</returns>
-    public static int Carve(float[] height, float[] filled, List<int> cells, int[] receiver, bool[] world, float[] inflow, bool[] worldSource,
+    public static int Carve(float[] height, float[] filled, int[] receiver, float[] inflow, bool[] worldSource,
         float[] width, bool[] sea, float[] spread, float deltaSpread, int sizeX, int sizeZ, DistributarySettings p, out Vector2 apexAt,
         out List<(int at, int a, int b, float share)> splits)
     {

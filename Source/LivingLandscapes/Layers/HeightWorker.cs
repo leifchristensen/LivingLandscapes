@@ -22,7 +22,9 @@ public class HeightWorker : EnvironmentLayerWorker
             return landform;
         var p = def.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
-        var (stageHeight, _, steepness) = Terraces.Plan(landform, context.SizeX, context.SizeZ, cellSize, p);
-        return Terraces.Apply(landform, stageHeight, steepness, p);
+        // The one terrace plan of the map, from the full-precision landform; the cliffs are placed from it too.
+        TerracePlan plan = Terraces.Plan(landform, context.SizeX, context.SizeZ, cellSize, p);
+        context.Environment.PlannedTerraces = plan;
+        return Terraces.Apply(landform, plan.StageHeight, plan.Steepness, p);
     }
 }

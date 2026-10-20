@@ -42,7 +42,7 @@ public static class Patch_TileMutatorWorker_River_GenerateRiverGraph
     /// <summary>True for river segments laid along the geological course (they already meander).</summary>
     public static bool IsGeologicalNode(RiverNode node) => node != null && geologicalNodes.TryGetValue(node, out _);
 
-    public static bool Prefix(TileMutatorWorker_River __instance, Map map)
+    public static bool Prefix(Map map)
     {
         if (!GeologicalTerrain.AppliesTo(map))
             return true;

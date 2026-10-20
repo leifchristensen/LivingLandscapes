@@ -25,8 +25,7 @@ public static class Invariants
     public static void Report(Map map, StringBuilder summary)
     {
         var environment = map.GetComponent<MapComponent_Environment>();
-        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid grid)
-            || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform))
+        if (environment == null || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform))
             return;
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         // Water flows downhill at its surface: the bed has pools and riffles, the surface never climbs.

@@ -58,7 +58,7 @@ public class ResourceSiting
             float commonality = Commonality(def, maxValue);
             if (commonality <= 0f)
                 continue;
-            float share = commonality * Weight(def, cell) / Normaliser(def, maxValue);
+            float share = commonality * Weight(def, cell) / Normaliser(def);
             total += share;
             if (share > 0f && Rand.Value * total < share)
                 chosen = def;
@@ -99,7 +99,7 @@ public class ResourceSiting
     }
 
     /// <summary>Mean weight of the ore over a sample of the map's rock, so the siting moves the ore without changing how much of it there is.</summary>
-    private float Normaliser(ThingDef def, float maxValue)
+    private float Normaliser(ThingDef def)
     {
         if (normalisers.TryGetValue(def, out float known))
             return known;

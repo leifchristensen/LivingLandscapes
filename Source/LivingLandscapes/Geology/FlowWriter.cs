@@ -33,10 +33,7 @@ public static class FlowWriter
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = sizeX * sizeZ;
         RiverSystem rivers = environment.PlannedRivers;
 
-        var ones = new float[n];
-        for (int i = 0; i < n; i++)
-            ones[i] = 1f;
-        float[] aspect = GridMath.Aspect(GridMath.MaskedBlur(landformGrid.ToArray(), ones, sizeX, sizeZ, FlowSmoothing), sizeX, sizeZ);
+        float[] aspect = GridMath.Aspect(GridMath.Blur(landformGrid.ToArray(), sizeX, sizeZ, FlowSmoothing), sizeX, sizeZ);
 
         List<float> flow = map.waterInfo.riverFlowMap;
         if (flow == null || flow.Count != n * 2)

@@ -15,8 +15,6 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Aspect;
     public static EnvironmentLayerDef LL_Wetness;
     public static EnvironmentLayerDef LL_SurfaceWater;
-    public static EnvironmentLayerDef LL_Debris;
-    public static EnvironmentLayerDef LL_WaterFlow;
     public static EnvironmentLayerDef LL_WaterDistance;
     public static EnvironmentLayerDef LL_Moisture;
     public static EnvironmentLayerDef LL_Sun;
@@ -25,7 +23,6 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Settlement;
     public static EnvironmentLayerDef LL_Interest;
     public static EnvironmentLayerDef LL_Alluvium;
-    public static EnvironmentLayerDef LL_GrainSize;
 
     static EnvironmentLayerDefOf()
     {

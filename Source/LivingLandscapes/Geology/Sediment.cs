@@ -60,13 +60,6 @@ public class SedimentSettings
     /// <summary>Flow spreading over delta land is multiplied by this: on the flat, fresh deposit the river divides into distributaries.</summary>
     public float deltaSpread = 3f;
 
-    /// <summary>
-    /// Backwater: a river slows as it nears base level, over about its depth divided by its slope (the backwater length); there it
-    /// drops sediment and divides, so a delta's apex lies that far upstream (vanilla's deltas split from 20-50% across the map).
-    /// Flow spreading rises toward base level over the backwater length, capped at this share of the map's size.
-    /// </summary>
-    public float maxBackwaterShare = 0.45f;
-
     /// <summary>Main river network for the log's delta count: channels carrying at least this share of the world river's water.</summary>
     public float mainRiverShare = 0.12f;
 }
@@ -106,7 +99,7 @@ public static class Sediment
 
     /// <summary>The load and capacity walk down the network: what each channel cell deposits, and its grain size.</summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
-        float[] width, float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
+        float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
         out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded)
     {
         int n = filled.Length;
@@ -156,7 +149,7 @@ public static class Sediment
     }
 
     /// <summary>Water drop per cell over the next few cells downstream (single steps across filled flats are nearly zero).</summary>
-    private static float Slope(int c, int[] receiver, float[] filled, int sizeX)
+    public static float Slope(int c, int[] receiver, float[] filled, int sizeX)
     {
         int d = c;
         float run = 0f;

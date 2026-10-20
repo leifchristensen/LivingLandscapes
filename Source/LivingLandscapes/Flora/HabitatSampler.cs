@@ -12,23 +12,9 @@ namespace LivingLandscapes.Flora;
 public class HabitatSampler
 {
     public readonly Map Map;
-    private readonly float[] moisture, soilDepth, slope, sun, shade;
+    private readonly float[] moisture, soilDepth, slope, sun;
 
-    /// <param name="shadeOverride">Shade to use instead of the stored LL_Shade layer (the placement pass keeps its own).</param>
-    public HabitatSampler(EnvironmentContext context, float[] shadeOverride = null)
-    {
-        Map = context.Map;
-        moisture = context.Get(EnvironmentLayerDefOf.LL_Moisture);
-        soilDepth = context.Get(EnvironmentLayerDefOf.LL_SoilDepth);
-        slope = context.Get(EnvironmentLayerDefOf.LL_Slope);
-        sun = context.Get(EnvironmentLayerDefOf.LL_Sun);
-        shade = shadeOverride ?? context.Get(EnvironmentLayerDefOf.LL_Shade);
-    }
-
-    /// <summary>
-    /// A sampler over layer arrays directly, for the running map (<see cref="MapComponent_Ecology"/>), where the shade is
-    /// kept live and read separately.
-    /// </summary>
+    /// <summary>A sampler over the layer arrays of the running map (<see cref="MapComponent_Ecology"/>); shade is kept live there and read separately.</summary>
     public HabitatSampler(Map map, float[] moisture, float[] soilDepth, float[] slope, float[] sun)
     {
         Map = map;
@@ -51,26 +37,6 @@ public class HabitatSampler
         if (habitat.fertility != null)
             fitness *= habitat.fertility.Response(Map.fertilityGrid.FertilityAt(Map.cellIndices.IndexToCell(index)));
         return fitness;
-    }
-
-    /// <summary>Fitness 0..1 of a species on one cell: 0 where it cannot live, 1 at its optimum on every factor.</summary>
-    public float Fitness(ThingDef plant, PlantHabitat habitat, int index)
-    {
-        IntVec3 cell = Map.cellIndices.IndexToCell(index);
-        TerrainDef terrain = cell.GetTerrain(Map);
-        if (terrain.IsWater || terrain.fertility < plant.plant.fertilityMin || cell.GetEdifice(Map) != null)
-            return 0f;
-
-        float fitness = Response(habitat.wetness, moisture, index)
-            * Response(habitat.soilDepth, soilDepth, index)
-            * Response(habitat.slope, slope, index)
-            * Response(habitat.sun, sun, index);
-        if (habitat.fertility != null)
-            fitness *= habitat.fertility.Response(Map.fertilityGrid.FertilityAt(cell));
-
-        // Shade hurts plants that need light, by how little of it the species tolerates.
-        float shaded = shade != null ? shade[index] : 0f;
-        return fitness * Mathf.Lerp(1f - shaded, 1f, habitat.shadeTolerance);
     }
 
     private static float Response(HabitatCurve curve, float[] grid, int index)

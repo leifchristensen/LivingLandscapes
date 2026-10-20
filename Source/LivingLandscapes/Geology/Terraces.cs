@@ -41,14 +41,30 @@ public class TerraceExtension : DefModExtension
 /// landform crosses each stage height. Gentle ground keeps its natural shape, so cliffs form only where contour lines
 /// crowd together. Used with geological terrain on.
 /// </summary>
+/// <summary>
+/// The terrace plan of a map: stage height (metres), stage index per cell (0 = lowest) and steepness per cell (0 gentle,
+/// 1 cliff-steep). Made once per map from the full-precision landform when LL_Height is computed, and kept on the
+/// environment component for the cliffs (<see cref="MapComponent_Environment.PlannedTerraces"/>).
+/// </summary>
+public class TerracePlan
+{
+    public float StageHeight;
+    public int[] Stage;
+    public float[] Steepness;
+}
+
 public static class Terraces
 {
-    /// <summary>Stage height, stage index per cell and steepness per cell for a landform: the single terrace plan that
-    /// both the walkable height and the cliffs are built from.</summary>
-    public static (float stageHeight, int[] stage, float[] steepness) Plan(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
+    /// <summary>The single terrace plan both the walkable height and the cliffs are built from.</summary>
+    public static TerracePlan Plan(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
     {
         float stageHeight = StageHeight(landform, p);
-        return (stageHeight, Stages(landform, stageHeight), Steepness(landform, sizeX, sizeZ, cellSize, p));
+        return new TerracePlan
+        {
+            StageHeight = stageHeight,
+            Stage = Stages(landform, stageHeight),
+            Steepness = Steepness(landform, sizeX, sizeZ, cellSize, p),
+        };
     }
 
     /// <summary>Stage height (metres) for a landform, from its relief.</summary>
@@ -91,10 +107,7 @@ public static class Terraces
     public static float[] Steepness(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
     {
         float[] slope = GridMath.Slope(landform, sizeX, sizeZ);
-        var ones = new float[slope.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        float[] smooth = GridMath.MaskedBlur(slope, ones, sizeX, sizeZ, p.steepnessSmoothing);
+        float[] smooth = GridMath.Blur(slope, sizeX, sizeZ, p.steepnessSmoothing);
         var weight = new float[slope.Length];
         for (int i = 0; i < weight.Length; i++)
             weight[i] = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.gentleSlope, p.cliffSlope, smooth[i] / cellSize));

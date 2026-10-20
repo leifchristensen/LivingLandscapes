@@ -186,10 +186,7 @@ public static class LandscapeGenerator
         }
         // Bilinear upscaling leaves the erosion grid's D8 pattern as a fine checkerboard in the slopes; smooth it out at
         // the model cell size (features that matter are several model cells wide).
-        var ones = new float[sizeX * sizeZ];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        window = GridMath.MaskedBlur(window, ones, sizeX, sizeZ, mapCellsPerModelCell * 0.75f);
+        window = GridMath.Blur(window, sizeX, sizeZ, mapCellsPerModelCell * 0.75f);
         min = float.MaxValue;
         max = float.MinValue;
         foreach (float v in window)
