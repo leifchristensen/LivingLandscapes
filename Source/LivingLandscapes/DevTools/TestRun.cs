@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using Verse;
 
@@ -36,6 +37,8 @@ public static class TestRun
             if (BenchRequested)
                 PlantBenchmark.Run(map);
             Log.Message("[LivingLandscapes] Test run: benchmark done.");
+            if (GenCommandLine.CommandLineArgPassed("ll-check-cliffs"))
+                CheckCliffCost(map);
             // "-ll-roundtrip": save the game, load it again and check the plant ecology came back whole.
             if (GenCommandLine.CommandLineArgPassed("ll-roundtrip"))
             {
@@ -87,6 +90,23 @@ public static class TestRun
         {
             quitAt = -1f;
             Root.Shutdown();
+        }
+    }
+
+    /// <summary>Dev check: what entering a cliff cell costs a colonist, as vanilla's path follower computes it.</summary>
+    private static void CheckCliffCost(Map map)
+    {
+        Pawn pawn = map.mapPawns.FreeColonistsSpawned.FirstOrDefault();
+        var method = HarmonyLib.AccessTools.Method(typeof(Verse.AI.Pawn_PathFollower), "CostToMoveIntoCell", new[] { typeof(Pawn), typeof(IntVec3) });
+        int shown = 0;
+        foreach (Thing thing in map.listerThings.AllThings.Where(t => t is Geology.Building_Cliff).Take(400))
+        {
+            IntVec3 c = thing.Position;
+            int grid = map.pathing.Normal.pathGrid.Cost(c);
+            int calc = map.pathing.Normal.pathGrid.CalculatedCostAt(c, false, IntVec3.Invalid);
+            float move = pawn != null && method != null ? (float)method.Invoke(null, new object[] { pawn, c }) : -1f;
+            if (shown++ < 4)
+                Log.Message($"[LivingLandscapes] Cliff check: {thing.def.defName} at {c}: path grid {grid}, calculated {calc}, colonist move cost {move:F0} ticks (open ground {(pawn != null ? (float)method.Invoke(null, new object[] { pawn, pawn.Position + IntVec3.East }) : -1f):F0}); things here: {string.Join(", ", c.GetThingList(map).Select(x => x.def.defName))}.");
         }
     }
 }
