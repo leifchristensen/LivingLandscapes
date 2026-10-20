@@ -30,6 +30,28 @@
         <chance>0.35</chance>
         <tintWithRock>true</tintWithRock>
       </li>
+      <!-- Rockfall: boulders gather where debris from rock faces comes to rest (below cliffs, at the foot of mountains), giving
+           cover and stone where the ground rises and little in the open lowlands. -->
+      <li>
+        <label>rockfall boulders</label>
+        <conditions>
+          <li><field>LL_Debris</field><min>0.3</min></li>
+        </conditions>
+        <thing>LocalRockChunk</thing>
+        <chance>0.1</chance>
+      </li>
+      <!-- Rocky slopes: thin soil on sloping ground beside bare rock carries scattered blocks, in patches. -->
+      <li>
+        <label>blocks on rocky slopes</label>
+        <conditions>
+          <li><field>LL_SoilDepth</field><max>0.3</max></li>
+          <li><field>LL_Slope</field><min>0.15</min></li>
+        </conditions>
+        <thing>LocalRockChunk</thing>
+        <chance>0.05</chance>
+        <patchScale>15</patchScale>
+        <patchShare>0.45</patchShare>
+      </li>
       <!-- Boulder fields (#51 option 5): glacial erratics strewn over gentle ground in once-glaciated country, in fields. -->
       <li>
         <label>glacial erratics</label>

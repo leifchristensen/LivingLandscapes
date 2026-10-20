@@ -61,6 +61,21 @@ public class SoilModelExtension : DefModExtension
     /// <summary>Gaussian radius (cells) of the soil depth the rock calibration works on: the size of the outcrops it makes.</summary>
     public float outcropSigma = 3f;
 
+    /// <summary>
+    /// Passes (without a Z-level mod a ridge, bluff or canyon rim must not cut a map in two): every walkable area of at least
+    /// this share of the map is joined to the largest by a col, the cheapest way over the rock, preferring thin rock and
+    /// gentle climbs. The col is mountain rock thinned to bare rock (walkable); it widens wherever the rock beside it is no
+    /// thicker, so it follows the terrain, at least one cell wide. Smaller pockets stay hidden in the rock. 0: no passes.
+    /// </summary>
+    public float passMinAreaShare = 0.1f;
+
+    /// <summary>Path cost per metre of rock crossed and per metre climbed, against 1 per cell of open ground.</summary>
+    public float passRockCost = 3f;
+    public float passClimbCost = 2f;
+
+    /// <summary>How far (cells) a col may widen to each side into rock no thicker than itself.</summary>
+    public int passWiden = 2;
+
     public FloatRange RockShareFor(Hilliness hilliness)
     {
         switch (hilliness)
