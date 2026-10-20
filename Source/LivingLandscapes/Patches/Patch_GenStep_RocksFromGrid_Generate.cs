@@ -36,7 +36,8 @@ public static class Patch_GenStep_RocksFromGrid_Generate
             for (int i = 0; i < plan.Kind.Length; i++)
             {
                 CliffKind kind = plan.Kind[i];
-                if (kind == CliffKind.None)
+                // Steps are left as gaps in the band: plain ground, the quickest way up (slope and cliff costs add up).
+                if (kind == CliffKind.None || kind == CliffKind.Steps)
                     continue;
                 IntVec3 cell = map.cellIndices.IndexToCell(i);
                 if (cell.GetEdifice(map) != null)

@@ -502,4 +502,25 @@
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_WalkEffort</defName>
+    <label>walking effort</label>
+    <description>Dev view: how many times longer than a level step the slowest step into each cell takes for the slope alone (climbing in from any neighbour, natural ground); 1 is level, 0 impassable. Vanilla's own costs (terrain, plants, cliffs) are left out. Computed when shown; not saved.</description>
+    <workerClass>LivingLandscapes.Layers.WalkEffortWorker</workerClass>
+    <onDemand>true</onDemand>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.7</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.2, 0.2, 0.2, 0.8)</color></li>
+        <li><value>1</value><color>(0.2, 0.7, 0.3, 0)</color></li>
+        <li><value>1.5</value><color>(0.9, 0.85, 0.3, 0.6)</color></li>
+        <li><value>3</value><color>(0.95, 0.5, 0.15, 0.8)</color></li>
+        <li><value>8</value><color>(0.8, 0.1, 0.1, 0.9)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
 </Defs>

@@ -67,7 +67,7 @@ public class SoilModelExtension : DefModExtension
     /// gentle climbs. The col is mountain rock thinned to bare rock (walkable); it widens wherever the rock beside it is no
     /// thicker, so it follows the terrain, at least one cell wide. Smaller pockets stay hidden in the rock. 0: no passes.
     /// </summary>
-    public float passMinAreaShare = 0.1f;
+    public float passMinAreaShare = 0.05f;
 
     /// <summary>Path cost per metre of rock crossed and per metre climbed, against 1 per cell of open ground.</summary>
     public float passRockCost = 3f;
