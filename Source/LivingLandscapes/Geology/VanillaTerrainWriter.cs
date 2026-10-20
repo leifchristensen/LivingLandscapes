@@ -87,7 +87,12 @@ public static class VanillaTerrainWriter
         }
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
-        var (stageHeight, stage, steepness) = Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
+        // The terrace plan LL_Height was built from (made once per map); planned again only if that layer was skipped.
+        TerracePlan terracePlan = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedTerraces
+                                  ?? Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
+        float stageHeight = terracePlan.StageHeight;
+        int[] stage = terracePlan.Stage;
+        float[] steepness = terracePlan.Steepness;
         var plan = new CliffPlan(n);
         int knobs = MakeRockKnobs(map, values, stage, steepness, terraces);
         GroundCover[] planned = cover;

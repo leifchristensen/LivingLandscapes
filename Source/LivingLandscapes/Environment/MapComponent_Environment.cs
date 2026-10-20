@@ -44,6 +44,9 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public Geology.GroundCover[] PlannedCover { get; set; }
 
+    /// <summary>The terrace plan (stages and steepness) LL_Height was built from; the cliffs are placed from it. Not saved.</summary>
+    public Geology.TerracePlan PlannedTerraces { get; set; }
+
     /// <summary>Cliffs planned by the geology during generation, spawned after vanilla places rock. Not saved.</summary>
     public Geology.CliffPlan PlannedCliffs { get; set; }
 
