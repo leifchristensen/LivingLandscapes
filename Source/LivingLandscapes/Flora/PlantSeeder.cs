@@ -80,7 +80,18 @@ public static class PlantSeeder
             return false;
         float fitness = ecology.Fitness(def, map.cellIndices.CellToIndex(c));
         // Fitness is a product of several curves, so even good ground rarely scores near 1: accept relative to a reference.
-        return fitness >= tuning.minFitness && Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent);
+        if (fitness < tuning.minFitness)
+            return false;
+        // Plants of its own layer around crowd a seed out (self-thinning), so a clump's trees stand apart.
+        PlantHabitat habitat = PlantHabitat.For(def);
+        StratumThinning thinning = tuning.ThinningFor(habitat.stratum);
+        float room = 1f;
+        if (thinning != null)
+        {
+            float crowded = ecology.CrowdingAt(habitat.stratum, map.cellIndices.CellToIndex(c)) / Mathf.Max(habitat.dominance, 0.1f);
+            room = Mathf.Lerp(1f, Mathf.Exp(-thinning.strength * crowded), MapComponent_Ecology.Strength);
+        }
+        return Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent) * room;
     }
 
     private static bool Place(Map map, ThingDef def, IntVec3 c)
