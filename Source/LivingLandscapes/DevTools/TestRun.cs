@@ -86,10 +86,75 @@ public static class TestRun
             GameDataSaveLoader.LoadGame("LL_roundtrip");
             return;
         }
+        if (crossing != null && CrossingStep())
+            return;
         if (quitAt >= 0f && Time.realtimeSinceStartup >= quitAt)
         {
             quitAt = -1f;
             Root.Shutdown();
+        }
+    }
+
+    private class Crossing
+    {
+        public Pawn Pawn;
+        public IntVec3 From, To;
+        public int StartTick;
+        public readonly System.Collections.Generic.List<string> Steps = new System.Collections.Generic.List<string>();
+        public IntVec3 Last;
+        public bool Back;
+    }
+
+    private static Crossing crossing;
+
+    /// <summary>
+    /// Dev check, part two: orders a colonist straight across a cliff band (lower side to higher side, through the cliff cell)
+    /// and logs every cell it steps into with the game tick, so the real crossing time can be read. Returns true while running.
+    /// </summary>
+    private static bool CrossingStep()
+    {
+        Pawn pawn = crossing.Pawn;
+        int now = Find.TickManager.TicksGame;
+        if (pawn.Position != crossing.Last)
+        {
+            crossing.Steps.Add($"{pawn.Position} at +{now - crossing.StartTick}");
+            crossing.Last = pawn.Position;
+        }
+        if (pawn.Position == crossing.To || now - crossing.StartTick > 2500)
+        {
+            Log.Message($"[LivingLandscapes] Cliff crossing: {crossing.From} -> {crossing.To} took {now - crossing.StartTick} ticks: {string.Join("; ", crossing.Steps)}.");
+            if (!crossing.Back)
+            {
+                // And back down the same way.
+                crossing = new Crossing { Pawn = pawn, From = crossing.To, To = crossing.From, StartTick = now, Last = pawn.Position, Back = true };
+                pawn.jobs.StartJob(Verse.JobMaker.MakeJob(RimWorld.JobDefOf.Goto, crossing.To), Verse.AI.JobCondition.InterruptForced);
+                return true;
+            }
+            crossing = null;
+            quitAt = Time.realtimeSinceStartup + 1f;
+            if (GenCommandLine.CommandLineArgPassed("ll-export"))
+                LayerImageExporter.WriteLog();
+            return false;
+        }
+        return true;
+    }
+
+    private static void StartCrossing(Map map, Pawn pawn)
+    {
+        foreach (Thing thing in map.listerThings.AllThings.Where(t => t.def.defName == "LL_Cliff"))
+        {
+            IntVec3 lower = thing.Position + thing.Rotation.FacingCell, higher = thing.Position - thing.Rotation.FacingCell;
+            if (!lower.InBounds(map) || !higher.InBounds(map) || !lower.Standable(map) || !higher.Standable(map))
+                continue;
+            if (lower.GetEdifice(map) != null || higher.GetEdifice(map) != null)
+                continue;
+            pawn.DeSpawn();
+            GenSpawn.Spawn(pawn, lower, map);
+            pawn.jobs.StartJob(Verse.JobMaker.MakeJob(RimWorld.JobDefOf.Goto, higher), Verse.AI.JobCondition.InterruptForced);
+            Find.TickManager.CurTimeSpeed = TimeSpeed.Normal;
+            crossing = new Crossing { Pawn = pawn, From = lower, To = higher, StartTick = Find.TickManager.TicksGame, Last = lower };
+            Log.Message($"[LivingLandscapes] Cliff crossing: {pawn.LabelShort} ordered from {lower} over the cliff at {thing.Position} to {higher}.");
+            return;
         }
     }
 
@@ -105,8 +170,10 @@ public static class TestRun
             int grid = map.pathing.Normal.pathGrid.Cost(c);
             int calc = map.pathing.Normal.pathGrid.CalculatedCostAt(c, false, IntVec3.Invalid);
             float move = pawn != null && method != null ? (float)method.Invoke(null, new object[] { pawn, c }) : -1f;
-            if (shown++ < 4)
+            if (shown++ < 2)
                 Log.Message($"[LivingLandscapes] Cliff check: {thing.def.defName} at {c}: path grid {grid}, calculated {calc}, colonist move cost {move:F0} ticks (open ground {(pawn != null ? (float)method.Invoke(null, new object[] { pawn, pawn.Position + IntVec3.East }) : -1f):F0}); things here: {string.Join(", ", c.GetThingList(map).Select(x => x.def.defName))}.");
         }
+        if (pawn != null)
+            StartCrossing(map, pawn);
     }
 }

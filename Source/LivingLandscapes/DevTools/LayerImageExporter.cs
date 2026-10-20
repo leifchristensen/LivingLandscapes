@@ -169,7 +169,7 @@ public static class LayerImageExporter
     /// This run's errors and warnings and the mod's own lines, next to the summary: the game's log file is shared by every
     /// instance, so parallel test runs read this one (the message queue keeps the last 1000 messages).
     /// </summary>
-    private static void WriteLog()
+    public static void WriteLog()
     {
         var text = new StringBuilder();
         foreach (LogMessage message in Log.Messages)

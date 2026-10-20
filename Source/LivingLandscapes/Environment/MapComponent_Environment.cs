@@ -72,6 +72,12 @@ public class MapComponent_Environment : MapComponent
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
 
+    private float[] walkableHeight;
+
+    /// <summary>LL_Height (walkable height, metres) as an array, kept for per-step lookups (slope movement); null without the layer.</summary>
+    public float[] WalkableHeight =>
+        walkableHeight ??= layers.TryGetValue(EnvironmentLayerDefOf.LL_Height, out EnvironmentGrid grid) ? grid.ToArray() : null;
+
     public bool TryGetGrid(EnvironmentLayerDef layer, out EnvironmentGrid grid) => layers.TryGetValue(layer, out grid);
 
     /// <summary>Value of a layer at a cell, or <paramref name="fallback"/> when the map doesn't have that layer.</summary>
@@ -117,6 +123,8 @@ public class MapComponent_Environment : MapComponent
             }
             context.Set(layer, values);
             layers[layer] = new EnvironmentGrid(values, layer.precision);
+            if (layer == EnvironmentLayerDefOf.LL_Height)
+                walkableHeight = null;
             Log.Message($"[LivingLandscapes] {layer.defName} computed for {map}: {Describe(values)}.");
             return true;
         }
