@@ -103,10 +103,11 @@ public class Landforms
         PlainsFeature = PlainsFeatureDef.For(map, world);
         if (PlainsFeature != null)
         {
-            ExtraRelief = PlainsFeature.extraRelief.RandomInRange;
+            PlainsFeatureScale scale = PlainsFeature.ScaleFor(world.Hilliness);
+            ExtraRelief = (scale?.extraRelief ?? PlainsFeature.extraRelief).RandomInRange;
             if (PlainsFeature.alongRivers)
             {
-                LandformExtension bluff = PlainsFeature.Draw();
+                LandformExtension bluff = PlainsFeature.Draw(world.Hilliness);
                 bluff.shape = LandformShape.Ray;
                 foreach (WorldContext.RiverInflow inflow in world.RiverInflows)
                     forms.Add((bluff, inflow.From, world.RiverCentre));
@@ -114,10 +115,10 @@ public class Landforms
             }
             else
             {
-                int n = PlainsFeature.count.RandomInRange;
+                int n = (scale?.count ?? PlainsFeature.count).RandomInRange;
                 for (int k = 0; k < n; k++)
                 {
-                    LandformExtension form = PlainsFeature.Draw();
+                    LandformExtension form = PlainsFeature.Draw(world.Hilliness);
                     forms.Add((form, Direction(form.orientation, world), Vector2.zero));
                 }
             }

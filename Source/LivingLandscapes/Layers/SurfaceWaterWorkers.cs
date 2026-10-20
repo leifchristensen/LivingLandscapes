@@ -18,8 +18,12 @@ public class SurfaceWaterExtension : DefModExtension
     public float evaporationPerDegree = 60f;
     public float minEvaporation = 150f;
 
-    /// <summary>Share of the rain on the catchment that runs off into the hollow (the rest soaks in or evaporates on land).</summary>
-    public float runoffShare = 0.3f;
+    /// <summary>
+    /// Share of the rain on the catchment that runs off into the hollow (the rest soaks in or evaporates on land). Null:
+    /// the same runoff the channels use, from the climate and the biome's absorption (<see cref="Geology.TerrainChannelSettings.RunoffOf"/>),
+    /// so a desert's hollows stay dry playas and a bog's fill.
+    /// </summary>
+    public float? runoffShare;
 
     /// <summary>Hollows shallower (metres) or smaller (cells) than this hold no lake; they stay damp ground.</summary>
     public float minLakeDepth = 0.25f;
@@ -99,6 +103,9 @@ public static class SurfaceWaterModel
         }
 
         float rainfall = map.TileInfo?.rainfall ?? 0f;
+        float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
+        var channels = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<Geology.GeologyGenerationExtension>() ?? new Geology.GeologyGenerationExtension()).terrainChannels;
+        float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
         float temperature = map.TileInfo?.temperature ?? 10f;
         float evaporation = Mathf.Max(p.minEvaporation, p.evaporationAtZero + p.evaporationPerDegree * temperature);
 
@@ -117,7 +124,7 @@ public static class SurfaceWaterModel
 
             // Lake area at balance: runoff in = net evaporation out. Wetter than evaporation: fills to the spill level.
             float netEvaporation = evaporation - rainfall;
-            float balanceArea = netEvaporation <= 0f ? float.MaxValue : p.runoffShare * rainfall * catchment / netEvaporation;
+            float balanceArea = netEvaporation <= 0f ? float.MaxValue : runoff * rainfall * catchment / netEvaporation;
             hollow.Sort((a, b) => landform[a].CompareTo(landform[b]));
             float level = balanceArea >= hollow.Count ? spill : landform[hollow[Mathf.Clamp((int)balanceArea, 0, hollow.Count - 1)]];
             if (level - landform[hollow[0]] < p.minLakeDepth)

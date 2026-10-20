@@ -14,8 +14,24 @@ namespace LivingLandscapes.Geology;
 /// The shape is a <see cref="LandformExtension"/> (uplift and hardness the erosion model shapes like any other landform),
 /// laid <see cref="count"/> times with the ranges below drawn per instance.
 /// </summary>
+/// <summary>A plains feature's count, height and size on tiles of one hilliness (flat land gets smaller, fewer features).</summary>
+public class PlainsFeatureScale
+{
+    public Hilliness hilliness;
+    public IntRange count = new IntRange(1, 1);
+    public FloatRange extraRelief = new FloatRange(5f, 10f);
+
+    /// <summary>Multiplies the drawn size.</summary>
+    public float sizeFactor = 1f;
+}
+
 public class PlainsFeatureDef : Def
 {
+    /// <summary>Count, height and size where the tile's hilliness has an entry; the fields below elsewhere.</summary>
+    public List<PlainsFeatureScale> byHilliness = new List<PlainsFeatureScale>();
+
+    public PlainsFeatureScale ScaleFor(Hilliness h) => byHilliness.Find(s => s.hilliness == h);
+
     /// <summary>Tiles of these hilliness levels can get the feature.</summary>
     public List<Hilliness> hilliness = new List<Hilliness>();
 
@@ -65,14 +81,15 @@ public class PlainsFeatureDef : Def
         return fitting.Count == 0 ? null : fitting.RandomElementByWeight(d => d.weight);
     }
 
-    /// <summary>One instance of the shape, its ranges drawn.</summary>
-    public LandformExtension Draw()
+    /// <summary>One instance of the shape, its ranges drawn (size scaled for the tile's hilliness).</summary>
+    public LandformExtension Draw(Hilliness hilliness)
     {
         LandformExtension f = landform;
+        float sizeFactor = ScaleFor(hilliness)?.sizeFactor ?? 1f;
         return new LandformExtension
         {
             shape = f.shape, orientation = f.orientation, offset = offset.max > 0f ? offset.RandomInRange : f.offset,
-            size = size.max > 0f ? size.RandomInRange : f.size, edge = f.edge, upliftInside = f.upliftInside,
+            size = (size.max > 0f ? size.RandomInRange : f.size) * sizeFactor, edge = f.edge, upliftInside = f.upliftInside,
             upliftOutside = f.upliftOutside, erodibilityInside = f.erodibilityInside, warp = f.warp, replacesVanillaElevation = false,
         };
     }
