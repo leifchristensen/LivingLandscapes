@@ -30,6 +30,15 @@ public class TerraceExtension : DefModExtension
     public int stepSpacing = 24;
 
     /// <summary>
+    /// Passes: without levels above and below (a Z-level mod), every sizeable walkable area must be reachable. Where mountain
+    /// rock (a ridge, a bluff, a canyon rim) cuts one off, a pass this many cells wide is opened along the cheapest way
+    /// through the rock: its ground becomes rough stone, and the cliffs and steps the terraces give it make it climbable.
+    /// Areas smaller than <see cref="passMinAreaShare"/> of the map are left as they are (rock pockets). 0 width: no passes.
+    /// </summary>
+    public int passWidth = 3;
+    public float passMinAreaShare = 0.005f;
+
+    /// <summary>
     /// Only steep ground is stepped into stages, and only there do cliffs form, where contour lines crowd together.
     /// Below <see cref="gentleSlope"/> (rise over run) the ground keeps its natural shape; above
     /// <see cref="cliffSlope"/> it is fully stepped and stage edges get cliffs (1.0 = 45 degrees). Keep the two close,
