@@ -56,11 +56,13 @@ public static class Invariants
         int steps = 0, climbing = 0, sides = 0, rejoin = 0, ended = 0, loops = 0;
         var loose = new StringBuilder();
         float maxRise = 0f, length = 0f, straight = 0f;
-        IntVec3 worst = IntVec3.Invalid;
+        IntVec3 worst = IntVec3.Invalid, worstLow = IntVec3.Invalid;
+        int worstChannel = -1;
         for (int k = 0; k < rivers.Channels.Count; k++)
         {
             RiverPlan plan = rivers.Channels[k];
             float lowest = float.MaxValue;
+            int lowestIndex = -1;
             Vector2? first = null, last = null;
             for (int i = 0; i < plan.Main.Count - 1; i++)
             {
@@ -82,9 +84,15 @@ public static class Invariants
                         {
                             maxRise = h[index] - lowest;
                             worst = map.cellIndices.IndexToCell(index);
+                            worstLow = map.cellIndices.IndexToCell(lowestIndex);
+                            worstChannel = k;
                         }
                     }
-                    lowest = Mathf.Min(lowest, h[index]);
+                    if (h[index] < lowest)
+                    {
+                        lowest = h[index];
+                        lowestIndex = index;
+                    }
                 }
                 if (Inside(map, a) && Inside(map, b))
                 {
@@ -117,7 +125,7 @@ public static class Invariants
                 ended++;
         }
         summary.AppendLine($"invariant 1 (water flows downhill): {(climbing == 0 ? "ok" : "FAIL")} | {steps} centre-line cells in {rivers.Channels.Count} channels, " +
-                           $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst}" : "")}");
+                           $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst} (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0}, low point {worstLow}; surface {h[map.cellIndices.CellToIndex(worstLow)]:F2} then {h[map.cellIndices.CellToIndex(worst)]:F2}, water level {rivers.WaterLevel[map.cellIndices.CellToIndex(worstLow)]:F2} then {rivers.WaterLevel[map.cellIndices.CellToIndex(worst)]:F2})" : "")}");
         summary.AppendLine($"invariant 4 (split channels rejoin or reach the sea): {(rejoin == sides ? "ok" : "FAIL")} | {rejoin} of {sides} side channels; " +
                            $"sinuosity {(straight > 1f ? length / straight : 1f):F2}, {loops} cut-off loops, widths " +
                            string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))) +
