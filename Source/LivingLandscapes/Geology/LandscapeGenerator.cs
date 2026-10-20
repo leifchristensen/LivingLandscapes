@@ -124,7 +124,7 @@ public static class LandscapeGenerator
     /// <param name="channels">The channel network crossing the map, larger channels first (see <see cref="RiverNetwork"/>).</param>
     /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
-        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
+        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
     {
         world = WorldContext.For(map, p.tileSpacingMetres);
         water = WaterRegimes.Select(map, world);
@@ -200,6 +200,7 @@ public static class LandscapeGenerator
         var result = new float[sizeX * sizeZ];
         rockStrength = new float[sizeX * sizeZ];
         rock = new ThingDef[sizeX * sizeZ];
+        rockStage = new int[sizeX * sizeZ];
         for (int z = 0; z < sizeZ; z++)
         {
             for (int x = 0; x < sizeX; x++)
@@ -209,6 +210,7 @@ public static class LandscapeGenerator
                 float bedHeight = window[z * sizeX + x] / Mathf.Max(modelTop, 1e-6f) * reliefCells;
                 rockStrength[z * sizeX + x] = strata.Strength(site, bedHeight);
                 rock[z * sizeX + x] = strata.RockAt(site, bedHeight);
+                rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;

@@ -96,6 +96,7 @@ public class RockStrata
     private readonly List<float> bedTops = new List<float>();
     private readonly List<ThingDef> bedRocks = new List<ThingDef>();
     private readonly List<float> bedStrengths = new List<float>();
+    private int[] hardBelow;
 
     /// <summary>Average bed strength, the reference for erodibility.</summary>
     public float MeanStrength { get; }
@@ -173,7 +174,21 @@ public class RockStrata
             strengthSum += strength;
         }
         MeanStrength = strengthSum / Mathf.Max(1, bedTops.Count);
+        // Hard beds (stronger than average) counted from the bottom of the stack: each one is a caprock that holds up a cliff.
+        hardBelow = new int[bedTops.Count];
+        for (int k = 0, hard = 0; k < bedTops.Count; k++)
+        {
+            if (bedStrengths[k] >= MeanStrength)
+                hard++;
+            hardBelow[k] = hard;
+        }
     }
+
+    /// <summary>
+    /// How many hard beds lie at or below the bed exposed at a site and height: the rock stage. It steps up at the base of
+    /// each hard bed, so cliffs drawn between stages stand where a hard bed caps softer rock (layer-cake walls, mesa rims).
+    /// </summary>
+    public int HardBedsBelow(Site site, float height) => hardBelow[BedAt(site, height)];
 
     /// <summary>The height-independent part of a position: where it lies across the bedding, and its joint weakening.</summary>
     public readonly struct Site

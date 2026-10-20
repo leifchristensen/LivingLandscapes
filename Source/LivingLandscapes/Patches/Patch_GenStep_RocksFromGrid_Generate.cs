@@ -28,6 +28,7 @@ public static class Patch_GenStep_RocksFromGrid_Generate
             return;
         environment.PlannedCliffs = null;
         environment.PlannedTerraces = null;
+        environment.PlannedRockStage = null;
         try
         {
             environment.PlannedTalus = new List<(IntVec3, ThingDef)>();
