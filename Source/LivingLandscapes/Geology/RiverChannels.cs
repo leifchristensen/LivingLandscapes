@@ -154,6 +154,9 @@ public class RiverSystem
     /// </summary>
     public bool[] Seep;
 
+    /// <summary>How close each seep comes to running water, 0..1 (its width as a share of moving water's); 0 elsewhere.</summary>
+    public float[] SeepWater;
+
     /// <summary>Alluvium (metres) the channels deposited, per cell (<see cref="Sediment"/>).</summary>
     public float[] Alluvium;
 
