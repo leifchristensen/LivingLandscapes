@@ -18,8 +18,47 @@ public class StratumScale
     public float scale = 1f;
 }
 
+/// <summary>Competition among plants of one vegetation layer: how far a plant's crowding reaches and how hard it bites.</summary>
+public class StratumThinning
+{
+    public PlantStratum stratum;
+
+    /// <summary>Gaussian reach (cells) of a plant's crowding; 0 turns competition off for the layer.</summary>
+    public float sigma;
+
+    /// <summary>
+    /// The weight of a candidate is multiplied by exp(-strength x crowding / its own dominance): crowding is the sum over the
+    /// same-layer plants around of their dominance times the Gaussian weight at their distance. With equal dominance one plant
+    /// at one sigma lowers a neighbour's chance by exp(-strength x 0.6).
+    /// </summary>
+    public float strength = 1f;
+}
+
 public class PlantEcologyDef : Def
 {
+    /// <summary>
+    /// Self-thinning: plants of a layer around a cell suppress newcomers of that layer, large species (higher
+    /// <see cref="PlantHabitat.dominance"/>) more than small ones, so trees stand apart and a big tree keeps seedlings from
+    /// its crown. Grass-scale ground plants are left out (a layer with no entry or sigma 0 does not compete).
+    /// </summary>
+    public List<StratumThinning> thinning = new List<StratumThinning>();
+
+    private static bool? thinningOff;
+
+    public StratumThinning ThinningFor(PlantStratum stratum)
+    {
+        // Test runs: -ll-thinning=off compares against the model without competition.
+        thinningOff ??= GenCommandLine.TryGetCommandLineArg("ll-thinning", out string mode) && mode == "off";
+        if (thinningOff.Value)
+            return null;
+        foreach (StratumThinning entry in thinning)
+        {
+            if (entry.stratum == stratum)
+                return entry.sigma > 0f ? entry : null;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Forest layers: multiplies the commonality of a biome's canopy, shrub or ground plants, so a forest biome can carry
     /// more trees and understory than vanilla's commonality gives (vanilla's forests are sparse). The spawner's shares are
