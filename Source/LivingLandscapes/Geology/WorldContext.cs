@@ -31,6 +31,9 @@ public class WorldContext
 
     public bool HasRiver;
 
+    /// <summary>Vanilla's world river flow through the tile (<see cref="WorldFlow"/>), in the river defs' units.</summary>
+    public float Flow;
+
     /// <summary>A world river entering the map: the side it comes from and the width vanilla gives it.</summary>
     public struct RiverInflow
     {
@@ -65,6 +68,7 @@ public class WorldContext
         {
             Elevation = tile.elevation,
             Hilliness = HillinessFor(tile),
+            Flow = WorldFlow.At(map.Tile),
         };
 
         PlanetTile here = map.Tile;

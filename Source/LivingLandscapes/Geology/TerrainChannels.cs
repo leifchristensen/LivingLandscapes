@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using RimWorld;
 using UnityEngine;
 using Verse;
 using Verse.Noise;
@@ -30,7 +31,7 @@ public class TerrainChannelSettings
     /// </summary>
     public float minMovingWidth = 2f;
 
-    public float RunoffOf(float climate, string biome)
+    public float AbsorptionOf(string biome)
     {
         float absorbed = absorption;
         foreach (BiomeAbsorption b in biomeAbsorption)
@@ -38,6 +39,12 @@ public class TerrainChannelSettings
             if (b.biome == biome)
                 absorbed = b.absorption;
         }
+        return absorbed;
+    }
+
+    public float RunoffOf(float climate, string biome)
+    {
+        float absorbed = AbsorptionOf(biome);
         return Mathf.Clamp01((climate - absorbed) / Mathf.Max(1f - absorbed, 0.05f));
     }
 
@@ -53,10 +60,18 @@ public class TerrainChannelSettings
     public float minWidth = 1f;
 
     /// <summary>
-    /// On a tile without a world river the map's own channels stay below a creek: their discharge is scaled so the
-    /// largest is at most this wide (vanilla's creek is 4 cells, 3 at map scale).
+    /// On a tile without a world river the map's own channels carry the tile's world flow (<see cref="WorldFlow"/>): the
+    /// largest gets the share of a creek that flow is (vanilla ends a creek below its degrade threshold), the others keep
+    /// their share of it, and none is wider than this (vanilla's creek is 4 cells, 3 at map scale).
     /// </summary>
     public float maxWidthWithoutWorldRiver = 2.5f;
+
+    /// <summary>
+    /// Transmission loss: a channel loses water into its bed, this much discharge per cell of length and cell of width,
+    /// times the biome's absorption. Small streams shrink and sink into seeps; rivers lose a negligible share. World
+    /// rivers keep the width the world gives them.
+    /// </summary>
+    public float transmissionLoss = 6f;
     public float depthPerDischarge = 0.045f;
     public float depthExponent = 0.3f;
     public float minDepth = 0.15f;
@@ -196,13 +211,14 @@ public static class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null)
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
         {
             Regime = water, WaterLevel = new float[n], Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n],
             Seep = new bool[n],
+            SeepWater = new float[n],
         };
         for (int i = 0; i < n; i++)
         {
@@ -231,10 +247,18 @@ public static class TerrainChannels
         float[] power = null, deposition = null, sinuosity = null, valley = null;
         int carvedMeanders = 0, oxbows = 0, deltaCells = 0, deltaBranches = 0;
         Dictionary<int, (int second, float share)> forcedSplits = null;
+        // On a tile the world gives no river, the map's own discharge is scaled to the tile's world flow (below a creek),
+        // keeping every channel's share, so streams still visibly add up where they join.
+        string ownWater = "";
+        float loss = p.transmissionLoss * p.AbsorptionOf(biome);
+        if (vanillaWidth <= 0f)
+            dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
+                worldRiverWidth, worldFlow, loss, out ownWater);
+        float[] carried = null;
         for (int pass = 0; pass < 3; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p, forcedSplits,
-                out world, out secondary, out branchFrom, out splits);
+                out world, out secondary, out branchFrom, out splits, out carried, loss, dischargeScale);
 
             // Where channels start; the water regime nudges it (a denser or sparser network).
             cells = new List<int>();
@@ -268,19 +292,8 @@ public static class TerrainChannels
             sinuosity = new float[n];
             valley = new float[n];
             regimes = new Dictionary<string, int>();
-            // On a tile the world gives no river, the world says nothing here carries more than a creek: the map's own
-            // discharge is scaled so its largest channel stays below a creek, keeping every channel's share, so
-            // streams still visibly add up where they join.
-            float scale = 1f;
-            if (vanillaWidth <= 0f)
-            {
-                float largest = 0f;
-                foreach (int c in cells)
-                    largest = Mathf.Max(largest, discharge[c]);
-                scale = Mathf.Min(1f, Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f) / Mathf.Max(largest, 1f));
-            }
-            dischargeScale = scale;
-            bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, discharge, scale, direction, sizeX, sizeZ, water, p,
+            // Width and depth from the water the channel still carries after losses into its bed.
+            bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, carried, dischargeScale, direction, sizeX, sizeZ, water, p,
                 width, depth, spread, moving = new bool[n], power, deposition, regimes, sinuosity, valley);
             // Once water runs as a channel it keeps running downstream (cells are ordered highest first).
             foreach (int c in cells)
@@ -335,6 +348,12 @@ public static class TerrainChannels
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
+        // How close each seep comes to running: its width as a share of moving water's.
+        foreach (int c in cells)
+        {
+            if (system.Seep[c])
+                system.SeepWater[c] = Mathf.Clamp01(p.widthPerSqrtDischarge * Mathf.Sqrt(carried[c] * dischargeScale) / p.minMovingWidth);
+        }
         system.Channels = plans;
         int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
         // Base level: the sea, lakes and hollows the water stands in. Rivers drop their load there.
@@ -345,6 +364,13 @@ public static class TerrainChannels
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded);
+        // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
+        // scaled to a typical thickness, which would otherwise raise trickles into troughs).
+        foreach (int c in cells)
+        {
+            if (!moving[c])
+                deposit[c] = 0f;
+        }
         int bars = Bars(height, cells, main, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
             deposited, atBase, eroded);
@@ -362,7 +388,7 @@ public static class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {deltaBranches} delta branches drawn, {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {deltaCells} cells of delta land, {deltaBranches} delta branches drawn, {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
@@ -647,7 +673,7 @@ public static class TerrainChannels
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
         float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, Dictionary<int, (int second, float share)> forced,
-        out bool[] world, out int[] secondary, out int[] branchFrom, out int splits)
+        out bool[] world, out int[] secondary, out int[] branchFrom, out int splits, out float[] water, float loss = 0f, float scale = 1f)
     {
         int n = filled.Length;
         var order = new int[n];
@@ -655,12 +681,13 @@ public static class TerrainChannels
             order[i] = i;
         System.Array.Sort(order, (a, b) => filled[b].CompareTo(filled[a]));
         var discharge = new float[n];
+        water = new float[n];
         world = new bool[n];
         secondary = new int[n];
         branchFrom = new int[n];
         for (int i = 0; i < n; i++)
         {
-            discharge[i] = runoff + inflow[i];
+            discharge[i] = water[i] = runoff + inflow[i];
             world[i] = worldSource[i];
             secondary[i] = branchFrom[i] = -1;
         }
@@ -670,6 +697,13 @@ public static class TerrainChannels
             int r = receiver[c];
             if (r < 0)
                 continue;
+            if (loss > 0f && !world[c] && discharge[c] >= threshold)
+            {
+                // Transmission loss into the bed, by the channel's width (at map scale). The drainage line stays (the
+                // discharge it gathers decides where channels are); only the water it carries shrinks.
+                float lost = loss * p.widthPerSqrtDischarge * Mathf.Sqrt(water[c] * scale) / scale;
+                water[c] = Mathf.Max(0f, water[c] - lost);
+            }
             float share = 0f;
             int second = -1;
             if (forced != null && forced.TryGetValue(c, out (int second, float share) split))
@@ -694,6 +728,7 @@ public static class TerrainChannels
             if (second >= 0)
             {
                 discharge[second] += discharge[c] * share;
+                water[second] += water[c] * share;
                 world[second] |= world[c];
                 secondary[c] = second;
                 if (branchFrom[second] < 0 || discharge[c] > discharge[branchFrom[second]])
@@ -701,6 +736,7 @@ public static class TerrainChannels
                 splits++;
             }
             discharge[r] += discharge[c] * (1f - share);
+            water[r] += water[c] * (1f - share);
             world[r] |= world[c];
         }
         return discharge;
@@ -735,6 +771,43 @@ public static class TerrainChannels
         return best;
     }
 
+    /// <summary>The discharge that gives a world river of this vanilla width its width on the map.</summary>
+    private static float DischargeFor(float vanillaWidth, SimpleCurve worldRiverWidth, TerrainChannelSettings p) =>
+        Mathf.Pow(worldRiverWidth.Evaluate(vanillaWidth) / p.widthPerSqrtDischarge, 2f);
+
+    /// <summary>
+    /// Scale for the map's own discharge on a tile without a world river: its largest channel (routed without losses)
+    /// carries the tile's world flow as a share of a creek's (<see cref="WorldFlow"/>), at most
+    /// <see cref="TerrainChannelSettings.maxWidthWithoutWorldRiver"/> wide; never more than the map's own runoff gives.
+    /// </summary>
+    private static float OwnDischargeScale(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
+        float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, SimpleCurve worldRiverWidth, float worldFlow, float loss,
+        out string summary)
+    {
+        float target = Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f);
+        summary = "";
+        RiverDef creek = WorldFlow.Creek();
+        if (!float.IsNaN(worldFlow) && creek != null)
+        {
+            float share = worldFlow / creek.degradeThreshold;
+            target = Mathf.Min(target, DischargeFor(creek.widthOnMap, worldRiverWidth, p) * share);
+            summary = $", world flow {worldFlow:F0} = {share:P0} of a creek";
+        }
+        // The world flow is what leaves the tile, after the losses on the way: the scale is settled over a few rounds,
+        // since losses depend on the channels' width.
+        float scale = 1f;
+        for (int round = 0; round < 4; round++)
+        {
+            Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p, null,
+                out _, out _, out _, out _, out float[] carried, round == 0 ? 0f : loss, scale);
+            float largest = 1f;
+            foreach (float q in carried)
+                largest = Mathf.Max(largest, q);
+            scale = Mathf.Min(1f, target / largest);
+        }
+        return scale;
+    }
+
     /// <summary>
     /// Discharge entering the map: world rivers with the discharge that gives their vanilla width, the region's other
     /// channels with the runoff of the area they drain. On a tile the world gives no river, nothing entering is larger
@@ -748,7 +821,7 @@ public static class TerrainChannels
         var inflow = new float[n];
         worldSource = new bool[n];
         vanillaWidth = 0f;
-        float DischargeFor(float width) => Mathf.Pow(worldRiverWidth.Evaluate(width) / p.widthPerSqrtDischarge, 2f);
+        float DischargeFor(float width) => TerrainChannels.DischargeFor(width, worldRiverWidth, p);
         float creek = DischargeFor(4f);
         bool anyWorldRiver = courses != null && courses.Exists(c => c.VanillaWidth > 0f);
         bool worldEnters = false;

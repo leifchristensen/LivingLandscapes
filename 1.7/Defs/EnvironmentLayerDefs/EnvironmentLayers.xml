@@ -50,8 +50,11 @@
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
              absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
-             drainage lines are seeps (saturated ground: marsh, mud). -->
+             drainage lines are seeps (marsh, mud, or a damp or dry bed by how much water they gather). On a tile without
+             a world river the map's water is vanilla's world flow through the tile as a share of a creek's. Channels lose
+             water into their bed (transmissionLoss x the biome's absorption, per cell of length and width). -->
         <terrainChannels>
+          <transmissionLoss>6</transmissionLoss>
           <!-- Sediment budget (Docs/SEDIMENT-PLAN.md): deltas build land at base level and divide over it. -->
           <sediment>
             <landBuilding>1.6</landBuilding>

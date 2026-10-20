@@ -43,8 +43,20 @@ public class WetnessExtension : DefModExtension
     /// <summary>Rainfall share assumed when the tile reports none (pocket maps, mod-made tiles).</summary>
     public float unknownRainfall = 0.4f;
 
-    /// <summary>Wetness of the ground beside a seep (the seep itself is saturated).</summary>
+    /// <summary>Wetness of the ground beside a seep, as a share of the seep's own.</summary>
     public float seepFringe = 0.85f;
+
+    /// <summary>
+    /// Wetness of a seep by how close it comes to running water (0..1, its width as a share of moving water's): just
+    /// below a stream it is saturated (marsh, mud), where little water gathers a damp or dry bed (the wash rules).
+    /// </summary>
+    public SimpleCurve seepWetness = new SimpleCurve
+    {
+        new CurvePoint(0f, 0.5f),
+        new CurvePoint(0.4f, 0.8f),
+        new CurvePoint(0.7f, 0.9f),
+        new CurvePoint(1f, 1f),
+    };
 
     /// <summary>
     /// 0..1 climate wetness of a map's tile from its rainfall, shifted by the map's water regime (a wetland is wet
@@ -104,15 +116,18 @@ public class WetnessWorker : EnvironmentLayerWorker
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);
         }
 
-        // Seeps: drainage lines the ground soaks up are saturated, and the ground beside them nearly so.
+        // Seeps: drainage lines the ground soaks up are wet by how close they come to running (saturated just below a
+        // stream, a damp or dry bed where little water gathers), and the ground beside them nearly as wet.
         if (rivers?.Seep != null)
         {
             for (int i = 0; i < n; i++)
             {
                 if (!rivers.Seep[i])
                     continue;
-                wetness[i] = 1f;
-                GridMath.ForEachNeighbour(i, context.SizeX, context.SizeZ, nb => wetness[nb] = Mathf.Max(wetness[nb], p.seepFringe));
+                float seep = p.seepWetness.Evaluate(rivers.SeepWater?[i] ?? 1f);
+                wetness[i] = Mathf.Max(wetness[i], seep);
+                float fringe = seep * p.seepFringe;
+                GridMath.ForEachNeighbour(i, context.SizeX, context.SizeZ, nb => wetness[nb] = Mathf.Max(wetness[nb], fringe));
             }
         }
         return wetness;

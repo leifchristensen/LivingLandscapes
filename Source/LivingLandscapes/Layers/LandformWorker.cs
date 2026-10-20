@@ -68,7 +68,8 @@ public class LandformWorker : EnvironmentLayerWorker
             if (nudged.Length > 0)
                 Log.Message($"[LivingLandscapes] Water regime {water.defName} nudged the terrain: {nudged}.");
             RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, map.Biome?.defName, rockStrength, water,
-                generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows);
+                generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows,
+                world.HasRiver ? float.NaN : world.Flow);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
