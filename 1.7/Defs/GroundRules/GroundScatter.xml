@@ -2,7 +2,8 @@
 <Defs>
 
   <!-- Loose material on the ground (Geology/GroundScatter.cs), placed after plants. Conditions test environment layers.
-       thing: a ThingDef defName (skipped if not installed) or LocalRockChunk (a chunk of the nearest rock). -->
+       thing: a ThingDef defName (skipped if not installed) or LocalRockChunk (a chunk of the nearest rock).
+       biomes limits a rule to biomes; patchScale and patchShare gather it into fields. -->
   <LivingLandscapes.Geology.GroundScatterDef>
     <defName>LL_GroundScatter</defName>
     <rules>
@@ -28,6 +29,18 @@
         <thing>Owl_Filth_Rocks</thing>
         <chance>0.35</chance>
         <tintWithRock>true</tintWithRock>
+      </li>
+      <!-- Boulder fields (#51 option 5): glacial erratics strewn over gentle ground in once-glaciated country, in fields. -->
+      <li>
+        <label>glacial erratics</label>
+        <conditions>
+          <li><field>LL_Slope</field><max>0.35</max></li>
+        </conditions>
+        <biomes><li>BorealForest</li><li>Tundra</li><li>ColdBog</li><li>IceSheet</li></biomes>
+        <thing>LocalRockChunk</thing>
+        <chance>0.05</chance>
+        <patchScale>30</patchScale>
+        <patchShare>0.2</patchShare>
       </li>
     </rules>
   </LivingLandscapes.Geology.GroundScatterDef>

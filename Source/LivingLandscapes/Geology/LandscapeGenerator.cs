@@ -123,8 +123,12 @@ public static class LandscapeGenerator
     /// <param name="rock">Rock type beneath each map cell (null where the tile has no rock types).</param>
     /// <param name="channels">The channel network crossing the map, larger channels first (see <see cref="RiverNetwork"/>).</param>
     /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
+    /// <summary>Relief (metres) and plains feature of the map generated last, for the log.</summary>
+    public static float Relief;
+    public static PlainsFeatureDef PlainsFeature;
+
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
-        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock)
+        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
     {
         world = WorldContext.For(map, p.tileSpacingMetres);
         water = WaterRegimes.Select(map, world);
@@ -143,10 +147,14 @@ public static class LandscapeGenerator
             landforms, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
                                              ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
         // Rock beds, in map cells around the map's centre; heights in cells above the lowest ground.
-        float relief = p.ReliefFor(world.Hilliness);
+        // A plains feature (butte, escarpment, bluffs) stands above or cuts below the tile's own relief.
+        float relief = p.ReliefFor(world.Hilliness) + landforms.ExtraRelief;
+        Relief = relief;
+        PlainsFeature = landforms.PlainsFeature;
         float reliefCells = relief / p.cellSize;
         float extent = Mathf.Max(gx, gz) * mapCellsPerModelCell * 0.75f;
-        strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells);
+        strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells,
+            world.Hilliness);
         var sites = new RockStrata.Site[gx * gz];
         for (int z = 0; z < gz; z++)
         {
@@ -194,11 +202,22 @@ public static class LandscapeGenerator
             min = Mathf.Min(min, v);
             max = Mathf.Max(max, v);
         }
+        // The tile's elevation is the height of its typical ground. Without a plains feature that is the middle of the relief;
+        // with one, the plain (most of the map) keeps the tile's elevation and the feature stands above it or cuts below it,
+        // so a butte does not drop the plain below sea level.
+        float level = 0.5f;
+        if (landforms.ExtraRelief > 0f)
+        {
+            var sorted = (float[])window.Clone();
+            System.Array.Sort(sorted);
+            level = (sorted[sorted.Length / 2] - min) / Mathf.Max(max - min, 1e-6f);
+        }
         var micro = new Perlin(p.cellSize / p.microWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
         var result = new float[sizeX * sizeZ];
         rockStrength = new float[sizeX * sizeZ];
         rock = new ThingDef[sizeX * sizeZ];
+        rockStage = new int[sizeX * sizeZ];
         for (int z = 0; z < sizeZ; z++)
         {
             for (int x = 0; x < sizeX; x++)
@@ -208,11 +227,12 @@ public static class LandscapeGenerator
                 float bedHeight = window[z * sizeX + x] / Mathf.Max(modelTop, 1e-6f) * reliefCells;
                 rockStrength[z * sizeX + x] = strata.Strength(site, bedHeight);
                 rock[z * sizeX + x] = strata.RockAt(site, bedHeight);
+                rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
-                result[z * sizeX + x] = world.Elevation + (rel - 0.5f) * relief + tilt + rough;
+                result[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt + rough;
             }
         }
         int sea = Coastline.Apply(map, result, p.coast);

@@ -80,6 +80,16 @@
         <strata>
           <bedThickness>8~30</bedThickness>
           <dip>5~35</dip>
+          <!-- How the beds lie by the tile's hilliness. Near-horizontal beds outcrop along the contours, so the bands of rock
+               read like a topographic map; bedsAcrossRelief sets how many bands the relief shows. Steep tilts (straight
+               stripes, hogbacks) only on rugged tiles and only sometimes (steepChance). First pass, to be tuned by eye. -->
+          <byHilliness>
+            <li><hilliness>Flat</hilliness><dip>0~1</dip><bedsAcrossRelief>3~4</bedsAcrossRelief></li>
+            <li><hilliness>SmallHills</hilliness><dip>0~2</dip><bedsAcrossRelief>6~8</bedsAcrossRelief></li>
+            <li><hilliness>LargeHills</hilliness><dip>0~4</dip><steepChance>0.1</steepChance><bedsAcrossRelief>10~14</bedsAcrossRelief></li>
+            <li><hilliness>Mountainous</hilliness><dip>2~8</dip><steepChance>0.3</steepChance><steepDip>20~45</steepDip><bedsAcrossRelief>14~20</bedsAcrossRelief></li>
+            <li><hilliness>Impassable</hilliness><dip>3~10</dip><steepChance>0.4</steepChance><steepDip>25~50</steepDip><bedsAcrossRelief>18~24</bedsAcrossRelief></li>
+          </byHilliness>
           <warpAmplitude>12</warpAmplitude>
           <warpScale>60</warpScale>
           <jointSpacing>25~45</jointSpacing>
@@ -209,6 +219,8 @@
         <bareSlopeOnWeakRock>1.3</bareSlopeOnWeakRock>
         <bareSlopeOnStrongRock>0.5</bareSlopeOnStrongRock>
         <rockWallDepth>0.15</rockWallDepth>
+        <!-- Flat land is mostly soil: its rock comes from a plains feature (owner 2026-10-21: flat maps had too much rock). -->
+        <rockShareFlat>0.01~0.04</rockShareFlat>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
@@ -362,7 +374,6 @@
         <evaporationAtZero>400</evaporationAtZero>
         <evaporationPerDegree>60</evaporationPerDegree>
         <minEvaporation>150</minEvaporation>
-        <runoffShare>0.3</runoffShare>
         <minLakeDepth>0.25</minLakeDepth>
         <minLakeCells>12</minLakeCells>
       </li>

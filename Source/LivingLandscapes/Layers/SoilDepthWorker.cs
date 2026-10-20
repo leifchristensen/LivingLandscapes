@@ -50,7 +50,8 @@ public class SoilDepthWorker : EnvironmentLayerWorker
             }
             else if (before < share.min)
             {
-                float shift = SoilModel.CalibrateRock(soil, context.SizeX, context.SizeZ, cellSize, p, target, sea);
+                float[] exposure = SoilModel.Exposure(height, context.Get(EnvironmentLayerDefOf.LL_RockStrength), context.SizeX, context.SizeZ, p);
+                float shift = SoilModel.CalibrateRock(soil, context.SizeX, context.SizeZ, cellSize, p, target, sea, exposure);
                 how = $"soil shifted {shift:+0.00;-0.00} m";
             }
             else

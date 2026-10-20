@@ -35,6 +35,9 @@ public class MapComponent_Environment : MapComponent
     /// LL_RockStrength layer; the rock types steer vanilla's rock placement during generation. Not saved.
     /// </summary>
     public float[] PlannedRockStrength { get; set; }
+
+    /// <summary>Hard beds at or below each cell's surface (<see cref="Geology.RockStrata.HardBedsBelow"/>): the terrace stages follow it. Not saved.</summary>
+    public int[] PlannedRockStage { get; set; }
     public ThingDef[] PlannedRock { get; set; }
 
 

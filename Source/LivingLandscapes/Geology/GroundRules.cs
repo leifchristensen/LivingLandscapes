@@ -25,6 +25,9 @@ public enum GroundCover
 
     /// <summary>The biome's most fertile soil (fine alluvium of floodplains).</summary>
     RichSoil,
+
+    /// <summary>A playa: the dry, barren floor of a desert hollow that only floods after rare storms (dry lake bed; sand without Odyssey).</summary>
+    Playa,
 }
 
 /// <summary>
@@ -195,6 +198,7 @@ public static class GroundCovers
             case GroundCover.Gravel: return map.BiomeAt(cell).gravelTerrain ?? TerrainDefOf.Gravel;
             case GroundCover.Sand: return DryBeach(MapGenUtility.LakeshoreTerrainAt(cell, map));
             case GroundCover.RichSoil: return RichestSoil(map.BiomeAt(cell));
+            case GroundCover.Playa: return DefDatabase<TerrainDef>.GetNamedSilentFail("DryLakeBed") ?? TerrainDefOf.Sand;
             default: return null;
         }
     }

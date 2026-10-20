@@ -37,7 +37,7 @@ public class LandformWorker : EnvironmentLayerWorker
         if (StageFor(map) == GenerationStage.Elevation)
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out WaterRegimeDef water, out var channels,
-                out RockStrata strata, out float[] rockStrength, out ThingDef[] rock);
+                out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage);
             // Channels from the landform's own drainage, sized by discharge and carved to a never-rising water surface
             // (Docs/WATER-AUDIT.md). The river system isn't on the map yet, so its regime's climate offset is added here.
             float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
@@ -61,16 +61,17 @@ public class LandformWorker : EnvironmentLayerWorker
             {
                 environment.PlannedRivers = rivers.Channels.Count > 0 ? rivers : null;
                 environment.PlannedRockStrength = rockStrength;
+                environment.PlannedRockStage = rockStage;
                 environment.PlannedRock = rock;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
-                        $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
+                        $"relief {LandscapeGenerator.Relief:F0} m{(LandscapeGenerator.PlainsFeature != null ? $" (plains feature {LandscapeGenerator.PlainsFeature.defName})" : "")}, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"in from [{string.Join(" ", world.RiverInflows.Select(r => $"{Compass(r.From)} {r.Width:F0}"))}] out toward {Compass(world.RiverExit)}, meeting at ({world.RiverCentre.x:F2}, {world.RiverCentre.y:F2})" : "none")}, " +
                         $"water regime {water?.defName ?? "none"}, {rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
                         $"), " +
                         $"sea {(world.SeaDirection == UnityEngine.Vector2.zero ? "none" : $"({world.SeaDirection.x:F2}, {world.SeaDirection.y:F2})")}, " +
                         $"mutators [{string.Join(", ", map.TileInfo.Mutators.Select(m => m.defName))}], " +
-                        $"{strata.BedCount} rock beds dipping {strata.DipDegrees:F0} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
+                        $"{strata.BedCount} rock beds {strata.BedThickness.min:F0}-{strata.BedThickness.max:F0} m thick dipping {strata.DipDegrees:F1} deg toward ({strata.DipDirection.x:F2}, {strata.DipDirection.y:F2}).");
             return generated;
         }
 

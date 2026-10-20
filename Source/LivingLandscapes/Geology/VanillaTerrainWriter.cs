@@ -60,10 +60,120 @@ public static class VanillaTerrainWriter
             for (int i = 0; i < filled.Length; i++)
                 filled[i] -= landform[i];
             fields.Add("Hollow", filled);
+            // How large the hollow a cell lies in is (cells), so rules can tell a basin floor from a puddle-sized dip.
+            int regions = GridMath.LabelRegions(i => filled[i] > 1e-3f, sizeX, sizeZ, out int[] labels);
+            var size = new int[regions];
+            foreach (int label in labels)
+            {
+                if (label >= 0)
+                    size[label]++;
+            }
+            var hollowCells = new float[filled.Length];
+            for (int i = 0; i < filled.Length; i++)
+                hollowCells[i] = labels[i] >= 0 ? size[labels[i]] : 0f;
+            fields.Add("HollowCells", hollowCells);
         }
         fields.AddConstant("Climate", climate);
         fields.AddConstant("Marshland", environment.PlannedRivers?.Regime?.marshland ?? 0f);
         return fields;
+    }
+
+    /// <summary>
+    /// Opens passes through mountain rock so every sizeable walkable area joins the largest (<see cref="TerraceExtension.passWidth"/>):
+    /// a cheapest-path search from the largest area, where rock costs far more than open ground, finds the shortest way through
+    /// each wall; its cells become rough stone (walkable) and lose any cover. Returns the number of passes.
+    /// </summary>
+    private static int CarvePasses(float[] values, GroundCover[] cover, int sizeX, int sizeZ, TerraceExtension p)
+    {
+        if (p.passWidth <= 0)
+            return 0;
+        int n = values.Length, passes = 0;
+        int minArea = Mathf.Max(20, Mathf.RoundToInt(n * p.passMinAreaShare));
+        bool Rock(int i) => values[i] > 0.7f;
+        for (int round = 0; round < 12; round++)
+        {
+            int areas = GridMath.LabelRegions(i => !Rock(i), sizeX, sizeZ, out int[] labels);
+            var size = new int[areas];
+            foreach (int label in labels)
+            {
+                if (label >= 0)
+                    size[label]++;
+            }
+            int largest = -1;
+            for (int a = 0; a < areas; a++)
+            {
+                if (largest < 0 || size[a] > size[largest])
+                    largest = a;
+            }
+            // Cheapest way from the largest area to any other sizeable one: open ground costs 1, rock 20 (Dijkstra).
+            var cost = new float[n];
+            var from = new int[n];
+            var frontier = new SortedSet<(float cost, int cell)>();
+            for (int i = 0; i < n; i++)
+            {
+                cost[i] = float.MaxValue;
+                from[i] = -1;
+                if (labels[i] == largest)
+                {
+                    cost[i] = 0f;
+                    frontier.Add((0f, i));
+                }
+            }
+            int target = -1;
+            while (frontier.Count > 0)
+            {
+                (float c, int cell) = frontier.Min;
+                frontier.Remove(frontier.Min);
+                if (c > cost[cell])
+                    continue;
+                if (labels[cell] >= 0 && labels[cell] != largest && size[labels[cell]] >= minArea)
+                {
+                    target = cell;
+                    break;
+                }
+                int x = cell % sizeX, z = cell / sizeX;
+                for (int d = 0; d < 4; d++)
+                {
+                    int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), nz = z + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
+                        continue;
+                    int next = nz * sizeX + nx;
+                    float step = c + (Rock(next) ? 20f : 1f);
+                    if (step < cost[next])
+                    {
+                        frontier.Remove((cost[next], next));
+                        cost[next] = step;
+                        from[next] = cell;
+                        frontier.Add((step, next));
+                    }
+                }
+            }
+            if (target < 0)
+                break;
+            // Open the rock along the path, passWidth cells wide.
+            int half = p.passWidth / 2;
+            for (int cell = target; cell >= 0; cell = from[cell])
+            {
+                int x = cell % sizeX, z = cell / sizeX;
+                for (int dz = -half; dz <= half; dz++)
+                {
+                    for (int dx = -half; dx <= half; dx++)
+                    {
+                        int px = x + dx, pz = z + dz;
+                        if (px < 0 || pz < 0 || px >= sizeX || pz >= sizeZ)
+                            continue;
+                        int i = pz * sizeX + px;
+                        if (Rock(i))
+                        {
+                            values[i] = RockFloor;
+                            cover[i] = GroundCover.None;
+                        }
+                    }
+                }
+            }
+            passes++;
+        }
+        return passes;
     }
 
     /// <summary>
@@ -85,6 +195,7 @@ public static class VanillaTerrainWriter
             cover[i] = r.cover;
             perRule[rule[i]]++;
         }
+        int passes = CarvePasses(values, cover, sizeX, sizeZ, terraces);
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
         // The terrace plan LL_Height was built from (made once per map); planned again only if that layer was skipped.
@@ -138,7 +249,7 @@ public static class VanillaTerrainWriter
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: {string.Join(", ", shares)}; stages of {stageHeight:F1} m, " +
                     $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs; {sizeable} walkable areas " +
-                    $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
+                    $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground); {passes} passes opened through rock.");
         return plan;
     }
 

@@ -29,6 +29,16 @@ public class GroundScatterRule
 
     /// <summary>Tint the thing with the colour of the nearest rock (for stone clutter).</summary>
     public bool tintWithRock;
+
+    /// <summary>Only in these biomes (defNames); empty means any.</summary>
+    public List<string> biomes = new List<string>();
+
+    /// <summary>
+    /// Fields rather than a sprinkle: only where low-frequency noise (wavelength in cells) lies in the top
+    /// <see cref="patchShare"/> of its range. 0 scale: everywhere the conditions hold.
+    /// </summary>
+    public float patchScale;
+    public float patchShare = 0.3f;
 }
 
 /// <summary>The scatter rules (<c>1.7/Defs/GroundRules/GroundScatter.xml</c>), applied once after plants are placed.</summary>
@@ -65,12 +75,18 @@ public static class GroundScatter
                 bool known = rule.conditions.TrueForAll(c => fields.Has(c.field));
                 if (!known)
                     continue;
+                var patches = rule.patchScale > 0f ? new Verse.Noise.Perlin(1.0 / rule.patchScale, 2.0, 0.5, 3, Rand.Int, Verse.Noise.QualityMode.Medium) : null;
                 int count = 0;
                 for (int i = 0; i < map.Area; i++)
                 {
                     if (!Matches(rule, fields, i) || !Rand.Chance(rule.chance))
                         continue;
                     IntVec3 cell = map.cellIndices.IndexToCell(i);
+                    if (rule.biomes.Count > 0 && !rule.biomes.Contains(map.BiomeAt(cell)?.defName))
+                        continue;
+                    // Perlin is about -1..1: the top share of its range forms the patches.
+                    if (patches != null && (float)patches.GetValue(cell.x, 0.0, cell.z) < 1f - 2f * rule.patchShare)
+                        continue;
                     TerrainDef terrain = cell.GetTerrain(map);
                     if (terrain == null || terrain.IsWater || !cell.Standable(map) || cell.GetFirstItem(map) != null || cell.GetPlant(map)?.def.plant.IsTree == true)
                         continue;

@@ -1,18 +1,50 @@
 using System.Collections.Generic;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 using Verse.Noise;
 
 namespace LivingLandscapes.Geology;
 
+/// <summary>
+/// How the beds lie on tiles of one hilliness. Most sedimentary land is near-horizontal: outcrops then follow the contours
+/// and the beds read like a topographic map. Steep tilts (straight stripes that ignore the terrain: hogbacks, flatirons)
+/// belong to mountain belts, so only rugged tiles get them, and only sometimes.
+/// </summary>
+public class StrataByHilliness
+{
+    public Hilliness hilliness;
+
+    /// <summary>Tilt of the beds in degrees.</summary>
+    public FloatRange dip = new FloatRange(0f, 2f);
+
+    /// <summary>Chance of a steeply tilted map instead (an upturned mountain front), and its tilt.</summary>
+    public float steepChance;
+    public FloatRange steepDip = new FloatRange(20f, 45f);
+
+    /// <summary>
+    /// How many beds the map's relief cuts through (each bed's thickness varies about relief / this). More beds make finer
+    /// bands; each band then marks a smaller step in height. 0 uses <see cref="RockStrataSettings.bedThickness"/>.
+    /// </summary>
+    public FloatRange bedsAcrossRelief = FloatRange.Zero;
+}
+
 /// <summary>Tuning for <see cref="RockStrata"/>, nested in <see cref="GeologyGenerationExtension"/>. Lengths in map cells.</summary>
 public class RockStrataSettings
 {
-    /// <summary>Thickness of each bed, measured across the bedding.</summary>
+    /// <summary>Thickness of each bed, measured across the bedding (where no hilliness entry sets beds across the relief).</summary>
     public FloatRange bedThickness = new FloatRange(8f, 30f);
 
-    /// <summary>Tilt of the beds in degrees; the dip direction is random per map.</summary>
+    /// <summary>Beds are never thinner than this (cells), however many the relief asks for.</summary>
+    public float minBedThickness = 1.5f;
+
+    /// <summary>Tilt of the beds in degrees where no hilliness entry applies; the dip direction is random per map.</summary>
     public FloatRange dip = new FloatRange(5f, 35f);
+
+    /// <summary>Tilt and bed count by the tile's hilliness (<see cref="StrataByHilliness"/>).</summary>
+    public List<StrataByHilliness> byHilliness = new List<StrataByHilliness>();
+
+    public StrataByHilliness For(Hilliness hilliness) => byHilliness.Find(s => s.hilliness == hilliness);
 
     /// <summary>Bends the beds so outcrops are never straight bands: amplitude and wavelength of the warp.</summary>
     public float warpAmplitude = 12f;
@@ -64,23 +96,37 @@ public class RockStrata
     private readonly List<float> bedTops = new List<float>();
     private readonly List<ThingDef> bedRocks = new List<ThingDef>();
     private readonly List<float> bedStrengths = new List<float>();
+    private int[] hardBelow;
 
     /// <summary>Average bed strength, the reference for erodibility.</summary>
     public float MeanStrength { get; }
 
     public float DipDegrees { get; }
+
+    /// <summary>The range bed thicknesses were drawn from on this map (cells).</summary>
+    public FloatRange BedThickness { get; }
     public Vector2 DipDirection => dipDirection;
     public int BedCount => bedTops.Count;
 
     /// <param name="rocks">The tile's rock types; may be empty (beds then have no rock type).</param>
     /// <param name="extent">Largest distance from the map centre that will be queried, in cells.</param>
     /// <param name="relief">Height range that will be queried, in cells.</param>
-    public RockStrata(RockStrataSettings settings, IList<ThingDef> rocks, Vector2 centre, float extent, float relief)
+    /// <param name="hilliness">The tile's hilliness: how steeply the beds lie and how many the relief cuts (<see cref="StrataByHilliness"/>).</param>
+    public RockStrata(RockStrataSettings settings, IList<ThingDef> rocks, Vector2 centre, float extent, float relief, Hilliness hilliness)
     {
         this.settings = settings;
         float angle = Rand.Range(0f, 360f);
         dipDirection = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
-        DipDegrees = settings.dip.RandomInRange;
+        StrataByHilliness lie = settings.For(hilliness);
+        DipDegrees = lie == null ? settings.dip.RandomInRange : Rand.Chance(lie.steepChance) ? lie.steepDip.RandomInRange : lie.dip.RandomInRange;
+        // Bed thickness: so many beds across the relief that the bands mark steps in height, or the fixed range.
+        FloatRange thickness = settings.bedThickness;
+        if (lie != null && lie.bedsAcrossRelief.max > 0f)
+        {
+            float mean = relief / Mathf.Max(1f, lie.bedsAcrossRelief.RandomInRange);
+            thickness = new FloatRange(Mathf.Max(settings.minBedThickness, mean * 0.5f), Mathf.Max(settings.minBedThickness, mean * 1.5f));
+        }
+        BedThickness = thickness;
         sinDip = Mathf.Sin(DipDegrees * Mathf.Deg2Rad);
         cosDip = Mathf.Cos(DipDegrees * Mathf.Deg2Rad);
         double warpFrequency = 1.0 / Mathf.Max(1f, settings.warpScale);
@@ -100,14 +146,14 @@ public class RockStrata
         }
 
         // Beds cover every bed coordinate the queries can reach.
-        float reach = extent * sinDip + relief * cosDip + settings.warpAmplitude * 2f + settings.bedThickness.max;
+        float reach = extent * sinDip + relief * cosDip + settings.warpAmplitude * 2f + thickness.max;
         float origin = Vector2.Dot(centre, dipDirection) * sinDip;
         float top = origin - reach;
         int previous = -1;
         float strengthSum = 0f;
         while (top < origin + reach)
         {
-            top += Mathf.Max(1f, settings.bedThickness.RandomInRange);
+            top += Mathf.Max(settings.minBedThickness, thickness.RandomInRange);
             ThingDef rock = null;
             if (rocks.Count > 0)
             {
@@ -128,7 +174,21 @@ public class RockStrata
             strengthSum += strength;
         }
         MeanStrength = strengthSum / Mathf.Max(1, bedTops.Count);
+        // Hard beds (stronger than average) counted from the bottom of the stack: each one is a caprock that holds up a cliff.
+        hardBelow = new int[bedTops.Count];
+        for (int k = 0, hard = 0; k < bedTops.Count; k++)
+        {
+            if (bedStrengths[k] >= MeanStrength)
+                hard++;
+            hardBelow[k] = hard;
+        }
     }
+
+    /// <summary>
+    /// How many hard beds lie at or below the bed exposed at a site and height: the rock stage. It steps up at the base of
+    /// each hard bed, so cliffs drawn between stages stand where a hard bed caps softer rock (layer-cake walls, mesa rims).
+    /// </summary>
+    public int HardBedsBelow(Site site, float height) => hardBelow[BedAt(site, height)];
 
     /// <summary>The height-independent part of a position: where it lies across the bedding, and its joint weakening.</summary>
     public readonly struct Site
