@@ -35,9 +35,9 @@ public class EnvironmentOverlay
         this.environment = environment;
     }
 
-    /// <summary>Layers of this map that have overlay settings, in compute order.</summary>
+    /// <summary>Layers of this map that have overlay settings, in compute order (on-demand dev layers once the map has their inputs).</summary>
     public IEnumerable<EnvironmentLayerDef> Available =>
-        EnvironmentLayerOrder.Sorted.Where(l => l.overlay != null && environment.HasLayer(l));
+        EnvironmentLayerOrder.Sorted.Where(l => l.overlay != null && (environment.HasLayer(l) || (l.onDemand && l.dependsOn.All(environment.HasLayer))));
 
     public bool IsActive(EnvironmentLayerDef layer) => active.Any(r => r.layer == layer);
 
@@ -46,6 +46,9 @@ public class EnvironmentOverlay
         if (layer == null)
             return;
         if (active.RemoveAll(r => r.layer == layer) > 0)
+            return;
+        // A dev view shows the map as it is now: computed afresh each time it is switched on.
+        if (layer.onDemand && !environment.ComputeOnDemand(layer))
             return;
         LayerRender render = Build(layer);
         if (render != null)

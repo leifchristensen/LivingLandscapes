@@ -33,6 +33,8 @@ public static class LayerImageExporter
         summary.AppendLine($"map {map} | biome {map.Biome?.defName} | size {map.Size.x}x{map.Size.z} | tile {map.Tile} | hilliness {map.TileInfo?.hilliness} | rainfall {map.TileInfo?.rainfall:F0} mm");
         foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
         {
+            if (layer.onDemand)
+                environment.ComputeOnDemand(layer);
             if (!environment.TryGetGrid(layer, out EnvironmentGrid grid))
                 continue;
             string path = Path.Combine(Folder, $"{layer.defName}.png");

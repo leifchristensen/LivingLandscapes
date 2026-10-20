@@ -52,6 +52,11 @@ public static class EnvironmentDebugActions
     private static void ShowFitnessOf(ThingDef plant)
     {
         Layers.FitnessWorker.Selected = plant;
-        Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.ComputeLayers(GenerationStage.Plants);
+        var environment = Find.CurrentMap?.GetComponent<MapComponent_Environment>();
+        if (environment == null || !environment.ComputeOnDemand(EnvironmentLayerDefOf.LL_Fitness))
+            return;
+        environment.Overlay.Notify_LayersChanged();
+        if (!environment.Overlay.IsActive(EnvironmentLayerDefOf.LL_Fitness))
+            environment.Overlay.Toggle(EnvironmentLayerDefOf.LL_Fitness);
     }
 }

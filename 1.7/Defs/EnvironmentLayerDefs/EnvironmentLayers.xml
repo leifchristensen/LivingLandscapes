@@ -456,8 +456,9 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Shade</defName>
     <label>canopy shade</label>
-    <description>0 to 1: light blocked by the plants standing on the map, shifted towards the pole. Zero before plants are placed.</description>
-    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
+    <description>Dev view, computed when shown: 0 to 1, light blocked by the plants standing now (shifted towards the pole), as the plant ecology keeps it for the spawner. Not saved.</description>
+    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
+    <onDemand>true</onDemand>
     <overlay>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.7</fillOpacity>
@@ -471,14 +472,14 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Fitness</defName>
     <label>plant fitness</label>
-    <description>Dev view: 0 to 1, how well the chosen species (debug action "Plant fitness: choose species", else the best of the biome's plants) would grow on each cell, from moisture, soil depth, slope, sun, fertility and shade.</description>
-    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
+    <description>Dev view: 0 to 1, how well the chosen species (debug action "Plant fitness: choose species", else the best of the biome's plants) would grow on each cell now, as the plant ecology scores it (moisture, soil depth, slope, sun, fertility, live shade). Computed when shown; not saved.</description>
+    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
+    <onDemand>true</onDemand>
     <dependsOn>
       <li>LL_Moisture</li>
       <li>LL_SoilDepth</li>
       <li>LL_Slope</li>
       <li>LL_Sun</li>
-      <li>LL_Shade</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>

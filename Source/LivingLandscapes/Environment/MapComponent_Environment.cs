@@ -83,26 +83,42 @@ public class MapComponent_Environment : MapComponent
         var context = new EnvironmentContext(map, this);
         foreach (EnvironmentLayerDef layer in EnvironmentLayerOrder.Sorted)
         {
-            if (layer.Worker.StageFor(map) != stage)
+            if (layer.onDemand || layer.Worker.StageFor(map) != stage)
                 continue;
-            try
-            {
-                float[] values = layer.Worker.Compute(context);
-                if (values == null)
-                {
-                    Log.Message($"[LivingLandscapes] {layer.defName}: not computed on {map}{(HasLayer(layer) ? ", keeping stored values" : "")}.");
-                    continue;
-                }
-                context.Set(layer, values);
-                layers[layer] = new EnvironmentGrid(values, layer.precision);
-                Log.Message($"[LivingLandscapes] {layer.defName} computed for {map}: {Describe(values)}.");
-            }
-            catch (Exception e)
-            {
-                Log.Error($"[LivingLandscapes] Failed to compute {layer.defName} on {map}: {e}");
-            }
+            Compute(layer, context);
         }
         Overlay.Notify_LayersChanged();
+    }
+
+    /// <summary>
+    /// Computes an on-demand dev layer (<see cref="EnvironmentLayerDef.onDemand"/>) now, from the layers the map holds and
+    /// its current state. Returns false if it could not be computed (its inputs are missing).
+    /// </summary>
+    public bool ComputeOnDemand(EnvironmentLayerDef layer)
+    {
+        return Compute(layer, new EnvironmentContext(map, this));
+    }
+
+    private bool Compute(EnvironmentLayerDef layer, EnvironmentContext context)
+    {
+        try
+        {
+            float[] values = layer.Worker.Compute(context);
+            if (values == null)
+            {
+                Log.Message($"[LivingLandscapes] {layer.defName}: not computed on {map}{(HasLayer(layer) ? ", keeping stored values" : "")}.");
+                return false;
+            }
+            context.Set(layer, values);
+            layers[layer] = new EnvironmentGrid(values, layer.precision);
+            Log.Message($"[LivingLandscapes] {layer.defName} computed for {map}: {Describe(values)}.");
+            return true;
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[LivingLandscapes] Failed to compute {layer.defName} on {map}: {e}");
+            return false;
+        }
     }
 
     private static string Describe(float[] values)
@@ -119,12 +135,25 @@ public class MapComponent_Environment : MapComponent
 
     public override void ExposeData()
     {
+        // On-demand dev layers are views of the moment, not map data: they are left out of the save.
+        Dictionary<EnvironmentLayerDef, EnvironmentGrid> all = layers;
+        if (Scribe.mode == LoadSaveMode.Saving)
+        {
+            layers = new Dictionary<EnvironmentLayerDef, EnvironmentGrid>();
+            foreach (KeyValuePair<EnvironmentLayerDef, EnvironmentGrid> pair in all)
+            {
+                if (!pair.Key.onDemand)
+                    layers[pair.Key] = pair.Value;
+            }
+        }
         Scribe_Collections.Look(ref layers, "layers", LookMode.Def, LookMode.Deep, ref keysWorking, ref valuesWorking);
+        if (Scribe.mode == LoadSaveMode.Saving)
+            layers = all;
         if (Scribe.mode == LoadSaveMode.PostLoadInit)
         {
             layers ??= new Dictionary<EnvironmentLayerDef, EnvironmentGrid>();
             // Layers whose Def was removed load with a null key.
-            layers.RemoveAll(pair => pair.Key == null || pair.Value == null || pair.Value.Count != map.cellIndices.NumGridCells);
+            layers.RemoveAll(pair => pair.Key == null || pair.Key.onDemand || pair.Value == null || pair.Value.Count != map.cellIndices.NumGridCells);
         }
     }
 

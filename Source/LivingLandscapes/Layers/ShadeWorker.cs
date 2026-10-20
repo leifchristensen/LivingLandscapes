@@ -6,27 +6,23 @@ using Verse;
 namespace LivingLandscapes.Layers;
 
 /// <summary>
-/// Shade 0..1 cast by the plants standing on the map now, by each species' <see cref="PlantHabitat.shadeCast"/>.
-/// Before plants are scattered it is zero; the placement pass will fill a <see cref="ShadeField"/> stratum by
-/// stratum with the same maths.
+/// Dev view (on demand): canopy shade 0..1 cast by the plants standing now, as the plant ecology keeps it live
+/// (<see cref="MapComponent_Ecology.ShadeAt"/>). Not computed where the ecology is off.
 /// </summary>
 public class ShadeWorker : EnvironmentLayerWorker
 {
     public override float[] Compute(EnvironmentContext context)
     {
-        var field = new ShadeField(context.SizeX, context.SizeZ);
-        float latitude = SunWorker.LatitudeOf(context.Map);
-        foreach (Thing thing in context.Map.listerThings.ThingsInGroup(ThingRequestGroup.Plant))
-        {
-            PlantHabitat habitat = PlantHabitat.For(thing.def);
-            if (habitat.shadeCast <= 0f)
-                continue;
-            float radius = ShadeRadius(thing.def, habitat);
-            field.Cast(thing.Position.x, thing.Position.z, habitat.shadeCast, radius, ShadowShift(latitude, radius));
-        }
-        return field.Values;
+        var ecology = context.Map.GetComponent<MapComponent_Ecology>();
+        if (ecology == null || !ecology.Ready)
+            return null;
+        var shade = new float[context.CellCount];
+        for (int i = 0; i < shade.Length; i++)
+            shade[i] = ecology.ShadeAt(i);
+        return shade;
     }
 
+    /// <summary>Radius (cells) over which a plant's shade spreads: its habitat's, or from its size.</summary>
     public static float ShadeRadius(ThingDef plant, PlantHabitat habitat)
     {
         return habitat.shadeRadius > 0f ? habitat.shadeRadius : Mathf.Max(1f, plant.plant.visualSizeRange.max * 0.6f);

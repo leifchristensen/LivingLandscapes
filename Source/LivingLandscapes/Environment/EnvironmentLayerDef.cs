@@ -32,6 +32,12 @@ public class EnvironmentLayerDef : Def
     /// <summary>How the layer is drawn by the debug overlay. Null hides it from the overlay list.</summary>
     public OverlayProperties overlay;
 
+    /// <summary>
+    /// A dev view nothing in play reads: computed only when its overlay is switched on, an export or a debug action asks
+    /// (<see cref="MapComponent_Environment.ComputeOnDemand"/>), from what the map holds at that moment, and never saved.
+    /// </summary>
+    public bool onDemand;
+
     [Unsaved]
     private EnvironmentLayerWorker workerInt;
 

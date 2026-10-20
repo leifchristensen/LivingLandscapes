@@ -1,14 +1,16 @@
 using System;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Flora;
+using RimWorld;
 using Verse;
 
 namespace LivingLandscapes.Layers;
 
 /// <summary>
-/// Dev view: how well one species would do on each cell (0 cannot live, 1 optimum). The species is chosen with the
-/// "Plant fitness: choose species" debug action; with none chosen it shows the best fitness of any wild plant of the
-/// map's biome.
+/// Dev view (on demand): how well one species would do on each cell now (0 cannot live, 1 optimum), as the plant ecology
+/// scores it for the spawner (<see cref="MapComponent_Ecology.Fitness"/>: ground and live shade). The species is chosen
+/// with the "Plant fitness: choose species" debug action; with none chosen it shows the best of the biome's wild plants.
+/// Water, buildings and ground too poor for the species read 0. Not computed where the ecology is off.
 /// </summary>
 public class FitnessWorker : EnvironmentLayerWorker
 {
@@ -17,22 +19,22 @@ public class FitnessWorker : EnvironmentLayerWorker
 
     public override float[] Compute(EnvironmentContext context)
     {
-        var sampler = new HabitatSampler(context);
+        Map map = context.Map;
+        var ecology = map.GetComponent<MapComponent_Ecology>();
+        if (ecology == null || !ecology.Ready)
+            return null;
         var fitness = new float[context.CellCount];
-        if (Selected != null)
+        foreach (ThingDef plant in Selected != null ? new[] { Selected } : (System.Collections.Generic.IEnumerable<ThingDef>)map.Biome.AllWildPlants)
         {
-            Accumulate(sampler, Selected, fitness);
-            return fitness;
+            for (int i = 0; i < fitness.Length; i++)
+            {
+                IntVec3 cell = map.cellIndices.IndexToCell(i);
+                TerrainDef terrain = cell.GetTerrain(map);
+                if (terrain.IsWater || terrain.fertility < plant.plant.fertilityMin || cell.GetEdifice(map) != null)
+                    continue;
+                fitness[i] = Math.Max(fitness[i], ecology.Fitness(plant, i));
+            }
         }
-        foreach (ThingDef plant in context.Map.Biome.AllWildPlants)
-            Accumulate(sampler, plant, fitness);
         return fitness;
-    }
-
-    private static void Accumulate(HabitatSampler sampler, ThingDef plant, float[] fitness)
-    {
-        PlantHabitat habitat = PlantHabitat.For(plant);
-        for (int i = 0; i < fitness.Length; i++)
-            fitness[i] = Math.Max(fitness[i], sampler.Fitness(plant, habitat, i));
     }
 }
