@@ -123,6 +123,10 @@ public static class LandscapeGenerator
     /// <param name="rock">Rock type beneath each map cell (null where the tile has no rock types).</param>
     /// <param name="channels">The channel network crossing the map, larger channels first (see <see cref="RiverNetwork"/>).</param>
     /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
+    /// <summary>Relief (metres) and plains feature of the map generated last, for the log.</summary>
+    public static float Relief;
+    public static PlainsFeatureDef PlainsFeature;
+
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
         out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
     {
@@ -143,7 +147,10 @@ public static class LandscapeGenerator
             landforms, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
                                              ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
         // Rock beds, in map cells around the map's centre; heights in cells above the lowest ground.
-        float relief = p.ReliefFor(world.Hilliness);
+        // A plains feature (butte, escarpment, bluffs) stands above or cuts below the tile's own relief.
+        float relief = p.ReliefFor(world.Hilliness) + landforms.ExtraRelief;
+        Relief = relief;
+        PlainsFeature = landforms.PlainsFeature;
         float reliefCells = relief / p.cellSize;
         float extent = Mathf.Max(gx, gz) * mapCellsPerModelCell * 0.75f;
         strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells,

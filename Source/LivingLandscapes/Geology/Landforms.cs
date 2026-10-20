@@ -70,6 +70,12 @@ public class Landforms
     private readonly Perlin warpX;
     private readonly Perlin warpZ;
 
+    /// <summary>The plains feature this map got (<see cref="PlainsFeatureDef"/>), or null.</summary>
+    public PlainsFeatureDef PlainsFeature { get; }
+
+    /// <summary>Metres the plains feature adds to the map's relief (0 without one).</summary>
+    public float ExtraRelief { get; }
+
     /// <param name="riverValley">The valley world rivers run in: laid as rays from the river centre (see <see cref="WorldContext.RiverCentre"/>).</param>
     public Landforms(Map map, WorldContext world, LandformExtension riverValley = null)
     {
@@ -92,6 +98,29 @@ public class Landforms
             foreach (WorldContext.RiverInflow inflow in world.RiverInflows)
                 forms.Add((ray, inflow.From, world.RiverCentre));
             forms.Add((ray, world.RiverExit, world.RiverCentre));
+        }
+        // Low country gets its rock from one plains feature: remnant hills, an escarpment or river bluffs.
+        PlainsFeature = PlainsFeatureDef.For(map, world);
+        if (PlainsFeature != null)
+        {
+            ExtraRelief = PlainsFeature.extraRelief.RandomInRange;
+            if (PlainsFeature.alongRivers)
+            {
+                LandformExtension bluff = PlainsFeature.Draw();
+                bluff.shape = LandformShape.Ray;
+                foreach (WorldContext.RiverInflow inflow in world.RiverInflows)
+                    forms.Add((bluff, inflow.From, world.RiverCentre));
+                forms.Add((bluff, world.RiverExit, world.RiverCentre));
+            }
+            else
+            {
+                int n = PlainsFeature.count.RandomInRange;
+                for (int k = 0; k < n; k++)
+                {
+                    LandformExtension form = PlainsFeature.Draw();
+                    forms.Add((form, Direction(form.orientation, world), Vector2.zero));
+                }
+            }
         }
     }
 

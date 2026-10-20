@@ -65,7 +65,7 @@ public class LandformWorker : EnvironmentLayerWorker
                 environment.PlannedRock = rock;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
-                        $"relief {generation.ReliefFor(world.Hilliness):F0} m, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
+                        $"relief {LandscapeGenerator.Relief:F0} m{(LandscapeGenerator.PlainsFeature != null ? $" (plains feature {LandscapeGenerator.PlainsFeature.defName})" : "")}, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
                         $"river {(world.HasRiver ? $"in from [{string.Join(" ", world.RiverInflows.Select(r => $"{Compass(r.From)} {r.Width:F0}"))}] out toward {Compass(world.RiverExit)}, meeting at ({world.RiverCentre.x:F2}, {world.RiverCentre.y:F2})" : "none")}, " +
                         $"water regime {water?.defName ?? "none"}, {rivers.Channels.Count} channels (widths {string.Join(" ", rivers.Channels.Select(c => c.NominalWidth.ToString("F0")))}; " +
                         $"), " +
