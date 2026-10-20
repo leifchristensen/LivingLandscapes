@@ -27,10 +27,7 @@ public static class SettlementSiting
         var p = EnvironmentLayerDefOf.LL_Settlement.GetModExtension<SettlementExtension>() ?? new SettlementExtension();
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float[] suitability = grid.ToArray();
-        var ones = new float[suitability.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        float[] smooth = GridMath.MaskedBlur(suitability, ones, sizeX, sizeZ, p.anchorSigma);
+        float[] smooth = GridMath.Blur(suitability, sizeX, sizeZ, p.anchorSigma);
         environment.SettlementSmoothed = smooth;
 
         // Draw the anchor among the central cells, favouring high smoothed suitability.

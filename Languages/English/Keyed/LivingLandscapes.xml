@@ -10,9 +10,7 @@ Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleT
 
   <LL_GeologicalTerrain>Geologically driven terrain</LL_GeologicalTerrain>
   <LL_GeologicalTerrainTip>On: new maps are reshaped by geological rules. Off: Living Landscapes only reads the terrain that map generation produced. Existing maps are never changed.</LL_GeologicalTerrainTip>
-  <LL_GeologicalTerrainDesc>Shapes new maps from geology: lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn this off if you use a mod that changes map terrain and isn't listed as supported below; plants will still follow the terrain that mod creates. Only affects newly generated maps.
-
-In development: this option has no effect yet.</LL_GeologicalTerrainDesc>
+  <LL_GeologicalTerrainDesc>Shapes new maps from geology: lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn this off if you use a mod that changes map terrain and isn't listed as supported below; plants will still follow the terrain that mod creates. Only affects newly generated maps.</LL_GeologicalTerrainDesc>
 
   <LL_ScatteredRuins>Scattered ruins and ancient debris</LL_ScatteredRuins>
   <LL_ScatteredRuinsTip>Vanilla's small ruins, shrines and ancient junk scattered across new maps. Off by default while Living Landscapes' terrain is in development; ruins chosen through tile features are unaffected.</LL_ScatteredRuinsTip>

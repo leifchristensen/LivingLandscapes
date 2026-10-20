@@ -52,8 +52,6 @@ public class EnvironmentOverlay
             active.Add(render);
     }
 
-    public void ClearAll() => active.Clear();
-
     public void Notify_LayersChanged()
     {
         List<EnvironmentLayerDef> layers = active.Select(r => r.layer).ToList();

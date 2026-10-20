@@ -20,5 +20,5 @@
     <!-- Supported world generator: load after it so our map-generation patches see its results. -->
     <li>koth.RealisticPlanets2</li>
   </loadAfter>
-  <description>Brings biological and geological rules to map generation, so plants grow where they would in nature: clustered, near water, or under the forest canopy.</description>
+  <description>Brings geological and biological rules to map generation: terrain shaped by rock and erosion, rivers that run downhill and lay down floodplains, bars and deltas, cliffs, a sensible start spot and ore, and plants that grow where they would in nature (clustered, near water, in or out of the forest shade).</description>
 </ModMetaData>

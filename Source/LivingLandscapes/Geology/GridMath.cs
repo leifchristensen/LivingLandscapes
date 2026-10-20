@@ -14,6 +14,22 @@ public static class GridMath
     private static readonly int[] DZ = { 0, 1, 1, 1, 0, -1, -1, -1 };
     private static readonly float[] Dist = { 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f, 1f, 1.4142135f };
 
+    /// <summary>Gaussian blur of every cell (edges normalised by the kernel's share inside the map).</summary>
+    public static float[] Blur(float[] values, int sizeX, int sizeZ, float sigma)
+    {
+        int n = values.Length;
+        var ones = new float[n];
+        for (int i = 0; i < n; i++)
+            ones[i] = 1f;
+        float[] kernel = Kernel(sigma, out int radius);
+        float[] num = Separable(values, sizeX, sizeZ, kernel, radius);
+        float[] den = Separable(ones, sizeX, sizeZ, kernel, radius);
+        var result = new float[n];
+        for (int i = 0; i < n; i++)
+            result[i] = num[i] / den[i];
+        return result;
+    }
+
     /// <summary>
     /// Gaussian blur that ignores cells whose weight is 0 (normalised convolution), so masked cells are filled in
     /// from their surroundings instead of dragging the average towards their own values. Masked areas wider than
@@ -262,31 +278,6 @@ public static class GridMath
         return area;
     }
 
-    /// <summary>
-    /// D8 flow routing: each cell drains to its steepest-descent neighbour. Returns the upslope contributing
-    /// area of each cell, in cells (itself included). Cells with no lower neighbour keep their own water.
-    /// </summary>
-    public static float[] FlowAccumulation(float[] h, int sizeX, int sizeZ)
-    {
-        int n = h.Length;
-        int[] receiver = Receivers(h, sizeX, sizeZ);
-
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        Array.Sort(order, (a, b) => h[b].CompareTo(h[a]));
-
-        var area = new float[n];
-        for (int i = 0; i < n; i++)
-            area[i] = 1f;
-        foreach (int c in order)
-        {
-            if (receiver[c] >= 0)
-                area[receiver[c]] += area[c];
-        }
-        return area;
-    }
-
     /// <summary>D8 steepest-descent neighbour of each cell (-1 where no neighbour is lower).</summary>
     public static int[] Receivers(float[] h, int sizeX, int sizeZ)
     {
@@ -362,34 +353,6 @@ public static class GridMath
         int z0 = Mathf.Max(z - 1, 0), z1 = Mathf.Min(z + 1, sizeZ - 1);
         dx = (h[z * sizeX + x1] - h[z * sizeX + x0]) / (x1 - x0);
         dz = (h[z1 * sizeX + x] - h[z0 * sizeX + x]) / (z1 - z0);
-    }
-
-    /// <summary>Largest value within a square of the given radius (cells) around each cell (separable max filter).</summary>
-    public static float[] MaxFilter(float[] values, int sizeX, int sizeZ, int radius)
-    {
-        var rows = new float[values.Length];
-        for (int z = 0; z < sizeZ; z++)
-        {
-            for (int x = 0; x < sizeX; x++)
-            {
-                float m = float.MinValue;
-                for (int k = Math.Max(0, x - radius); k <= Math.Min(sizeX - 1, x + radius); k++)
-                    m = Math.Max(m, values[z * sizeX + k]);
-                rows[z * sizeX + x] = m;
-            }
-        }
-        var result = new float[values.Length];
-        for (int z = 0; z < sizeZ; z++)
-        {
-            for (int x = 0; x < sizeX; x++)
-            {
-                float m = float.MinValue;
-                for (int k = Math.Max(0, z - radius); k <= Math.Min(sizeZ - 1, z + radius); k++)
-                    m = Math.Max(m, rows[k * sizeX + x]);
-                result[z * sizeX + x] = m;
-            }
-        }
-        return result;
     }
 
     /// <summary>Labels 4-connected regions where <paramref name="member"/> is true; -1 elsewhere. Returns the region count.</summary>

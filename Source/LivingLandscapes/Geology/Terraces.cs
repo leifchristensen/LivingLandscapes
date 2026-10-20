@@ -91,10 +91,7 @@ public static class Terraces
     public static float[] Steepness(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
     {
         float[] slope = GridMath.Slope(landform, sizeX, sizeZ);
-        var ones = new float[slope.Length];
-        for (int i = 0; i < ones.Length; i++)
-            ones[i] = 1f;
-        float[] smooth = GridMath.MaskedBlur(slope, ones, sizeX, sizeZ, p.steepnessSmoothing);
+        float[] smooth = GridMath.Blur(slope, sizeX, sizeZ, p.steepnessSmoothing);
         var weight = new float[slope.Length];
         for (int i = 0; i < weight.Length; i++)
             weight[i] = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.gentleSlope, p.cliffSlope, smooth[i] / cellSize));

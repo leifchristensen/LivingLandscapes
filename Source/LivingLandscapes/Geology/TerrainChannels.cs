@@ -127,7 +127,7 @@ public class TerrainChannelSettings
     /// along the flow (<see cref="barLengthWidths"/> and <see cref="barWidthShare"/> of the channel), outline warped
     /// by noise, crest from the bed (at the threshold) to <see cref="barRise"/> above the water (at the full drop):
     /// high bars are islands, low ones fords. Only in channels at least <see cref="minBarChannelWidth"/> wide, with
-    /// bars at least one bar length apart. The upstream average runs over <see cref="powerReachCells"/> cells.
+    /// bars at least one bar length apart.
     /// </summary>
     public float deposition = 1f;
     public float barThreshold = 0.35f;
@@ -138,7 +138,6 @@ public class TerrainChannelSettings
     public float barWidthShare = 0.5f;
     public float barRise = 1.2f;
     public float minBarChannelWidth = 6f;
-    public float powerReachCells = 12f;
 
     /// <summary>A headwater's springs pool where the filled surface lies more than this (metres) above the ground.</summary>
     public float springLakeDepth = 0.1f;
@@ -319,7 +318,7 @@ public static class TerrainChannels
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
             if (pass == 1)
             {
-                deltaBranches = Distributaries.Carve(height, filled, cells, receiver, world, inflow, worldSource, width, sea, spread,
+                deltaBranches = Distributaries.Carve(height, filled, receiver, inflow, worldSource, width, sea, spread,
                     p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, out _, out var deltaSplits);
                 if (deltaBranches > 0)
                 {
@@ -360,7 +359,7 @@ public static class TerrainChannels
             }
         }
 
-        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, sizeZ, runoff, vanillaWidth, out int[] planOf);
+        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         // How close each seep comes to running: its width as a share of moving water's.
@@ -370,14 +369,14 @@ public static class TerrainChannels
                 system.SeepWater[c] = Mathf.Clamp01(p.widthPerSqrtDischarge * Mathf.Sqrt(carried[c] * dischargeScale) / p.minMovingWidth);
         }
         system.Channels = plans;
-        int springLake = SpringLake(natural, filled, inflow, worldSource, planOf, sizeX, sizeZ, p, system);
+        int springLake = SpringLake(natural, filled, inflow, worldSource, sizeX, sizeZ, p, system);
         // Base level: the sea, lakes and hollows the water stands in. Rivers drop their load there.
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
             baseLevel[i] = (sea != null && sea[i]) || system.Still[i] || filled[i] - natural[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
-        Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p.sediment,
+        Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded);
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
         // scaled to a typical thickness, which would otherwise raise trickles into troughs).
@@ -386,7 +385,7 @@ public static class TerrainChannels
             if (!moving[c])
                 deposit[c] = 0f;
         }
-        int bars = Bars(height, cells, main, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
+        int bars = Bars(height, cells, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
             deposited, atBase, eroded);
         var worldEnds = new List<string>();
@@ -546,7 +545,7 @@ public static class TerrainChannels
         }
         if (!anyBase)
             return 0;
-        Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, width, inflow, rockStrength, baseLevel, sizeX, p.sediment,
+        Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] grain, out _, out float atBase, out _);
         if (atBase <= 0f)
             return 0;
@@ -958,17 +957,7 @@ public static class TerrainChannels
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
         for (int k = 0; k < cells.Count; k++)
-        {
-            int c = cells[k], d = c;
-            float run = 0f;
-            for (int s = 0; s < 5 && receiver[d] >= 0; s++)
-            {
-                int r = receiver[d];
-                run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
-                d = r;
-            }
-            slope[k] = run > 0f ? (filled[c] - filled[d]) / run : 0f;
-        }
+            slope[k] = Sediment.Slope(cells[k], receiver, filled, sizeX);
         var sorted = (float[])slope.Clone();
         System.Array.Sort(sorted);
         float reference = Mathf.Max(sorted[sorted.Length / 2], 1e-4f);
@@ -1062,7 +1051,7 @@ public static class TerrainChannels
     /// water take its vanilla width; the one leaving the map is the world river.
     /// </summary>
     private static List<RiverPlan> Trace(List<int> cells, int[] receiver, int[] main, int[] branchFrom, float[] discharge, float[] inflow, bool[] world, float[] width,
-        int sizeX, int sizeZ, float runoff, float vanillaWidth, out int[] planOf)
+        int sizeX, float runoff, float vanillaWidth, out int[] planOf)
     {
         int n = receiver.Length;
         planOf = new int[n];
@@ -1152,7 +1141,7 @@ public static class TerrainChannels
     /// rises into mid-channel bars; cells raised above the water become dry (islands). The channel regimes' deposition nudge
     /// scales how readily a deposit forms a bar. Returns the number of bars.
     /// </summary>
-    private static int Bars(float[] height, List<int> cells, int[] main, float[] width, float[] depth, bool[] moving, float[] deposit,
+    private static int Bars(float[] height, List<int> cells, float[] width, float[] depth, bool[] moving, float[] deposit,
         float[] deposition, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands)
     {
         int n = height.Length;
@@ -1232,7 +1221,7 @@ public static class TerrainChannels
     /// hollow's spill level before it flows on: every cell connected to a spring and lying below the filled surface
     /// becomes still water at that level, part of the river that leaves it. Returns the number of lake cells.
     /// </summary>
-    private static int SpringLake(float[] natural, float[] filled, float[] inflow, bool[] worldSource, int[] planOf, int sizeX, int sizeZ,
+    private static int SpringLake(float[] natural, float[] filled, float[] inflow, bool[] worldSource, int sizeX, int sizeZ,
         TerrainChannelSettings p, RiverSystem system)
     {
         int n = natural.Length;

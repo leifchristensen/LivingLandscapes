@@ -49,22 +49,6 @@ public class ChannelCourse
 
     /// <summary>Vanilla's width for a world river entering along this channel (or leaving along it); 0 for the map's own channels.</summary>
     public float VanillaWidth;
-
-    /// <summary>Drainage area (map cells) at the course point nearest to <paramref name="v"/>.</summary>
-    public float AreaNear(Vector2 v)
-    {
-        float best = float.MaxValue, area = 1f;
-        for (int i = 0; i < Points.Count; i++)
-        {
-            float d = (Points[i] - v).sqrMagnitude;
-            if (d < best)
-            {
-                best = d;
-                area = Areas[i];
-            }
-        }
-        return area;
-    }
 }
 
 /// <summary>
