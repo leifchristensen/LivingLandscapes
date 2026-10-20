@@ -27,6 +27,13 @@ public class SoilModelExtension : DefModExtension
     public float soilOnStrongRock = 0.3f;
 
     /// <summary>
+    /// The rock's effect on soil depth grows with slope over this range (rise over run): on level ground soil weathers in
+    /// place and covers any rock, so a hard bed shows as bare rock only where it cuts a slope. With near-horizontal beds
+    /// that draws the bands of rock along the contours.
+    /// </summary>
+    public FloatRange rockEffectSlope = new FloatRange(0.03f, 0.25f);
+
+    /// <summary>
     /// Bare-rock slope multiplier on the weakest and strongest rock: strong rock weathers too slowly to keep soil on
     /// moderate slopes, so it is bare at gentler slopes than weak rock.
     /// </summary>
@@ -97,15 +104,18 @@ public static class SoilModel
         return rock / (float)Mathf.Max(land, 1);
     }
 
-    public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target, bool[] sea = null)
+    /// <param name="exposure">Where thinning bites, 0..1 per cell (hard beds cutting slopes); null thins evenly.</param>
+    public static float CalibrateRock(float[] soil, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float target, bool[] sea = null,
+        float[] exposure = null)
     {
         float[] smooth = GridMath.Blur(soil, sizeX, sizeZ, p.outcropSigma);
+        float Thinned(int i, float shift) => smooth[i] - shift * (exposure == null ? 1f : exposure[i]);
         float Share(float shift)
         {
-            float[] depth = GridMath.DistanceTo(i => smooth[i] - shift >= p.rockWallDepth, sizeX, sizeZ);
+            float[] depth = GridMath.DistanceTo(i => Thinned(i, shift) >= p.rockWallDepth, sizeX, sizeZ);
             return RockShare(depth, cellSize, p, sea);
         }
-        float low = 0f, high = 3f;
+        float low = 0f, high = exposure == null ? 3f : 12f;
         for (int step = 0; step < 14; step++)
         {
             float mid = (low + high) / 2f;
@@ -116,8 +126,31 @@ public static class SoilModel
         }
         float shift = (low + high) / 2f;
         for (int i = 0; i < soil.Length; i++)
-            soil[i] = Mathf.Min(soil[i], Mathf.Max(0f, smooth[i] - shift));
+            soil[i] = Mathf.Min(soil[i], Mathf.Max(0f, Thinned(i, shift)));
         return shift;
+    }
+
+    /// <summary>
+    /// Where rock would show first if the ground were rockier: hard beds where they cut a slope (strength times slope against
+    /// the map's own steep ground), smoothed to outcrop size, 0..1. Calibration thins soil there, so the extra rock a tile's
+    /// hilliness asks for appears as bands along the contours rather than as plains of thin soil.
+    /// </summary>
+    public static float[] Exposure(float[] height, float[] rockStrength, int sizeX, int sizeZ, SoilModelExtension p)
+    {
+        float[] slope = GridMath.Slope(height, sizeX, sizeZ);
+        var sorted = (float[])slope.Clone();
+        System.Array.Sort(sorted);
+        float steep = Mathf.Max(sorted[(int)(sorted.Length * 0.9f)], 1e-4f);
+        var exposure = new float[slope.Length];
+        for (int i = 0; i < slope.Length; i++)
+            exposure[i] = (rockStrength == null ? 0.5f : rockStrength[i]) * Mathf.Clamp01(slope[i] / steep);
+        exposure = GridMath.Blur(exposure, sizeX, sizeZ, p.outcropSigma);
+        float max = 1e-4f;
+        foreach (float e in exposure)
+            max = Mathf.Max(max, e);
+        for (int i = 0; i < exposure.Length; i++)
+            exposure[i] /= max;
+        return exposure;
     }
 
     /// <param name="rockStrength">Rock strength (0..1) per cell, or null when unknown (no rock effect).</param>
@@ -135,7 +168,8 @@ public static class SoilModel
             float strength = rockStrength == null ? -1f : rockStrength[i];
             float bareSlope = bareSlopeScale * (strength < 0f ? p.bareRockSlope : p.bareRockSlope * Mathf.Lerp(p.bareSlopeOnWeakRock, p.bareSlopeOnStrongRock, strength));
             float steepness = Mathf.Clamp01(1f - gradient / bareSlope);
-            float rock = strength < 0f ? 1f : Mathf.Lerp(p.soilOnWeakRock, p.soilOnStrongRock, strength);
+            float onSlope = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.rockEffectSlope.min, p.rockEffectSlope.max, gradient));
+            float rock = strength < 0f ? 1f : Mathf.Lerp(1f, Mathf.Lerp(p.soilOnWeakRock, p.soilOnStrongRock, strength), onSlope);
             soil[i] = Mathf.Max(0f, p.baseSoilDepth * landform * steepness * rock);
         }
         return soil;
