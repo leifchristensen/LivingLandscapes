@@ -11,7 +11,8 @@ mountain; the open middle says it is not solid rock. Rounded-off corners show th
 
   Cliff_<mask>   one texture per neighbour pattern (all 256: the rounding blur sees diagonal neighbours too),
                  greyscale, tinted in game with the rock
-  Shadow_South/East/West  soft shadows cast onto the lower neighbouring cells (drawn there)
+  Shadow_<mask>  the shadow that shape casts on the lower ground, 3x3 cells centred on the cell (Cliff textures are drawn
+                 with an alpha cutout, so their shadow cannot be soft inside them; this one runs right up to the rock)
 
 Mask bits (lower neighbours): 1 N, 2 E, 4 S, 8 W, 16 NE, 32 SE, 64 SW, 128 NW (as in Building_Cliff).
 
@@ -41,6 +42,13 @@ LIP_PX = 4        # light lip (the top edge of the rock) just inside it
 OUTLINE = 0.2     # outline brightness: dark, not black
 ROCK = 0.64       # mean rock brightness (tinted by the rock's colour in game)
 CRACK = 0.035     # fissure width in noise units
+AO_PX = 10        # soft occlusion round the foot (box-blur radius, applied twice)
+AO_STRENGTH = 0.7
+DROP_SHIFT_PX = 24  # drop shadow: offset to the south and blur
+DROP_BLUR_PX = 16
+DROP_STRENGTH = 0.65
+SHADOW_MAX = 0.6
+SHADOW_SCALE = 2  # shadow textures at half resolution (they are soft)
 
 N, E, S, Wst, NE, SE, SW, NW = 1, 2, 4, 8, 16, 32, 64, 128
 NEIGHBOURS = {N: (0, -1), E: (1, 0), S: (0, 1), Wst: (-1, 0), NE: (1, -1), SE: (1, 1), SW: (-1, 1), NW: (-1, -1)}
@@ -174,10 +182,8 @@ def render(mask):
         row = []
         for x in range(C):
             gx, gy = x + C, y + C
-            o, th = occ[gy][gx], threshold(x, y)
             if not inside[gy][gx]:
-                # Lower ground inside this cell (a rounded-off corner): ground with a soft shadow.
-                row.append((0, 0, 0, int(round(255 * 0.42 * smoothstep(th - 0.35, th, o)))))
+                row.append((0, 0, 0, 0))   # lower ground in a rounded-off corner (its shadow is in Shadow_<mask>)
                 continue
             d = dist[gy][gx]
             lip = BAND_PX + LIP_JAG_PX * LIP_NOISE(x, y)
@@ -194,27 +200,35 @@ def render(mask):
             v += 0.13 * smoothstep(lip - LIP_PX - 3, lip - 1, d)
             # The foot: a dark line blending into the rock, soft against the ground.
             v += (OUTLINE + 0.05 * stone - v) * (1 - smoothstep(outline - 1.5, outline + 1.5, d))
-            a = smoothstep(0, 1.6, d) * (1 - smoothstep(lip - 0.5, lip + 1, d))
+            a = 1 - smoothstep(lip - 0.5, lip + 1, d)   # opaque to the foot: the game draws it with an alpha cutout
             row.append((int(round(min(1, max(0, v)) * 255)),) * 3 + (int(round(a * 255)),))
         img.append(row)
-    return mask, img
+    return mask, img, shadow(inside, dist)
 
 
-def shadow(direction, strength, reach_px, seed):
-    rng = random.Random(seed)
-    phase = [rng.uniform(0, 2 * math.pi) for _ in range(3)]
-
-    def wob(t):
-        return (math.sin(2 * math.pi * t / C + phase[0]) + 0.5 * math.sin(4 * math.pi * t / C + phase[1])) / 1.5
-
+def shadow(inside, dist):
+    """
+    The shadow this cell's rock casts on the lower ground around it, over the cell and its 8 neighbours (drawn 3x3 cells
+    large, centred on the cell): soft occlusion all round the foot plus a drop shadow to the south, following the rock's
+    real outline to the edge. Blurring and shifting are linear, so the shadows of neighbouring cliff cells add up to the
+    shadow of the whole cliff with no seams or gaps. The shadow runs on under the rock (hidden there) so the two overlap
+    at the foot; only the plateau, the high ground beyond the rock's lip, stays unshaded.
+    """
+    own = [[1.0 if inside[y][x] and C <= x < 2 * C and C <= y < 2 * C else 0.0 for x in range(W)] for y in range(W)]
+    ao = box_blur(box_blur(own, AO_PX), AO_PX)
+    shifted = [[own[y - DROP_SHIFT_PX][x] if y >= DROP_SHIFT_PX else 0.0 for x in range(W)] for y in range(W)]
+    drop = box_blur(box_blur(shifted, DROP_BLUR_PX), DROP_BLUR_PX)
+    s = SHADOW_SCALE
     img = []
-    for y in range(C):
+    for y in range(0, W, s):
         row = []
-        for x in range(C):
-            along, depth = (x, y) if direction == 'South' else (y, x if direction == 'East' else C - 1 - x)
-            reach = reach_px * (1 + 0.15 * wob(along))
-            a = strength * max(0.0, 1 - depth / reach) ** 1.7
-            row.append((0, 0, 0, int(round(a * 255))))
+        for x in range(0, W, s):
+            a = 0.0
+            for yy in range(y, y + s):
+                for xx in range(x, x + s):
+                    if not inside[yy][xx] or dist[yy][xx] <= BAND_PX + LIP_JAG_PX * LIP_NOISE(xx, yy) + 1:
+                        a += min(SHADOW_MAX, AO_STRENGTH * ao[yy][xx] + DROP_STRENGTH * drop[yy][xx])
+            row.append((0, 0, 0, int(round(255 * a / (s * s)))))
         img.append(row)
     return img
 
@@ -225,11 +239,9 @@ def main():
         if name.endswith('.png'):
             os.remove(os.path.join(OUT, name))
     with multiprocessing.Pool() as pool:
-        for mask, img in pool.imap_unordered(render, range(256)):
+        for mask, img, shade in pool.imap_unordered(render, range(256)):
             png_min.write(os.path.join(OUT, f'Cliff_{mask:03d}.png'), img)
-    png_min.write(os.path.join(OUT, 'Shadow_South.png'), shadow('South', 0.5, 56, 4))
-    png_min.write(os.path.join(OUT, 'Shadow_East.png'), shadow('East', 0.32, 30, 5))
-    png_min.write(os.path.join(OUT, 'Shadow_West.png'), shadow('West', 0.22, 24, 6))
+            png_min.write(os.path.join(OUT, f'Shadow_{mask:03d}.png'), shade)
     print('wrote 256 cliff shapes to', os.path.normpath(OUT))
 
 
