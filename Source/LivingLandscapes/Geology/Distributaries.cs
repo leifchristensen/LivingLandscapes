@@ -96,7 +96,7 @@ public class DistributarySettings
 public static class Distributaries
 {
     /// <returns>Courses carved (distributaries).</returns>
-    public static int Carve(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth,
+    public static int Carve(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth, float[] valley,
         bool[] sea, bool deltaTile, float[] spread, float deltaSpread, int sizeX, int sizeZ, DistributarySettings p, RiverSystem system,
         out int lobeCells, out List<(int at, int a, int b, float share)> splits)
     {
@@ -155,6 +155,29 @@ public static class Distributaries
         float slope = Mathf.Max((height[river[last - span]] - height[river[last]]) / Mathf.Max(span, 1), 1e-4f);
         float size = Mathf.Max(sizeX, sizeZ);
         float nodeDistance = Mathf.Clamp(p.backwaterFactor * Mathf.Max(channelDepth, 0.5f) / slope, p.nodeDistance.min * size, p.nodeDistance.max * size);
+
+        // Delta setting (evaluation): confinement of the lower river (valley floor over channel width) and the receiving
+        // basin's depth offshore of the mouth against the channel's depth.
+        float confinement = 0f;
+        int lower = 0;
+        for (int k = river.Count * 2 / 3; k < river.Count - 1; k++)
+        {
+            if (width[river[k]] > 0f)
+            {
+                confinement += valley[river[k]] / width[river[k]];
+                lower++;
+            }
+        }
+        confinement /= Mathf.Max(1, lower);
+        int seaCell = river[river.Count - 1], landCell = river[Mathf.Max(0, river.Count - 6)];
+        var outward = new Vector2(seaCell % sizeX - landCell % sizeX, seaCell / sizeX - landCell / sizeX).normalized;
+        var offshore = new List<string>();
+        foreach (int d in new[] { 5, 10, 20, 40 })
+        {
+            int x = Mathf.FloorToInt(seaCell % sizeX + 0.5f + outward.x * d), z = Mathf.FloorToInt(seaCell / sizeX + 0.5f + outward.y * d);
+            offshore.Add(x >= 0 && z >= 0 && x < sizeX && z < sizeZ ? (seaLevel - height[z * sizeX + x]).ToString("F1") : "-");
+        }
+        string setting = $"lower river confinement {confinement:F1} (valley / channel width), basin depth {string.Join(" / ", offshore)} m at 5/10/20/40 cells offshore";
 
         var levee = new float[n];
         var noise = new Perlin(1.0 / p.pathNoiseWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
@@ -293,7 +316,7 @@ public static class Distributaries
         }
         Log.Message($"[LivingLandscapes] Delta: river {river.Count} cells into the sea at ({river[river.Count - 1] % sizeX}, {river[river.Count - 1] / sizeX}), " +
                     $"{channelWidth:F1} wide, {channelDepth:F2} m deep, slope {slope:F4} (heights {string.Join(" ", new[] { 0, river.Count / 4, river.Count / 2, 3 * river.Count / 4, river.Count - 2 }.Select(k => height[river[k]].ToString("F2")))}, sea {seaLevel:F2}); node {nodeDistance:F0} cells from the shore; {courses.Count} of {cycles} courses, " +
-                    $"{lobeCells} cells of lobes, {carved} carved, {splits.Count} splits.");
+                    $"{lobeCells} cells of lobes, {carved} carved, {splits.Count} splits; {setting}.");
         return carved;
     }
 

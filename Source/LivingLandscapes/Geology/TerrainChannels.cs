@@ -127,7 +127,7 @@ public static partial class TerrainChannels
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
             if (pass == 1)
             {
-                deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, sea, deltaTile, spread,
+                deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, valley, sea, deltaTile, spread,
                     p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, system, out int lobeCells, out var deltaSplits);
                 deltaCells += lobeCells;
                 if (deltaBranches > 0)

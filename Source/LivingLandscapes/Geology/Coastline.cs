@@ -79,10 +79,6 @@ public static class Coastline
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
         int sea = 0;
-        // Land never lies below the sea: a floor at the beach that rises inland with the coastal plain. River valleys the
-        // erosion model cut deeper (it knows no sea) fill to it, so near the coast they grade to the sea as a plain and
-        // the beach is no dam (no lagoons behind it, rivers reach their mouths).
-        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, n / sizeX);
         for (int i = 0; i < n; i++)
         {
             if (noise[i] < shore)
@@ -95,9 +91,28 @@ public static class Coastline
             {
                 float inland = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(shore, shore + p.landFalloff, noise[i]));
                 float plain = beach + p.plainSlope * (noise[i] - shore) * sizeX;
-                height[i] = Mathf.Max(Mathf.Lerp(plain, height[i], inland), beach + 0.05f + p.plainSlope * toSea[i]);
+                height[i] = Mathf.Lerp(plain, height[i], inland);
             }
         }
+        // Delta setting (evaluation): land near the shore below the sea (incised valleys), and how much of it is low plain.
+        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, n / sizeX);
+        int near = 0, below = 0, low = 0;
+        float deepest = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            if (noise[i] < shore || toSea[i] > 30f)
+                continue;
+            near++;
+            if (height[i] < beach)
+            {
+                below++;
+                deepest = Mathf.Max(deepest, beach - height[i]);
+            }
+            if (height[i] < beach + 2f)
+                low++;
+        }
+        Log.Message($"[LivingLandscapes] Coast setting: of {near} land cells within 30 of the shore, {below} lie below the beach (deepest {deepest:F1} m), " +
+                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it.");
         return sea;
     }
 }

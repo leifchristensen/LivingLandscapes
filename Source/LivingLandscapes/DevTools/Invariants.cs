@@ -52,6 +52,8 @@ public static class Invariants
         if (rivers == null || rivers.Channels.Count == 0)
             return;
         int steps = 0, climbing = 0, ended = 0;
+        bool[] coast = Geology.Coastline.SeaCells(map);
+        var stranded = new StringBuilder();
         float maxRise = 0f, length = 0f, straight = 0f;
         IntVec3 worst = IntVec3.Invalid, worstLow = IntVec3.Invalid;
         int worstChannel = -1;
@@ -103,17 +105,21 @@ public static class Invariants
 
 
             Vector2 mouth = plan.Main[plan.Main.Count - 1];
+            int mouthIndex = RiverGrid.Index(mouth, map.Size.x, map.Size.z);
+            // The coast counts with its beach: a stream ending on the sand runs on across it into the sea.
             bool atBase = plan.Parent >= 0 || !Inside(map, mouth) || NearEdge(map, mouth, plan.NominalWidth)
-                          || map.terrainGrid.TerrainAt(RiverGrid.Index(mouth, map.Size.x, map.Size.z)).IsWater;
+                          || map.terrainGrid.TerrainAt(mouthIndex).IsWater || (coast != null && coast[mouthIndex]);
             if (atBase)
                 ended++;
+            else
+                stranded.Append($" ({(int)mouth.x}, {(int)mouth.y}) on {map.terrainGrid.TerrainAt(mouthIndex).defName}, width {plan.NominalWidth:F1};");
         }
         summary.AppendLine($"invariant 1 (water flows downhill): {(climbing == 0 ? "ok" : "FAIL")} | {steps} centre-line cells in {rivers.Channels.Count} channels, " +
                            $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst} (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0}, low point {worstLow}; surface {h[map.cellIndices.CellToIndex(worstLow)]:F2} then {h[map.cellIndices.CellToIndex(worst)]:F2}, water level {rivers.WaterLevel[map.cellIndices.CellToIndex(worstLow)]:F2} then {rivers.WaterLevel[map.cellIndices.CellToIndex(worst)]:F2})" : "")}");
         summary.AppendLine($"channels: {rivers.Channels.Count}, sinuosity {(straight > 1f ? length / straight : 1f):F2}, widths " +
                            string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
-                           "end in another channel, at the map edge or in standing water");
+                           "end in another channel, at the map edge or in standing water" + (stranded.Length > 0 ? $"; ending on land:{stranded}" : ""));
     }
 
     /// <summary>
