@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -58,6 +59,18 @@ public static class TestRun
                             _ = plant.GrowthRate;
                     }
                     Log.Message("[LivingLandscapes] Round trip: growth rates read for " + checkedPlants + " plants without error.");
+                    int moving = 0, withFlow = 0;
+                    var loadedFlow = loaded.waterInfo.riverFlowMap;
+                    foreach (IntVec3 c in loaded.AllCells)
+                    {
+                        if (!c.GetTerrain(loaded).IsRiver)
+                            continue;
+                        moving++;
+                        int f = (c.x * loaded.Size.z + c.z) * 2;
+                        if (loadedFlow != null && f + 1 < loadedFlow.Count && (loadedFlow[f] != 0f || loadedFlow[f + 1] != 0f))
+                            withFlow++;
+                    }
+                    Log.Message($"[LivingLandscapes] Round trip: flow map {(loadedFlow == null ? "null" : loadedFlow.Count.ToString())}, {withFlow} of {moving} moving water cells with a direction after loading.");
                     quitAt = Time.realtimeSinceStartup + 1f;
                 };
                 // The new map's drawer is not ready in this frame; save and reload a few seconds into the running game.
@@ -124,8 +137,11 @@ public static class TestRun
     {
         WaterInfo water = map.waterInfo;
         var pixels = HarmonyLib.Traverse.Create(water).Field("flowMapPixels").GetValue<Color[]>();
-        int moving = 0, flowing = 0;
+        int moving = 0, flowing = 0, data = 0, stale = 0;
         float speed = 0f;
+        var flow = water.riverFlowMap;
+        int sizeZ = map.Size.z;
+        Vector2 At(IntVec3 c) => flow == null ? Vector2.zero : new Vector2(flow[(c.x * sizeZ + c.z) * 2], flow[(c.x * sizeZ + c.z) * 2 + 1]);
         var kinds = new System.Collections.Generic.Dictionary<string, int>();
         foreach (IntVec3 c in map.AllCells)
         {
@@ -138,11 +154,27 @@ public static class TestRun
             if (p.r != 0f || p.g != 0f)
                 flowing++;
             speed += Mathf.Sqrt(p.r * p.r + p.g * p.g);
+            // What vanilla would build from the flow map now: the cell's flow averaged with its 8 neighbours'.
+            Vector2 sum = At(c);
+            int count = 1;
+            foreach (IntVec3 nb in GenAdj.CellsAdjacent8Way(new TargetInfo(c, map)))
+            {
+                if (nb.InBounds(map))
+                {
+                    sum += At(nb);
+                    count++;
+                }
+            }
+            if (At(c) != Vector2.zero)
+                data++;
+            if (pixels != null && (Mathf.Abs(p.r - sum.x / count) > 0.01f || Mathf.Abs(p.g - sum.y / count) > 0.01f))
+                stale++;
         }
         string line = $"[LivingLandscapes] Flow check: flow map {(water.riverFlowMap == null ? "null" : water.riverFlowMap.Count.ToString())}, " +
-                    $"texture {(water.riverFlowTexture == null ? "null" : "built")}, {flowing} of {moving} moving water pixels with a direction, mean length {speed / Mathf.Max(1, moving):F2} ({string.Join(", ", kinds.Select(kv => kv.Key + " " + kv.Value))}).";
+                    $"texture {(water.riverFlowTexture == null ? "null" : "built")}, {flowing} of {moving} moving water pixels with a direction ({data} in the flow map, {stale} pixels differ from it), mean length {speed / Mathf.Max(1, moving):F2} ({string.Join(", ", kinds.Select(kv => kv.Key + " " + kv.Value))}).";
         Log.Message(line);
-        System.IO.File.AppendAllText(System.IO.Path.Combine(LayerImageExporter.Folder, "summary.txt"), line + System.Environment.NewLine);
+        if (Directory.Exists(LayerImageExporter.Folder))
+            System.IO.File.AppendAllText(System.IO.Path.Combine(LayerImageExporter.Folder, "summary.txt"), line + System.Environment.NewLine);
     }
 
     private class Crossing
