@@ -70,8 +70,6 @@ public class CliffPlan
                 if (!facing.IsValid || d == 2)
                     facing = new Rot4(d);
             }
-            if (!facing.IsValid)
-                continue;
             for (int k = 0; k < 4; k++)
             {
                 IntVec3 n = c + Diagonals[k];
@@ -81,6 +79,12 @@ public class CliffPlan
                 if (!excluded(ni) && stage[ni] < stage[i])
                     lower |= (byte)(16 << k);
             }
+            // A cell lower only across a corner is part of the band too: otherwise a diagonal band leaves gaps a pawn can slip
+            // through between two cliff cells without climbing. It faces the side of that corner (south first).
+            if (!facing.IsValid && lower != 0)
+                facing = (lower & ((16 << 1) | (16 << 2))) != 0 ? Rot4.South : Rot4.North;
+            if (!facing.IsValid)
+                continue;
             PlanEdge(i, facing, lower);
         }
     }

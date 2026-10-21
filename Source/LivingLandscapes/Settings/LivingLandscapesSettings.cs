@@ -32,6 +32,9 @@ public class LivingLandscapesSettings : ModSettings
     /// </summary>
     public bool gameplaySiting = true;
 
+    /// <summary>Pawns walk more slowly uphill than across or downhill, and plan routes over gentle ground.</summary>
+    public bool slopeMovement = true;
+
     public override void ExposeData()
     {
         base.ExposeData();
@@ -40,5 +43,6 @@ public class LivingLandscapesSettings : ModSettings
         Scribe_Values.Look(ref plantEcology, "plantEcology", true);
         Scribe_Values.Look(ref habitatStrength, "habitatStrength", 1f);
         Scribe_Values.Look(ref gameplaySiting, "gameplaySiting", true);
+        Scribe_Values.Look(ref slopeMovement, "slopeMovement", true);
     }
 }

@@ -49,8 +49,10 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
-             absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
-             drainage lines are seeps (marsh, mud, or a damp or dry bed by how much water they gather). On a tile without
+             absorption) / (1 - absorption), by biome. Drainage lines are seeps until their water exceeds what the
+             saturated ground carries (seepCapacityWidth at the median slope, more on gentle ground: channel heads); the
+             channel carries the excess, so it starts one cell wide. Seeps are marsh, mud, or a damp or dry bed by how
+             much water they gather. On a tile without
              a world river the map's water is vanilla's world flow through the tile as a share of a creek's. Channels lose
              water into their bed (transmissionLoss x the biome's absorption, per cell of length and width). -->
         <terrainChannels>
@@ -61,7 +63,7 @@
             <deltaSpread>6</deltaSpread>
           </sediment>
           <absorption>0.3</absorption>
-          <minMovingWidth>2</minMovingWidth>
+          <seepCapacityWidth>2</seepCapacityWidth>
           <biomeAbsorption>
             <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
             <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>
@@ -468,7 +470,7 @@
     <defName>LL_Shade</defName>
     <label>canopy shade</label>
     <description>Dev view, computed when shown: 0 to 1, light blocked by the plants standing now (shifted towards the pole), as the plant ecology keeps it for the spawner. Not saved.</description>
-    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
+    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
     <onDemand>true</onDemand>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -484,7 +486,7 @@
     <defName>LL_Fitness</defName>
     <label>plant fitness</label>
     <description>Dev view: 0 to 1, how well the chosen species (debug action "Plant fitness: choose species", else the best of the biome's plants) would grow on each cell now, as the plant ecology scores it (moisture, soil depth, slope, sun, fertility, live shade). Computed when shown; not saved.</description>
-    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
+    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
     <onDemand>true</onDemand>
     <dependsOn>
       <li>LL_Moisture</li>
@@ -499,6 +501,27 @@
         <li><value>0</value><color>(0.6, 0.1, 0.1, 0.5)</color></li>
         <li><value>0.5</value><color>(0.9, 0.85, 0.3, 0.5)</color></li>
         <li><value>1</value><color>(0.1, 0.7, 0.2, 0.85)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_WalkEffort</defName>
+    <label>walking effort</label>
+    <description>Dev view: how many times longer than a level step the slowest step into each cell takes for the slope alone (climbing in from any neighbour, natural ground); 1 is level, 0 impassable. Vanilla's own costs (terrain, plants, cliffs) are left out. Computed when shown; not saved.</description>
+    <workerClass>LivingLandscapes.Layers.WalkEffortWorker</workerClass>
+    <onDemand>true</onDemand>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.7</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.2, 0.2, 0.2, 0.8)</color></li>
+        <li><value>1</value><color>(0.2, 0.7, 0.3, 0)</color></li>
+        <li><value>1.5</value><color>(0.9, 0.85, 0.3, 0.6)</color></li>
+        <li><value>3</value><color>(0.95, 0.5, 0.15, 0.8)</color></li>
+        <li><value>8</value><color>(0.8, 0.1, 0.1, 0.9)</color></li>
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

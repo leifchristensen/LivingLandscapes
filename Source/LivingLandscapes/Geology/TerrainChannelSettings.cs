@@ -26,10 +26,20 @@ public class TerrainChannelSettings
     public List<BiomeAbsorption> biomeAbsorption = new List<BiomeAbsorption>();
 
     /// <summary>
-    /// Moving water is at least this wide (cells). Where a drainage line's runoff makes a narrower channel, the water
-    /// seeps: saturated ground (marsh, mud) instead of a stream, so drainage visibly gathers before it flows.
+    /// Channel heads (Montgomery and Dietrich 1988; Dietrich and Dunne 1993): above them water moves through saturated
+    /// ground without banks (seeps, valley-head marsh); a channel begins where the water exceeds what that ground can
+    /// carry. The seep's capacity, as the width of channel its discharge would fill, at the map's median channel slope.
+    /// Moving water carries only the excess, so it starts one cell wide below a seep and widens as water gathers.
     /// </summary>
-    public float minMovingWidth = 2f;
+    public float seepCapacityWidth = 2f;
+
+    /// <summary>
+    /// How the seep's capacity changes with slope: capacity x (median slope / slope)^exponent, within the range. Gentle
+    /// valley floors hold wide marshes and need much more water before a channel forms; steep hollows channel sooner
+    /// (source area falls with gradient, about A ~ S^-2 in the field data).
+    /// </summary>
+    public float seepSlopeExponent = 2f;
+    public FloatRange seepSlopeFactor = new FloatRange(0.25f, 4f);
 
     public float AbsorptionOf(string biome)
     {

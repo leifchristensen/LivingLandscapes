@@ -2,10 +2,10 @@
 <Defs>
 
   <!--
-    Cliffs: placed by the geology on the higher side of every height change, drawn as thin edges on the sides that drop
-    to lower ground (LivingLandscapes.Geology.Building_Cliff; art from Source/ArtTools/generate_cliff_art.py), tinted
-    with the local rock and named after it ("granite cliff"). Bands can be climbed, very slowly, and give cover without
-    blocking the view; steps are the quick way up.
+    Cliffs: placed by the geology on the higher side of every height change, drawn as the rim of a rock wall on the sides
+    that drop to lower ground (LivingLandscapes.Geology.Building_Cliff; art from Source/ArtTools/generate_cliff_art.py),
+    tinted with the local rock and named after it ("granite cliff"). Bands can be climbed, very slowly, and give cover
+    without blocking the view; gaps in a band are the quick way up. Steps are no longer generated (kept for old saves).
   -->
 
   <ThingDef Name="LL_CliffBase" ParentName="BuildingNaturalBase" Abstract="True">

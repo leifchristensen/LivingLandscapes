@@ -48,6 +48,9 @@ public static class VanillaTerrainWriter
                 depth[i] *= cellSize;
                 distance[i] *= cellSize;
             }
+            int passes = landform != null ? Passes(depth, landform, sizeX, sizeZ, p) : 0;
+            if (passes > 0)
+                Log.Message($"[LivingLandscapes] Passes on {map}: {passes} cols opened over the rock so every sizeable area can be reached.");
             fields.Add("RockDepth", depth);
             fields.Add("RockDistance", distance);
         }
@@ -79,20 +82,22 @@ public static class VanillaTerrainWriter
     }
 
     /// <summary>
-    /// Opens passes through mountain rock so every sizeable walkable area joins the largest (<see cref="TerraceExtension.passWidth"/>):
-    /// a cheapest-path search from the largest area, where rock costs far more than open ground, finds the shortest way through
-    /// each wall; its cells become rough stone (walkable) and lose any cover. Returns the number of passes.
+    /// Passes as part of the topology (<see cref="SoilModelExtension.passMinAreaShare"/>): finds walkable areas cut off by mountain
+    /// rock (depth into bare rock of at least the mountain depth) and joins each sizeable one to the largest over a col: the
+    /// cheapest way by rock crossed and height climbed. Along it the rock is thinned to bare rock, and the col widens into
+    /// neighbouring rock no thicker than the col itself, so its width follows the terrain. Returns the number of cols.
     /// </summary>
-    private static int CarvePasses(float[] values, GroundCover[] cover, int sizeX, int sizeZ, TerraceExtension p)
+    private static int Passes(float[] depth, float[] height, int sizeX, int sizeZ, SoilModelExtension p)
     {
-        if (p.passWidth <= 0)
+        if (p.passMinAreaShare <= 0f)
             return 0;
-        int n = values.Length, passes = 0;
-        int minArea = Mathf.Max(20, Mathf.RoundToInt(n * p.passMinAreaShare));
-        bool Rock(int i) => values[i] > 0.7f;
+        int n = depth.Length, cols = 0;
+        int minArea = Mathf.Max(50, Mathf.RoundToInt(n * p.passMinAreaShare));
+        float open = p.mountainDepth - 0.1f;
+        bool Wall(int i) => depth[i] >= p.mountainDepth;
         for (int round = 0; round < 12; round++)
         {
-            int areas = GridMath.LabelRegions(i => !Rock(i), sizeX, sizeZ, out int[] labels);
+            int areas = GridMath.LabelRegions(i => !Wall(i), sizeX, sizeZ, out int[] labels);
             var size = new int[areas];
             foreach (int label in labels)
             {
@@ -105,7 +110,6 @@ public static class VanillaTerrainWriter
                 if (largest < 0 || size[a] > size[largest])
                     largest = a;
             }
-            // Cheapest way from the largest area to any other sizeable one: open ground costs 1, rock 20 (Dijkstra).
             var cost = new float[n];
             var from = new int[n];
             var frontier = new SortedSet<(float cost, int cell)>();
@@ -138,7 +142,7 @@ public static class VanillaTerrainWriter
                     if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
                         continue;
                     int next = nz * sizeX + nx;
-                    float step = c + (Rock(next) ? 20f : 1f);
+                    float step = c + 1f + (Wall(next) ? depth[next] * p.passRockCost : 0f) + Mathf.Abs(height[next] - height[cell]) * p.passClimbCost;
                     if (step < cost[next])
                     {
                         frontier.Remove((cost[next], next));
@@ -150,30 +154,36 @@ public static class VanillaTerrainWriter
             }
             if (target < 0)
                 break;
-            // Open the rock along the path, passWidth cells wide.
-            int half = p.passWidth / 2;
+            // The col: thin the rock along the path, then widen into rock beside it that is no thicker than the col there.
+            var col = new Queue<(int cell, float limit, int reach)>();
             for (int cell = target; cell >= 0; cell = from[cell])
             {
+                if (Wall(cell))
+                    col.Enqueue((cell, depth[cell], 0));
+            }
+            var done = new HashSet<int>();
+            while (col.Count > 0)
+            {
+                (int cell, float limit, int reach) = col.Dequeue();
+                if (!done.Add(cell))
+                    continue;
+                depth[cell] = Mathf.Min(depth[cell], open);
+                if (reach >= p.passWiden)
+                    continue;
                 int x = cell % sizeX, z = cell / sizeX;
-                for (int dz = -half; dz <= half; dz++)
+                for (int d = 0; d < 4; d++)
                 {
-                    for (int dx = -half; dx <= half; dx++)
-                    {
-                        int px = x + dx, pz = z + dz;
-                        if (px < 0 || pz < 0 || px >= sizeX || pz >= sizeZ)
-                            continue;
-                        int i = pz * sizeX + px;
-                        if (Rock(i))
-                        {
-                            values[i] = RockFloor;
-                            cover[i] = GroundCover.None;
-                        }
-                    }
+                    int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), nz = z + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
+                        continue;
+                    int next = nz * sizeX + nx;
+                    if (Wall(next) && !done.Contains(next) && depth[next] <= limit)
+                        col.Enqueue((next, limit, reach + 1));
                 }
             }
-            passes++;
+            cols++;
         }
-        return passes;
+        return cols;
     }
 
     /// <summary>
@@ -195,7 +205,6 @@ public static class VanillaTerrainWriter
             cover[i] = r.cover;
             perRule[rule[i]]++;
         }
-        int passes = CarvePasses(values, cover, sizeX, sizeZ, terraces);
 
         // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
         // The terrace plan LL_Height was built from (made once per map); planned again only if that layer was skipped.
@@ -249,7 +258,7 @@ public static class VanillaTerrainWriter
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: {string.Join(", ", shares)}; stages of {stageHeight:F1} m, " +
                     $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs; {sizeable} walkable areas " +
-                    $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground); {passes} passes opened through rock.");
+                    $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
     }
 

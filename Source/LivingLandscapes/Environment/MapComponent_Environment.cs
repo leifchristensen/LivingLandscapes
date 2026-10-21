@@ -72,6 +72,26 @@ public class MapComponent_Environment : MapComponent
 
     public bool HasLayer(EnvironmentLayerDef layer) => layers.ContainsKey(layer);
 
+    private float[] groundHeight;
+
+    /// <summary>
+    /// The natural ground (LL_Landform, metres) smoothed over <see cref="Gameplay.SlopeMovementExtension.heightSmoothing"/> cells,
+    /// kept for per-step lookups (slope movement); null without the layer. The natural surface, not the terraced one (a terrace
+    /// step is a cliff, and cliffs cost their own time), and smoothed so the hummocks of micro-relief do not slow a walk.
+    /// </summary>
+    public float[] GroundHeight
+    {
+        get
+        {
+            if (groundHeight == null && layers.TryGetValue(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid grid))
+            {
+                float sigma = Gameplay.SlopeMovement.Tuning.heightSmoothing;
+                groundHeight = sigma > 0f ? Geology.GridMath.Blur(grid.ToArray(), map.Size.x, map.Size.z, sigma) : grid.ToArray();
+            }
+            return groundHeight;
+        }
+    }
+
     public bool TryGetGrid(EnvironmentLayerDef layer, out EnvironmentGrid grid) => layers.TryGetValue(layer, out grid);
 
     /// <summary>Value of a layer at a cell, or <paramref name="fallback"/> when the map doesn't have that layer.</summary>
@@ -117,6 +137,8 @@ public class MapComponent_Environment : MapComponent
             }
             context.Set(layer, values);
             layers[layer] = new EnvironmentGrid(values, layer.precision);
+            if (layer == EnvironmentLayerDefOf.LL_Landform)
+                groundHeight = null;
             Log.Message($"[LivingLandscapes] {layer.defName} computed for {map}: {Describe(values)}.");
             return true;
         }
