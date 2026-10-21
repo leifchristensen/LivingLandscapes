@@ -79,6 +79,10 @@ public static class Coastline
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
         int sea = 0;
+        // Land never lies below the sea: a floor at the beach that rises inland with the coastal plain. River valleys the
+        // erosion model cut deeper (it knows no sea) fill to it, so near the coast they grade to the sea as a plain and
+        // the beach is no dam (no lagoons behind it, rivers reach their mouths).
+        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, n / sizeX);
         for (int i = 0; i < n; i++)
         {
             if (noise[i] < shore)
@@ -91,7 +95,7 @@ public static class Coastline
             {
                 float inland = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(shore, shore + p.landFalloff, noise[i]));
                 float plain = beach + p.plainSlope * (noise[i] - shore) * sizeX;
-                height[i] = Mathf.Lerp(plain, height[i], inland);
+                height[i] = Mathf.Max(Mathf.Lerp(plain, height[i], inland), beach + 0.05f + p.plainSlope * toSea[i]);
             }
         }
         return sea;

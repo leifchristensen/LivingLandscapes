@@ -55,7 +55,10 @@ public class LandformWorker : EnvironmentLayerWorker
                 Log.Message($"[LivingLandscapes] Water regime {water.defName} nudged the terrain: {nudged}.");
             RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, map.Biome?.defName, rockStrength, water,
                 generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows,
-                world.HasRiver ? float.NaN : world.Flow);
+                world.HasRiver ? float.NaN : world.Flow,
+                // A world river with its mouth at the sea ends in it; on a delta tile it builds the delta.
+                riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f,
+                deltaTile: map.TileInfo.Mutators.Any(m => m.defName == "RiverDelta"));
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {

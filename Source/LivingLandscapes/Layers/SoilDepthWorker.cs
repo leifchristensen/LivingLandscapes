@@ -65,6 +65,16 @@ public class SoilDepthWorker : EnvironmentLayerWorker
             for (int i = 0; i < soil.Length; i++)
                 soil[i] += alluvium[i];
         }
+        // Delta land is fresh sediment the river built: deep ground, never bare rock (its front is under the sea).
+        bool[] deltaLand = context.Environment?.PlannedRivers?.DeltaLand;
+        if (deltaLand != null && StageFor(context.Map) == GenerationStage.Elevation)
+        {
+            for (int i = 0; i < soil.Length; i++)
+            {
+                if (deltaLand[i])
+                    soil[i] = Mathf.Max(soil[i], p.deltaSoilDepth);
+            }
+        }
         if (StageFor(context.Map) == GenerationStage.Plants)
         {
             TerrainFeature[] features = TerrainFeatures.Classify(context.Map);

@@ -62,6 +62,22 @@
             <landBuilding>1.6</landBuilding>
             <deltaSpread>6</deltaSpread>
           </sediment>
+          <!-- Deltas by avulsion (Distributaries): the river builds a lobe at its mouth, then leaves its raised course at the
+               avulsion node (a backwater length, depth / slope, from the shore) by the cheapest way to the sea; repeated
+               deltaCycles times on a RiverDelta tile (mouthCycles at other river mouths). The latest activeBranches courses
+               stay as distributaries, the newest taking newChannelShare of the water where it leaves the one before. -->
+          <distributaries>
+            <deltaCycles>7</deltaCycles>
+            <mouthCycles>1</mouthCycles>
+            <activeBranches>4</activeBranches>
+            <newChannelShare>0.6</newChannelShare>
+            <nodeDistance>0.12~0.35</nodeDistance>
+            <lobeRadius>1.5</lobeRadius>
+            <minLobeRadius>6</minLobeRadius>
+            <maxLobeRadius>14</maxLobeRadius>
+            <leveeWidths>3</leveeWidths>
+            <pathNoise>3</pathNoise>
+          </distributaries>
           <absorption>0.3</absorption>
           <seepCapacityWidth>2</seepCapacityWidth>
           <biomeAbsorption>

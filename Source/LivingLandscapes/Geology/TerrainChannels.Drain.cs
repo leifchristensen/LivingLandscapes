@@ -24,7 +24,7 @@ public static partial class TerrainChannels
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> outlet,
-        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null)
+        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -59,8 +59,10 @@ public static partial class TerrainChannels
             filled[i] += p.flatNoise * (float)microRelief.GetValue(i % sizeX, 0.0, i / sizeX);
         foreach (ChannelCourse course in courses ?? new List<ChannelCourse>())
         {
-            if (course.VanillaWidth > 0f && (water?.riverInflow ?? true))
-                Trench(filled, sizeX, sizeZ, course, p);
+            // A river rising on the map (headwater) still runs its course to a mouth at the sea.
+            bool toMouth = riverMouth && course.WorldRiver && toSea != null;
+            if (course.VanillaWidth > 0f && ((water?.riverInflow ?? true) || toMouth))
+                Trench(filled, sizeX, sizeZ, toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course, p);
         }
         outlet = IsOutlet;
         GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);
@@ -70,6 +72,46 @@ public static partial class TerrainChannels
             if (IsOutlet(i))
                 receiver[i] = -1;
         }
+    }
+
+    /// <summary>
+    /// A world river whose mouth is at the sea ends in the sea: the erosion model lays its course to the map's edge toward
+    /// the sea before the coastline is shaped, so the course may stop on the beach or run on over land. It ends where it
+    /// first enters the sea; a course that never does runs on from where it comes nearest, down the shortest way to the shore.
+    /// </summary>
+    private static ChannelCourse ToTheSea(ChannelCourse course, bool[] sea, float[] toSea, int sizeX, int sizeZ)
+    {
+        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
+        var points = new List<Vector2>();
+        int nearest = 0;
+        for (int k = 0; k < course.Points.Count; k++)
+        {
+            int c = Cell(course.Points[k]);
+            if (sea[c])
+            {
+                points.AddRange(course.Points.GetRange(0, k + 1));
+                return new ChannelCourse { Points = points, WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
+            }
+            if (toSea[c] < toSea[Cell(course.Points[nearest])])
+                nearest = k;
+        }
+        points.AddRange(course.Points.GetRange(0, nearest + 1));
+        int at = Cell(course.Points[nearest]);
+        for (int guard = 0; guard < sizeX + sizeZ && !sea[at]; guard++)
+        {
+            int x = at % sizeX, z = at / sizeX, best = -1;
+            for (int d = 0; d < 8; d++)
+            {
+                int nx = x + GenAdj.AdjacentCells[d].x, nz = z + GenAdj.AdjacentCells[d].z;
+                if (nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && (best < 0 || toSea[nz * sizeX + nx] < toSea[best]))
+                    best = nz * sizeX + nx;
+            }
+            if (best < 0 || toSea[best] >= toSea[at])
+                break;
+            at = best;
+            points.Add(new Vector2(at % sizeX + 0.5f, at / sizeX + 0.5f));
+        }
+        return new ChannelCourse { Points = points, WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
     }
 
     /// <summary>Lowers the ground along a course (see <see cref="TerrainChannelSettings.worldCourseTrench"/>), deepest on the line.</summary>

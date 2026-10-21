@@ -158,6 +158,7 @@ public static class Invariants
 
         int lakeCount = GridMath.LabelRegions(StillWater, sizeX, sizeZ, out int[] lakeLabels);
         var lakeDepth = new float[lakeCount];
+        var lagoon = new bool[lakeCount];
         var lakeCells = new int[lakeCount];
         var lakeTerrain = new TerrainDef[lakeCount];
         var lakeAt = new IntVec3[lakeCount];
@@ -171,8 +172,11 @@ public static class Invariants
                 lakeAt[l] = map.cellIndices.IndexToCell(i);
             lakeTerrain[l] ??= terrain[i];
             lakeDepth[l] = Mathf.Max(lakeDepth[l], filled[i] - h[i]);
+            // Still water that touches the ocean lies at sea level, open to it: a lagoon, part of the sea.
+            if (!lagoon[l])
+                GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= terrain[nb] != null && terrain[nb].IsOcean);
         }
-        int lakes = 0, inDepression = 0;
+        int lakes = 0, inDepression = 0, lagoons = 0;
         var failing = new StringBuilder();
         for (int l = 0; l < lakeCount; l++)
         {
@@ -181,6 +185,11 @@ public static class Invariants
             lakes++;
             if (lakeDepth[l] > Tolerance)
                 inDepression++;
+            else if (lagoon[l])
+            {
+                inDepression++;
+                lagoons++;
+            }
             else
                 failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]} at {lakeAt[l].x},{lakeAt[l].z}");
         }
@@ -209,7 +218,7 @@ public static class Invariants
                 dryHollows++;
         }
         summary.AppendLine($"invariant 2 (lakes in depressions): {(inDepression == lakes ? "ok" : "FAIL")} | " +
-                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression; " +
+                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea ({lagoons} lagoons); " +
                            $"{hollows} closed depressions >= {DepressionDepth} m deep ({hollowArea} cells), {dryHollows} hold no water" +
                            (failing.Length > 0 ? $"; not in a depression:{failing}" : ""));
     }

@@ -28,7 +28,7 @@ public static partial class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN)
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, bool riverMouth = false, bool deltaTile = false)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
@@ -47,7 +47,7 @@ public static partial class TerrainChannels
         // Only what the ground cannot absorb runs off (a trickle is kept so drainage still orders the cells).
         float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea);
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea, riverMouth);
 
         // Three passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's
         // regime nudges, silts up basins a world river runs into and carves meanders; pass 1 lets water divide where the
@@ -121,13 +121,15 @@ public static partial class TerrainChannels
                 if (moving[c] && receiver[c] >= 0)
                     moving[receiver[c]] = true;
             }
+            int[] routed = receiver;
             if (pass == 1)
                 deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
             if (pass == 1)
             {
-                deltaBranches = Distributaries.Carve(height, filled, receiver, inflow, worldSource, width, sea, spread,
-                    p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, out _, out var deltaSplits);
+                deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, sea, deltaTile, spread,
+                    p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, system, out int lobeCells, out var deltaSplits);
+                deltaCells += lobeCells;
                 if (deltaBranches > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
@@ -137,7 +139,7 @@ public static partial class TerrainChannels
                         if (filled[a] < filled[at] && filled[b] < filled[at])
                         {
                             receiver[at] = a;
-                            forcedSplits[at] = (b, 1f - share);
+                            forcedSplits[at] = (b, share);
                         }
                     }
                 }
