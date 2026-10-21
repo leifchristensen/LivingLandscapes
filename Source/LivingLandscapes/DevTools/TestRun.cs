@@ -15,7 +15,8 @@ public static class TestRun
 {
     private const float DefaultQuitDelay = 10f;
 
-    private static float quitAt = -1f, roundTripAt = -1f;
+    private static float quitAt = -1f, roundTripAt = -1f, flowCameraAt = -1f;
+    private static IntVec3 flowCamera;
 
     /// <summary>"-ll-bench-plants" or "-ll-bench-plants=census".</summary>
     private static bool BenchRequested => GenCommandLine.CommandLineArgPassed("ll-bench-plants") || GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out _);
@@ -78,7 +79,9 @@ public static class TestRun
                     .OrderBy(c => c.DistanceToSquared(map.Center)).FirstOrFallback(IntVec3.Invalid);
                 if (water.IsValid)
                 {
-                    Find.CameraDriver?.SetRootPosAndSize(water.ToVector3Shifted(), 6f);
+                    // The game moves the camera itself once the map opens, so look a little later.
+                    flowCamera = water;
+                    flowCameraAt = Time.realtimeSinceStartup + 3f;
                     Log.Message($"[LivingLandscapes] Flow check: camera on moving water at {water}.");
                 }
             }
@@ -96,6 +99,11 @@ public static class TestRun
             Log.Message("[LivingLandscapes] Round trip: saved, loading again.");
             GameDataSaveLoader.LoadGame("LL_roundtrip");
             return;
+        }
+        if (flowCameraAt >= 0f && Time.realtimeSinceStartup >= flowCameraAt)
+        {
+            flowCameraAt = -1f;
+            Find.CameraDriver?.SetRootPosAndSize(flowCamera.ToVector3Shifted(), 8f);
         }
         if (crossing != null && CrossingStep())
             return;
