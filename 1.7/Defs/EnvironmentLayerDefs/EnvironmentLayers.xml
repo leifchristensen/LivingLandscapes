@@ -49,8 +49,8 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
-             absorption) / (1 - absorption), by biome. Moving water is at least minMovingWidth cells wide; narrower
-             drainage lines are seeps (marsh, mud, or a damp or dry bed by how much water they gather). On a tile without
+             absorption) / (1 - absorption), by biome. Drainage runs as moving water from minMovingWidth cells wide,
+             painted at its own width (no minimum); narrower drainage lines are seeps (marsh, mud, or a damp or dry bed by how much water they gather). On a tile without
              a world river the map's water is vanilla's world flow through the tile as a share of a creek's. Channels lose
              water into their bed (transmissionLoss x the biome's absorption, per cell of length and width). -->
         <terrainChannels>
@@ -61,7 +61,7 @@
             <deltaSpread>6</deltaSpread>
           </sediment>
           <absorption>0.3</absorption>
-          <minMovingWidth>2</minMovingWidth>
+          <minMovingWidth>1</minMovingWidth>
           <biomeAbsorption>
             <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
             <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>

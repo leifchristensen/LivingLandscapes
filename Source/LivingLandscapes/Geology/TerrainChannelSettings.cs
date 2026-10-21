@@ -26,10 +26,11 @@ public class TerrainChannelSettings
     public List<BiomeAbsorption> biomeAbsorption = new List<BiomeAbsorption>();
 
     /// <summary>
-    /// Moving water is at least this wide (cells). Where a drainage line's runoff makes a narrower channel, the water
-    /// seeps: saturated ground (marsh, mud) instead of a stream, so drainage visibly gathers before it flows.
+    /// Drainage runs as moving water once its channel is this wide (cells); narrower, the water seeps: saturated ground
+    /// (marsh, mud) instead of a stream, so drainage visibly gathers before it flows. Moving water is painted at its own
+    /// width (a trickle is one cell), so a stream widens gradually as its water gathers.
     /// </summary>
-    public float minMovingWidth = 2f;
+    public float minMovingWidth = 1f;
 
     public float AbsorptionOf(string biome)
     {

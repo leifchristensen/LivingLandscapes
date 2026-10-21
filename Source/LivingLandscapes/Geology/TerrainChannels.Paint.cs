@@ -181,7 +181,7 @@ public static partial class TerrainChannels
                 continue;
             }
             int cx = c % sizeX, cz = c / sizeX;
-            float half = Mathf.Max(width[c], p.minMovingWidth) * 0.5f;
+            float half = width[c] * 0.5f;
             int reach = Mathf.CeilToInt(half * (1f + bankAmplitude[c]) + 0.5f);
             for (int dz = -reach; dz <= reach; dz++)
             {
