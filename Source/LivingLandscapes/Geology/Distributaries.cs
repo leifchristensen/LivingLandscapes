@@ -103,7 +103,7 @@ public static class Distributaries
         lobeCells = 0;
         splits = new List<(int, int, int, float)>();
         int cycles = deltaTile ? p.deltaCycles : p.mouthCycles;
-        if (!p.enabled || sea == null || cycles <= 0)
+        if (sea == null)
             return 0;
         int n = height.Length;
         // The main river: the channel that brings the most water into the sea (as the water was routed before land was
@@ -178,6 +178,11 @@ public static class Distributaries
             offshore.Add(x >= 0 && z >= 0 && x < sizeX && z < sizeZ ? (seaLevel - height[z * sizeX + x]).ToString("F1") : "-");
         }
         string setting = $"lower river confinement {confinement:F1} (valley / channel width), basin depth {string.Join(" / ", offshore)} m at 5/10/20/40 cells offshore";
+        if (!p.enabled || cycles <= 0)
+        {
+            Log.Message($"[LivingLandscapes] Delta: river {river.Count} cells, {channelWidth:F1} wide, {channelDepth:F2} m deep, slope {slope:F4}; none drawn; {setting}.");
+            return 0;
+        }
 
         var levee = new float[n];
         var noise = new Perlin(1.0 / p.pathNoiseWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);

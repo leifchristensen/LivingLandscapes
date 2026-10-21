@@ -34,17 +34,36 @@ public static class Coastline
     private static readonly System.Reflection.MethodInfo NoiseAt = AccessTools.Method(typeof(TileMutatorWorker_Coast), "GetNoiseValue");
     private static readonly System.Reflection.MethodInfo SandLimit = AccessTools.PropertyGetter(typeof(TileMutatorWorker_Coast), "MaxForSand");
 
-    /// <summary>Cells the map's coast mutator will paint as water or beach (its coast noise below the sand limit); null on tiles without one.</summary>
+    /// <summary>
+    /// Cells the map's coast mutator will paint as water or beach (its coast noise below the sand limit), less land rivers
+    /// built out over the sea (<see cref="Environment.MapComponent_Environment.PlannedDeltaLand"/>); null on tiles without one.
+    /// </summary>
     public static bool[] SeaCells(Map map)
     {
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
             return null;
         float shore = (float)SandLimit.Invoke(coast, null);
+        bool[] built = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDeltaLand;
         var sea = new bool[map.Area];
         for (int i = 0; i < sea.Length; i++)
-            sea[i] = (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(i % map.Size.x, 0, i / map.Size.x) }) < shore;
+            sea[i] = (built == null || !built[i]) && (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(i % map.Size.x, 0, i / map.Size.x) }) < shore;
         return sea;
+    }
+
+    /// <summary>
+    /// How far offshore each point lies (0 at the shore, 1 at the coast noise's deepest), for any map coordinates, including
+    /// beyond the map's edges (the erosion model's region); negative on land. False on tiles without a coast.
+    /// </summary>
+    public static bool TryOffshore(Map map, out System.Func<float, float, float> offshore)
+    {
+        TileMutatorWorker_Coast coast = Find(map);
+        offshore = null;
+        if (coast == null)
+            return false;
+        float shore = (float)SandLimit.Invoke(coast, null);
+        offshore = (x, z) => (shore - (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(Mathf.RoundToInt(x), 0, Mathf.RoundToInt(z)) })) / Mathf.Max(shore, 0.01f);
+        return true;
     }
 
     private static TileMutatorWorker_Coast Find(Map map)
@@ -67,9 +86,13 @@ public static class Coastline
         float shore = (float)SandLimit.Invoke(coast, null);
         var noise = new float[n];
         var land = new System.Collections.Generic.List<float>();
+        bool[] built = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDeltaLand;
         for (int i = 0; i < n; i++)
         {
             noise[i] = (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(i % sizeX, 0, i / sizeX) });
+            // Land the rivers built over the sea is land.
+            if (built != null && built[i] && noise[i] < shore)
+                noise[i] = shore;
             if (noise[i] >= shore)
                 land.Add(height[i]);
         }

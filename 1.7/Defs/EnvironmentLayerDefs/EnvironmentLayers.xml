@@ -67,6 +67,7 @@
                deltaCycles times on a RiverDelta tile (mouthCycles at other river mouths). The latest activeBranches courses
                stay as distributaries, the newest taking newChannelShare of the water where it leaves the one before. -->
           <distributaries>
+            <enabled>false</enabled>
             <deltaCycles>7</deltaCycles>
             <mouthCycles>1</mouthCycles>
             <activeBranches>4</activeBranches>
