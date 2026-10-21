@@ -74,7 +74,7 @@ public static partial class TerrainChannels
         if (vanillaWidth <= 0f)
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
-        float[] carried = null;
+        float[] carried = null, seepCapacity = null;
         for (int pass = 0; pass < 3; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p, forcedSplits,
@@ -114,7 +114,7 @@ public static partial class TerrainChannels
             regimes = new Dictionary<string, int>();
             // Width and depth from the water the channel still carries after losses into its bed.
             bankAmplitude = Shape(cells, height, filled, rockStrength, receiver, carried, dischargeScale, direction, sizeX, sizeZ, water, p,
-                width, depth, spread, moving = new bool[n], power, deposition, regimes, sinuosity, valley);
+                width, depth, spread, moving = new bool[n], power, deposition, regimes, sinuosity, valley, seepCapacity = new float[n]);
             // Once water runs as a channel it keeps running downstream (cells are ordered highest first).
             foreach (int c in cells)
             {
@@ -158,11 +158,11 @@ public static partial class TerrainChannels
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
-        // How close each seep comes to running: its width as a share of moving water's.
+        // How close each seep comes to running: its water as a share of what the seep can hold.
         foreach (int c in cells)
         {
             if (system.Seep[c])
-                system.SeepWater[c] = Mathf.Clamp01(p.widthPerSqrtDischarge * Mathf.Sqrt(carried[c] * dischargeScale) / p.minMovingWidth);
+                system.SeepWater[c] = Mathf.Clamp01(carried[c] * dischargeScale / Mathf.Max(seepCapacity[c], 1e-6f));
         }
         system.Channels = plans;
         int springLake = SpringLake(natural, filled, inflow, worldSource, sizeX, sizeZ, p, system);

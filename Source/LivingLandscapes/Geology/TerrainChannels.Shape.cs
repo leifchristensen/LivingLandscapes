@@ -53,7 +53,8 @@ public static partial class TerrainChannels
     private static float[] Shape(List<int> cells, float[] natural, float[] filled, float[] rockStrength, int[] receiver, float[] discharge,
         float dischargeScale,
         Vector2[] direction, int sizeX, int sizeZ, WaterRegimeDef water, TerrainChannelSettings p, float[] width, float[] depth,
-        float[] spread, bool[] moving, float[] power, float[] deposition, Dictionary<string, int> regimes, float[] sinuosity, float[] valley)
+        float[] spread, bool[] moving, float[] power, float[] deposition, Dictionary<string, int> regimes, float[] sinuosity, float[] valley,
+        float[] seepCapacity)
     {
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
@@ -62,6 +63,8 @@ public static partial class TerrainChannels
         var sorted = (float[])slope.Clone();
         System.Array.Sort(sorted);
         float reference = Mathf.Max(sorted[sorted.Length / 2], 1e-4f);
+        // Discharge a seep carries at the median slope: what would fill a channel seepCapacityWidth cells wide.
+        float seepAtReference = Mathf.Pow(p.seepCapacityWidth / p.widthPerSqrtDischarge, 2f);
 
         var bankAmplitude = new float[natural.Length];
         var widthNoise = new Perlin(1.0 / p.widthNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
@@ -71,7 +74,10 @@ public static partial class TerrainChannels
         {
             int c = cells[k], x = c % sizeX, z = c / sizeX;
             float q = discharge[c] * dischargeScale;
-            float baseWidth = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(q));
+            // The seep carries what the saturated ground can; the channel carries the rest, so it begins narrow.
+            float seep = seepAtReference * p.seepSlopeFactor.ClampToRange(Mathf.Pow(reference / Mathf.Max(slope[k], 1e-6f), p.seepSlopeExponent));
+            seepCapacity[c] = seep;
+            float baseWidth = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(Mathf.Max(0f, q - seep)));
             fields["Discharge"] = Mathf.Log10(q);
             fields["Slope"] = slope[k];
             fields["BankStrength"] = rockStrength != null ? rockStrength[c] : 0.5f;
@@ -82,8 +88,9 @@ public static partial class TerrainChannels
             string key = dominant?.defName ?? "none";
             regimes[key] = regimes.TryGetValue(key, out int count) ? count + 1 : 1;
 
-            // Moving water by the width without noise, so a channel near the limit does not flicker between the two.
-            moving[c] = baseWidth * nudge.width >= p.minMovingWidth;
+            // Moving where the water exceeds the seep (nudged like the width), decided without noise so a channel near
+            // its head does not flicker between running and seeping.
+            moving[c] = q * nudge.width * nudge.width > seep;
             width[c] = Mathf.Max(p.minWidth, baseWidth * nudge.width
                                              * (1f + p.widthNoise * nudge.widthNoise * (float)widthNoise.GetValue(x, 0.0, z)));
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));

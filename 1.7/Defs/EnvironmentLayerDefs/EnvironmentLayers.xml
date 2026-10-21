@@ -49,8 +49,10 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.GeologyGenerationExtension">
         <!-- Channels from drainage (TerrainChannels). The ground absorbs rain first: runoff = (climate wetness -
-             absorption) / (1 - absorption), by biome. Drainage runs as moving water from minMovingWidth cells wide,
-             painted at its own width (no minimum); narrower drainage lines are seeps (marsh, mud, or a damp or dry bed by how much water they gather). On a tile without
+             absorption) / (1 - absorption), by biome. Drainage lines are seeps until their water exceeds what the
+             saturated ground carries (seepCapacityWidth at the median slope, more on gentle ground: channel heads); the
+             channel carries the excess, so it starts one cell wide. Seeps are marsh, mud, or a damp or dry bed by how
+             much water they gather. On a tile without
              a world river the map's water is vanilla's world flow through the tile as a share of a creek's. Channels lose
              water into their bed (transmissionLoss x the biome's absorption, per cell of length and width). -->
         <terrainChannels>
@@ -61,7 +63,7 @@
             <deltaSpread>6</deltaSpread>
           </sediment>
           <absorption>0.3</absorption>
-          <minMovingWidth>1</minMovingWidth>
+          <seepCapacityWidth>2</seepCapacityWidth>
           <biomeAbsorption>
             <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
             <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>
@@ -468,7 +470,7 @@
     <defName>LL_Shade</defName>
     <label>canopy shade</label>
     <description>Dev view, computed when shown: 0 to 1, light blocked by the plants standing now (shifted towards the pole), as the plant ecology keeps it for the spawner. Not saved.</description>
-    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
+    <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
     <onDemand>true</onDemand>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -484,7 +486,7 @@
     <defName>LL_Fitness</defName>
     <label>plant fitness</label>
     <description>Dev view: 0 to 1, how well the chosen species (debug action "Plant fitness: choose species", else the best of the biome's plants) would grow on each cell now, as the plant ecology scores it (moisture, soil depth, slope, sun, fertility, live shade). Computed when shown; not saved.</description>
-    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
+    <workerClass>LivingLandscapes.Layers.FitnessWorker</workerClass>
     <onDemand>true</onDemand>
     <dependsOn>
       <li>LL_Moisture</li>
