@@ -71,6 +71,17 @@ public static class TestRun
                 delay = Mathf.Max(0f, parsed);
             quitAt = Time.realtimeSinceStartup + delay;
             Find.CameraDriver?.SetRootPosAndSize(map.Center.ToVector3Shifted(), Mathf.Max(map.Size.x, map.Size.z) * 0.55f);
+            // "-ll-check-flow": look closely at moving water, so a person (or two screenshots) can see whether it animates.
+            if (GenCommandLine.CommandLineArgPassed("ll-check-flow"))
+            {
+                IntVec3 water = map.AllCells.Where(c => c.GetTerrain(map).IsRiver && GenAdj.CellsAdjacent8Way(new TargetInfo(c, map)).All(n => n.InBounds(map) && n.GetTerrain(map).IsRiver))
+                    .OrderBy(c => c.DistanceToSquared(map.Center)).FirstOrFallback(IntVec3.Invalid);
+                if (water.IsValid)
+                {
+                    Find.CameraDriver?.SetRootPosAndSize(water.ToVector3Shifted(), 6f);
+                    Log.Message($"[LivingLandscapes] Flow check: camera on moving water at {water}.");
+                }
+            }
             Log.Message($"[LivingLandscapes] Test run: closing in {delay:F0} s.");
         });
     }
@@ -91,8 +102,39 @@ public static class TestRun
         if (quitAt >= 0f && Time.realtimeSinceStartup >= quitAt)
         {
             quitAt = -1f;
+            if (GenCommandLine.CommandLineArgPassed("ll-check-flow") && Find.CurrentMap != null)
+                CheckFlowTexture(Find.CurrentMap);
             Root.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// "-ll-check-flow": logs what the water shader animates with: vanilla builds a flow texture from the flow map the
+    /// first time the map is drawn (<see cref="WaterInfo.SetTextures"/>); counts its moving-water pixels with a direction.
+    /// </summary>
+    private static void CheckFlowTexture(Map map)
+    {
+        WaterInfo water = map.waterInfo;
+        var pixels = HarmonyLib.Traverse.Create(water).Field("flowMapPixels").GetValue<Color[]>();
+        int moving = 0, flowing = 0;
+        float speed = 0f;
+        var kinds = new System.Collections.Generic.Dictionary<string, int>();
+        foreach (IntVec3 c in map.AllCells)
+        {
+            if (!map.terrainGrid.BaseTerrainAt(c).IsRiver)
+                continue;
+            moving++;
+            TerrainDef def = map.terrainGrid.BaseTerrainAt(c);
+            kinds[def.defName] = kinds.TryGetValue(def.defName, out int k) ? k + 1 : 1;
+            Color p = pixels != null ? pixels[c.z * map.Size.x + c.x] : default;
+            if (p.r != 0f || p.g != 0f)
+                flowing++;
+            speed += Mathf.Sqrt(p.r * p.r + p.g * p.g);
+        }
+        string line = $"[LivingLandscapes] Flow check: flow map {(water.riverFlowMap == null ? "null" : water.riverFlowMap.Count.ToString())}, " +
+                    $"texture {(water.riverFlowTexture == null ? "null" : "built")}, {flowing} of {moving} moving water pixels with a direction, mean length {speed / Mathf.Max(1, moving):F2} ({string.Join(", ", kinds.Select(kv => kv.Key + " " + kv.Value))}).";
+        Log.Message(line);
+        System.IO.File.AppendAllText(System.IO.Path.Combine(LayerImageExporter.Folder, "summary.txt"), line + System.Environment.NewLine);
     }
 
     private class Crossing
