@@ -9,19 +9,25 @@ namespace LivingLandscapes.Patches;
 /// <summary>
 /// Development aids for dev quicktest, inactive without their launch arguments:
 /// "-ll-seed=&lt;text&gt;" fixes the world seed and start tile, so the same test maps can be regenerated before and after
-/// a change; "-ll-mutators=A+B" adds tile mutators to the start tile; "-ll-hilliness=Mountainous" sets its hilliness;
+/// a change; "-ll-world-seed" and the other world settings (<see cref="Patch_WorldGenerator_GenerateWorld"/>) with
+/// "-ll-tile=7825" (or "7825,0": tile, layer) and "-ll-map-size=250" regenerate a player's world and start on their tile;
+/// "-ll-mutators=A+B" adds tile mutators to the start tile; "-ll-hilliness=Mountainous" sets its hilliness;
 /// "-ll-biome", "-ll-rainfall", "-ll-temperature", "-ll-elevation", "-ll-coast" and "-ll-rivers" set the rest of the
 /// tile's conditions (most tiles have no river or coast, so tests force them).
 /// </summary>
 [HarmonyPatch(typeof(Root_Play), nameof(Root_Play.SetupForQuickTestPlay))]
 public static class Patch_Root_Play_SetupForQuickTestPlay
 {
-    /// <summary>True while quicktest sets up with a fixed seed; read by <see cref="Patch_GenText_RandomSeedString"/>.</summary>
+    /// <summary>
+    /// True while quicktest sets up with a fixed seed; read by <see cref="Patch_GenText_RandomSeedString"/> and
+    /// <see cref="Patch_WorldGenerator_GenerateWorld"/>.
+    /// </summary>
     internal static bool Active { get; private set; }
 
     public static void Prefix()
     {
-        Active = GenCommandLine.TryGetCommandLineArg("ll-seed", out string seed) && !seed.NullOrEmpty();
+        Active = (GenCommandLine.TryGetCommandLineArg("ll-world-seed", out string seed) && !seed.NullOrEmpty())
+                 || (GenCommandLine.TryGetCommandLineArg("ll-seed", out seed) && !seed.NullOrEmpty());
         // The start tile is picked with the global random state, so seed that too.
         if (Active)
             Rand.PushState(GenText.StableStringHash(seed));
@@ -32,7 +38,32 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
         if (Active)
             Rand.PopState();
         Active = false;
+        ChooseStartTile();
         ForceStartTile();
+    }
+
+    /// <summary>"-ll-tile=7825" or "-ll-tile=7825,0" (tile, planet layer) and "-ll-map-size=250".</summary>
+    private static void ChooseStartTile()
+    {
+        if (GenCommandLine.TryGetCommandLineArg("ll-tile", out string text))
+        {
+            string[] parts = text.Split(',');
+            int layer = parts.Length > 1 && int.TryParse(parts[1], out int l) ? l : Find.WorldGrid.Surface.LayerID;
+            var reason = new System.Text.StringBuilder();
+            if (int.TryParse(parts[0], out int id) && id >= 0 && id < Find.WorldGrid.Surface.TilesCount
+                && TileFinder.IsValidTileForNewSettlement(new PlanetTile(id, layer), reason))
+            {
+                Find.GameInitData.startingTile = new PlanetTile(id, layer);
+                Tile tile = Find.WorldGrid[Find.GameInitData.startingTile];
+                Log.Message($"[LivingLandscapes] Quicktest start tile {text}: {tile.PrimaryBiome?.defName}, {tile.hilliness}, " +
+                            $"{tile.elevation:F0} m, mutators [{string.Join(", ", tile.Mutators.Select(m => m.defName))}].");
+            }
+            else
+                Log.Warning($"[LivingLandscapes] -ll-tile: {text} is not a settleable tile of this world ({(reason.Length > 0 ? reason.ToString() : "no such tile")}); " +
+                            $"keeping the random start tile {Find.GameInitData.startingTile}. Check the world seed and settings match the world the tile came from.");
+        }
+        if (GenCommandLine.TryGetCommandLineArg("ll-map-size", out string size) && int.TryParse(size, out int mapSize) && mapSize >= 50)
+            Find.GameInitData.mapSize = mapSize;
     }
 
     private static void ForceStartTile()
