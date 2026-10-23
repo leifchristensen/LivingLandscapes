@@ -66,8 +66,26 @@ public static class Coastline
     private static readonly AccessTools.FieldRef<TileMutatorWorker_Coast, Verse.Noise.ModuleBase> NoiseOf =
         AccessTools.FieldRefAccess<TileMutatorWorker_Coast, Verse.Noise.ModuleBase>("coastNoise");
 
-    private static readonly System.Reflection.MethodInfo NoiseAt = AccessTools.Method(typeof(TileMutatorWorker_Coast), "GetNoiseValue");
-    private static readonly System.Reflection.MethodInfo SandLimit = AccessTools.PropertyGetter(typeof(TileMutatorWorker_Coast), "MaxForSand");
+    // Typed delegates, not reflection calls: the noise is read for every map cell and every erosion-model cell. They call the
+    // worker's own override (a bay or cove shapes its noise differently).
+    private static readonly System.Func<TileMutatorWorker_Coast, IntVec3, float> NoiseAt =
+        AccessTools.MethodDelegate<System.Func<TileMutatorWorker_Coast, IntVec3, float>>(AccessTools.Method(typeof(TileMutatorWorker_Coast), "GetNoiseValue"));
+    private static readonly System.Func<TileMutatorWorker_Coast, float> SandLimit =
+        AccessTools.MethodDelegate<System.Func<TileMutatorWorker_Coast, float>>(AccessTools.PropertyGetter(typeof(TileMutatorWorker_Coast), "MaxForSand"));
+
+    // The coast noise over a map's cells, read once per map and shared by every caller (weakly held: no map is kept alive).
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Map, float[]> MapNoise = new();
+
+    private static float[] NoiseOver(Map map, TileMutatorWorker_Coast coast)
+    {
+        if (MapNoise.TryGetValue(map, out float[] noise) && noise.Length == map.Area)
+            return noise;
+        noise = new float[map.Area];
+        for (int i = 0; i < noise.Length; i++)
+            noise[i] = NoiseAt(coast, new IntVec3(i % map.Size.x, 0, i / map.Size.x));
+        MapNoise.AddOrUpdate(map, noise);
+        return noise;
+    }
 
     /// <summary>
     /// Cells the map's coast mutator will paint as water or beach (its coast noise below the sand limit), less land rivers
@@ -78,11 +96,12 @@ public static class Coastline
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
             return null;
-        float shore = (float)SandLimit.Invoke(coast, null);
+        float shore = SandLimit(coast);
+        float[] noise = NoiseOver(map, coast);
         bool[] built = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDeltaLand;
         var sea = new bool[map.Area];
         for (int i = 0; i < sea.Length; i++)
-            sea[i] = (built == null || !built[i]) && (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(i % map.Size.x, 0, i / map.Size.x) }) < shore;
+            sea[i] = (built == null || !built[i]) && noise[i] < shore;
         return sea;
     }
 
@@ -96,8 +115,8 @@ public static class Coastline
         offshore = null;
         if (coast == null)
             return false;
-        float shore = (float)SandLimit.Invoke(coast, null);
-        offshore = (x, z) => (shore - (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(Mathf.RoundToInt(x), 0, Mathf.RoundToInt(z)) })) / Mathf.Max(shore, 0.01f);
+        float shore = SandLimit(coast);
+        offshore = (x, z) => (shore - NoiseAt(coast, new IntVec3(Mathf.RoundToInt(x), 0, Mathf.RoundToInt(z)))) / Mathf.Max(shore, 0.01f);
         return true;
     }
 
@@ -118,13 +137,14 @@ public static class Coastline
         if (coast == null)
             return 0;
         int sizeX = map.Size.x, n = height.Length;
-        float shore = (float)SandLimit.Invoke(coast, null);
+        float shore = SandLimit(coast);
+        float[] mapNoise = NoiseOver(map, coast);
         var noise = new float[n];
         var land = new System.Collections.Generic.List<float>();
         bool[] built = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDeltaLand;
         for (int i = 0; i < n; i++)
         {
-            noise[i] = (float)NoiseAt.Invoke(coast, new object[] { new IntVec3(i % sizeX, 0, i / sizeX) });
+            noise[i] = mapNoise[i];
             // Land the rivers built over the sea is land.
             if (built != null && built[i] && noise[i] < shore)
                 noise[i] = shore;
