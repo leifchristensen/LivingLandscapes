@@ -159,9 +159,11 @@ public static class Invariants
         GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         TerrainDef[] terrain = map.terrainGrid.topGrid;
         bool[] coast = Geology.Coastline.SeaCells(map);
-        // Open still water only: marsh is wet ground (floodplains, seeps), not a lake.
+        // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
+        // pool (vanilla's Caves mutator paints them in its tunnels): the landform there is the rock above, not the cave floor.
+        RoofGrid roofs = map.roofGrid;
         bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
-                                  && terrain[i] != TerrainDefOf.Marsh;
+                                  && terrain[i] != TerrainDefOf.Marsh && !(roofs.RoofAt(i)?.isNatural ?? false);
 
         int lakeCount = GridMath.LabelRegions(StillWater, sizeX, sizeZ, out int[] lakeLabels);
         var lakeDepth = new float[lakeCount];
