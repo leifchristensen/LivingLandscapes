@@ -133,7 +133,10 @@ public static class DeltaGrowth
         var surface = level = new float[n];
         for (int i = 0; i < n; i++)
             surface[i] = seaLevel;
-        var random = new System.Random(Rand.Int);
+        // Its own random sequence, read without advancing the map's shared one, so the rest of the map does not change with it.
+        Rand.PushState();
+        var random = new System.Random(Rand.Int ^ start);
+        Rand.PopState();
 
         // The inlet: a line of the channel's width across the mouth, kept open at the channel's depth.
         var across = new Vector2(-heading.y, heading.x);
