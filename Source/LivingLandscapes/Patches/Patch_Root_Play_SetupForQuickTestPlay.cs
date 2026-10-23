@@ -195,6 +195,16 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             }
         }
         AssignMutators(tile, coast, (tile as SurfaceTile)?.Rivers?.Count ?? 0);
+        // A mixed biome needs a neighbour of another biome on its whitelist (vanilla's TileMutatorWorker_MixedBiome); a forced
+        // coast can turn that neighbour into ocean, and world generation would not have given the tile the mutator then.
+        var around = new System.Collections.Generic.List<PlanetTile>();
+        Find.WorldGrid.GetTileNeighbors(start, around);
+        foreach (TileMutatorDef mixed in tile.Mutators.Where(m => m.Worker is TileMutatorWorker_MixedBiome).ToList())
+        {
+            if (!around.Any(n => mixed.biomeWhitelist != null && mixed.biomeWhitelist.Contains(Find.WorldGrid[n].PrimaryBiome)
+                                 && Find.WorldGrid[n].PrimaryBiome != tile.PrimaryBiome))
+                tile.RemoveMutator(mixed);
+        }
         Log.Message($"[LivingLandscapes] Forced tile: {tile.PrimaryBiome.defName}, rain {tile.rainfall:F0} mm, {tile.temperature:F0} C, " +
                     $"{(tile as SurfaceTile)?.Rivers?.Count ?? 0} river links, coast {(ocean.Valid ? Find.World.CoastDirectionAt(start).ToStringHuman() : "none")}, " +
                     $"mutators [{string.Join(", ", tile.Mutators.Select(m => m.defName))}].");
