@@ -162,6 +162,7 @@ public static class Invariants
         // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
         // pool (vanilla's Caves mutator paints them in its tunnels): the landform there is the rock above, not the cave floor.
         RoofGrid roofs = map.roofGrid;
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
         bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
                                   && terrain[i] != TerrainDefOf.Marsh && !(roofs.RoofAt(i)?.isNatural ?? false);
 
@@ -187,6 +188,16 @@ public static class Invariants
             lagoon[l] |= coast != null && coast[i];
             if (!lagoon[l])
                 GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= terrain[nb] != null && terrain[nb].IsOcean);
+            // A pool of a channel (a lake its river rises in or runs through) that touches the channel's flowing water at its
+            // own level is held up by the river, not by a rim: part of the river, which invariant 1 checks. A pool above its
+            // river still fails.
+            if (!lagoon[l] && rivers != null && rivers.ChannelOf[i] >= 0 && !float.IsNaN(rivers.WaterLevel[i]))
+            {
+                int channel = rivers.ChannelOf[i];
+                float level = rivers.WaterLevel[i];
+                GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= rivers.ChannelOf[nb] == channel && !rivers.Still[nb]
+                    && rivers.WaterLevel[nb] >= level - Tolerance);
+            }
         }
         int lakes = 0, inDepression = 0, lagoons = 0;
         var failing = new StringBuilder();
@@ -230,7 +241,7 @@ public static class Invariants
                 dryHollows++;
         }
         summary.AppendLine($"invariant 2 (lakes in depressions): {(inDepression == lakes ? "ok" : "FAIL")} | " +
-                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea ({lagoons} lagoons); " +
+                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea or their river ({lagoons} lagoons and river pools); " +
                            $"{hollows} closed depressions >= {DepressionDepth} m deep ({hollowArea} cells), {dryHollows} hold no water" +
                            (failing.Length > 0 ? $"; not in a depression:{failing}" : ""));
     }
