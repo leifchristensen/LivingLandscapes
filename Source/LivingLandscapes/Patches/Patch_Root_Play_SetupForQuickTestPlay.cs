@@ -50,8 +50,18 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             string[] parts = text.Split(',');
             int layer = parts.Length > 1 && int.TryParse(parts[1], out int l) ? l : Find.WorldGrid.Surface.LayerID;
             var reason = new System.Text.StringBuilder();
-            if (int.TryParse(parts[0], out int id) && id >= 0 && id < Find.WorldGrid.Surface.TilesCount
-                && TileFinder.IsValidTileForNewSettlement(new PlanetTile(id, layer), reason))
+            bool known = int.TryParse(parts[0], out int id) && id >= 0 && id < Find.WorldGrid.Surface.TilesCount;
+            // Faction settlements are placed at random per world: one on or beside the player's tile here need not exist in
+            // the player's world, so it gives way.
+            if (known)
+            {
+                var near = new System.Collections.Generic.List<PlanetTile>();
+                Find.WorldGrid.GetTileNeighbors(new PlanetTile(id, layer), near);
+                near.Add(new PlanetTile(id, layer));
+                foreach (var settlement in Find.WorldObjects.Settlements.Where(s => near.Contains(s.Tile)).ToList())
+                    settlement.Destroy();
+            }
+            if (known && TileFinder.IsValidTileForNewSettlement(new PlanetTile(id, layer), reason))
             {
                 Find.GameInitData.startingTile = new PlanetTile(id, layer);
                 Tile tile = Find.WorldGrid[Find.GameInitData.startingTile];
