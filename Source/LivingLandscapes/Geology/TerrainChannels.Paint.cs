@@ -222,7 +222,9 @@ public static partial class TerrainChannels
             int c = owner[i];
             if (c < 0)
                 continue;
-            float level = filled[c];
+            // Water never stands above the surface a cell drains at: below a fall, a cell the upper channel cell's disc reaches
+            // (a hollow centre cell left to the lake model, say) keeps its own lower level rather than the water above the fall.
+            float level = Mathf.Min(filled[c], filled[i]);
             system.WaterLevel[i] = level;
             system.Flow[i] = direction[c];
             system.ChannelOf[i] = planOf[c];
