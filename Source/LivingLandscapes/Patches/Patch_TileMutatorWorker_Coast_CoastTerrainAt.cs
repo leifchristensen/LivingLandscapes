@@ -16,12 +16,15 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
 {
     public static void Postfix(IntVec3 cell, Map map, ref TerrainDef __result)
     {
-        if (__result == null)
-            return;
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null || !cell.InBounds(map))
             return;
         int i = map.cellIndices.CellToIndex(cell);
+        // A river's drowned lower valley (its delta's estuary) is sea, wherever the coast noise put the shore; its islands stay land.
+        if ((environment.PlannedRivers?.Drowned?[i] ?? false) && !(environment.PlannedRivers.DeltaLand?[i] ?? false))
+            __result ??= TerrainDefOf.WaterOceanShallow;
+        if (__result == null)
+            return;
         // Land the channels built at their mouths, the erosion model's deposition built out over the sea, or a sea stack.
         if ((environment.PlannedRivers?.DeltaLand?[i] ?? false) || (environment.PlannedDeltaLand?[i] ?? false) || (environment.PlannedStacks?[i] ?? false))
         {

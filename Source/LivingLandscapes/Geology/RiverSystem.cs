@@ -63,6 +63,9 @@ public class RiverSystem
     /// <summary>Cells where river deposits built land above the sea (delta land): the coast mutator must not paint sea there.</summary>
     public bool[] DeltaLand;
 
+    /// <summary>Land the sea drowned in a river's lower valley (the delta's estuary, <see cref="DeltaStream"/>): the coast paints it water.</summary>
+    public bool[] Drowned;
+
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }
 

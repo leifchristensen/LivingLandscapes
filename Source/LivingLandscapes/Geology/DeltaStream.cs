@@ -89,6 +89,16 @@ public class DeltaStreamSettings
     public bool seedIslands = true;
 
     /// <summary>
+    /// The drowned valley the delta fills (rivers' lower valleys drowned by the sea's rise since the last ice age, then filled by
+    /// their deltas): from an apex valleyWidths river widths up the river, the valley widens toward the sea at valleyAngle degrees
+    /// either side and lies platformDepth below the sea; its banks wander by bankNoise river widths. The islands and streamlines
+    /// start at the apex, inside the banks.
+    /// </summary>
+    public float valleyWidths = 12f;
+    public float valleyAngle = 32f;
+    public float bankNoise = 1.2f;
+
+    /// <summary>
     /// How far the delta reaches: platformShare of its sediment has built the delta top, a platform platformDepth metres below the
     /// sea, over a cone (coneAngle + platformMargin degrees either side of the river) out from the mouth; the delta front lies where
     /// that sediment runs out. A large river builds a large delta, a creek a small one, whatever the shelf.
@@ -121,7 +131,8 @@ public class DeltaStreamSettings
 public static class DeltaStream
 {
     public static int Grow(float[] height, bool[] sea, float[] erodibility, int start, Vector2 heading, float width, float depth, float seaLevel,
-        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report)
+        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report,
+        int apexCell = -1, bool[] drownedOut = null)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
         int n = sizeX * sizeZ;
@@ -129,8 +140,54 @@ public static class DeltaStream
         var across = new Vector2(-heading.y, heading.x);
         var mouth = new Vector2(start % sizeX + 0.5f, start / sizeX + 0.5f);
         erodibility ??= Fill(n, 1f);
-        int seeded = 0;
+        int seeded = 0, drowned = 0;
         float reach = 0f;
+
+        // 0. The drowned valley: from the apex (up the river's course where it is known, else straight up the heading) a funnel
+        // widening toward the sea lies under shallow water; the ground beside it stays as the delta's banks.
+        Vector2 apex = mouth;
+        if (p.valleyWidths > 0f)
+        {
+            float length = p.valleyWidths * width;
+            if (apexCell >= 0)
+                apex = new Vector2(apexCell % sizeX + 0.5f, apexCell / sizeX + 0.5f);
+            else
+            {
+                apex = mouth - heading * length;
+                while ((apex.x < 3f || apex.y < 3f || apex.x >= sizeX - 3 || apex.y >= sizeZ - 3) && (apex - mouth).magnitude > width)
+                    apex += heading;
+            }
+            length = (mouth - apex).magnitude;
+            if (length > width)
+            {
+                // The valley's axis runs from the apex to the mouth; the river enters at the apex.
+                heading = (mouth - apex).normalized;
+                across = new Vector2(-heading.y, heading.x);
+                float spread = Mathf.Tan(p.valleyAngle * Mathf.Deg2Rad), floorLevel = seaLevel - p.platformDepth;
+                float phaseA = (float)random.NextDouble() * 6.28f, phaseB = (float)random.NextDouble() * 6.28f;
+                float Wobble(float along, float side) => p.bankNoise * width * (0.6f * Mathf.Sin(along * 0.06f + phaseA + side) + 0.4f * Mathf.Sin(along * 0.17f + phaseB - side));
+                for (int i = 0; i < n; i++)
+                {
+                    var v = new Vector2(i % sizeX + 0.5f, i / sizeX + 0.5f) - apex;
+                    float along = Vector2.Dot(v, heading), side = Vector2.Dot(v, across);
+                    if (along < 0f || along > length + width)
+                        continue;
+                    float half = width * 0.6f + along * spread + Wobble(along, side > 0f ? 1.7f : 0f) * Mathf.Clamp01(along / (2f * width));
+                    if (Mathf.Abs(side) > half)
+                        continue;
+                    if (height[i] > floorLevel)
+                        height[i] = floorLevel;
+                    if (!sea[i])
+                    {
+                        sea[i] = true;
+                        drowned++;
+                        if (drownedOut != null)
+                            drownedOut[i] = true;
+                    }
+                    erodibility[i] = 1f;
+                }
+            }
+        }
 
         // 1. Fixed islands before the delta forms: Galton rows inside the banks, out to the delta front.
         if (seedIslands && p.seedIslands)
@@ -172,6 +229,8 @@ public static class DeltaStream
                 }
             }
             reach = frontDistance;
+            // Rows from the apex: through the drowned valley and out over the front the sediment built.
+            frontDistance += (mouth - apex).magnitude;
             var rowsAt = new List<float>();
             for (float d = p.firstRow * width; d < frontDistance; d *= p.rowGrowth)
                 rowsAt.Add(d);
@@ -192,7 +251,7 @@ public static class DeltaStream
                     float angle = (-p.coneAngle + t * 2f * p.coneAngle + ((float)random.NextDouble() * 2f - 1f) * p.jitter * spacing) * Mathf.Deg2Rad;
                     float distance = rowsAt[row] * (1f + ((float)random.NextDouble() * 2f - 1f) * p.jitter * (p.rowGrowth - 1f));
                     var dir = new Vector2(heading.x * Mathf.Cos(angle) - heading.y * Mathf.Sin(angle), heading.x * Mathf.Sin(angle) + heading.y * Mathf.Cos(angle));
-                    Vector2 at = mouth + dir * distance;
+                    Vector2 at = apex + dir * distance;
                     // Log-normal size; largest mid-delta, small near the mouth; front bars small and lying across the flow.
                     float gauss = Mathf.Sqrt(-2f * Mathf.Log(Mathf.Max(1e-6f, (float)random.NextDouble()))) * Mathf.Cos(6.2832f * (float)random.NextDouble());
                     float size = (front ? p.frontBarSize : p.seedSize * Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(middle))) * width * Mathf.Exp(p.sizeSpread * gauss);
@@ -310,7 +369,7 @@ public static class DeltaStream
                 // Each round the streamlines start at shifted places across the river (turbulence), so they do not retrace the same
                 // tracks and leave stripes in the bed.
                 float offset = (s + 0.5f + ((float)random.NextDouble() - 0.5f)) / p.streamlines - 0.5f;
-                Vector2 at = mouth + across * (offset * width);
+                Vector2 at = apex + across * (offset * width);
                 Vector2 dir = heading;
                 float u = Mathf.Lerp(1f, p.bankSpeed, Mathf.Abs(offset) * 2f);
                 path.Clear();
@@ -498,7 +557,7 @@ public static class DeltaStream
                 land++;
         }
 
-        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; delta top out to {reach:F0} cells, {seeded} seed islands; " +
+        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; drowned valley {(mouth - apex).magnitude:F0} cells long ({drowned} cells of land drowned), delta top {reach:F0} cells out, {seeded} seed islands; " +
                  $"deposited {deposited:F0}, eroded {eroded:F0} ({struck:F0} scoured from shores), carried off {offshore:F0}; {land} cells of land over the sea; {strands} streamlines stranded";
         return land;
     }

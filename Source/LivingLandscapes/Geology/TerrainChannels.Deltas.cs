@@ -167,8 +167,13 @@ public static partial class TerrainChannels
                     Rand.PushState();
                     var random = new System.Random(Rand.Int ^ start);
                     Rand.PopState();
+                    // The drowned valley's apex: valleyWidths river widths up the river's own course.
+                    int valleyHead = mouth;
+                    for (int k = 0; k < p.deltaStream.valleyWidths * w && main[valleyHead] >= 0; k++)
+                        valleyHead = main[valleyHead];
+                    system.Drowned ??= new bool[n];
                     land += DeltaStream.Grow(height, sea, material, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaStream, random, true,
-                        out _, out _, out modelReport);
+                        out _, out _, out modelReport, valleyHead, system.Drowned);
                 }
                 else
                     land += DeltaHydro.Grow(height, sea, erodibility, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaHydro, out _, out _, out modelReport);
