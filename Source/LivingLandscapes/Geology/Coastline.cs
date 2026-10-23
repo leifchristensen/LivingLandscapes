@@ -1,5 +1,6 @@
 using HarmonyLib;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -8,8 +9,42 @@ namespace LivingLandscapes.Geology;
 /// <summary>Tuning of <see cref="Coastline"/>, set with the landform tuning in XML.</summary>
 public class CoastlineExtension
 {
-    /// <summary>Metres the sea floor drops below the beach, at the deepest (the far side of the map from the shore).</summary>
-    public float seaDepth = 14f;
+    /// <summary>
+    /// The sea floor (issue #59): a gentle shelf out to the shelf break, shelfDepth metres below the beach at shelfWidth cells
+    /// from the shore, then a steeper slope (metres per cell) down to maxDepth. Low coasts have wide shelves and steep coasts
+    /// narrow ones (passive and active margins), so the shelf's width follows the tile's hilliness. Both the coast on the map
+    /// and the erosion model's sea (the room river sediment fills) use this one profile.
+    /// </summary>
+    public float shelfWidthFlat = 90f;
+    public float shelfWidthSmallHills = 60f;
+    public float shelfWidthLargeHills = 35f;
+    public float shelfWidthMountainous = 20f;
+    public float shelfWidthImpassable = 12f;
+    public float shelfDepth = 3f;
+    public float slopeGradient = 0.25f;
+    public float maxDepth = 14f;
+
+    public float ShelfWidthFor(Hilliness hilliness)
+    {
+        switch (hilliness)
+        {
+            case Hilliness.Flat: return shelfWidthFlat;
+            case Hilliness.SmallHills: return shelfWidthSmallHills;
+            case Hilliness.LargeHills: return shelfWidthLargeHills;
+            case Hilliness.Mountainous: return shelfWidthMountainous;
+            case Hilliness.Impassable: return shelfWidthImpassable;
+            default: return shelfWidthSmallHills;
+        }
+    }
+
+    /// <summary>Metres the sea floor lies below the beach this many map cells from the shore.</summary>
+    public float SeaDepth(float cellsOffshore, Hilliness hilliness)
+    {
+        float shelf = Mathf.Max(ShelfWidthFor(hilliness), 1f);
+        return cellsOffshore <= shelf
+            ? shelfDepth * cellsOffshore / shelf
+            : Mathf.Min(maxDepth, shelfDepth + slopeGradient * (cellsOffshore - shelf));
+    }
 
     /// <summary>How far inland the land is drawn down to the beach, in the coast noise's units (0.1 is a tenth of the map's width).</summary>
     public float landFalloff = 0.22f;
@@ -101,13 +136,14 @@ public static class Coastline
         // The beach: the low end of the land (a coastal plain), so no inland ground has to run uphill to reach it.
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
+        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore, sizeX, n / sizeX);
+        Hilliness hilliness = map.TileInfo.hilliness;
         int sea = 0;
         for (int i = 0; i < n; i++)
         {
             if (noise[i] < shore)
             {
-                float offshore = Mathf.Clamp01((shore - noise[i]) / Mathf.Max(shore, 0.01f));
-                height[i] = beach - p.seaDepth * offshore * offshore - 0.3f;
+                height[i] = beach - p.SeaDepth(fromLand[i], hilliness) - 0.3f;
                 sea++;
             }
             else
@@ -135,7 +171,7 @@ public static class Coastline
                 low++;
         }
         Log.Message($"[LivingLandscapes] Coast setting: of {near} land cells within 30 of the shore, {below} lie below the beach (deepest {deepest:F1} m), " +
-                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it.");
+                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it; shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}).");
         return sea;
     }
 }
