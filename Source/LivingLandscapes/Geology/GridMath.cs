@@ -402,4 +402,28 @@ public static class GridMath
                 visit(nz * sizeX + nx);
         }
     }
+
+    /// <summary>Marked cells with at most two marked neighbours of eight: land in strips one cell wide, not lobes (#61).</summary>
+    public static int Strips(bool[] marked, int sizeX, int sizeZ)
+    {
+        int strips = 0;
+        for (int i = 0; i < marked.Length; i++)
+        {
+            if (!marked[i])
+                continue;
+            int x = i % sizeX, z = i / sizeX, around = 0;
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int nx = x + dx, nz = z + dz;
+                    if ((dx != 0 || dz != 0) && nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && marked[nz * sizeX + nx])
+                        around++;
+                }
+            }
+            if (around <= 2)
+                strips++;
+        }
+        return strips;
+    }
 }

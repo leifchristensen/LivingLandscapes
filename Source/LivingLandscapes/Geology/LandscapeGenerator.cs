@@ -85,6 +85,12 @@ public class GeologyGenerationExtension : DefModExtension
     public FloatRange marineRemoval = new FloatRange(0.4f, 0.85f);
     public float fetchCells = 150f;
 
+    /// <summary>
+    /// Sediment reaching the sea fills the room nearest the mouth first and spreads outward over open water, ring by ring, to
+    /// at most this many model cells per mouth and step: built land grows as lobes (#61).
+    /// </summary>
+    public int maxFillCells = 48;
+
     /// <summary>How much more the upslope side of the region is uplifted than the downslope side.</summary>
     public float regionalUpliftBias = 0.5f;
 
@@ -304,7 +310,8 @@ public static class LandscapeGenerator
             }
             environment.PlannedDeltaLand = builtCells > 0 ? deltaLand : null;
             if (builtCells > 0)
-                Log.Message($"[LivingLandscapes] Deposition built {builtCells} cells of land out over the sea on {map}.");
+                Log.Message($"[LivingLandscapes] Deposition built {builtCells} cells of land out over the sea on {map} " +
+                            $"({GridMath.Strips(deltaLand, sizeX, sizeZ)} in strips; model grid {GridMath.Strips(built, gx, gz)} of {built.Count(b => b)} cells in strips).");
         }
         int bodies = resistant.Count(v => v >= 0.5f);
         if (bodies > 0)
@@ -652,6 +659,10 @@ public static class LandscapeGenerator
             top = Mathf.Max(top, h[i]);
         // The sea floor's depth in the model's units: its relief spans the tile's relief in metres.
         float perMetre = top / Mathf.Max(relief, 1f);
+        // The sea fill's working space, made only once a mouth fills (the sea keeps sediment only late in the run).
+        Queue<int> fill = null;
+        int[] seen = null;
+        int stamp = 0;
         float Room(int i) => seaDepth[i] * perMetre + 1e-4f * top - seaFill[i];
         for (int k = count - 1; k >= 0; k--)
         {
@@ -670,9 +681,16 @@ public static class LandscapeGenerator
             if (seaDepth == null || seaDepth[c] <= 0f || !seaKeeps)
                 continue;
             float carried = load[c] * (1f - removal);
-            int at = c;
-            for (int hop = 0; hop < 24 && carried > 0f && at >= 0; hop++)
+            // Nearest room first, spreading ring by ring over open water (not through land or built cells): built land
+            // grows as lobes. Walking on to the one roomiest neighbour traced one-cell paths, fingers of land on the map (#61).
+            fill ??= new Queue<int>();
+            seen ??= new int[n];
+            fill.Clear();
+            fill.Enqueue(c);
+            seen[c] = ++stamp;
+            for (int visited = 0; fill.Count > 0 && carried > 0f && visited < p.maxFillCells; visited++)
             {
+                int at = fill.Dequeue();
                 float room = Room(at);
                 float put = Mathf.Min(carried, Mathf.Max(0f, room));
                 seaFill[at] += put;
@@ -684,25 +702,18 @@ public static class LandscapeGenerator
                     outlet[at] = false;
                     h[at] = 1e-4f * top;
                 }
-                // On into the open water with the most room left nearby.
-                int x = at % gx, z = at / gx, next = -1;
-                float best = 0f;
+                int x = at % gx, z = at / gx;
                 for (int d = 0; d < 8; d++)
                 {
                     int nx = x + DX[d], nz = z + DZ[d];
                     if (nx < 0 || nz < 0 || nx >= gx || nz >= gz)
                         continue;
                     int nb = nz * gx + nx;
-                    if (seaDepth[nb] <= 0f || built[nb])
+                    if (seaDepth[nb] <= 0f || built[nb] || seen[nb] == stamp)
                         continue;
-                    float left = Room(nb);
-                    if (left > best)
-                    {
-                        best = left;
-                        next = nb;
-                    }
+                    seen[nb] = stamp;
+                    fill.Enqueue(nb);
                 }
-                at = next;
             }
         }
     }

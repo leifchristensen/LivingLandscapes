@@ -64,6 +64,10 @@ public static partial class TerrainChannels
             }
         }
         receiverOut = Refill(filled, sizeX, sizeZ, isOutlet, p);
+        var raised = new bool[n];
+        for (int i = 0; i < n; i++)
+            raised[i] = baseLevel[i] && built[i] > 0f;
+        Log.Message($"[LivingLandscapes] Channel deltas raised {System.Array.FindAll(raised, r => r).Length} cells at base level ({GridMath.Strips(raised, sizeX, sizeZ)} in strips), {land} above the sea ({GridMath.Strips(system.DeltaLand, sizeX, sizeZ)} in strips).");
         return land;
     }
 }
