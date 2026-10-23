@@ -104,10 +104,10 @@
                stripes, hogbacks) only on rugged tiles and only sometimes (steepChance). First pass, to be tuned by eye. -->
           <byHilliness>
             <li><hilliness>Flat</hilliness><dip>0~1</dip><bedsAcrossRelief>3~4</bedsAcrossRelief></li>
-            <li><hilliness>SmallHills</hilliness><dip>0~2</dip><bedsAcrossRelief>6~8</bedsAcrossRelief></li>
-            <li><hilliness>LargeHills</hilliness><dip>0~4</dip><steepChance>0.1</steepChance><bedsAcrossRelief>10~14</bedsAcrossRelief></li>
-            <li><hilliness>Mountainous</hilliness><dip>2~8</dip><steepChance>0.3</steepChance><steepDip>20~45</steepDip><bedsAcrossRelief>14~20</bedsAcrossRelief></li>
-            <li><hilliness>Impassable</hilliness><dip>3~10</dip><steepChance>0.4</steepChance><steepDip>25~50</steepDip><bedsAcrossRelief>18~24</bedsAcrossRelief></li>
+            <li><hilliness>SmallHills</hilliness><dip>0~2</dip><bedsAcrossRelief>6~8</bedsAcrossRelief><intrusionShare>0.02</intrusionShare></li>
+            <li><hilliness>LargeHills</hilliness><dip>0~4</dip><steepChance>0.1</steepChance><bedsAcrossRelief>10~14</bedsAcrossRelief><intrusionShare>0.06</intrusionShare></li>
+            <li><hilliness>Mountainous</hilliness><dip>2~8</dip><steepChance>0.3</steepChance><steepDip>20~45</steepDip><bedsAcrossRelief>14~20</bedsAcrossRelief><intrusionShare>0.1</intrusionShare></li>
+            <li><hilliness>Impassable</hilliness><dip>3~10</dip><steepChance>0.4</steepChance><steepDip>25~50</steepDip><bedsAcrossRelief>18~24</bedsAcrossRelief><intrusionShare>0.14</intrusionShare></li>
           </byHilliness>
           <warpAmplitude>12</warpAmplitude>
           <warpScale>60</warpScale>

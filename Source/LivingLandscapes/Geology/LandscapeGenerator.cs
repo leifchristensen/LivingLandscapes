@@ -258,6 +258,7 @@ public static class LandscapeGenerator
         rockStrength = new float[sizeX * sizeZ];
         rock = new ThingDef[sizeX * sizeZ];
         rockStage = new int[sizeX * sizeZ];
+        var resistant = new float[sizeX * sizeZ];
         for (int z = 0; z < sizeZ; z++)
         {
             for (int x = 0; x < sizeX; x++)
@@ -268,6 +269,7 @@ public static class LandscapeGenerator
                 rockStrength[z * sizeX + x] = strata.Strength(site, bedHeight);
                 rock[z * sizeX + x] = strata.RockAt(site, bedHeight);
                 rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
+                resistant[z * sizeX + x] = site.hard;
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;
@@ -304,7 +306,10 @@ public static class LandscapeGenerator
             if (builtCells > 0)
                 Log.Message($"[LivingLandscapes] Deposition built {builtCells} cells of land out over the sea on {map}.");
         }
-        int sea = Coastline.Apply(map, result, p.coast);
+        int bodies = resistant.Count(v => v >= 0.5f);
+        if (bodies > 0)
+            Log.Message($"[LivingLandscapes] Resistant rock bodies (plugs, dikes) cover {(float)bodies / resistant.Length:P1} of {map}.");
+        int sea = Coastline.Apply(map, result, p.coast, resistant);
         if (sea > 0)
             Log.Message($"[LivingLandscapes] Coastline on {map}: {sea} sea cells set below the beach, land eased down to it.");
         return result;

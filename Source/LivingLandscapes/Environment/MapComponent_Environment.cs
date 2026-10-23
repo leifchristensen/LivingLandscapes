@@ -39,6 +39,12 @@ public class MapComponent_Environment : MapComponent
     /// <summary>Land the erosion model built out over the sea (deltas): the coast leaves it land. Generation only.</summary>
     public bool[] PlannedDeltaLand { get; set; }
 
+    /// <summary>
+    /// Sea stacks (issue #60): resistant rock near the shore that waves left standing above the sea. The coast mutator leaves
+    /// it land; unlike delta land it is bare rock, not deep soil.
+    /// </summary>
+    public bool[] PlannedStacks { get; set; }
+
     /// <summary>Hard beds at or below each cell's surface (<see cref="Geology.RockStrata.HardBedsBelow"/>): the terrace stages follow it. Not saved.</summary>
     public int[] PlannedRockStage { get; set; }
     public ThingDef[] PlannedRock { get; set; }

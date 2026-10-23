@@ -24,6 +24,15 @@ public class CoastlineExtension
     public float slopeGradient = 0.25f;
     public float maxDepth = 14f;
 
+    /// <summary>
+    /// Sea stacks (issue #60): within stackReach cells of the shore, rock at least this deep inside a resistant body
+    /// (<see cref="RockStrata"/> intrusions, 0..1) across its whole 3x3 neighbourhood survives the waves that cut the softer
+    /// rock round it, and stands up to stackHeight metres above the beach. Thin bodies (dikes) are cut through.
+    /// </summary>
+    public float stackReach = 12f;
+    public float stackHardness = 0.6f;
+    public float stackHeight = 6f;
+
     public float ShelfWidthFor(Hilliness hilliness)
     {
         switch (hilliness)
@@ -98,10 +107,11 @@ public static class Coastline
             return null;
         float shore = SandLimit(coast);
         float[] noise = NoiseOver(map, coast);
-        bool[] built = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDeltaLand;
+        var environment = map.GetComponent<Environment.MapComponent_Environment>();
+        bool[] built = environment?.PlannedDeltaLand, stacks = environment?.PlannedStacks;
         var sea = new bool[map.Area];
         for (int i = 0; i < sea.Length; i++)
-            sea[i] = (built == null || !built[i]) && noise[i] < shore;
+            sea[i] = (built == null || !built[i]) && (stacks == null || !stacks[i]) && noise[i] < shore;
         return sea;
     }
 
@@ -130,8 +140,27 @@ public static class Coastline
         return null;
     }
 
-    /// <summary>Reshapes <paramref name="height"/> (metres above sea level) around the map's coast mutators. Returns the number of sea cells.</summary>
-    public static int Apply(Map map, float[] height, CoastlineExtension p)
+    /// <summary>Whether a cell and all its neighbours lie in resistant rock: a body wide enough to stand against the waves.</summary>
+    private static bool Core(float[] resistant, int i, int sizeX, int sizeZ, float hardness)
+    {
+        int x = i % sizeX, z = i / sizeX;
+        for (int dz = -1; dz <= 1; dz++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int nx = x + dx, nz = z + dz;
+                if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ || resistant[nz * sizeX + nx] < hardness)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Reshapes <paramref name="height"/> (metres above sea level) around the map's coast mutators; resistant rock near the
+    /// shore (<paramref name="resistant"/>, 0..1 per cell) stays as sea stacks. Returns the number of sea cells.
+    /// </summary>
+    public static int Apply(Map map, float[] height, CoastlineExtension p, float[] resistant = null)
     {
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
@@ -156,12 +185,22 @@ public static class Coastline
         // The beach: the low end of the land (a coastal plain), so no inland ground has to run uphill to reach it.
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
-        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore, sizeX, n / sizeX);
+        int sizeZ = n / sizeX;
+        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore, sizeX, sizeZ);
         Hilliness hilliness = map.TileInfo.hilliness;
-        int sea = 0;
+        bool[] stacks = null;
+        int sea = 0, stackCells = 0;
         for (int i = 0; i < n; i++)
         {
-            if (noise[i] < shore)
+            if (noise[i] < shore && resistant != null && fromLand[i] <= p.stackReach && Core(resistant, i, sizeX, sizeZ, p.stackHardness))
+            {
+                // Waves cut the softer rock round a resistant body and leave it standing.
+                stacks ??= new bool[n];
+                stacks[i] = true;
+                height[i] = beach + p.stackHeight * resistant[i];
+                stackCells++;
+            }
+            else if (noise[i] < shore)
             {
                 height[i] = beach - p.SeaDepth(fromLand[i], hilliness) - 0.3f;
                 sea++;
@@ -174,7 +213,7 @@ public static class Coastline
             }
         }
         // Delta setting (evaluation): land near the shore below the sea (incised valleys), and how much of it is low plain.
-        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, n / sizeX);
+        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, sizeZ);
         int near = 0, below = 0, low = 0;
         float deepest = 0f;
         for (int i = 0; i < n; i++)
@@ -191,7 +230,10 @@ public static class Coastline
                 low++;
         }
         Log.Message($"[LivingLandscapes] Coast setting: of {near} land cells within 30 of the shore, {below} lie below the beach (deepest {deepest:F1} m), " +
-                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it; shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}).");
+                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it; shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}); {stackCells} cells of sea stacks.");
+        var plan = map.GetComponent<Environment.MapComponent_Environment>();
+        if (plan != null)
+            plan.PlannedStacks = stacks;
         return sea;
     }
 }
