@@ -62,20 +62,20 @@
             <landBuilding>1.6</landBuilding>
             <deltaSpread>6</deltaSpread>
           </sediment>
-          <!-- Deltas by avulsion (Distributaries): the river builds a lobe at its mouth, then leaves its raised course at the
-               avulsion node (a backwater length, depth / slope, from the shore) by the cheapest way to the sea; repeated
-               deltaCycles times on a RiverDelta tile (mouthCycles at other river mouths). The latest activeBranches courses
-               stay as distributaries, the newest taking newChannelShare of the water where it leaves the one before. -->
+          <!-- Distributaries on the delta land deposition built (Distributaries, #58): the river leaves its raised course at the
+               avulsion node (within a backwater length, depth / slope, of the shore, where its water stands highest above the
+               plain) by the cheapest way over the plain to the sea. Courses = plain area / (backwater length x courseWidths
+               channel widths); the newest takes newChannelShare where it leaves the one before. Where the sea barDistance
+               channel widths off a mouth is shallower than barDepthRatio channel depths, a mouth bar splits it in two at
+               +-splitAngle degrees. -->
           <distributaries>
-            <enabled>false</enabled>
-            <deltaCycles>7</deltaCycles>
-            <mouthCycles>1</mouthCycles>
-            <activeBranches>4</activeBranches>
+            <enabled>true</enabled>
+            <courseWidths>4</courseWidths>
+            <maxCourses>8</maxCourses>
             <newChannelShare>0.6</newChannelShare>
-            <nodeDistance>0.12~0.35</nodeDistance>
-            <lobeRadius>1.5</lobeRadius>
-            <minLobeRadius>6</minLobeRadius>
-            <maxLobeRadius>14</maxLobeRadius>
+            <barDistance>3</barDistance>
+            <barDepthRatio>2</barDepthRatio>
+            <splitAngle>30</splitAngle>
             <leveeWidths>3</leveeWidths>
             <pathNoise>3</pathNoise>
           </distributaries>

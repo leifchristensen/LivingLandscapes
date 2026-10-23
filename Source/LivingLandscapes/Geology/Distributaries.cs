@@ -11,37 +11,44 @@ public class DistributarySettings
 {
     public bool enabled = true;
 
-    /// <summary>Lobes the river builds, and so courses it takes, on a delta tile (RiverDelta) and at any other river mouth.</summary>
-    public int deltaCycles = 7;
-    public int mouthCycles = 1;
-
-    /// <summary>The most recent courses that still carry water (distributaries); older ones are abandoned to their lobes.</summary>
-    public int activeBranches = 4;
-
     /// <summary>
-    /// The avulsion node lies upstream of the shore by the backwater length, channel depth over slope, times this
-    /// (Chatanantavet et al. 2012; Ganti et al. 2014), kept within this share of the map's size.
+    /// The backwater length, channel depth over slope, times this (Chatanantavet et al. 2012; Ganti et al. 2014): the avulsion
+    /// node lies within half to one and a half of it from the shore. At least <see cref="minBackwater"/> cells, and no longer
+    /// than the low reach of the river (it cannot back up water beyond where the river runs near sea level).
     /// </summary>
     public float backwaterFactor = 1f;
-    public FloatRange nodeDistance = new FloatRange(0.12f, 0.35f);
+    public float minBackwater = 10f;
 
-    /// <summary>Share of the river the newest course takes where it leaves the old one.</summary>
+    /// <summary>
+    /// Courses the river takes over the delta plain: the plain's area over the area one course spreads its deposits over,
+    /// a backwater length long and this many channel widths wide. At most <see cref="maxCourses"/>.
+    /// </summary>
+    public float courseWidths = 4f;
+    public int maxCourses = 8;
+
+    /// <summary>Share of the river the newest course takes where it leaves the one before.</summary>
     public float newChannelShare = 0.6f;
 
     /// <summary>
-    /// Each course ends in a lobe of new land: this many channel widths across (at least <see cref="minLobeRadius"/> cells),
-    /// longer than wide seaward, its top this far (metres) above the sea.
+    /// Mouth bars (Edmonds and Slingerland 2007): where the sea this many channel widths off a mouth is shallower than
+    /// barDepthRatio times the channel's depth, the jet drops a bar there and the channel splits round it into two halves of
+    /// the water, splitAngle (degrees) to either side, again at each new mouth, at most maxBarLevels deep.
     /// </summary>
-    public float lobeRadius = 1.5f;
-    public float minLobeRadius = 6f;
-    public float maxLobeRadius = 14f;
+    public float barDistance = 3f;
+    public float barDepthRatio = 2f;
+    public float splitAngle = 30f;
+    public int maxBarLevels = 4;
+
+    /// <summary>How much a branch round a mouth bar turns as it goes (degrees per cell, at most).</summary>
+    public float branchCurl = 8f;
+
+    /// <summary>
+    /// The land a mouth bar builds: longer seaward than wide, its top this far (metres) above the sea, its front sloping down
+    /// to the old sea floor over this share of its radius, its outline wandering by this share.
+    /// </summary>
     public float lobeElongation = 1.5f;
     public float lobeHeight = 0.4f;
-
-    /// <summary>The lobe's front slopes down to the old sea floor over this share of its radius (no wall under the water).</summary>
     public float frontShare = 0.8f;
-
-    /// <summary>How much the lobe's outline wanders in and out (share of its radius).</summary>
     public float outlineNoise = 0.3f;
 
     /// <summary>
@@ -49,6 +56,12 @@ public class DistributarySettings
     /// channel is perched above the plain, which is why the river leaves it), plus noise, plus this per metre climbed.
     /// </summary>
     public float leveePenalty = 6f;
+
+    /// <summary>
+    /// Extra cost per cell of running along an earlier course's own bed (within its half-width): the bed is perched above the
+    /// plain, so the water that leaves it does not follow it back down.
+    /// </summary>
+    public float bedPenalty = 40f;
     public float pathNoise = 3f;
     public float climbCost = 4f;
 
@@ -66,19 +79,7 @@ public class DistributarySettings
     public float wobble = 4f;
     public float wobbleWavelength = 30f;
 
-    /// <summary>
-    /// Mouth-bar branching: over the last <see cref="fanLength"/> cells before the shore, each active course sends this many
-    /// branches to the sea at these angles (degrees) to alternating sides, each taking fanShare of the water there.
-    /// </summary>
-    public float fanLength = 30f;
-    public int fanBranches = 3;
-    public FloatRange fanAngle = new FloatRange(25f, 45f);
-    public float fanShare = 0.35f;
-
-    /// <summary>How much a mouth-bar branch turns as it goes (degrees per cell, at most).</summary>
-    public float fanCurl = 8f;
-
-    /// <summary>Branches narrower than this (cells) are not carved.</summary>
+    /// <summary>Channels narrower than this (cells) carry no water of their own: courses are abandoned, bars stop splitting.</summary>
     public float minWidth = 1.5f;
 
     /// <summary>The trench of a course lies this far (metres) below its water level.</summary>
@@ -86,23 +87,22 @@ public class DistributarySettings
 }
 
 /// <summary>
-/// Deltas by avulsion (issues #16, #46): a reduced-complexity version of how deltas grow (Liang, Voller and Paola 2015;
-/// Ganti et al. 2014, 2016). The river builds a lobe of new land at its mouth; its bed rises until it lies above the plain,
-/// and it breaks out at the avulsion node (a backwater length upstream of the shore) along the shortest way to the sea that
-/// avoids its own raised bed. Repeated, the courses fan out from the node over their lobes; the latest few stay as
-/// distributaries, carved as trenches whose water falls toward the sea, and the water divides where each leaves the one
-/// before. The node moves seaward as the delta builds out.
+/// Distributaries on the delta land deposition built (issue #58; Docs/DELTA-PLAN.md step 4). The land comes from the erosion
+/// model; this stage routes the water across it from the data. The river's bed rises above its plain, and it breaks out at the
+/// avulsion node (where, within a backwater length of the shore, its water stands highest above the plain beside it) along
+/// the cheapest way over the plain to the sea that avoids its own raised bed (Ganti et al. 2014, 2016). The plain's area sets
+/// how many courses it takes; the latest that still carry a channel's worth of water stay as distributaries, and where the
+/// sea off a mouth is shallow a bar splits it (Edmonds and Slingerland 2007).
 /// </summary>
 public static class Distributaries
 {
-    /// <returns>Courses carved (distributaries).</returns>
+    /// <returns>Courses and branches carved (distributaries).</returns>
     public static int Carve(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth, float[] valley,
-        bool[] sea, bool deltaTile, float[] spread, float deltaSpread, int sizeX, int sizeZ, DistributarySettings p, RiverSystem system,
+        bool[] sea, float[] spread, float deltaSpread, int sizeX, int sizeZ, DistributarySettings p, RiverSystem system,
         out int lobeCells, out List<(int at, int a, int b, float share)> splits)
     {
         lobeCells = 0;
         splits = new List<(int, int, int, float)>();
-        int cycles = deltaTile ? p.deltaCycles : p.mouthCycles;
         if (sea == null)
             return 0;
         int n = height.Length;
@@ -142,7 +142,6 @@ public static class Distributaries
         }
         float[] toSea = GridMath.DistanceTo(i => open[i], sizeX, sizeZ);
 
-        // The avulsion node: a backwater length (depth / slope) upstream of the shore.
         int mouth = river.Count - 1;
         float channelDepth = 0f, channelWidth = 0f;
         foreach (int c in river)
@@ -153,8 +152,24 @@ public static class Distributaries
         // The river's own slope over its lower reach (natural ground: the filled surface is flat over hollows).
         int last = mouth - 1, span = Mathf.Min(last, Mathf.Max(20, river.Count / 3));
         float slope = Mathf.Max((height[river[last - span]] - height[river[last]]) / Mathf.Max(span, 1), 1e-4f);
-        float size = Mathf.Max(sizeX, sizeZ);
-        float nodeDistance = Mathf.Clamp(p.backwaterFactor * Mathf.Max(channelDepth, 0.5f) / slope, p.nodeDistance.min * size, p.nodeDistance.max * size);
+
+        // The river backs its water up only as far as it runs within a channel depth of sea level (its low reach), so the
+        // backwater length is no longer than that.
+        float depthAbove = Mathf.Max(channelDepth, 0.5f);
+        float lowReach = 0f;
+        for (int k = mouth; k >= 0 && height[river[k]] <= seaLevel + depthAbove; k--)
+            lowReach = Mathf.Max(lowReach, toSea[river[k]]);
+        float backwater = Mathf.Max(p.minBackwater, Mathf.Min(p.backwaterFactor * depthAbove / slope, lowReach));
+        // The delta plain: land the river could flood, within a channel depth of its graded surface (sea level rising inland
+        // along the river's slope).
+        var plain = new bool[n];
+        int plainCells = 0;
+        for (int i = 0; i < n; i++)
+        {
+            plain[i] = !open[i] && toSea[i] <= 1.5f * backwater && height[i] <= seaLevel + slope * toSea[i] + depthAbove;
+            if (plain[i])
+                plainCells++;
+        }
 
         // Delta setting (evaluation): confinement of the lower river (valley floor over channel width) and the receiving
         // basin's depth offshore of the mouth against the channel's depth.
@@ -178,151 +193,246 @@ public static class Distributaries
             offshore.Add(x >= 0 && z >= 0 && x < sizeX && z < sizeZ ? (seaLevel - height[z * sizeX + x]).ToString("F1") : "-");
         }
         string setting = $"lower river confinement {confinement:F1} (valley / channel width), basin depth {string.Join(" / ", offshore)} m at 5/10/20/40 cells offshore";
-        if (!p.enabled || cycles <= 0)
+        if (!p.enabled)
         {
             Log.Message($"[LivingLandscapes] Delta: river {river.Count} cells, {channelWidth:F1} wide, {channelDepth:F2} m deep, slope {slope:F4}; none drawn; {setting}.");
             return 0;
         }
 
+        // How many courses: the plain's area over what one course covers (a backwater length by a few channel widths).
+        int cycles = Mathf.Clamp(Mathf.RoundToInt(plainCells / Mathf.Max(backwater * p.courseWidths * channelWidth, 1f)), 1, p.maxCourses);
         var levee = new float[n];
+        var bed = new bool[n];
         var noise = new Perlin(1.0 / p.pathNoiseWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var courses = new List<List<int>>();
         var nodes = new List<int>();
         system.DeltaLand ??= new bool[n];
+        float besideReach = channelWidth * (0.5f + p.leveeWidths);
 
-        // Course 0 is the river as it runs now, from its node to the sea (across any land already built at its mouth).
-        int node = NodeOn(river, toSea, nodeDistance);
+        // Course 0 is the river as it runs now, from its node to the sea.
+        int node = Node(river, toSea, filled, height, plain, backwater, besideReach, sizeX, sizeZ);
         List<int> course = river.GetRange(river.IndexOf(node), river.Count - river.IndexOf(node));
         Extend(course, open, toSea, sizeX, sizeZ);
         for (int cycle = 0; cycle < cycles; cycle++)
         {
             if (cycle > 0)
             {
-                // The bed has risen: the river leaves at the node by the cheapest way to the sea round its raised course.
-                node = NodeOn(course, toSea, nodeDistance);
-                List<int> next = Path(node, open, filled, levee, noise, sizeX, sizeZ, p);
+                // The bed has risen: the river leaves at the node by the cheapest way over the plain round its raised course.
+                node = Node(course, toSea, filled, height, plain, backwater, besideReach, sizeX, sizeZ);
+                List<int> next = Path(node, open, plain, filled, levee, bed, noise, sizeX, sizeZ, p);
                 if (next == null || next.Count < 3)
                     break;
                 course = Curve(next, open, noise, sizeX, sizeZ, p);
             }
             courses.Add(course);
             nodes.Add(node);
-            lobeCells += Lobe(course, open, height, filled, seaLevel, channelWidth, noise, sizeX, sizeZ, p, system.DeltaLand);
-            // Across the new lobe to the new shore, then the raised bed and levees of this course.
-            toSea = GridMath.DistanceTo(i => open[i], sizeX, sizeZ);
-            Extend(course, open, toSea, sizeX, sizeZ);
-            Raise(course, levee, channelWidth * p.leveeWidths, sizeX, sizeZ);
+            Raise(course, levee, bed, channelWidth * 0.5f + 1f, channelWidth * p.leveeWidths, sizeX, sizeZ);
         }
 
-        // Mouth bars (Edmonds and Slingerland 2007): near the shore each active course drops a bar off its mouth and divides
-        // round it, again and again, so terminal distributaries fan out at the coast. Branches leave the last stretch of each
-        // course to alternating sides, run to the sea and build their own small lobes.
-        int firstActive = Mathf.Max(0, courses.Count - p.activeBranches);
-        var fans = new List<(int parent, int at, List<int> cells)>();
-        for (int k = firstActive; k < courses.Count; k++)
-        {
-            List<int> c = courses[k];
-            var candidates = new List<int>();
-            for (int j = 2; j < c.Count - 3; j++)
-            {
-                if (!open[c[j]] && toSea[c[j]] <= p.fanLength && toSea[c[j]] >= 3f)
-                    candidates.Add(j);
-            }
-            for (int b = 0; b < p.fanBranches && candidates.Count > 0; b++)
-            {
-                int j = candidates[Mathf.Clamp(Mathf.RoundToInt((b + 0.5f) / p.fanBranches * candidates.Count), 0, candidates.Count - 1)];
-                int at = c[j];
-                Vector2 tangent = new Vector2(c[j + 2] % sizeX - c[j - 2] % sizeX, c[j + 2] / sizeX - c[j - 2] / sizeX).normalized;
-                float angle = p.fanAngle.RandomInRange * Mathf.Deg2Rad * ((b + k) % 2 == 0 ? 1f : -1f);
-                var heading = new Vector2(tangent.x * Mathf.Cos(angle) - tangent.y * Mathf.Sin(angle), tangent.x * Mathf.Sin(angle) + tangent.y * Mathf.Cos(angle));
-                List<int> branch = Straight(at, heading, open, noise, p.fanCurl, sizeX, sizeZ, Mathf.CeilToInt(p.fanLength * 2f));
-                if (branch == null || branch.Count < 3)
-                    continue;
-                branch = Curve(branch, open, noise, sizeX, sizeZ, p);
-                fans.Add((k, at, branch));
-                lobeCells += Lobe(branch, open, height, filled, seaLevel, channelWidth * p.fanShare, noise, sizeX, sizeZ, p, system.DeltaLand);
-            }
-        }
-        if (fans.Count > 0)
+        // The latest courses carry the water: the newest takes newChannelShare where it leaves the one before, which keeps the
+        // rest, and so on back. Courses whose share is narrower than a channel are abandoned below the node where the next one
+        // left them; their reach above it is the trunk the water still runs down.
+        int count = courses.Count;
+        float Share(int k, int oldest) => k < oldest ? 1f
+            : k == oldest ? Mathf.Pow(1f - p.newChannelShare, count - 1 - oldest)
+            : p.newChannelShare * Mathf.Pow(1f - p.newChannelShare, count - 1 - k);
+        int first = 0;
+        while (first < count - 1 && channelWidth * Mathf.Sqrt(Mathf.Min(Share(first, first), Share(first + 1, first))) < p.minWidth)
+            first++;
+
+        // Mouth bars at each active course's mouth, splitting it where the sea off it is shallow; the bars build land.
+        var branches = new List<(int at, List<int> cells, float share)>();
+        var splitAt = new HashSet<int>();
+        for (int k = first; k < count; k++)
+            lobeCells += Bars(courses[k], Share(k, first), 0, open, height, filled, seaLevel, channelWidth, channelDepth, noise, sizeX, sizeZ, p,
+                system.DeltaLand, branches, splitAt);
+        if (branches.Count > 0)
             toSea = GridMath.DistanceTo(i => open[i], sizeX, sizeZ);
 
-        // The latest courses carry the water: the newest takes newChannelShare where it leaves the one before, which keeps
-        // the rest, and so on back; the oldest active course keeps what is left. Older courses are abandoned below the
-        // node where the next one left them, but their reach above it is the trunk the water still runs down.
-        int first = Mathf.Max(0, courses.Count - p.activeBranches);
         float apexLevel = filled[nodes[0]];
         float apexToSea = Mathf.Max(toSea[nodes[0]], 1f);
         var trench = new float[n];
+        var level = new float[n];
         for (int i = 0; i < n; i++)
-            trench[i] = float.MaxValue;
-        int carved = 0;
-        for (int k = 0; k < courses.Count; k++)
         {
-            int active = courses.Count - first;
-            float share = k < first ? 1f
-                : k == first ? Mathf.Pow(1f - p.newChannelShare, active - 1)
-                : p.newChannelShare * Mathf.Pow(1f - p.newChannelShare, courses.Count - 1 - k);
-            float w = channelWidth * Mathf.Sqrt(share);
-            if (w < p.minWidth)
-                continue;
-            float level = float.MaxValue;
-            foreach (int c in courses[k])
+            trench[i] = float.MaxValue;
+            level[i] = float.MaxValue;
+        }
+        int carved = 0;
+        // Water falls from the apex toward the sea along each path, strictly, so the water at a split always has two ways down.
+        float Lay(List<int> cells, float start, float w, int stopAt)
+        {
+            float l = start;
+            foreach (int c in cells)
             {
-                if (k < first && c == nodes[k + 1])
+                if (c == stopAt)
                     break;
                 float field = Mathf.Lerp(seaLevel, apexLevel, Mathf.Clamp01(toSea[c] / apexToSea));
-                // Strictly falling, so the water at a node always has two ways down.
-                level = Mathf.Min(level - 0.003f, field);
-                Cut(c, level - p.trenchDepth, w * 0.5f + 1f, trench, sizeX, sizeZ);
+                l = Mathf.Min(l - 0.003f, field);
+                level[c] = Mathf.Min(level[c], l);
+                Cut(c, l - p.trenchDepth, w * 0.5f + 1f, trench, sizeX, sizeZ);
             }
+            return l;
+        }
+        // Where each course leaves the one before: the last cell they share (the new course may follow the old one for a few
+        // cells after the node), and the next cell on each.
+        var divide = new (int at, int old, int next)[count];
+        for (int k = 1; k < count; k++)
+        {
+            List<int> parent = courses[k - 1], cells = courses[k];
+            int from = parent.IndexOf(nodes[k]), j = 0;
+            while (from >= 0 && j + 1 < cells.Count && from + j + 1 < parent.Count && cells[j + 1] == parent[from + j + 1])
+                j++;
+            divide[k] = from >= 0 && j + 1 < cells.Count && from + j + 1 < parent.Count ? (cells[j], parent[from + j + 1], j + 1) : (-1, -1, -1);
+        }
+        for (int k = 0; k < count; k++)
+        {
+            float share = Share(k, first);
+            float w = channelWidth * Mathf.Sqrt(share);
+            List<int> cells = courses[k];
+            // A course takes its water at the level of the course it leaves, and falls from there; an abandoned course is laid
+            // only down to where the next one leaves it.
+            bool leaves = k > 0 && divide[k].at >= 0;
+            List<int> laid = leaves ? cells.GetRange(divide[k].next, cells.Count - divide[k].next) : cells;
+            float end = Lay(laid, leaves ? level[divide[k].at] : float.MaxValue, w, k < first && k + 1 < count ? divide[k + 1].old : -1);
             if (k < first)
                 continue;
-            ThroughFront(courses[k], level - p.trenchDepth, w * 0.5f + 1f, height, trench, sizeX, sizeZ, p);
+            if (!splitAt.Contains(cells[cells.Count - 1]))
+                ThroughFront(cells, end - p.trenchDepth, w * 0.5f + 1f, p.barDistance * w * 2f + 10f, height, trench, sizeX, sizeZ);
             carved++;
-            if (k > first)
+            if (k > first && leaves)
             {
                 // Where the course leaves the one before, the water divides.
-                List<int> parent = courses[k - 1];
-                int at = nodes[k], from = parent.IndexOf(at);
-                int a = from >= 0 && from + 1 < parent.Count ? parent[from + 1] : -1;
-                int b = courses[k].Count > 1 ? courses[k][1] : -1;
-                if (a >= 0 && b >= 0 && a != b)
-                    splits.Add((at, a, b, p.newChannelShare));
+                splits.Add((divide[k].at, divide[k].old, cells[divide[k].next], p.newChannelShare));
+                MarkSpread(divide[k].at, spread, deltaSpread, sizeX, sizeZ);
+            }
+        }
+        // Branches round the bars, parents before children: each starts at its parent's level where they divide.
+        for (int j = 0; j < branches.Count; j++)
+        {
+            (int at, List<int> cells, float share) = branches[j];
+            float w = channelWidth * Mathf.Sqrt(share);
+            float end = Lay(cells, level[at] < float.MaxValue ? level[at] : filled[at], w, -1);
+            if (!splitAt.Contains(cells[cells.Count - 1]))
+                ThroughFront(cells, end - p.trenchDepth, w * 0.5f + 1f, p.barDistance * w * 2f + 10f, height, trench, sizeX, sizeZ);
+            carved++;
+            // Branches are listed in pairs by the bar they go round.
+            if (j + 1 < branches.Count && branches[j + 1].at == at && cells.Count > 1 && branches[j + 1].cells.Count > 1)
+            {
+                splits.Add((at, cells[1], branches[j + 1].cells[1], 0.5f));
                 MarkSpread(at, spread, deltaSpread, sizeX, sizeZ);
             }
         }
-        foreach ((int parent, int at, List<int> cells) in fans)
-        {
-            float w = channelWidth * Mathf.Sqrt(p.fanShare / Mathf.Max(1, courses.Count - first));
-            if (w < p.minWidth || cells.Count < 2)
-                continue;
-            float level = filled[at];
-            foreach (int c in cells)
-            {
-                float field = Mathf.Lerp(seaLevel, apexLevel, Mathf.Clamp01(toSea[c] / apexToSea));
-                level = Mathf.Min(level - 0.003f, field);
-                Cut(c, level - p.trenchDepth, w * 0.5f + 1f, trench, sizeX, sizeZ);
-            }
-            ThroughFront(cells, level - p.trenchDepth, w * 0.5f + 1f, height, trench, sizeX, sizeZ, p);
-            List<int> trunk = courses[parent];
-            int from = trunk.IndexOf(at);
-            if (from >= 0 && from + 1 < trunk.Count && cells[1] != trunk[from + 1])
-                splits.Add((at, trunk[from + 1], cells[1], p.fanShare));
-            carved++;
-        }
         for (int i = 0; i < n; i++)
         {
-            // Lowering only: land, and the sill of a lobe's front under the water.
+            // Lowering only: land, and the sill of a bar's front under the water.
             if (trench[i] < float.MaxValue)
             {
                 height[i] = Mathf.Min(height[i], trench[i]);
                 filled[i] = Mathf.Min(filled[i], trench[i]);
             }
         }
+        // A neighbouring course's trench can cut a split cell below the cells it divides into; the cell keeps a notch above
+        // both, so its water has two ways down.
+        foreach ((int at, int a, int b, float _) in splits)
+        {
+            float above = Mathf.Max(filled[a], filled[b]) + 0.003f;
+            if (filled[at] < above)
+                height[at] = filled[at] = above;
+        }
         Log.Message($"[LivingLandscapes] Delta: river {river.Count} cells into the sea at ({river[river.Count - 1] % sizeX}, {river[river.Count - 1] / sizeX}), " +
-                    $"{channelWidth:F1} wide, {channelDepth:F2} m deep, slope {slope:F4} (heights {string.Join(" ", new[] { 0, river.Count / 4, river.Count / 2, 3 * river.Count / 4, river.Count - 2 }.Select(k => height[river[k]].ToString("F2")))}, sea {seaLevel:F2}); node {nodeDistance:F0} cells from the shore; {courses.Count} of {cycles} courses, " +
-                    $"{lobeCells} cells of lobes, {carved} carved, {splits.Count} splits; {setting}.");
+                    $"{channelWidth:F1} wide, {channelDepth:F2} m deep, slope {slope:F4}; backwater {backwater:F0} cells (low reach {lowReach:F0}), plain {plainCells} cells; " +
+                    $"{count} of {cycles} courses ({count - first} carry water), {branches.Count} branches round {splitAt.Count} mouth bars, {lobeCells} cells of bar land, " +
+                    $"{carved} carved, {splits.Count} splits; {setting}.");
         return carved;
+    }
+
+    /// <summary>
+    /// The avulsion node on a course: within half to one and a half backwater lengths of the shore, the cell whose water stands
+    /// highest above the plain beside it (superelevation); the cell a backwater length from the shore if none lies there.
+    /// </summary>
+    private static int Node(List<int> course, float[] toSea, float[] filled, float[] height, bool[] plain, float backwater, float beside,
+        int sizeX, int sizeZ)
+    {
+        int best = -1;
+        float highest = float.MinValue;
+        int reach = Mathf.CeilToInt(beside) + 1;
+        for (int k = 0; k < course.Count - 3; k++)
+        {
+            int c = course[k];
+            if (toSea[c] < 0.5f * backwater || toSea[c] > 1.5f * backwater)
+                continue;
+            // The plain beside: plain cells at about the channel's edge plus its levees.
+            float sum = 0f;
+            int cells = 0, cx = c % sizeX, cz = c / sizeX;
+            for (int dz = -reach; dz <= reach; dz++)
+            {
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    int x = cx + dx, z = cz + dz;
+                    float r = Mathf.Sqrt(dx * dx + dz * dz);
+                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ || r < beside - 1f || r > beside + 1f || !plain[z * sizeX + x])
+                        continue;
+                    sum += height[z * sizeX + x];
+                    cells++;
+                }
+            }
+            if (cells == 0)
+                continue;
+            float rise = filled[c] - sum / cells;
+            if (rise > highest)
+            {
+                highest = rise;
+                best = c;
+            }
+        }
+        return best >= 0 ? best : NodeOn(course, toSea, backwater);
+    }
+
+    /// <summary>
+    /// A mouth bar (Edmonds and Slingerland 2007): where the sea barDistance channel widths off the path's mouth is shallower
+    /// than barDepthRatio channel depths, the jet slows and drops a bar there. The bar builds land out to it, and the channel
+    /// divides round it into two branches with half the water each, running on to the new shore; each branch's mouth may
+    /// get its own bar. Branches are added in pairs (or one, if only one finds the sea). Returns the cells of bar land.
+    /// </summary>
+    private static int Bars(List<int> path, float share, int barLevel, bool[] open, float[] height, float[] filled, float seaLevel,
+        float channelWidth, float channelDepth, Perlin noise, int sizeX, int sizeZ, DistributarySettings p, bool[] deltaLand,
+        List<(int at, List<int> cells, float share)> branches, HashSet<int> splitAt)
+    {
+        if (barLevel >= p.maxBarLevels || path.Count < 2 || channelWidth * Mathf.Sqrt(share * 0.5f) < p.minWidth)
+            return 0;
+        // Width and depth follow discharge (hydraulic geometry: width as its square root, depth as its 0.4 power).
+        float w = channelWidth * Mathf.Sqrt(share), d = channelDepth * Mathf.Pow(share, 0.4f);
+        int mouth = path[path.Count - 1], before = path[Mathf.Max(0, path.Count - 6)];
+        var at = new Vector2(mouth % sizeX + 0.5f, mouth / sizeX + 0.5f);
+        Vector2 heading = at - new Vector2(before % sizeX + 0.5f, before / sizeX + 0.5f);
+        if (heading == Vector2.zero)
+            return 0;
+        heading.Normalize();
+        float reach = p.barDistance * w;
+        Vector2 bar = at + heading * reach;
+        int bx = Mathf.FloorToInt(bar.x), bz = Mathf.FloorToInt(bar.y);
+        if (bx < 0 || bz < 0 || bx >= sizeX || bz >= sizeZ || !open[bz * sizeX + bx] || seaLevel - height[bz * sizeX + bx] > p.barDepthRatio * d)
+            return 0;
+        int land = Lobe(mouth, heading, reach * 0.5f, open, height, filled, seaLevel, noise, sizeX, sizeZ, p, deltaLand);
+        var found = new List<List<int>>();
+        foreach (float side in new[] { 1f, -1f })
+        {
+            float angle = side * p.splitAngle * Mathf.Deg2Rad;
+            var h = new Vector2(heading.x * Mathf.Cos(angle) - heading.y * Mathf.Sin(angle), heading.x * Mathf.Sin(angle) + heading.y * Mathf.Cos(angle));
+            List<int> branch = Straight(mouth, h, open, noise, p.branchCurl, sizeX, sizeZ, Mathf.CeilToInt(reach * 3f) + 4);
+            if (branch != null && branch.Count >= 3)
+                found.Add(branch);
+        }
+        if (found.Count == 0)
+            return land;
+        splitAt.Add(mouth);
+        float each = found.Count == 2 ? share * 0.5f : share;
+        foreach (List<int> branch in found)
+            branches.Add((mouth, branch, each));
+        foreach (List<int> branch in found)
+            land += Bars(branch, each, barLevel + 1, open, height, filled, seaLevel, channelWidth, channelDepth, noise, sizeX, sizeZ, p, deltaLand, branches, splitAt);
+        return land;
     }
 
     /// <summary>The cell of a course nearest a backwater length from the shore (not its last cells).</summary>
@@ -338,8 +448,8 @@ public static class Distributaries
         return best;
     }
 
-    /// <summary>The cheapest way from <paramref name="from"/> to open sea (Dijkstra over 8 neighbours).</summary>
-    private static List<int> Path(int from, bool[] open, float[] filled, float[] levee, Perlin noise, int sizeX, int sizeZ, DistributarySettings p)
+    /// <summary>The cheapest way from <paramref name="from"/> over the delta plain to open sea (Dijkstra over 8 neighbours).</summary>
+    private static List<int> Path(int from, bool[] open, bool[] plain, float[] filled, float[] levee, bool[] bed, Perlin noise, int sizeX, int sizeZ, DistributarySettings p)
     {
         int n = open.Length;
         var cost = new float[n];
@@ -369,7 +479,9 @@ public static class Distributaries
                 if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
                     continue;
                 int next = nz * sizeX + nx;
-                float step = (d >= 4 ? 1.4142f : 1f) * (1f + levee[next] * p.leveePenalty + p.pathNoise * (0.5f + 0.5f * (float)noise.GetValue(nx, 0.0, nz)))
+                if (!plain[next] && !open[next])
+                    continue;
+                float step = (d >= 4 ? 1.4142f : 1f) * (1f + levee[next] * p.leveePenalty + (bed[next] ? p.bedPenalty : 0f) + p.pathNoise * (0.5f + 0.5f * (float)noise.GetValue(nx, 0.0, nz)))
                              + p.climbCost * Mathf.Max(0f, filled[next] - filled[c]);
                 if (at + step < cost[next])
                 {
@@ -391,7 +503,7 @@ public static class Distributaries
     /// <summary>
     /// The channel runs on past its mouth, down the lobe's front, until the sea floor lies below its bed: no sill dams it.
     /// </summary>
-    private static void ThroughFront(List<int> cells, float bottom, float radius, float[] height, float[] trench, int sizeX, int sizeZ, DistributarySettings p)
+    private static void ThroughFront(List<int> cells, float bottom, float radius, float reach, float[] height, float[] trench, int sizeX, int sizeZ)
     {
         if (cells.Count < 2)
             return;
@@ -401,7 +513,6 @@ public static class Distributaries
             return;
         heading.Normalize();
         var v = new Vector2(last % sizeX + 0.5f, last / sizeX + 0.5f);
-        float reach = p.maxLobeRadius * p.lobeElongation * (1f + p.frontShare);
         for (float d = 0f; d < reach; d += 0.5f)
         {
             v += heading * 0.5f;
@@ -493,18 +604,13 @@ public static class Distributaries
     }
 
     /// <summary>
-    /// Builds a lobe of new land where the course meets the sea: sea cells around the mouth, longer seaward than wide, rise
-    /// above the water. Returns the cells that became land.
+    /// Builds the land a mouth bar makes off <paramref name="mouth"/>: sea cells ahead of it, longer seaward than wide, rise
+    /// above the water, with a front sloping down to the old sea floor. Returns the cells that became land.
     /// </summary>
-    private static int Lobe(List<int> course, bool[] open, float[] height, float[] filled, float seaLevel, float channelWidth, Perlin noise,
+    private static int Lobe(int mouth, Vector2 heading, float radius, bool[] open, float[] height, float[] filled, float seaLevel, Perlin noise,
         int sizeX, int sizeZ, DistributarySettings p, bool[] deltaLand)
     {
-        int mouth = course[course.Count - 1];
-        int before = course[Mathf.Max(0, course.Count - 6)];
         var at = new Vector2(mouth % sizeX + 0.5f, mouth / sizeX + 0.5f);
-        Vector2 heading = at - new Vector2(before % sizeX + 0.5f, before / sizeX + 0.5f);
-        heading = heading.sqrMagnitude > 0f ? heading.normalized : Vector2.up;
-        float radius = Mathf.Clamp(p.lobeRadius * channelWidth, p.minLobeRadius, p.maxLobeRadius);
         Vector2 centre = at + heading * radius * 0.5f;
         int reach = Mathf.CeilToInt(radius * p.lobeElongation * (1f + p.frontShare + p.outlineNoise)) + 1, land = 0;
         int cx = Mathf.FloorToInt(centre.x), cz = Mathf.FloorToInt(centre.y);
@@ -567,7 +673,7 @@ public static class Distributaries
     }
 
     /// <summary>The course's bed and levees stand above the plain, fading over <paramref name="reachCells"/>: later courses avoid them.</summary>
-    private static void Raise(List<int> course, float[] levee, float reachCells, int sizeX, int sizeZ)
+    private static void Raise(List<int> course, float[] levee, bool[] bed, float bedCells, float reachCells, int sizeX, int sizeZ)
     {
         int reach = Mathf.CeilToInt(reachCells) + 1;
         foreach (int c in course)
@@ -579,7 +685,11 @@ public static class Distributaries
                 {
                     int x = cx + dx, z = cz + dz;
                     if (x >= 0 && z >= 0 && x < sizeX && z < sizeZ)
-                        levee[z * sizeX + x] = Mathf.Max(levee[z * sizeX + x], 1f - Mathf.Sqrt(dx * dx + dz * dz) / (reachCells + 1f));
+                    {
+                        float r = Mathf.Sqrt(dx * dx + dz * dz);
+                        levee[z * sizeX + x] = Mathf.Max(levee[z * sizeX + x], 1f - r / (reachCells + 1f));
+                        bed[z * sizeX + x] |= r <= bedCells;
+                    }
                 }
             }
         }

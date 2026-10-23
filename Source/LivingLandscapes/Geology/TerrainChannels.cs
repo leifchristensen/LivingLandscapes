@@ -28,7 +28,7 @@ public static partial class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, bool riverMouth = false, bool deltaTile = false)
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, bool riverMouth = false)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
@@ -127,7 +127,7 @@ public static partial class TerrainChannels
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
             if (pass == 1)
             {
-                deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, valley, sea, deltaTile, spread,
+                deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, valley, sea, spread,
                     p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, system, out int lobeCells, out var deltaSplits);
                 deltaCells += lobeCells;
                 if (deltaBranches > 0)
