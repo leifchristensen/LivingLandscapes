@@ -79,7 +79,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static int GrowDeltas(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth,
         bool[] sea, float seaLevel, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, ref int[] receiver,
-        out Dictionary<int, (int second, float share)> forced, out int channelCells)
+        out Dictionary<int, (int second, float share)> forced, out int channelCells, bool hydro = false, float[] rockStrength = null)
     {
         forced = null;
         channelCells = 0;
@@ -144,6 +144,20 @@ public static partial class TerrainChannels
                     dump.Write(sea[i]);
                 }
             }
+            if (hydro)
+            {
+                // The solved surface and sediment balance: the bed it leaves is routed by the channel stage's own drainage.
+                float[] erodibility = null;
+                if (rockStrength != null)
+                {
+                    erodibility = new float[n];
+                    for (int i = 0; i < n; i++)
+                        erodibility[i] = Mathf.Clamp01(1f - rockStrength[i]);
+                }
+                land += DeltaHydro.Grow(height, sea, erodibility, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaHydro, out _, out _, out string hydroReport);
+                reports.Add($"({mouth % sizeX}, {mouth / sizeX}) {hydroReport}");
+                continue;
+            }
             // The river's water surface at its mouth: the delta's channels fall from it to the sea.
             float apex = filled[mouth] - 0.002f;
             land += DeltaGrowth.Grow(height, sea, start, heading, w, d, seaLevel, sizeX, sizeZ, g, out int[] transitions, out float[] flow,
@@ -163,6 +177,13 @@ public static partial class TerrainChannels
         }
         foreach (var delta in grown)
             filled[delta.mouth] = Mathf.Max(filled[delta.mouth], delta.apex + 0.002f);
+        if (hydro)
+        {
+            receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+            Log.Message($"[LivingLandscapes] Delta hydro at {rivers.Count} mouths: {land} cells of land over the sea " +
+                        $"({GridMath.Strips(system.DeltaLand, sizeX, sizeZ)} in strips); " + string.Join("; ", reports) + ".");
+            return land;
+        }
 
         int Target(int c, int k) { int x = c % sizeX + DX8[k], z = c / sizeX + DZ8[k]; return x < 0 || z < 0 || x >= sizeX || z >= sizeZ ? -1 : z * sizeX + x; }
         // Each delta's channels: wet cells carrying a channel's share of its flow. Each drains along its parcels' main way; the water

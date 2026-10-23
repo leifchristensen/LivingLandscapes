@@ -75,6 +75,8 @@ public static partial class TerrainChannels
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
         float[] carried = null, seepCapacity = null;
+        // How deltas form: grown (DeltaGrowth), hydro (DeltaHydro) or drawn (Distributaries); -ll-delta=... overrides XML for A/B tests.
+        string deltaModel = GenCommandLine.TryGetCommandLineArg("ll-delta", out string chosen) ? chosen : p.deltaGrowth.enabled ? "grown" : "drawn";
         for (int pass = 0; pass < 3; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p, forcedSplits,
@@ -122,15 +124,15 @@ public static partial class TerrainChannels
                     moving[receiver[c]] = true;
             }
             int[] routed = receiver;
-            if (pass == 1 && p.deltaGrowth.enabled)
+            if (pass == 1 && deltaModel != "drawn")
             {
                 deltaCells = GrowDeltas(height, filled, routed, main, discharge, width, depth, sea, seaLevel, isOutlet, sizeX, sizeZ, p, system,
-                    ref receiver, out forcedSplits, out deltaBranches);
+                    ref receiver, out forcedSplits, out deltaBranches, deltaModel == "hydro", rockStrength);
             }
-            else if (pass == 1)
+            else if (pass == 1 && deltaModel == "drawn")
                 deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,
                     isOutlet, sizeX, sizeZ, p, system, ref receiver);
-            if (pass == 1 && !p.deltaGrowth.enabled)
+            if (pass == 1 && deltaModel == "drawn")
             {
                 deltaBranches = Distributaries.Carve(height, filled, routed, main, discharge, width, depth, valley, sea, spread,
                     p.sediment.deltaSpread, sizeX, sizeZ, p.distributaries, system, out int lobeCells, out var deltaSplits);
