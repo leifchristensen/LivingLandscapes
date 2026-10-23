@@ -202,6 +202,9 @@ public class TerrainChannelSettings
     /// <summary>Delta distributaries (<see cref="Distributaries"/>).</summary>
     public DistributarySettings distributaries = new DistributarySettings();
 
+    /// <summary>Deltas grown from the mouth (<see cref="DeltaGrowth"/>); when enabled they replace the drawn distributaries.</summary>
+    public DeltaGrowthSettings deltaGrowth = new DeltaGrowthSettings();
+
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
 

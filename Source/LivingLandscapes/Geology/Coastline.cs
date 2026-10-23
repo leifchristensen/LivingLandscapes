@@ -25,6 +25,12 @@ public class CoastlineExtension
     public float maxDepth = 14f;
 
     /// <summary>
+    /// Sea shallower than this (metres) is painted as shallow water, deeper as deep water, from the sea floor itself (shelf,
+    /// mouth bars, delta fronts, scoured channels) rather than vanilla's coast noise.
+    /// </summary>
+    public float shallowWaterDepth = 1.2f;
+
+    /// <summary>
     /// Sea stacks (issue #60): within stackReach cells of the shore, rock at least this deep inside a resistant body
     /// (<see cref="RockStrata"/> intrusions, 0..1) across its whole 3x3 neighbourhood survives the waves that cut the softer
     /// rock round it, and stands up to stackHeight metres above the beach. Thin bodies (dikes) are cut through.
@@ -233,7 +239,11 @@ public static class Coastline
                     $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it; shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}); {stackCells} cells of sea stacks.");
         var plan = map.GetComponent<Environment.MapComponent_Environment>();
         if (plan != null)
+        {
             plan.PlannedStacks = stacks;
+            plan.PlannedSeaLevel = beach;
+            plan.PlannedShallowDepth = p.shallowWaterDepth;
+        }
         return sea;
     }
 }

@@ -56,6 +56,7 @@ public class LandformWorker : EnvironmentLayerWorker
             RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, map.Biome?.defName, rockStrength, water,
                 generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows,
                 world.HasRiver ? float.NaN : world.Flow,
+                seaLevel: map.GetComponent<MapComponent_Environment>()?.PlannedSeaLevel ?? float.NaN,
                 // A world river with its mouth at the sea ends in it; the land its deposits built there makes the delta.
                 riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f);
             var environment = map.GetComponent<MapComponent_Environment>();

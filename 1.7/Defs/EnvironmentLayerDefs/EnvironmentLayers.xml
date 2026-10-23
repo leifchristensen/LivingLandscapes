@@ -79,6 +79,9 @@
             <leveeWidths>3</leveeWidths>
             <pathNoise>3</pathNoise>
           </distributaries>
+          <deltaGrowth>
+            <enabled>true</enabled>
+          </deltaGrowth>
           <absorption>0.3</absorption>
           <seepCapacityWidth>2</seepCapacityWidth>
           <biomeAbsorption>
