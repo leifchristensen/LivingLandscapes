@@ -127,7 +127,7 @@ public static partial class TerrainChannels
             if (pass == 1 && deltaModel != "drawn")
             {
                 deltaCells = GrowDeltas(height, filled, routed, main, discharge, width, depth, sea, seaLevel, isOutlet, sizeX, sizeZ, p, system,
-                    ref receiver, out forcedSplits, out deltaBranches, deltaModel == "hydro", rockStrength);
+                    ref receiver, out forcedSplits, out deltaBranches, deltaModel, rockStrength);
             }
             else if (pass == 1 && deltaModel == "drawn")
                 deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,

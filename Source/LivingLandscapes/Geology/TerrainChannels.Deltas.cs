@@ -79,12 +79,13 @@ public static partial class TerrainChannels
     /// </summary>
     private static int GrowDeltas(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth,
         bool[] sea, float seaLevel, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, ref int[] receiver,
-        out Dictionary<int, (int second, float share)> forced, out int channelCells, bool hydro = false, float[] rockStrength = null)
+        out Dictionary<int, (int second, float share)> forced, out int channelCells, string model = "grown", float[] rockStrength = null)
     {
         forced = null;
         channelCells = 0;
         int n = height.Length;
         DeltaGrowthSettings g = p.deltaGrowth;
+        bool hydro = model == "hydro" || model == "stream";
         if (sea == null || float.IsNaN(seaLevel))
             return 0;
         // Mouths: channel cells running into the sea, wide enough to carry water of their own; one per river (the cell with the
@@ -154,8 +155,24 @@ public static partial class TerrainChannels
                     for (int i = 0; i < n; i++)
                         erodibility[i] = Mathf.Clamp01(1f - rockStrength[i]);
                 }
-                land += DeltaHydro.Grow(height, sea, erodibility, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaHydro, out _, out _, out string hydroReport);
-                reports.Add($"({mouth % sizeX}, {mouth / sizeX}) {hydroReport}");
+                string modelReport;
+                if (model == "stream")
+                {
+                    // Materials for the shore-impact rule: the sea floor is loose sand, land is soil or mud, and hard rock (strong beds,
+                    // intrusions) stands (rock strength already follows each bed's rock and its joints).
+                    var material = new float[n];
+                    for (int i = 0; i < n; i++)
+                        material[i] = sea[i] ? 1f : rockStrength != null && rockStrength[i] >= p.deltaStream.rockStrengthForRock ? 0.03f : 0.5f;
+                    // Its own random sequence, read without advancing the map's shared one.
+                    Rand.PushState();
+                    var random = new System.Random(Rand.Int ^ start);
+                    Rand.PopState();
+                    land += DeltaStream.Grow(height, sea, material, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaStream, random, true,
+                        out _, out _, out modelReport);
+                }
+                else
+                    land += DeltaHydro.Grow(height, sea, erodibility, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaHydro, out _, out _, out modelReport);
+                reports.Add($"({mouth % sizeX}, {mouth / sizeX}) {modelReport}");
                 continue;
             }
             // The river's water surface at its mouth: the delta's channels fall from it to the sea.
@@ -180,7 +197,7 @@ public static partial class TerrainChannels
         if (hydro)
         {
             receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
-            Log.Message($"[LivingLandscapes] Delta hydro at {rivers.Count} mouths: {land} cells of land over the sea " +
+            Log.Message($"[LivingLandscapes] Delta {model} at {rivers.Count} mouths: {land} cells of land over the sea " +
                         $"({GridMath.Strips(system.DeltaLand, sizeX, sizeZ)} in strips); " + string.Join("; ", reports) + ".");
             return land;
         }

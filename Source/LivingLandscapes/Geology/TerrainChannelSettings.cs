@@ -208,6 +208,9 @@ public class TerrainChannelSettings
     /// <summary>Deltas from a solved water surface and sediment balance (<see cref="DeltaHydro"/>); chosen with -ll-delta=hydro.</summary>
     public DeltaHydroSettings deltaHydro = new DeltaHydroSettings();
 
+    /// <summary>Deltas from seed islands, momentum-limited streamlines and shore impact (<see cref="DeltaStream"/>); -ll-delta=stream.</summary>
+    public DeltaStreamSettings deltaStream = new DeltaStreamSettings();
+
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
 
