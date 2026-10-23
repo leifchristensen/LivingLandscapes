@@ -158,6 +158,7 @@ public static class Invariants
         var filled = (float[])h.Clone();
         GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         TerrainDef[] terrain = map.terrainGrid.topGrid;
+        bool[] coast = Geology.Coastline.SeaCells(map);
         // Open still water only: marsh is wet ground (floodplains, seeps), not a lake.
         bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
                                   && terrain[i] != TerrainDefOf.Marsh;
@@ -178,7 +179,10 @@ public static class Invariants
                 lakeAt[l] = map.cellIndices.IndexToCell(i);
             lakeTerrain[l] ??= terrain[i];
             lakeDepth[l] = Mathf.Max(lakeDepth[l], filled[i] - h[i]);
-            // Still water that touches the ocean lies at sea level, open to it: a lagoon, part of the sea.
+            // Still water that touches the ocean lies at sea level, open to it: a lagoon, part of the sea. The coast's own
+            // water counts too, ocean or not: on a Lakeshore tile the coast is a lake, painted as lake water, and its pieces
+            // along the map edge belong to the lake beyond it.
+            lagoon[l] |= coast != null && coast[i];
             if (!lagoon[l])
                 GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= terrain[nb] != null && terrain[nb].IsOcean);
         }
