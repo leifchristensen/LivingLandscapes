@@ -9,6 +9,10 @@ public class DeltaGrowthSettings
 {
     public bool enabled = false;
 
+    /// <summary>Every river mouth at least this wide (cells) grows a delta, largest first, at most maxMouths.</summary>
+    public float minMouthWidth = 2f;
+    public int maxMouths = 6;
+
     /// <summary>
     /// Sediment the river delivers over the delta's life (metres x cells): this times its width squared times its depth, so a
     /// creek builds a small delta and a large river a large one.
@@ -25,7 +29,7 @@ public class DeltaGrowthSettings
     /// from there by surfaceSlope metres per cell (DeltaRCM's S0). It is smoothed over wet cells (surfaceSmoothing passes, each
     /// moving a cell smoothShare of the way to its wet neighbours' mean) and takes surfaceUpdate of each step's new surface.
     /// </summary>
-    public float surfaceSlope = 0.002f;
+    public float surfaceSlope = 0.008f;
     public int surfaceSmoothing = 10;
     public float smoothShare = 0.9f;
     public float surfaceUpdate = 0.1f;
@@ -36,6 +40,12 @@ public class DeltaGrowthSettings
     /// water and mud spread more.
     /// </summary>
     public float surfaceSteering = 0.1f;
+
+    /// <summary>
+    /// The alignment term is raised to this power: 1 is DeltaRCM's walk, which spreads a jet about 45 degrees a step; higher keeps
+    /// the jet's momentum, so it runs on several widths before it slows and drops its bar.
+    /// </summary>
+    public float alignmentExponent = 1f;
     public float waterTheta = 1f;
     public float sandTheta = 2f;
     public float mudTheta = 1f;
@@ -48,13 +58,13 @@ public class DeltaGrowthSettings
     /// Tidal range (metres): the platform the delta builds within half of it below the sea is exposed at low tide, so it becomes
     /// land (flats, mud and marsh) standing just above the sea; channels through it stay open.
     /// </summary>
-    public float tidalRange = 0.3f;
+    public float tidalRange = 0.6f;
 
     /// <summary>Water shallower than this (metres) is dry ground.</summary>
-    public float dryDepth = 0.05f;
+    public float dryDepth = 0.02f;
 
     /// <summary>Share of the load that is sand (DeltaRCM's f_bedload); the rest is mud.</summary>
-    public float sandShare = 0.5f;
+    public float sandShare = 0.3f;
 
     /// <summary>
     /// Velocities as shares of the river's at the mouth. Sand moves at a capacity growing with velocity^beta (the mouth's flux at
@@ -85,7 +95,7 @@ public class DeltaGrowthSettings
     /// Channels: cells carrying at least this share of the river's flow per unit width. A channel cell splits where a second way
     /// at least two directions apart takes this share of its water. Routing reads the last recordShare of the steps.
     /// </summary>
-    public float channelShare = 0.25f;
+    public float channelShare = 0.1f;
     public float splitShare = 0.2f;
     public float recordShare = 0.25f;
 }
@@ -251,7 +261,7 @@ public static class DeltaGrowth
                 float h = x < 0 || z < 0 || x >= sizeX || z >= sizeZ ? p.deepStop * depth : Depth(z * sizeX + x);
                 if (h <= p.dryDepth)
                     continue;
-                total += weights[d] = Mathf.Pow(h, theta) * cos / Dist[d];
+                total += weights[d] = Mathf.Pow(h, theta) * Mathf.Pow(cos, p.alignmentExponent) / Dist[d];
             }
             if (total <= 0f)
                 return -1;
