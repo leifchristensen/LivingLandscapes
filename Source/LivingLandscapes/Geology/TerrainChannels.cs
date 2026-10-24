@@ -83,6 +83,16 @@ public static partial class TerrainChannels
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
         float[] carried = null, seepCapacity = null;
+        // Dev: -ll-feedback=share,passes overrides the feedback tuning for sweeps.
+        if (GenCommandLine.TryGetCommandLineArg("ll-feedback", out string feedbackArg))
+        {
+            string[] parts = feedbackArg.Split(',');
+            p.feedback = new FeedbackSettings
+            {
+                aggradationShare = float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                passes = parts.Length > 1 ? int.Parse(parts[1]) : p.feedback.passes,
+            };
+        }
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
         for (int pass = 0; pass < passes; pass++)

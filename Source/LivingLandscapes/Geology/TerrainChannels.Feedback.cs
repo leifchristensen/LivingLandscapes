@@ -14,7 +14,7 @@ public class FeedbackSettings
     /// before the next routing: each pass stands for a span of the river's history, the share for how much of the map's
     /// alluvium builds up in that span.
     /// </summary>
-    public float aggradationShare = 0.3f;
+    public float aggradationShare = 0.6f;
 }
 
 /// <summary>
