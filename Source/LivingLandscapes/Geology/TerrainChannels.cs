@@ -17,7 +17,7 @@ namespace LivingLandscapes.Geology;
 /// crosses a hollow deeper than itself the lake model fills the hollow instead.
 ///
 /// The work is split by stage into partial files: Drain (where water enters and runs), Route (how much each cell
-/// carries), Shape (width, depth, regimes), Trace (channel plans), Paint (carving, springs,
+/// carries), Shape (width, depth, regimes), Impact (deflect or erode), Trace (channel plans), Paint (carving, springs,
 /// bars) and Report (log measures). <see cref="Build"/> runs them in order, three routing passes, and logs the result.
 /// </summary>
 public static partial class TerrainChannels
@@ -64,7 +64,8 @@ public static partial class TerrainChannels
         float dischargeScale = 1f;
         bool[] moving = null;
         float[] power = null, deposition = null, sinuosity = null, valley = null;
-        int carvedMeanders = 0, oxbows = 0, infilled = 0;
+        int carvedMeanders = 0, oxbows = 0, infilled = 0, impactCuts = 0, impactCells = 0;
+        var gouged = new float[n];
         // On a tile the world gives no river, the map's own discharge is scaled to the tile's world flow (below a creek),
         // keeping every channel's share, so streams still visibly add up where they join.
         string ownWater = "";
@@ -119,6 +120,18 @@ public static partial class TerrainChannels
                 if (moving[c] && receiver[c] >= 0)
                     moving[receiver[c]] = true;
             }
+            // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
+            if (pass < 2 && p.impact.enabled)
+            {
+                int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, isOutlet, sizeX, sizeZ, p.impact,
+                    gouged, out int cutCells);
+                if (cuts > 0)
+                {
+                    receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+                    impactCuts += cuts;
+                    impactCells += cutCells;
+                }
+            }
             if (pass == 0 && p.riverInfillDepths > 0f)
                 infilled = InfillRiverHollows(height, filled, cells, world, depth, sizeX, sizeZ, p);
             if (pass == 0 && p.meander.enabled)
@@ -158,6 +171,21 @@ public static partial class TerrainChannels
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded);
+        // Ground the water's impact cut away joins its load (metres, in the budget's units: the budget is scaled to metres only
+        // when it is laid down, so its scale is read from a first pass).
+        float gougedTotal = gouged.Sum();
+        if (gougedTotal > 0f)
+        {
+            Sediment.Spread(cells, receiver, null, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, out _, out _,
+                out float metresPerUnit);
+            if (metresPerUnit > 0f)
+            {
+                for (int i = 0; i < n; i++)
+                    gouged[i] /= metresPerUnit;
+                Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
+                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged);
+            }
+        }
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
         // scaled to a typical thickness, which would otherwise raise trickles into troughs).
         foreach (int c in cells)
@@ -173,7 +201,7 @@ public static partial class TerrainChannels
         foreach (int c in cells)
         {
             if (world[c] && discharge[c] >= p.sediment.mainRiverShare * 0.5f * discharge[cells[0]] && receiver[c] < 0)
-                worldEnds.Add($"({c % sizeX},{c / sizeX})");
+                worldEnds.Add($"({c % sizeX},{c / sizeX}){(sea != null && sea[c] ? " sea" : " land")}");
         }
         Log.Message($"[LivingLandscapes] World water leaves the drainage at {string.Join(" ", worldEnds)}; entries at {string.Join(" ", System.Linq.Enumerable.Range(0, n).Where(i => worldSource[i]).Select(i => $"({i % sizeX},{i / sizeX})"))}.");
         var dry = new List<string>();
@@ -198,7 +226,7 @@ public static partial class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }

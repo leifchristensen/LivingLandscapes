@@ -66,7 +66,17 @@ public static partial class TerrainChannels
             // A river rising on the map (headwater) still runs its course to a mouth at the sea.
             bool toMouth = riverMouth && course.WorldRiver && toSea != null;
             if (course.VanillaWidth > 0f && ((water?.riverInflow ?? true) || toMouth))
-                Trench(filled, sizeX, sizeZ, toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course, p);
+            {
+                ChannelCourse laid = toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course;
+                Trench(filled, sizeX, sizeZ, laid, p);
+                if (toMouth && laid.Points.Count > 0)
+                {
+                    Vector2 a = laid.Points[0], b = laid.Points[laid.Points.Count - 1];
+                    int end = Mathf.Clamp(Mathf.RoundToInt(b.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(b.x - 0.5f), 0, sizeX - 1);
+                    Log.Message($"[LivingLandscapes] World river course to the sea: {laid.Points.Count} points from ({a.x:F0}, {a.y:F0}) to ({b.x:F0}, {b.y:F0}), " +
+                                (sea[end] ? "ending in the sea." : $"ending on land {toSea[end]:F0} cells from the sea."));
+                }
+            }
         }
         outlet = IsOutlet;
         GridMath.FillDepressions(filled, sizeX, sizeZ, IsOutlet, p.fillGradient, includeEdges: false);

@@ -199,6 +199,9 @@ public class TerrainChannelSettings
     /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
     public SedimentSettings sediment = new SedimentSettings();
 
+    /// <summary>Impact of turned water on the ground ahead: deflect or erode (P6, <see cref="ImpactSettings"/>).</summary>
+    public ImpactSettings impact = new ImpactSettings();
+
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
 

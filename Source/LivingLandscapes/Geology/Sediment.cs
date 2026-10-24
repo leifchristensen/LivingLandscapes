@@ -73,7 +73,7 @@ public static class Sediment
     public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
         float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded)
     {
-        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
+        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize, out _);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         int covered = 0;
@@ -88,10 +88,14 @@ public static class Sediment
                $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
     }
 
-    /// <summary>The load and capacity walk down the network: what each channel cell deposits, and its grain size.</summary>
+    /// <summary>
+    /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
+    /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
+    /// joins it, and what settles leaves it.
+    /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null)
     {
         int n = filled.Length;
         var load = new float[n];
@@ -111,6 +115,8 @@ public static class Sediment
             float supply = p.erosionPerPower * (1f - rock) * q * slope;
             if (inflow[c] > 0f && !still)
                 supply += p.entryLoadPerDischarge * inflow[c] * dischargeScale;
+            if (gouged != null)
+                supply += gouged[c];
             float grainSupply = Mathf.Clamp01(Mathf.Lerp(0.2f, 1f, slope / Mathf.Max(p.coarseSlope, 1e-4f)) * Mathf.Lerp(0.7f, 1f, rock));
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;
@@ -155,7 +161,7 @@ public static class Sediment
 
     /// <summary>Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with distance.</summary>
     public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
-        SedimentSettings p, out float[] alluvium, out float[] grainSize)
+        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale)
     {
         int n = filled.Length;
         alluvium = new float[n];
@@ -218,7 +224,7 @@ public static class Sediment
             if (a > 0f)
                 covered.Add(a);
         }
-        float scale = 0f;
+        scale = 0f;
         if (covered.Count > 0)
         {
             covered.Sort();
