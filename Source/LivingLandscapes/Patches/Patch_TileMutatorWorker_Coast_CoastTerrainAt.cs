@@ -27,12 +27,13 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
             __result = null;
             return;
         }
-        // Shallow or deep by the sea floor's own depth: bars, delta fronts and channels show in the water.
+        // Shallow or deep by the sea floor's own depth: bars, delta fronts and channels show in the water; ground the rivers built
+        // above the sea is land.
         if ((__result == TerrainDefOf.WaterOceanShallow || __result == TerrainDefOf.WaterOceanDeep) && !float.IsNaN(environment.PlannedSeaLevel)
             && !float.IsNaN(environment.PlannedShallowDepth) && environment.HasLayer(EnvironmentLayerDefOf.LL_Landform))
         {
             float below = environment.PlannedSeaLevel - environment.ValueAt(EnvironmentLayerDefOf.LL_Landform, cell, environment.PlannedSeaLevel);
-            __result = below < environment.PlannedShallowDepth ? TerrainDefOf.WaterOceanShallow : TerrainDefOf.WaterOceanDeep;
+            __result = below <= 0f ? null : below < environment.PlannedShallowDepth ? TerrainDefOf.WaterOceanShallow : TerrainDefOf.WaterOceanDeep;
         }
     }
 }

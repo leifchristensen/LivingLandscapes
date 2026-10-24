@@ -217,6 +217,9 @@ public class TerrainChannelSettings
     /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
     public SedimentSettings sediment = new SedimentSettings();
 
+    /// <summary>Deposits raising the ground between routing passes (P7 feedback, <see cref="FeedbackSettings"/>).</summary>
+    public FeedbackSettings feedback = new FeedbackSettings();
+
     /// <summary>Impact of turned water on the ground ahead: deflect or erode (P6, <see cref="ImpactSettings"/>).</summary>
     public ImpactSettings impact = new ImpactSettings();
 

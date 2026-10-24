@@ -57,9 +57,10 @@ public static partial class TerrainChannels
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea, riverMouth, seaLevel);
 
-        // Three passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's
-        // regime nudges, silts up basins a world river runs into and carves meanders; pass 1 lets water divide where the
-        // nudges spread it; pass 2 routes and shapes the final network.
+        // Passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's regime
+        // nudges, silts up basins a world river runs into and carves meanders; the passes after it let water divide where the
+        // nudges spread it, strike the ground it turns against (Impact) and raise the ground with its deposits (Feedback);
+        // the last routes and shapes the final network.
         float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
         float mapSpread = water?.nudges.spread ?? 1f;
         float[] spread = null, discharge = null, width = null, depth = null, bankAmplitude = null;
@@ -82,7 +83,9 @@ public static partial class TerrainChannels
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
         float[] carried = null, seepCapacity = null;
-        for (int pass = 0; pass < 3; pass++)
+        int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
+        float aggradedVolume = 0f;
+        for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
                 out world, out secondary, out branchFrom, out splits, out carried, loss, dischargeScale);
@@ -129,7 +132,7 @@ public static partial class TerrainChannels
                     moving[receiver[c]] = true;
             }
             // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
-            if (pass < 2 && p.impact.enabled)
+            if (pass < passes - 1 && p.impact.enabled)
             {
                 int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, sand, isOutlet, sizeX, sizeZ,
                     p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
@@ -138,6 +141,18 @@ public static partial class TerrainChannels
                     receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
                     impactCuts += cuts;
                     impactCells += cutCells;
+                }
+            }
+            // The network's deposits raise the ground it will be routed over next (P7 feedback).
+            if (pass >= 1 && pass < passes - 1 && p.feedback.passes > 0)
+            {
+                int raised = Aggrade(cells, receiver, discharge, dischargeScale, height, filled, inflow, rockStrength, moving, width, sand,
+                    isOutlet, sizeX, sizeZ, p, out float volume);
+                if (raised > 0)
+                {
+                    receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+                    aggraded += raised;
+                    aggradedVolume += volume;
                 }
             }
             if (pass == 0 && p.riverInfillDepths > 0f)
@@ -234,7 +249,7 @@ public static partial class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
