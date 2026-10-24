@@ -162,6 +162,24 @@ public class TerrainChannelSettings
     public float spreadExponent = 6f;
 
     /// <summary>
+    /// Tolerant routing (P3, P4, P5): a river is water with a surface, not a line. Besides the steepest way, a neighbour can take
+    /// water if its ground lies within depthTolerance of the river's depth above the steepest way's (the river's own depth is how
+    /// far it can stray from the ideal path), and if it turns no sharper than the flow allows: bends are at least
+    /// bendRadiusWidths channel widths in radius, read over momentumCells cells, so the cone of reachable ways is 45 degrees (the
+    /// grid's step) plus momentumCells / (bendRadiusWidths x width) radians. The ways share the water by Manning conveyance,
+    /// K = h^(5/3) x sqrt(slope), h the depth the river keeps over each.
+    /// Only within the backwater of base level (Chatanantavet et al. 2012; Ganti et al. 2016): where the water surface is held up
+    /// by the sea or a lake, the flow slows and spreads; upstream it runs at normal depth in its channel. The backwater reaches
+    /// about depth / slope from the mouth, i.e. to where the river stands backwaterDepths of its own depth above the level of
+    /// the water it drains to.
+    /// </summary>
+    public bool tolerantRouting = true;
+    public float backwaterDepths = 1f;
+    public float depthTolerance = 1f;
+    public float bendRadiusWidths = 2.5f;
+    public float momentumCells = 4f;
+
+    /// <summary>
     /// Confinement field for the channel regimes: the valley floor is ground no higher than this (metres) above the
     /// water, measured across the channel up to this many channel widths each side.
     /// </summary>
