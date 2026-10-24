@@ -223,7 +223,7 @@ public static class LandscapeGenerator
             inflow[cell] += p.riverInflow * gx * gz * width / mainWidth;
 
         float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, removal, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out bool[] built, out float[] drownedDepth);
+            out float[] area, out float modelTop, out bool[] built, out float[] drownedDepth, out float seaPerMetre);
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
@@ -293,49 +293,51 @@ public static class LandscapeGenerator
         if (environment != null)
         {
             bool[] deltaLand = null;
-            int builtCells = 0;
+            int builtCells = 0, drownedCells = 0;
+            float[] drowned = null;
             if (built != null)
             {
-                deltaLand = new bool[sizeX * sizeZ];
-                var share = new float[built.Length];
+                // The new shore is where the ground meets the sea: the model's surface (metres above the sea), interpolated
+                // and smoothed at the model's cell size like the land heights, cut at sea level. Thresholding the model's
+                // cells themselves drew the shore in their blocks.
+                var metres = new float[sizeX * sizeZ];
+                var builtShare = new float[built.Length];
+                var drownedShare = new float[built.Length];
                 for (int i = 0; i < built.Length; i++)
-                    share[i] = built[i] ? 1f : 0f;
+                {
+                    builtShare[i] = built[i] ? 1f : 0f;
+                    drownedShare[i] = drownedDepth != null && drownedDepth[i] > 0f ? 1f : 0f;
+                }
+                for (int z = 0; z < sizeZ; z++)
+                {
+                    for (int x = 0; x < sizeX; x++)
+                        metres[z * sizeX + x] = Bilinear(h, gx, gz, originX + x / mapCellsPerModelCell, originZ + z / mapCellsPerModelCell) / seaPerMetre;
+                }
+                metres = GridMath.Blur(metres, sizeX, sizeZ, mapCellsPerModelCell * 0.75f);
+                deltaLand = new bool[sizeX * sizeZ];
                 for (int z = 0; z < sizeZ; z++)
                 {
                     for (int x = 0; x < sizeX; x++)
                     {
-                        // Interpolated between model cells, so the new shore is not drawn in the model's blocks.
-                        if (Bilinear(share, gx, gz, originX + x / mapCellsPerModelCell, originZ + z / mapCellsPerModelCell) >= 0.5f)
+                        int i = z * sizeX + x;
+                        float mx = originX + x / mapCellsPerModelCell, mz = originZ + z / mapCellsPerModelCell;
+                        // Only near land the rivers built (elsewhere the coast's own shore stands), and only near drowned valleys.
+                        if (metres[i] >= 0f && Bilinear(builtShare, gx, gz, mx, mz) > 0f)
                         {
-                            deltaLand[z * sizeX + x] = true;
+                            deltaLand[i] = true;
                             builtCells++;
+                        }
+                        else if (metres[i] < 0f && Bilinear(drownedShare, gx, gz, mx, mz) > 0f)
+                        {
+                            // The lower valleys the rising sea drowned (P1): sea, as deep as the rivers cut them.
+                            drowned ??= new float[sizeX * sizeZ];
+                            drowned[i] = Mathf.Max(0.05f, -metres[i]);
+                            drownedCells++;
                         }
                     }
                 }
             }
             environment.PlannedDeltaLand = builtCells > 0 ? deltaLand : null;
-            // The lower valleys the rising sea drowned (P1): sea, as deep as the rivers cut them.
-            float[] drowned = null;
-            int drownedCells = 0;
-            if (drownedDepth != null)
-            {
-                drowned = new float[sizeX * sizeZ];
-                var share = new float[drownedDepth.Length];
-                for (int i = 0; i < share.Length; i++)
-                    share[i] = drownedDepth[i] > 0f ? 1f : 0f;
-                for (int z = 0; z < sizeZ; z++)
-                {
-                    for (int x = 0; x < sizeX; x++)
-                    {
-                        float mx = originX + x / mapCellsPerModelCell, mz = originZ + z / mapCellsPerModelCell;
-                        float wetShare = Bilinear(share, gx, gz, mx, mz);
-                        if (wetShare < 0.5f)
-                            continue;
-                        drowned[z * sizeX + x] = Mathf.Max(0.05f, Bilinear(drownedDepth, gx, gz, mx, mz) / wetShare);
-                        drownedCells++;
-                    }
-                }
-            }
             environment.PlannedDrowned = drownedCells > 0 ? drowned : null;
             if (drownedCells > 0)
                 Log.Message($"[LivingLandscapes] Sea-level rise drowned {drownedCells} cells of river valley on {map} (deepest {drowned.Max():F1} m).");
@@ -483,7 +485,7 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, float removal, int gx, int gz,
         GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, out bool[] built, out float[] drownedDepth)
+        out int[] receiverOut, out float[] areaOut, out float modelTop, out bool[] built, out float[] drownedDepth, out float seaPerMetre)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -654,6 +656,7 @@ public static class LandscapeGenerator
         }
         receiverOut = receiver;
         areaOut = area;
+        seaPerMetre = Mathf.Max(perMetre, 1e-6f);
         modelTop = Mathf.Max(1e-6f, h.Max());
         if (seaDepth != null)
         {
