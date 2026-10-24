@@ -77,6 +77,7 @@ public static partial class TerrainChannels
         // Speed each channel cell runs at (Manning, or the speed carried in from upstream where that is faster), highest first.
         var speeds = new float[height.Length];
         int turned = 0, over = 0, deflected = 0;
+        cutNoStart = cutTooCostly = 0;
         float strongest = 0f, fastest = 0f;
         // Highest first: a cut upstream changes what the water downstream meets only through the next routing pass.
         foreach (int c in cells)
@@ -144,14 +145,17 @@ public static partial class TerrainChannels
             cuts++;
         }
         Verse.Log.Message($"[LivingLandscapes] Impact (P6): {turned} channel cells turned over {p.minTurn:F0} deg (fastest {fastest:F2} m/s, " +
-                          $"strongest {strongest:F1} x the ground's resistance); {over} erode ahead: {cuts} cut through to lower ground, {deflected} deflected.");
+                          $"strongest {strongest:F1} x the ground's resistance); {over} erode ahead: {cuts} cut through to lower ground, {deflected} deflected " +
+                          $"({cutNoStart} with no way into the cone, {cutTooCostly} with no lower ground within reach and budget).");
         return cuts;
     }
 
     // Search space of the cut search, reused between calls (one map at a time).
-    private static float[] cutCost;
+    private static float[] cutCost, cutAlong;
     private static int[] cutFrom, cutStamp;
     private static int cutRound;
+    // Why searches ended without a cut, for the log: no first step inside the cone, or over budget / out of reach.
+    private static int cutNoStart, cutTooCostly;
 
     /// <summary>
     /// Least-cost path (Dijkstra) from <paramref name="c"/> to ground lower than its water or an outlet: each cell costs the
@@ -166,17 +170,23 @@ public static partial class TerrainChannels
         if (cutCost == null || cutCost.Length != n)
         {
             cutCost = new float[n];
+            cutAlong = new float[n];
             cutFrom = new int[n];
             cutStamp = new int[n];
             cutRound = 0;
         }
         int round = ++cutRound;
-        // The river's own way downstream is not a new way.
+        // The river's own way downstream is no new way, unless the cut short-circuits it: a bend's neck or chute cut off (the way
+        // along the channel at least twice the straight one).
         int own = c;
-        for (int s = 0; s < reach * 2f && receiver[own] >= 0; s++)
+        float along = 0f;
+        for (int s = 0; s < reach * 4f && receiver[own] >= 0; s++)
         {
-            own = receiver[own];
+            int next = receiver[own];
+            along += new Vector2(next % sizeX - own % sizeX, next / sizeX - own / sizeX).magnitude;
+            own = next;
             cutStamp[own] = -round;
+            cutAlong[own] = along;
         }
         int cx = c % sizeX, cz = c / sizeX;
         var open = new PriorityQueue<int, float>();
@@ -184,8 +194,9 @@ public static partial class TerrainChannels
         cutCost[c] = 0f;
         cutFrom[c] = -1;
         open.Enqueue(c, 0f);
-        int found = -1;
-        while (open.TryDequeue(out int at, out float costAt))
+        int found = -1, enqueued = 0;
+        bool shortcut = false;
+        while (found < 0 && open.TryDequeue(out int at, out float costAt))
         {
             if (costAt > cutCost[at] || costAt > budget)
                 continue;
@@ -203,12 +214,21 @@ public static partial class TerrainChannels
                     if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
                         continue;
                     int nb = nz * sizeX + nx;
-                    if (cutStamp[nb] == -round)
-                        continue;
                     var offset = new Vector2(nx - cx, nz - cz);
                     float distance = offset.magnitude;
-                    if (distance > reach || Vector2.Dot(offset / distance, momentum) < cone)
+                    // The cone, with a cell's width of slack near the start (the grid's steps are 45 degrees apart).
+                    if (distance > reach || Vector2.Dot(offset / distance, momentum) < Mathf.Cos(Mathf.Acos(Mathf.Clamp(cone, -1f, 1f)) + Mathf.Atan2(0.71f, distance)))
                         continue;
+                    if (cutStamp[nb] == -round)
+                    {
+                        if (cutAlong[nb] >= 2f * distance && at != c)
+                        {
+                            found = at;
+                            shortcut = true;
+                            break;
+                        }
+                        continue;
+                    }
                     float step = Mathf.Sqrt(dx * dx + dz * dz);
                     float cost = costAt + Mathf.Max(0f, height[nb] - bed) + 0.001f * step;
                     if (cutStamp[nb] == round && cost >= cutCost[nb])
@@ -217,13 +237,21 @@ public static partial class TerrainChannels
                     cutCost[nb] = cost;
                     cutFrom[nb] = at;
                     open.Enqueue(nb, cost);
+                    enqueued++;
                 }
             }
         }
         path.Clear();
         if (found < 0)
+        {
+            if (enqueued == 0)
+                cutNoStart++;
+            else
+                cutTooCostly++;
             return false;
-        for (int at = cutFrom[found]; at >= 0 && at != c; at = cutFrom[at])
+        }
+        // The lower ground itself is not cut; on a shortcut the last cell searched is.
+        for (int at = shortcut ? found : cutFrom[found]; at >= 0 && at != c; at = cutFrom[at])
             path.Add(at);
         path.Reverse();
         return path.Count > 0;
