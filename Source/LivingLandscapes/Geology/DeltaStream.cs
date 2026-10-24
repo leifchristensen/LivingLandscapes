@@ -48,6 +48,13 @@ public class DeltaStreamSettings
     public int pressureReach = 6;
     public float pressureMemory = 0.6f;
 
+    /// <summary>
+    /// Where a streamline's water stops, what it still carries settles within endSpread cells, up to just below the surface,
+    /// less waveRemoval of it that waves and currents carry away (P10).
+    /// </summary>
+    public float waveRemoval = 0.5f;
+    public int endSpread = 6;
+
     /// <summary>Past the delta front the jet keeps this share of its speed per cell.</summary>
     public float jetDecay = 0.85f;
 
@@ -109,6 +116,9 @@ public class DeltaStreamSettings
     public float firstRow = 1.5f;
     public float rowGrowth = 1.15f;
     public float coneAngle = 30f;
+
+    /// <summary>Islands in the first row (each row one more); 1 puts the first island in the jet's path, as a Galton board's first peg.</summary>
+    public int firstRowSlots = 2;
     public float keepShare = 0.75f;
     public float jitter = 0.35f;
     public float seedSize = 2f;
@@ -244,7 +254,7 @@ public static class DeltaStream
             for (int row = 0; row < rowsAt.Count; row++)
             {
                 bool front = row >= rowsAt.Count - p.frontRows;
-                int slots = row + 2;
+                int slots = row + p.firstRowSlots;
                 float middle = 1f - Mathf.Abs(row / Mathf.Max(1f, rowsAt.Count - 1f) - 0.6f) * 1.2f;
                 for (int slot = 0; slot < (front ? slots * 2 : slots); slot++)
                 {
@@ -517,7 +527,8 @@ public static class DeltaStream
                     // at most maxChange, up to the water's surface. So what is carried is what the bed gave.
                     if (carried > capacity)
                     {
-                        float room = Mathf.Min(maxChange - change[c], Mathf.Max(0f, surface[c] + 0.05f - height[c] - change[c]));
+                        // Settling is limited by the room up to the water's surface (accommodation), not by the erosion's stability cap.
+                        float room = Mathf.Max(0f, surface[c] + 0.05f - height[c] - change[c]);
                         float put = Mathf.Clamp(p.depositShare * (carried - capacity), 0f, Mathf.Max(0f, room));
                         change[c] += put;
                         carried -= put;
@@ -530,7 +541,35 @@ public static class DeltaStream
                         carried += take;
                     }
                 }
-                offshore += carried;
+                // Where the water stops, what it still carries settles round it (P7), less the share waves carry away (P10).
+                if (visits[s].Count > 0 && carried > 0f)
+                {
+                    float kept = carried * (1f - p.waveRemoval);
+                    offshore += carried - kept;
+                    int end = visits[s][visits[s].Count - 1], ex = end % sizeX, ez = end / sizeX;
+                    for (int ring = 0; ring <= p.endSpread && kept > 1e-4f; ring++)
+                    {
+                        for (int dz = -ring; dz <= ring && kept > 1e-4f; dz++)
+                        {
+                            for (int dx = -ring; dx <= ring && kept > 1e-4f; dx++)
+                            {
+                                if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dz)) != ring)
+                                    continue;
+                                int x = ex + dx, z = ez + dz;
+                                if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                                    continue;
+                                int i = z * sizeX + x;
+                                float room = Mathf.Max(0f, surface[i] - 0.1f * depth - height[i] - change[i]);
+                                float put = Mathf.Min(kept, room);
+                                change[i] += put;
+                                kept -= put;
+                            }
+                        }
+                    }
+                    offshore += kept;
+                }
+                else
+                    offshore += carried;
             }
             // Struck ground is scoured (its material goes with the water and settles further on).
             for (int i = 0; i < n; i++)
@@ -548,7 +587,7 @@ public static class DeltaStream
             {
                 if (change[i] == 0f)
                     continue;
-                float c = Mathf.Clamp(change[i], -maxChange, maxChange);
+                float c = Mathf.Max(change[i], -maxChange);
                 // Deposits build up to the water's surface (islands that reach it are land); scour stops at the floor.
                 c = c > 0f ? Mathf.Min(c, Mathf.Max(0f, surface[i] + 0.05f - height[i])) : Mathf.Max(c, floor - height[i]);
                 height[i] += c;
