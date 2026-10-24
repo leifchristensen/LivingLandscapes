@@ -36,9 +36,6 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public float[] PlannedRockStrength { get; set; }
 
-    /// <summary>Land the erosion model built out over the sea (deltas): the coast leaves it land. Generation only.</summary>
-    public bool[] PlannedDeltaLand { get; set; }
-
     /// <summary>
     /// River valleys the sea drowned as it rose (P1 base level, the erosion model's sea-level history): metres below the sea,
     /// 0 where none. The coast makes them sea. Generation only.
@@ -47,7 +44,7 @@ public class MapComponent_Environment : MapComponent
 
     /// <summary>
     /// Sea stacks (issue #60): resistant rock near the shore that waves left standing above the sea. The coast mutator leaves
-    /// it land; unlike delta land it is bare rock, not deep soil.
+    /// it land; it is bare rock, not deep soil.
     /// </summary>
     public bool[] PlannedStacks { get; set; }
 

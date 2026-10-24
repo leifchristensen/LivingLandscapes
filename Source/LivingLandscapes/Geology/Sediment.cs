@@ -51,16 +51,7 @@ public class SedimentSettings
     /// <summary>Thinner than this (metres, after scaling) counts as no alluvium.</summary>
     public float minThickness = 0.05f;
 
-    /// <summary>
-    /// Land building at base level: where a river drops its load into the sea or a lake, the floor there rises by this share of
-    /// the alluvium laid on it. Ground built above the water becomes delta land, which the water then has to find its way across.
-    /// </summary>
-    public float landBuilding = 1.2f;
-
-    /// <summary>Flow spreading over delta land is multiplied by this: on the flat, fresh deposit the river divides into distributaries.</summary>
-    public float deltaSpread = 3f;
-
-    /// <summary>Main river network for the log's delta count: channels carrying at least this share of the world river's water.</summary>
+    /// <summary>Main river network for the log's branch count: channels carrying at least this share of the world river's water.</summary>
     public float mainRiverShare = 0.12f;
 }
 

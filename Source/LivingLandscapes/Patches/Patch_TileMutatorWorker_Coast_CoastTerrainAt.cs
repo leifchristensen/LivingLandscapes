@@ -6,10 +6,10 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// Land in the sea: where rivers built ground above the sea (<see cref="Geology.RiverSystem.DeltaLand"/>, and the erosion model's
-/// <see cref="MapComponent_Environment.PlannedDeltaLand"/>) and where resistant rock stands as sea stacks
-/// (<see cref="MapComponent_Environment.PlannedStacks"/>), the coast mutator leaves the terrain the geology planned instead of
-/// painting sea or beach over it. Elsewhere the sea is shallow or deep by the depth of the sea floor.
+/// Land in the sea: where resistant rock stands as sea stacks (<see cref="MapComponent_Environment.PlannedStacks"/>), the coast
+/// mutator leaves the terrain the geology planned instead of painting sea or beach over it; river valleys the rising sea
+/// drowned (<see cref="MapComponent_Environment.PlannedDrowned"/>) are sea. Elsewhere the sea is shallow or deep by the depth
+/// of the sea floor.
 /// </summary>
 [HarmonyPatch(typeof(TileMutatorWorker_Coast), "CoastTerrainAt")]
 public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
@@ -20,13 +20,13 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
         if (environment == null || !cell.InBounds(map))
             return;
         int i = map.cellIndices.CellToIndex(cell);
-        // A river valley the rising sea drowned (its delta's estuary) is sea, wherever the coast noise put the shore; its islands stay land.
-        if ((environment.PlannedDrowned?[i] ?? 0f) > 0f && !(environment.PlannedRivers?.DeltaLand?[i] ?? false))
+        // A river valley the rising sea drowned (an estuary) is sea, wherever the coast noise put the shore.
+        if ((environment.PlannedDrowned?[i] ?? 0f) > 0f)
             __result ??= TerrainDefOf.WaterOceanShallow;
         if (__result == null)
             return;
-        // Land the channels built at their mouths, the erosion model's deposition built out over the sea, or a sea stack.
-        if ((environment.PlannedRivers?.DeltaLand?[i] ?? false) || (environment.PlannedDeltaLand?[i] ?? false) || (environment.PlannedStacks?[i] ?? false))
+        // A sea stack.
+        if (environment.PlannedStacks?[i] ?? false)
         {
             __result = null;
             return;

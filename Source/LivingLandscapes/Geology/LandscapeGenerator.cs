@@ -73,28 +73,12 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>
     /// The sea's history (P1 base level): over lowstandShare of the run before the rise the sea stands lowstandDepth metres
     /// below today's (the last ice age), so the shelf shallower than that is land and the rivers cross it and cut their valleys
-    /// down to the lower sea; over riseShare it rises to today's level and drowns their lower valleys (estuaries); deltas build
-    /// only since it settled, over the last deltaAgeShare. The sea keeps the sediment rivers bring from the start of the rise
-    /// (filling the drowning valleys); before that it is lost offshore.
+    /// down to the lower sea; over the last riseShare it rises to today's level and drowns their lower valleys (estuaries).
+    /// Sediment that reaches the sea leaves the model.
     /// </summary>
     public float lowstandDepth = 1.5f;
     public float lowstandShare = 0.3f;
     public float riseShare = 0.1f;
-    public float deltaAgeShare = 0f;
-
-    /// <summary>
-    /// Share of the sediment reaching a river mouth that waves and currents carry away (Nienhuis et al. 2020): the low end on a
-    /// sheltered coast (a bay, a cove, a lake), the high end where the sea lies open to the waves (wave exposure, measured as the
-    /// share of directions from the mouth that run fetchCells map cells over the sea).
-    /// </summary>
-    public FloatRange marineRemoval = new FloatRange(0.4f, 0.85f);
-    public float fetchCells = 150f;
-
-    /// <summary>
-    /// Sediment reaching the sea fills the room nearest the mouth first and spreads outward over open water, ring by ring, to
-    /// at most this many model cells per mouth and step: built land grows as lobes (#61).
-    /// </summary>
-    public int maxFillCells = 400;
 
     /// <summary>How much more the upslope side of the region is uplifted than the downslope side.</summary>
     public float regionalUpliftBias = 0.5f;
@@ -216,14 +200,13 @@ public static class LandscapeGenerator
                 seaDepth[i] = seaCell[i] ? Mathf.Max(0.01f, p.coast.SeaDepth(fromLand[i] * mapCellsPerModelCell, world.Hilliness)) : 0f;
         }
         bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out int riverExit, seaDepth);
-        float removal = seaDepth != null ? WaveRemoval(seaDepth, riverExit, gx, gz, mapCellsPerModelCell, map, p) : p.marineRemoval.max;
         float[] inflow = new float[gx * gz];
         float mainWidth = entries.Count > 0 ? Mathf.Max(entries[0].width, 1f) : 1f;
         foreach ((int cell, float width) in entries)
             inflow[cell] += p.riverInflow * gx * gz * width / mainWidth;
 
-        float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, removal, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out bool[] built, out float[] drownedDepth, out float seaPerMetre);
+        float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
+            out float[] area, out float modelTop, out float[] drownedDepth, out float seaPerMetre);
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
@@ -288,62 +271,42 @@ public static class LandscapeGenerator
                 result[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt + rough;
             }
         }
-        // Land the rivers built out over the sea stays land: the coast leaves it alone.
+        // The lower valleys the rising sea drowned (P1): sea, as deep as the rivers cut them. Their shore is where the ground
+        // meets the sea: the model's surface (metres above the sea), interpolated and smoothed at the model's cell size like the
+        // land heights, cut at sea level (thresholding the model's cells drew the shore in their blocks).
         var environment = map.GetComponent<Environment.MapComponent_Environment>();
         if (environment != null)
         {
-            bool[] deltaLand = null;
-            int builtCells = 0, drownedCells = 0;
+            int drownedCells = 0;
             float[] drowned = null;
-            if (built != null)
+            if (drownedDepth != null)
             {
-                // The new shore is where the ground meets the sea: the model's surface (metres above the sea), interpolated
-                // and smoothed at the model's cell size like the land heights, cut at sea level. Thresholding the model's
-                // cells themselves drew the shore in their blocks.
                 var metres = new float[sizeX * sizeZ];
-                var builtShare = new float[built.Length];
-                var drownedShare = new float[built.Length];
-                for (int i = 0; i < built.Length; i++)
-                {
-                    builtShare[i] = built[i] ? 1f : 0f;
-                    drownedShare[i] = drownedDepth != null && drownedDepth[i] > 0f ? 1f : 0f;
-                }
+                var drownedShare = new float[drownedDepth.Length];
+                for (int i = 0; i < drownedDepth.Length; i++)
+                    drownedShare[i] = drownedDepth[i] > 0f ? 1f : 0f;
                 for (int z = 0; z < sizeZ; z++)
                 {
                     for (int x = 0; x < sizeX; x++)
                         metres[z * sizeX + x] = Bilinear(h, gx, gz, originX + x / mapCellsPerModelCell, originZ + z / mapCellsPerModelCell) / seaPerMetre;
                 }
                 metres = GridMath.Blur(metres, sizeX, sizeZ, mapCellsPerModelCell * 0.75f);
-                deltaLand = new bool[sizeX * sizeZ];
                 for (int z = 0; z < sizeZ; z++)
                 {
                     for (int x = 0; x < sizeX; x++)
                     {
                         int i = z * sizeX + x;
-                        float mx = originX + x / mapCellsPerModelCell, mz = originZ + z / mapCellsPerModelCell;
-                        // Only near land the rivers built (elsewhere the coast's own shore stands), and only near drowned valleys.
-                        if (metres[i] >= 0f && Bilinear(builtShare, gx, gz, mx, mz) > 0f)
-                        {
-                            deltaLand[i] = true;
-                            builtCells++;
-                        }
-                        else if (metres[i] < 0f && Bilinear(drownedShare, gx, gz, mx, mz) > 0f)
-                        {
-                            // The lower valleys the rising sea drowned (P1): sea, as deep as the rivers cut them.
-                            drowned ??= new float[sizeX * sizeZ];
-                            drowned[i] = Mathf.Max(0.05f, -metres[i]);
-                            drownedCells++;
-                        }
+                        if (metres[i] >= 0f || Bilinear(drownedShare, gx, gz, originX + x / mapCellsPerModelCell, originZ + z / mapCellsPerModelCell) <= 0f)
+                            continue;
+                        drowned ??= new float[sizeX * sizeZ];
+                        drowned[i] = Mathf.Max(0.05f, -metres[i]);
+                        drownedCells++;
                     }
                 }
             }
-            environment.PlannedDeltaLand = builtCells > 0 ? deltaLand : null;
-            environment.PlannedDrowned = drownedCells > 0 ? drowned : null;
+            environment.PlannedDrowned = drowned;
             if (drownedCells > 0)
                 Log.Message($"[LivingLandscapes] Sea-level rise drowned {drownedCells} cells of river valley on {map} (deepest {drowned.Max():F1} m).");
-            if (builtCells > 0)
-                Log.Message($"[LivingLandscapes] Deposition built {builtCells} cells of land out over the sea on {map} " +
-                            $"({GridMath.Strips(deltaLand, sizeX, sizeZ)} in strips; model grid {GridMath.Strips(built, gx, gz)} of {built.Count(b => b)} cells in strips).");
         }
         int bodies = resistant.Count(v => v >= 0.5f);
         if (bodies > 0)
@@ -483,9 +446,9 @@ public static class LandscapeGenerator
     /// Uplift, stream-power incision and hillslope creep. Rock strength is read from the beds exposed at each cell's
     /// current height (scaled to the tile's relief), so cutting down through a hard bed into a soft one speeds up.
     /// </summary>
-    private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, float removal, int gx, int gz,
+    private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, int gx, int gz,
         GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, out bool[] built, out float[] drownedDepth, out float seaPerMetre)
+        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] drownedDepth, out float seaPerMetre)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -508,14 +471,13 @@ public static class LandscapeGenerator
         // Sediment: the load each cell passes on.
         var eroded = new float[n];
         var load = new float[n];
-        built = seaDepth != null ? new bool[n] : null;
         drownedDepth = null;
 
         // The sea's history (P1): where it stands each step, and which cells it covers (the sea floor, then the drowned valleys).
         // Base level on land (the region's downhill edges) stays where it is.
-        int fall = Mathf.RoundToInt(p.erosionIterations * (1f - p.deltaAgeShare - p.riseShare - p.lowstandShare));
-        int riseStart = Mathf.RoundToInt(p.erosionIterations * (1f - p.deltaAgeShare - p.riseShare));
-        int riseEnd = Mathf.RoundToInt(p.erosionIterations * (1f - p.deltaAgeShare));
+        int fall = Mathf.RoundToInt(p.erosionIterations * (1f - p.riseShare - p.lowstandShare));
+        int riseStart = Mathf.RoundToInt(p.erosionIterations * (1f - p.riseShare));
+        int riseEnd = p.erosionIterations - 1;
         bool[] wet = null, landOutlet = null;
         float perMetre = 0f, seaLevel = 0f;
         if (seaDepth != null)
@@ -581,17 +543,17 @@ public static class LandscapeGenerator
                 }
                 float low = -p.lowstandDepth * perMetre;
                 seaLevel = iteration < riseStart ? low : Mathf.Lerp(low, 0f, Mathf.InverseLerp(riseStart, riseEnd, iteration));
-                Flood(h, seaDepth, seaLevel, wet, built, flood, gx, gz);
+                Flood(h, seaDepth, seaLevel, wet, flood, gx, gz);
                 for (int i = 0; i < n; i++)
                     outlet[i] = wet[i] || landOutlet[i];
-                if (iteration == fall || iteration == riseStart || iteration == riseEnd || iteration == p.erosionIterations - 1)
+                if (iteration == fall || iteration == riseStart || iteration == riseEnd)
                     history.Add(Valleys(iteration));
             }
 
-            // Uplift (not of the shelf, nor of land the rivers built over the sea).
+            // Uplift (not of the shelf).
             for (int i = 0; i < n; i++)
             {
-                if (!outlet[i] && (built == null || !built[i]) && (seaDepth == null || seaDepth[i] <= 0f))
+                if (!outlet[i] && (seaDepth == null || seaDepth[i] <= 0f))
                     h[i] += uplift[i];
             }
 
@@ -674,8 +636,7 @@ public static class LandscapeGenerator
                 eroded[c] = Mathf.Max(0f, before - h[c]);
             }
             if (p.deposition > 0f)
-                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, wet, seaLevel, removal, built, gx, gz, p,
-                    seaDepth != null && iteration >= riseStart);
+                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, p);
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
@@ -688,11 +649,9 @@ public static class LandscapeGenerator
         modelTop = Mathf.Max(1e-6f, h.Max());
         if (seaDepth != null)
         {
-            // Today's coast: today's sea floor left above the sea is land (built), and land the sea came back over is drowned,
-            // as deep (metres) as the valley the rivers cut into it.
+            // Land the sea came back over is drowned, as deep (metres) as the valley the rivers cut into it.
             for (int i = 0; i < n; i++)
             {
-                built[i] = seaDepth[i] > 0f && !wet[i];
                 if (wet[i] && seaDepth[i] <= 0f)
                 {
                     drownedDepth ??= new float[n];
@@ -705,10 +664,9 @@ public static class LandscapeGenerator
 
     /// <summary>
     /// The sea covers what lies below its level and is open to it: from today's sea floor below the level, on over any ground
-    /// below it (a valley the rivers cut while the sea stood lower drowns as it rises). Land the rivers built that the rising sea
-    /// overtops is sea again.
+    /// below it (a valley the rivers cut while the sea stood lower drowns as it rises).
     /// </summary>
-    private static void Flood(float[] h, float[] seaDepth, float level, bool[] wet, bool[] built, Queue<int> queue, int gx, int gz)
+    private static void Flood(float[] h, float[] seaDepth, float level, bool[] wet, Queue<int> queue, int gx, int gz)
     {
         int n = h.Length;
         queue.Clear();
@@ -733,83 +691,22 @@ public static class LandscapeGenerator
                 queue.Enqueue(nb);
             }
         }
-        for (int i = 0; i < n; i++)
-        {
-            if (wet[i])
-                built[i] = false;
-        }
-    }
-
-    /// <summary>
-    /// Wave exposure sets how much of the sediment reaching the sea waves carry away (Nienhuis et al. 2020): from the river's
-    /// exit (or, without one at the sea, the sea cell nearest the map's centre), 16 rays run over the sea up to fetchCells map
-    /// cells; the share of that length they run open, averaged, picks a point in marineRemoval. A bay, a cove or a lake (rays
-    /// soon meet land) keeps more of the sediment and builds a larger delta than an open coast.
-    /// </summary>
-    private static float WaveRemoval(float[] seaDepth, int riverExit, int gx, int gz, float mapCellsPerModelCell, Map map, GeologyGenerationExtension p)
-    {
-        int from = riverExit;
-        if (from < 0 || seaDepth[from] <= 0f)
-        {
-            from = -1;
-            float nearest = float.MaxValue;
-            for (int i = 0; i < seaDepth.Length; i++)
-            {
-                float dx = i % gx - (gx - 1) * 0.5f, dz = i / gx - (gz - 1) * 0.5f, d = dx * dx + dz * dz;
-                if (seaDepth[i] > 0f && d < nearest)
-                {
-                    nearest = d;
-                    from = i;
-                }
-            }
-        }
-        if (from < 0)
-            return p.marineRemoval.max;
-        float reach = p.fetchCells / mapCellsPerModelCell, open = 0f;
-        for (int ray = 0; ray < 16; ray++)
-        {
-            float angle = ray * Mathf.PI / 8f;
-            float x = from % gx, z = from / gx, run = 0f;
-            for (; run < reach; run += 1f)
-            {
-                x += Mathf.Cos(angle);
-                z += Mathf.Sin(angle);
-                int ix = Mathf.RoundToInt(x), iz = Mathf.RoundToInt(z);
-                // Beyond the region the sea is taken to run on (the region is wider than the map).
-                if (ix < 0 || iz < 0 || ix >= gx || iz >= gz)
-                {
-                    run = reach;
-                    break;
-                }
-                if (seaDepth[iz * gx + ix] <= 0f)
-                    break;
-            }
-            open += Mathf.Min(run, reach) / reach;
-        }
-        float exposure = open / 16f;
-        float removal = p.marineRemoval.LerpThroughRange(exposure);
-        Log.Message($"[LivingLandscapes] Wave exposure on {map}: {exposure:P0} of the fetch open from ({from % gx}, {from / gx}); waves remove {removal:P0} of the sediment reaching the sea.");
-        return removal;
     }
 
     /// <summary>
     /// Deposition (Davy and Lague 2009): the load runs down the drainage tree from the divides; each land cell keeps
     /// G x load / drainage area of it (rivers drop their load where they gather little more water and slow) and passes the
-    /// rest on. In the sea (<paramref name="wet"/>, once <paramref name="seaKeeps"/>) the load fills the room below
-    /// <paramref name="seaLevel"/>, cell by cell from the mouth into the deepest water nearby; a cell filled to sea level becomes
-    /// land and is no longer base level, so the delta builds out and the rivers on it are routed over it (their beds rise and
-    /// they shift: avulsion).
+    /// rest on. What reaches base level (the sea, the region's edges) leaves the model.
     /// </summary>
     private static void Deposit(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area, int[] stack, int count,
-        bool[] outlet, bool[] wet, float seaLevel, float removal, bool[] built, int gx, int gz, GeologyGenerationExtension p, bool seaKeeps)
+        bool[] outlet, GeologyGenerationExtension p)
     {
         int n = h.Length;
         Array.Clear(load, 0, n);
-        float top = 0f, yield = 0f;
+        float yield = 0f;
         int land = 0;
         for (int i = 0; i < n; i++)
         {
-            top = Mathf.Max(top, h[i]);
             if (!outlet[i])
             {
                 yield += eroded[i];
@@ -819,11 +716,6 @@ public static class LandscapeGenerator
         // Rivers entering the region bring the sediment of their catchment beyond it (sediment yield scales with drainage
         // area): their inflow, in model cells of drainage, eroding at the region's own mean rate.
         yield /= Mathf.Max(1, land);
-        // The sea fill's working space, made only once a mouth fills (the sea keeps sediment only late in the run).
-        PriorityQueue<int, float> fill = null;
-        int[] seen = null;
-        int stamp = 0;
-        float Room(int i) => seaLevel + 1e-4f * top - h[i];
         for (int k = count - 1; k >= 0; k--)
         {
             int c = stack[k];
@@ -834,49 +726,6 @@ public static class LandscapeGenerator
                 float keep = Mathf.Min(load[c], p.deposition * load[c] / Mathf.Max(area[c], 1f));
                 h[c] += keep;
                 load[r] += load[c] - keep;
-                continue;
-            }
-            // Base level: the sea fills (the region's land edges carry the load away), once sea level has settled, less what
-            // waves and currents remove.
-            if (wet == null || !wet[c] || !seaKeeps)
-                continue;
-            float carried = load[c] * (1f - removal);
-            // Nearest room first (by distance from the mouth, so lobes grow round, not as the squares 8-neighbour rings make),
-            // spreading over open water (not through land or built cells): built land grows as lobes. Walking on to the one
-            // roomiest neighbour traced one-cell paths, fingers of land on the map (#61).
-            fill ??= new PriorityQueue<int, float>();
-            seen ??= new int[n];
-            fill.Clear();
-            fill.Enqueue(c, 0f);
-            int cx = c % gx, cz = c / gx;
-            seen[c] = ++stamp;
-            for (int visited = 0; fill.Count > 0 && carried > 0f && visited < p.maxFillCells; visited++)
-            {
-                int at = fill.Dequeue();
-                float room = Room(at);
-                float put = Mathf.Min(carried, Mathf.Max(0f, room));
-                h[at] += put;
-                carried -= put;
-                if (room - put <= 0f && !built[at])
-                {
-                    // Filled to sea level: new land, no longer base level.
-                    built[at] = true;
-                    outlet[at] = false;
-                    wet[at] = false;
-                    h[at] = seaLevel + 1e-4f * top;
-                }
-                int x = at % gx, z = at / gx;
-                for (int d = 0; d < 8; d++)
-                {
-                    int nx = x + DX[d], nz = z + DZ[d];
-                    if (nx < 0 || nz < 0 || nx >= gx || nz >= gz)
-                        continue;
-                    int nb = nz * gx + nx;
-                    if (!wet[nb] || built[nb] || seen[nb] == stamp)
-                        continue;
-                    seen[nb] = stamp;
-                    fill.Enqueue(nb, (nx - cx) * (nx - cx) + (nz - cz) * (nz - cz));
-                }
             }
         }
     }

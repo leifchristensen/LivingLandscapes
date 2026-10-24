@@ -103,14 +103,12 @@ public class WaterRegimeDef : Def
     /// <summary>
     /// Terrain nudges for the world river's mutator structures (step 5, <see cref="WaterTerrainNudges"/>): a
     /// depression (metres) or a knob of resistant rock (metres, rock strength) at the river centre, this share of the
-    /// map's size across; and relief eased toward base level (0..1) within this share of the map's size of the exit.
+    /// map's size across.
     /// </summary>
     public FloatRange centreDepression = FloatRange.Zero;
     public FloatRange centreKnob = FloatRange.Zero;
     public float knobRockStrength = 0.9f;
     public float centreRadiusShare = 0.08f;
-    public float exitFlatten;
-    public float exitReachShare = 0.4f;
 
     /// <summary>Map-wide nudges on the channel processes (multiplied with the channel regimes' blend).</summary>
     public ChannelNudges nudges = new ChannelNudges();

@@ -57,31 +57,6 @@
              water into their bed (transmissionLoss x the biome's absorption, per cell of length and width). -->
         <terrainChannels>
           <transmissionLoss>6</transmissionLoss>
-          <!-- Sediment budget (Docs/SEDIMENT-PLAN.md): deltas build land at base level and divide over it. -->
-          <sediment>
-            <landBuilding>1.6</landBuilding>
-            <deltaSpread>6</deltaSpread>
-          </sediment>
-          <!-- Distributaries on the delta land deposition built (Distributaries, #58): the river leaves its raised course at the
-               avulsion node (within a backwater length, depth / slope, of the shore, where its water stands highest above the
-               plain) by the cheapest way over the plain to the sea. Courses = plain area / (backwater length x courseWidths
-               channel widths); the newest takes newChannelShare where it leaves the one before. Where the sea barDistance
-               channel widths off a mouth is shallower than barDepthRatio channel depths, a mouth bar splits it in two at
-               +-splitAngle degrees. -->
-          <distributaries>
-            <enabled>true</enabled>
-            <courseWidths>4</courseWidths>
-            <maxCourses>8</maxCourses>
-            <newChannelShare>0.6</newChannelShare>
-            <barDistance>3</barDistance>
-            <barDepthRatio>2</barDepthRatio>
-            <splitAngle>30</splitAngle>
-            <leveeWidths>3</leveeWidths>
-            <pathNoise>3</pathNoise>
-          </distributaries>
-          <deltaGrowth>
-            <enabled>true</enabled>
-          </deltaGrowth>
           <absorption>0.3</absorption>
           <seepCapacityWidth>2</seepCapacityWidth>
           <biomeAbsorption>

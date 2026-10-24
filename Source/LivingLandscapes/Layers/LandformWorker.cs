@@ -43,7 +43,7 @@ public class LandformWorker : EnvironmentLayerWorker
             float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
                                           + (water?.climateOffset ?? 0f));
             var riverCentre = new Vector2(map.Size.x * (0.5f + world.RiverCentre.x), map.Size.z * 0.5f + world.RiverCentre.y * map.Size.x);
-            // Mutator structures nudge the ground first (headwater hollow, island knob, delta flats); water follows.
+            // Mutator structures nudge the ground first (headwater hollow, island knob); water follows.
             Vector2? exit = world.HasRiver ? WaterTerrainNudges.EdgeToward(riverCentre, world.RiverExit, map.Size.x, map.Size.z) : (Vector2?)null;
             Vector2 knobCentre = water != null && water.centreKnob.max > 0f
                 ? TerrainChannels.NearestOnWorldRiver(generated, map.Size.x, map.Size.z, channels, riverCentre, water, generation.terrainChannels,
@@ -57,9 +57,8 @@ public class LandformWorker : EnvironmentLayerWorker
                 generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows,
                 world.HasRiver ? float.NaN : world.Flow,
                 seaLevel: map.GetComponent<MapComponent_Environment>()?.PlannedSeaLevel ?? float.NaN,
-                // A world river with its mouth at the sea ends in it; the land its deposits built there makes the delta.
-                riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f,
-                drowned: map.GetComponent<MapComponent_Environment>()?.PlannedDrowned?.Select(d => d > 0f).ToArray());
+                // A world river with its mouth at the sea ends in it.
+                riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {

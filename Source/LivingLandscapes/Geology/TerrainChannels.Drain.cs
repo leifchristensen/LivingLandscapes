@@ -183,7 +183,7 @@ public static partial class TerrainChannels
         float scale = 1f;
         for (int round = 0; round < 4; round++)
         {
-            Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p, null,
+            Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p,
                 out _, out _, out _, out _, out float[] carried, round == 0 ? 0f : loss, scale);
             float largest = 1f;
             foreach (float q in carried)

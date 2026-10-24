@@ -9,7 +9,7 @@ namespace LivingLandscapes.Geology;
 
 /// <summary>
 /// Stage 2, routing: how much water each cell carries. Runoff and inflow gather downstream, highest cells first; water divides
-/// where the ground falls away two ways (or where a delta split is drawn), and channels lose water into their bed
+/// where the ground falls away two ways, and channels lose water into their bed
 /// (transmission loss) while the drainage line itself stays.
 /// </summary>
 public static partial class TerrainChannels
@@ -23,7 +23,7 @@ public static partial class TerrainChannels
     /// stays on the main way, so splits form only where a lot of water meets ground falling away two ways.
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
-        float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, Dictionary<int, (int second, float share)> forced,
+        float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
         out bool[] world, out int[] secondary, out int[] branchFrom, out int splits, out float[] water, float loss = 0f, float scale = 1f)
     {
         int n = filled.Length;
@@ -57,13 +57,7 @@ public static partial class TerrainChannels
             }
             float share = 0f;
             int second = -1;
-            if (forced != null && forced.TryGetValue(c, out (int second, float share) split))
-            {
-                // A delta split drawn by the distributaries: the water divides between the branches by their widths.
-                second = split.second;
-                share = split.share;
-            }
-            else if (discharge[c] * 0.5f >= threshold)
+            if (discharge[c] * 0.5f >= threshold)
             {
                 float factor = spread != null && spread[c] > 0f ? spread[c] : mapSpread;
                 second = SecondWay(filled, c, r, sizeX, sizeZ, out float main, out float other);

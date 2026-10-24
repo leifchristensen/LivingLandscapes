@@ -124,11 +124,11 @@ public class TerrainChannelSettings
     public float sourceRadiusShare = 0.5f;
 
     /// <summary>
-    /// Relief (metres) left on ground a delta flattens: low swells and swales the distributaries divide around.
+    /// Relief (metres) of the low swells and swales on a headwater hollow's floor, which the water divides around.
     /// Wavelength in cells.
     /// </summary>
-    public float deltaApronRelief = 1.5f;
-    public float deltaApronWavelength = 24f;
+    public float hollowSwellRelief = 1.5f;
+    public float hollowSwellWavelength = 24f;
 
     /// <summary>
     /// Bars (deposition): where a channel's stream power per unit width falls below its average over the reach
@@ -198,18 +198,6 @@ public class TerrainChannelSettings
 
     /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
     public SedimentSettings sediment = new SedimentSettings();
-
-    /// <summary>Delta distributaries (<see cref="Distributaries"/>).</summary>
-    public DistributarySettings distributaries = new DistributarySettings();
-
-    /// <summary>Deltas grown from the mouth (<see cref="DeltaGrowth"/>); when enabled they replace the drawn distributaries.</summary>
-    public DeltaGrowthSettings deltaGrowth = new DeltaGrowthSettings();
-
-    /// <summary>Deltas from a solved water surface and sediment balance (<see cref="DeltaHydro"/>); chosen with -ll-delta=hydro.</summary>
-    public DeltaHydroSettings deltaHydro = new DeltaHydroSettings();
-
-    /// <summary>Deltas from seed islands, momentum-limited streamlines and shore impact (<see cref="DeltaStream"/>); -ll-delta=stream.</summary>
-    public DeltaStreamSettings deltaStream = new DeltaStreamSettings();
 
     /// <summary>Meander planform and oxbows (<see cref="Meanders"/>).</summary>
     public MeanderSettings meander = new MeanderSettings();
