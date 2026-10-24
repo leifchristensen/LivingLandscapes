@@ -27,8 +27,11 @@ public class ImpactSettings
     public float soilResistance = 10f;
     public float rockResistance = 1000f;
 
+    /// <summary>Critical shear stress (Pa) of loose sand (a beach): sand grains move under far less than soil holds against.</summary>
+    public float sandResistance = 1f;
+
     /// <summary>The water turns less than this (degrees) where it only follows a gentle bend: no impact.</summary>
-    public float minTurn = 45f;
+    public float minTurn = 20f;
 
     /// <summary>
     /// What the impact can remove ahead (Partheniades: erosion grows with the excess stress, stress / resistance - 1): cutBudget
@@ -37,6 +40,12 @@ public class ImpactSettings
     /// </summary>
     public float cutBudget = 1f;
     public float maxGougeWidths = 8f;
+
+    /// <summary>
+    /// Water keeps the speed it arrives with where the ground flattens (into still water, behind a beach): a jet slows over about
+    /// jetWidths channel widths (P5), so each cell runs at least its upstream speed decayed by exp(-distance / (jetWidths x width)).
+    /// </summary>
+    public float jetWidths = 5f;
 
     /// <summary>Cells upstream over which the incoming flow's momentum (direction and speed) is read.</summary>
     public int momentumSteps = 8;
@@ -57,22 +66,22 @@ public static partial class TerrainChannels
     /// <summary>Returns the number of cuts; lowers <paramref name="height"/> and <paramref name="filled"/> along them.</summary>
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
     private static int Impact(List<int> cells, float[] height, float[] filled, int[] receiver, int[] main, float[] width, float[] depth,
-        bool[] moving, float[] rockStrength, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, ImpactSettings p, float[] gouged,
-        out int cutCells)
+        bool[] moving, float[] rockStrength, bool[] sand, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, ImpactSettings p,
+        float[] gouged, out int cutCells)
     {
         cutCells = 0;
         int cuts = 0;
         float cosMinTurn = Mathf.Cos(p.minTurn * Mathf.Deg2Rad);
         Vector2 At(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
         var path = new List<int>();
+        // Speed each channel cell runs at (Manning, or the speed carried in from upstream where that is faster), highest first.
+        var speeds = new float[height.Length];
         int turned = 0, over = 0, deflected = 0;
         float strongest = 0f, fastest = 0f;
         // Highest first: a cut upstream changes what the water downstream meets only through the next routing pass.
         foreach (int c in cells)
         {
             int r = receiver[c];
-            if (!moving[c] || r < 0)
-                continue;
             int up = c;
             float run = 0f;
             for (int s = 0; s < p.momentumSteps && main[up] >= 0; s++)
@@ -80,22 +89,27 @@ public static partial class TerrainChannels
                 run += (At(main[up]) - At(up)).magnitude;
                 up = main[up];
             }
-            if (up == c)
+            // Speed of the water arriving: Manning on the reach upstream, or the speed carried in, decaying as a jet.
+            float slope = Mathf.Max(0f, filled[up] - filled[c]) / Mathf.Max(run, 1f);
+            float d = Mathf.Max(depth[c], 0.01f);
+            float speed = Mathf.Min(Mathf.Pow(d, 2f / 3f) * Mathf.Sqrt(Mathf.Max(slope, 1e-6f)) / p.manningN, Mathf.Sqrt(9.81f * d));
+            int donor = main[c];
+            if (donor >= 0)
+                speed = Mathf.Max(speed, speeds[donor] * Mathf.Exp(-(At(c) - At(donor)).magnitude / (p.jetWidths * Mathf.Max(width[c], 1f))));
+            speeds[c] = speed;
+            if (!moving[c] || r < 0 || up == c)
                 continue;
             Vector2 momentum = (At(c) - At(up)).normalized, onward = (At(r) - At(c)).normalized;
             float turn = Vector2.Dot(momentum, onward);
             if (turn > cosMinTurn)
                 continue;
-            // Speed of the water arriving (Manning on the reach upstream), and the normal part of its pressure on the ground ahead.
-            float slope = Mathf.Max(0f, filled[up] - filled[c]) / Mathf.Max(run, 1f);
-            float d = Mathf.Max(depth[c], 0.01f);
-            float speed = Mathf.Min(Mathf.Pow(d, 2f / 3f) * Mathf.Sqrt(Mathf.Max(slope, 1e-6f)) / p.manningN, Mathf.Sqrt(9.81f * d));
             float phi = Mathf.Acos(Mathf.Clamp(turn, -1f, 1f));
             float stress = p.impactShear * WaterDensity * speed * speed * Mathf.Sin(phi * 0.5f);
             Vector2 ahead = At(c) + momentum;
             int ax = Mathf.Clamp((int)ahead.x, 0, sizeX - 1), az = Mathf.Clamp((int)ahead.y, 0, sizeZ - 1);
             float strength = rockStrength != null ? rockStrength[az * sizeX + ax] : 0.5f;
-            float resistance = p.soilResistance * Mathf.Pow(p.rockResistance / p.soilResistance, Mathf.Clamp01(strength));
+            float resistance = sand != null && sand[az * sizeX + ax] ? p.sandResistance
+                : p.soilResistance * Mathf.Pow(p.rockResistance / p.soilResistance, Mathf.Clamp01(strength));
             turned++;
             strongest = Mathf.Max(strongest, stress / resistance);
             fastest = Mathf.Max(fastest, speed);

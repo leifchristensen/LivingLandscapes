@@ -91,11 +91,12 @@ public static class Sediment
     /// <summary>
     /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
     /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
-    /// joins it, and what settles leaves it.
+    /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
+    /// flow takes up as much as it can carry.
     /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null)
     {
         int n = filled.Length;
         var load = new float[n];
@@ -117,6 +118,8 @@ public static class Sediment
                 supply += p.entryLoadPerDischarge * inflow[c] * dischargeScale;
             if (gouged != null)
                 supply += gouged[c];
+            if (sand != null && sand[c] && !still)
+                supply = Mathf.Max(supply, capacity - load[c]);
             float grainSupply = Mathf.Clamp01(Mathf.Lerp(0.2f, 1f, slope / Mathf.Max(p.coarseSlope, 1e-4f)) * Mathf.Lerp(0.7f, 1f, rock));
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;

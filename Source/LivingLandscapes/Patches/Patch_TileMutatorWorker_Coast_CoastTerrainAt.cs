@@ -21,8 +21,8 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
         int i = map.cellIndices.CellToIndex(cell);
         if (__result == null)
             return;
-        // A sea stack.
-        if (environment.PlannedStacks?[i] ?? false)
+        // A sea stack, or a river crossing the beach (the coast paints sand, but the river's water runs there).
+        if ((environment.PlannedStacks?[i] ?? false) || (!__result.IsWater && (environment.PlannedRivers?.ChannelOf?[i] ?? -1) >= 0))
         {
             __result = null;
             return;

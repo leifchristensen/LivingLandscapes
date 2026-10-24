@@ -28,9 +28,17 @@ public static partial class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false)
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
+        bool[] sand = null)
     {
         int n = sizeX * sizeZ;
+        // The beach is land (loose sand): the sea, for the water, is the water.
+        if (sea != null && sand != null)
+        {
+            sea = (bool[])sea.Clone();
+            for (int i = 0; i < n; i++)
+                sea[i] &= !sand[i];
+        }
         var system = new RiverSystem
         {
             Regime = water, WaterLevel = new float[n], Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n],
@@ -123,8 +131,8 @@ public static partial class TerrainChannels
             // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
             if (pass < 2 && p.impact.enabled)
             {
-                int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, isOutlet, sizeX, sizeZ, p.impact,
-                    gouged, out int cutCells);
+                int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, sand, isOutlet, sizeX, sizeZ,
+                    p.impact, gouged, out int cutCells);
                 if (cuts > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
@@ -170,7 +178,7 @@ public static partial class TerrainChannels
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded);
+            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, sand: sand);
         // Ground the water's impact cut away joins its load (metres, in the budget's units: the budget is scaled to metres only
         // when it is laid down, so its scale is read from a first pass).
         float gougedTotal = gouged.Sum();
@@ -183,7 +191,7 @@ public static partial class TerrainChannels
                 for (int i = 0; i < n; i++)
                     gouged[i] /= metresPerUnit;
                 Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged);
+                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged, sand);
             }
         }
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are

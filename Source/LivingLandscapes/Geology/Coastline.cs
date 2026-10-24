@@ -61,6 +61,13 @@ public class CoastlineExtension
             : Mathf.Min(maxDepth, shelfDepth + slopeGradient * (cellsOffshore - shelf));
     }
 
+    /// <summary>
+    /// The beach is land, loose sand above the water: from the waterline it rises beachRise metres per cell to a berm beachBerm
+    /// metres above the sea. Water behind it (a stream, a lagoon) has to cross it to reach the sea.
+    /// </summary>
+    public float beachRise = 0.05f;
+    public float beachBerm = 0.2f;
+
     /// <summary>How far inland the land is drawn down to the beach, in the coast noise's units (0.1 is a tenth of the map's width).</summary>
     public float landFalloff = 0.22f;
 
@@ -87,6 +94,8 @@ public static class Coastline
         AccessTools.MethodDelegate<System.Func<TileMutatorWorker_Coast, IntVec3, float>>(AccessTools.Method(typeof(TileMutatorWorker_Coast), "GetNoiseValue"));
     private static readonly System.Func<TileMutatorWorker_Coast, float> SandLimit =
         AccessTools.MethodDelegate<System.Func<TileMutatorWorker_Coast, float>>(AccessTools.PropertyGetter(typeof(TileMutatorWorker_Coast), "MaxForSand"));
+    private static readonly System.Func<TileMutatorWorker_Coast, float> WaterLimit =
+        AccessTools.MethodDelegate<System.Func<TileMutatorWorker_Coast, float>>(AccessTools.PropertyGetter(typeof(TileMutatorWorker_Coast), "MaxForShallowWater"));
 
     // The coast noise over a map's cells, read once per map and shared by every caller (weakly held: no map is kept alive).
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Map, float[]> MapNoise = new();
@@ -108,10 +117,26 @@ public static class Coastline
     /// </summary>
     public static bool[] SeaCells(Map map)
     {
+        return CoastCells(map, beach: true);
+    }
+
+    /// <summary>The beach: cells the coast mutator paints as sand, between its water and the land (loose sand); null without a coast.</summary>
+    public static bool[] BeachCells(Map map)
+    {
+        bool[] coast = CoastCells(map, beach: true), water = CoastCells(map, beach: false);
+        if (coast == null)
+            return null;
+        for (int i = 0; i < coast.Length; i++)
+            coast[i] &= !water[i];
+        return coast;
+    }
+
+    private static bool[] CoastCells(Map map, bool beach)
+    {
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
             return null;
-        float shore = SandLimit(coast);
+        float shore = beach ? SandLimit(coast) : WaterLimit(coast);
         float[] noise = NoiseOver(map, coast);
         var environment = map.GetComponent<Environment.MapComponent_Environment>();
         bool[] stacks = environment?.PlannedStacks;
@@ -188,7 +213,10 @@ public static class Coastline
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
         int sizeZ = n / sizeX;
-        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore, sizeX, sizeZ);
+        // The water's edge: below it the sea floor, above it the beach (land: loose sand) up to the sand limit.
+        float waterline = WaterLimit(coast);
+        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= waterline, sizeX, sizeZ);
+        float[] fromWater = GridMath.DistanceTo(i => noise[i] < waterline, sizeX, sizeZ);
         Hilliness hilliness = map.TileInfo.hilliness;
         bool[] stacks = null;
         int sea = 0, stackCells = 0;
@@ -202,11 +230,13 @@ public static class Coastline
                 height[i] = beach + p.stackHeight * resistant[i];
                 stackCells++;
             }
-            else if (noise[i] < shore)
+            else if (noise[i] < waterline)
             {
                 height[i] = beach - p.SeaDepth(fromLand[i], hilliness) - 0.3f;
                 sea++;
             }
+            else if (noise[i] < shore)
+                height[i] = beach + Mathf.Min(p.beachRise * fromWater[i], p.beachBerm);
             else
             {
                 float inland = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(shore, shore + p.landFalloff, noise[i]));
