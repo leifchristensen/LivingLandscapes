@@ -46,7 +46,7 @@ public static partial class TerrainChannels
                 deposit[c] = 0f;
         }
         Sediment.Spread(cells, receiver, null, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, out float[] alluvium,
-            out _, out _);
+            out _, out _, discharge, baseLevel);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {

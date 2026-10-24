@@ -210,7 +210,7 @@ public static partial class TerrainChannels
         if (gougedTotal > 0f)
         {
             Sediment.Spread(cells, receiver, null, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, out _, out _,
-                out float metresPerUnit);
+                out float metresPerUnit, discharge, baseLevel);
             if (metresPerUnit > 0f)
             {
                 for (int i = 0; i < n; i++)
@@ -228,7 +228,7 @@ public static partial class TerrainChannels
         }
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
-            deposited, atBase, eroded);
+            deposited, atBase, eroded, discharge, baseLevel);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();
         foreach (int c in cells)
