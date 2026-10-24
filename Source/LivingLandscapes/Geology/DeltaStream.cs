@@ -39,7 +39,7 @@ public class DeltaStreamSettings
     public float shear = 0.2f;
     public float scourRate = 0.5f;
     public float sandThreshold = 0.25f;
-    public float mudThreshold = 0.9f;
+    public float mudThreshold = 2f;
     public float rockThreshold = 20f;
 
     /// <summary>On a map, ground whose rock strength reaches this is rock for the impact rule (else soil or mud; the sea floor sand).</summary>
@@ -91,7 +91,7 @@ public class DeltaStreamSettings
     /// <summary>
     /// The drowned valley the delta fills (rivers' lower valleys drowned by the sea's rise since the last ice age, then filled by
     /// their deltas): from an apex valleyWidths river widths up the river, the valley widens toward the sea at valleyAngle degrees
-    /// either side and lies platformDepth below the sea; its banks wander by bankNoise river widths. The islands and streamlines
+    /// either side and lies platformDepth river depths below the sea; its banks wander by bankNoise river widths. The islands and streamlines
     /// start at the apex, inside the banks.
     /// </summary>
     public float valleyWidths = 12f;
@@ -99,19 +99,22 @@ public class DeltaStreamSettings
     public float bankNoise = 1.2f;
 
     /// <summary>
-    /// How far the delta reaches: platformShare of its sediment has built the delta top, a platform platformDepth metres below the
+    /// How far the delta reaches: platformShare of its sediment has built the delta top, a platform platformDepth river depths below the
     /// sea, over a cone (coneAngle + platformMargin degrees either side of the river) out from the mouth; the delta front lies where
     /// that sediment runs out. A large river builds a large delta, a creek a small one, whatever the shelf.
     /// </summary>
     public float platformShare = 0.6f;
-    public float platformDepth = 0.3f;
+    public float platformDepth = 0.6f;
     public float platformMargin = 12f;
-    public float firstRow = 2.5f;
-    public float rowGrowth = 1.35f;
-    public float coneAngle = 25f;
+    public float firstRow = 1.5f;
+    public float rowGrowth = 1.15f;
+    public float coneAngle = 30f;
     public float keepShare = 0.75f;
     public float jitter = 0.35f;
-    public float seedSize = 2.5f;
+    public float seedSize = 2f;
+
+    /// <summary>Seed islands keep this many times the sum of their radii apart (1: they may touch).</summary>
+    public float seedGap = 1.15f;
     public float sizeSpread = 0.6f;
     public float seedElongation = 2f;
     public float seedHeight = 0.4f;
@@ -157,13 +160,16 @@ public static class DeltaStream
                 while ((apex.x < 3f || apex.y < 3f || apex.x >= sizeX - 3 || apex.y >= sizeZ - 3) && (apex - mouth).magnitude > width)
                     apex += heading;
             }
+            // No room for a valley inland of the mouth (it lies at the map's edge): the delta starts at the mouth.
+            if (apex.x < 0f || apex.y < 0f || apex.x >= sizeX || apex.y >= sizeZ)
+                apex = mouth;
             length = (mouth - apex).magnitude;
             if (length > width)
             {
                 // The valley's axis runs from the apex to the mouth; the river enters at the apex.
                 heading = (mouth - apex).normalized;
                 across = new Vector2(-heading.y, heading.x);
-                float spread = Mathf.Tan(p.valleyAngle * Mathf.Deg2Rad), floorLevel = seaLevel - p.platformDepth;
+                float spread = Mathf.Tan(p.valleyAngle * Mathf.Deg2Rad), floorLevel = seaLevel - p.platformDepth * depth;
                 float phaseA = (float)random.NextDouble() * 6.28f, phaseB = (float)random.NextDouble() * 6.28f;
                 float Wobble(float along, float side) => p.bankNoise * width * (0.6f * Mathf.Sin(along * 0.06f + phaseA + side) + 0.4f * Mathf.Sin(along * 0.17f + phaseB - side));
                 for (int i = 0; i < n; i++)
@@ -195,7 +201,7 @@ public static class DeltaStream
             // How far the delta reaches: the platform its sediment has built (raised to the delta top over the cone), ring by ring
             // out from the mouth until the sediment for it runs out.
             float budget = p.platformShare * p.volumeWidths * width * width * depth;
-            float platform = seaLevel - p.platformDepth;
+            float platform = seaLevel - p.platformDepth * depth;
             float cone = (p.coneAngle + p.platformMargin) * Mathf.Deg2Rad;
             var byRing = new List<int>[2 * (sizeX + sizeZ)];
             for (int i = 0; i < n; i++)
@@ -261,7 +267,7 @@ public static class DeltaStream
                     int ci = Mathf.FloorToInt(at.y) * sizeX + Mathf.FloorToInt(at.x);
                     if (!sea[ci] || seaLevel - height[ci] > p.openDepth * depth)
                         continue;
-                    if (placed.Exists(o => (o.at - at).magnitude < (o.r + r) * 1.15f))
+                    if (placed.Exists(o => (o.at - at).magnitude < (o.r + r) * p.seedGap))
                         continue;
                     placed.Add((at, r));
                     Vector2 along = front ? new Vector2(-dir.y, dir.x) : dir;
