@@ -76,7 +76,8 @@ public static partial class TerrainChannels
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
         float[] carried = null, seepCapacity = null;
-        // How deltas form: grown (DeltaGrowth), hydro (DeltaHydro) or drawn (Distributaries); -ll-delta=... overrides XML for A/B tests.
+        // How deltas form: grown (DeltaGrowth), hydro (DeltaHydro), stream (DeltaStream), drawn (Distributaries) or none (the
+        // rivers' own principles only); -ll-delta=... overrides XML for A/B tests.
         string deltaModel = GenCommandLine.TryGetCommandLineArg("ll-delta", out string chosen) ? chosen : p.deltaGrowth.enabled ? "grown" : "drawn";
         for (int pass = 0; pass < 3; pass++)
         {
@@ -125,7 +126,7 @@ public static partial class TerrainChannels
                     moving[receiver[c]] = true;
             }
             int[] routed = receiver;
-            if (pass == 1 && deltaModel != "drawn")
+            if (pass == 1 && deltaModel != "drawn" && deltaModel != "none")
             {
                 deltaCells = GrowDeltas(height, filled, routed, main, discharge, width, depth, sea, seaLevel, isOutlet, sizeX, sizeZ, p, system,
                     ref receiver, out forcedSplits, out deltaBranches, deltaModel, rockStrength, drowned);
