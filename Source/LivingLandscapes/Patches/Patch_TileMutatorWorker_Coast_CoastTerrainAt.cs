@@ -20,8 +20,8 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
         if (environment == null || !cell.InBounds(map))
             return;
         int i = map.cellIndices.CellToIndex(cell);
-        // A river's drowned lower valley (its delta's estuary) is sea, wherever the coast noise put the shore; its islands stay land.
-        if ((environment.PlannedRivers?.Drowned?[i] ?? false) && !(environment.PlannedRivers.DeltaLand?[i] ?? false))
+        // A river valley the rising sea drowned (its delta's estuary) is sea, wherever the coast noise put the shore; its islands stay land.
+        if ((environment.PlannedDrowned?[i] ?? 0f) > 0f && !(environment.PlannedRivers?.DeltaLand?[i] ?? false))
             __result ??= TerrainDefOf.WaterOceanShallow;
         if (__result == null)
             return;

@@ -95,18 +95,6 @@ public class DeltaStreamSettings
     /// </summary>
     public bool seedIslands = true;
 
-    /// <summary>
-    /// The drowned valley the delta fills (rivers' lower valleys drowned by the sea's rise since the last ice age, then filled by
-    /// their deltas): from an apex valleyWidths river widths up the river, the valley widens toward the sea at valleyAngle degrees
-    /// either side and lies platformDepth river depths below the sea; its banks wander by bankNoise river widths. The islands and streamlines
-    /// start at the apex, inside the banks.
-    /// </summary>
-    public float valleyWidths = 12f;
-    public float valleyAngle = 32f;
-    public float bankNoise = 1.2f;
-
-    /// <summary>The drowned valley's floor (the delta top the islands stand on) lies platformDepth river depths below the sea.</summary>
-    public float platformDepth = 0.6f;
     public float firstRow = 1.5f;
     public float rowGrowth = 1.15f;
     public float coneAngle = 30f;
@@ -138,8 +126,7 @@ public class DeltaStreamSettings
 public static class DeltaStream
 {
     public static int Grow(float[] height, bool[] sea, float[] erodibility, int start, Vector2 heading, float width, float depth, float seaLevel,
-        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report,
-        int apexCell = -1, bool[] drownedOut = null)
+        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
         int n = sizeX * sizeZ;
@@ -147,57 +134,11 @@ public static class DeltaStream
         var across = new Vector2(-heading.y, heading.x);
         var mouth = new Vector2(start % sizeX + 0.5f, start / sizeX + 0.5f);
         erodibility ??= Fill(n, 1f);
-        int seeded = 0, drowned = 0;
+        int seeded = 0;
         float reach = 0f;
-
-        // 0. The drowned valley: from the apex (up the river's course where it is known, else straight up the heading) a funnel
-        // widening toward the sea lies under shallow water; the ground beside it stays as the delta's banks.
+        // The delta starts where the river meets the sea: the head of its drowned valley (the erosion model's sea-level history,
+        // P1), inside the valley's banks.
         Vector2 apex = mouth;
-        if (p.valleyWidths > 0f)
-        {
-            float length = p.valleyWidths * width;
-            if (apexCell >= 0)
-                apex = new Vector2(apexCell % sizeX + 0.5f, apexCell / sizeX + 0.5f);
-            else
-            {
-                apex = mouth - heading * length;
-                while ((apex.x < 3f || apex.y < 3f || apex.x >= sizeX - 3 || apex.y >= sizeZ - 3) && (apex - mouth).magnitude > width)
-                    apex += heading;
-            }
-            // No room for a valley inland of the mouth (it lies at the map's edge): the delta starts at the mouth.
-            if (apex.x < 0f || apex.y < 0f || apex.x >= sizeX || apex.y >= sizeZ)
-                apex = mouth;
-            length = (mouth - apex).magnitude;
-            if (length > width)
-            {
-                // The valley's axis runs from the apex to the mouth; the river enters at the apex.
-                heading = (mouth - apex).normalized;
-                across = new Vector2(-heading.y, heading.x);
-                float spread = Mathf.Tan(p.valleyAngle * Mathf.Deg2Rad), floorLevel = seaLevel - p.platformDepth * depth;
-                float phaseA = (float)random.NextDouble() * 6.28f, phaseB = (float)random.NextDouble() * 6.28f;
-                float Wobble(float along, float side) => p.bankNoise * width * (0.6f * Mathf.Sin(along * 0.06f + phaseA + side) + 0.4f * Mathf.Sin(along * 0.17f + phaseB - side));
-                for (int i = 0; i < n; i++)
-                {
-                    var v = new Vector2(i % sizeX + 0.5f, i / sizeX + 0.5f) - apex;
-                    float along = Vector2.Dot(v, heading), side = Vector2.Dot(v, across);
-                    if (along < 0f || along > length + width)
-                        continue;
-                    float half = width * 0.6f + along * spread + Wobble(along, side > 0f ? 1.7f : 0f) * Mathf.Clamp01(along / (2f * width));
-                    if (Mathf.Abs(side) > half)
-                        continue;
-                    if (height[i] > floorLevel)
-                        height[i] = floorLevel;
-                    if (!sea[i])
-                    {
-                        sea[i] = true;
-                        drowned++;
-                        if (drownedOut != null)
-                            drownedOut[i] = true;
-                    }
-                    erodibility[i] = 1f;
-                }
-            }
-        }
 
         // 1. Fixed islands before the delta forms: Galton rows inside the banks, out to the delta front.
         if (seedIslands && p.seedIslands)
@@ -568,7 +509,7 @@ public static class DeltaStream
                 land++;
         }
 
-        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; drowned valley {(mouth - apex).magnitude:F0} cells long ({drowned} cells of land drowned), islands reach {reach:F0} cells from its head, {seeded} seed islands; " +
+        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; islands reach {reach:F0} cells from the mouth, {seeded} seed islands; " +
                  $"deposited {deposited:F0}, eroded {eroded:F0} ({struck:F0} scoured from shores), carried off {offshore:F0}; {land} cells of land over the sea; {strands} streamlines stranded";
         return land;
     }

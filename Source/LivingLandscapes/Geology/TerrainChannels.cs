@@ -167,7 +167,7 @@ public static partial class TerrainChannels
             string[] xz = probe.Split(',');
             int pc = int.Parse(xz[1]) * sizeX + int.Parse(xz[0]);
             int pr = receiver[pc];
-            Log.Message($"[LivingLandscapes] PROBE ({probe}): height {height[pc] - seaLevel:F2} above the sea, filled {filled[pc] - seaLevel:F2}, sea {sea?[pc]}, delta land {system.DeltaLand?[pc]}, drowned {system.Drowned?[pc]}, outlet {isOutlet(pc)}, discharge {discharge[pc]:F0}, width {width[pc]:F1}; receiver {(pr < 0 ? "none" : $"({pr % sizeX},{pr / sizeX}) height {height[pr] - seaLevel:F2} sea {sea?[pr]} outlet {isOutlet(pr)} width {width[pr]:F1}")}");
+            Log.Message($"[LivingLandscapes] PROBE ({probe}): height {height[pc] - seaLevel:F2} above the sea, filled {filled[pc] - seaLevel:F2}, sea {sea?[pc]}, delta land {system.DeltaLand?[pc]}, outlet {isOutlet(pc)}, discharge {discharge[pc]:F0}, width {width[pc]:F1}; receiver {(pr < 0 ? "none" : $"({pr % sizeX},{pr / sizeX}) height {height[pr] - seaLevel:F2} sea {sea?[pr]} outlet {isOutlet(pr)} width {width[pr]:F1}")}");
         }
         // Stage 5, channel plans (TerrainChannels.Trace.cs); stage 6, carving, springs and bars (TerrainChannels.Paint.cs),
         // with the sediment budget (Sediment) in between.
