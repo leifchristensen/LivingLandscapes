@@ -53,7 +53,7 @@ public class ImpactSettings
 
 /// <summary>
 /// Stage 3b, impact (P6, deflect or erode): wherever moving water is turned by the ground, it strikes the ground ahead along
-/// its momentum. The impact shear is tau = C rho u^2 sin(phi / 2) for a turn of phi (0 running straight on, 1 turned right
+/// its momentum (along the cheapest way through the ground ahead). The impact shear is tau = C rho u^2 sin(phi / 2) for a turn of phi (0 running straight on, 1 turned right
 /// back), with u from Manning on the reach upstream. Above the ground's critical shear (by rock strength) the impact can remove
 /// ground ahead in proportion to the excess stress: if lower ground (another basin, the sea) lies within what it can remove,
 /// the water cuts through to it; otherwise it is deflected and keeps the way the ground gives. The
@@ -67,7 +67,7 @@ public static partial class TerrainChannels
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
     private static int Impact(List<int> cells, float[] height, float[] filled, int[] receiver, int[] main, float[] width, float[] depth,
         bool[] moving, float[] rockStrength, bool[] sand, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, ImpactSettings p,
-        float[] gouged, out int cutCells)
+        float bendRadiusWidths, float momentumCells, float[] gouged, out int cutCells)
     {
         cutCells = 0;
         int cuts = 0;
@@ -116,30 +116,13 @@ public static partial class TerrainChannels
             if (stress <= resistance)
                 continue;
             over++;
-            // Erode ahead along the momentum; cut through only if lower ground lies within reach.
+            // Erode ahead: the cheapest way to lower ground (another basin, the sea) within reach, following the ground (swales,
+            // low sand) rather than a straight line, inside the cone the flow can turn into (no wider than half the turn the
+            // ground forced, nor than its bend radius allows) and off the way it already takes.
             float reach = p.maxGougeWidths * Mathf.Max(width[c], 1f);
-            float budget = p.cutBudget * Mathf.Max(width[c], 1f) * (stress / resistance - 1f), bed = filled[c] - depth[c], cost = 0f;
-            path.Clear();
-            bool through = false;
-            for (float t = 1f; t <= reach; t += 1f)
-            {
-                Vector2 v = At(c) + momentum * t;
-                if (v.x < 0f || v.y < 0f || v.x >= sizeX || v.y >= sizeZ)
-                    break;
-                int i = (int)v.y * sizeX + (int)v.x;
-                if (i == c || (path.Count > 0 && path[path.Count - 1] == i))
-                    continue;
-                if (filled[i] < filled[c] || isOutlet(i))
-                {
-                    through = true;
-                    break;
-                }
-                cost += Mathf.Max(0f, height[i] - bed);
-                if (cost > budget)
-                    break;
-                path.Add(i);
-            }
-            if (!through || path.Count == 0)
+            float budget = p.cutBudget * Mathf.Max(width[c], 1f) * (stress / resistance - 1f), bed = filled[c] - depth[c];
+            float cone = Mathf.Cos(Mathf.Min(phi * 0.5f, Mathf.PI / 4f + momentumCells / (bendRadiusWidths * Mathf.Max(width[c], 1f))));
+            if (!CheapestCut(c, momentum, cone, reach, budget, bed, height, filled, receiver, isOutlet, sizeX, sizeZ, path))
             {
                 deflected++;
                 continue;
@@ -163,5 +146,86 @@ public static partial class TerrainChannels
         Verse.Log.Message($"[LivingLandscapes] Impact (P6): {turned} channel cells turned over {p.minTurn:F0} deg (fastest {fastest:F2} m/s, " +
                           $"strongest {strongest:F1} x the ground's resistance); {over} erode ahead: {cuts} cut through to lower ground, {deflected} deflected.");
         return cuts;
+    }
+
+    // Search space of the cut search, reused between calls (one map at a time).
+    private static float[] cutCost;
+    private static int[] cutFrom, cutStamp;
+    private static int cutRound;
+
+    /// <summary>
+    /// Least-cost path (Dijkstra) from <paramref name="c"/> to ground lower than its water or an outlet: each cell costs the
+    /// ground above the cut's <paramref name="bed"/> (what the water must remove) plus a little per cell; the path stays within
+    /// <paramref name="reach"/>, inside the cone around <paramref name="momentum"/> and off the river's own way downstream.
+    /// Fills <paramref name="path"/> (from c's neighbour onward, excluding the lower ground) if the cost is within budget.
+    /// </summary>
+    private static bool CheapestCut(int c, Vector2 momentum, float cone, float reach, float budget, float bed, float[] height, float[] filled,
+        int[] receiver, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, List<int> path)
+    {
+        int n = height.Length;
+        if (cutCost == null || cutCost.Length != n)
+        {
+            cutCost = new float[n];
+            cutFrom = new int[n];
+            cutStamp = new int[n];
+            cutRound = 0;
+        }
+        int round = ++cutRound;
+        // The river's own way downstream is not a new way.
+        int own = c;
+        for (int s = 0; s < reach * 2f && receiver[own] >= 0; s++)
+        {
+            own = receiver[own];
+            cutStamp[own] = -round;
+        }
+        int cx = c % sizeX, cz = c / sizeX;
+        var open = new PriorityQueue<int, float>();
+        cutStamp[c] = round;
+        cutCost[c] = 0f;
+        cutFrom[c] = -1;
+        open.Enqueue(c, 0f);
+        int found = -1;
+        while (open.TryDequeue(out int at, out float costAt))
+        {
+            if (costAt > cutCost[at] || costAt > budget)
+                continue;
+            if (at != c && (filled[at] < filled[c] || isOutlet(at)))
+            {
+                found = at;
+                break;
+            }
+            int x = at % sizeX, z = at / sizeX;
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int nx = x + dx, nz = z + dz;
+                    if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
+                        continue;
+                    int nb = nz * sizeX + nx;
+                    if (cutStamp[nb] == -round)
+                        continue;
+                    var offset = new Vector2(nx - cx, nz - cz);
+                    float distance = offset.magnitude;
+                    if (distance > reach || Vector2.Dot(offset / distance, momentum) < cone)
+                        continue;
+                    float step = Mathf.Sqrt(dx * dx + dz * dz);
+                    float cost = costAt + Mathf.Max(0f, height[nb] - bed) + 0.001f * step;
+                    if (cutStamp[nb] == round && cost >= cutCost[nb])
+                        continue;
+                    cutStamp[nb] = round;
+                    cutCost[nb] = cost;
+                    cutFrom[nb] = at;
+                    open.Enqueue(nb, cost);
+                }
+            }
+        }
+        path.Clear();
+        if (found < 0)
+            return false;
+        for (int at = cutFrom[found]; at >= 0 && at != c; at = cutFrom[at])
+            path.Add(at);
+        path.Reverse();
+        return path.Count > 0;
     }
 }

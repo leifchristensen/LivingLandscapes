@@ -132,7 +132,7 @@ public static partial class TerrainChannels
             if (pass < 2 && p.impact.enabled)
             {
                 int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, sand, isOutlet, sizeX, sizeZ,
-                    p.impact, gouged, out int cutCells);
+                    p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
