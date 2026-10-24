@@ -80,7 +80,7 @@ public class GeologyGenerationExtension : DefModExtension
     public float lowstandDepth = 1.5f;
     public float lowstandShare = 0.3f;
     public float riseShare = 0.1f;
-    public float deltaAgeShare = 0.04f;
+    public float deltaAgeShare = 0f;
 
     /// <summary>
     /// Share of the sediment reaching a river mouth that waves and currents carry away (Nienhuis et al. 2020): the low end on a
@@ -529,6 +529,30 @@ public static class LandscapeGenerator
             }
         }
         var flood = new Queue<int>();
+        // The valleys through the history, for the log: today's land cut below today's sea, and under the sea now.
+        var history = new List<string>();
+        string Valleys(int iteration)
+        {
+            int below = 0, drowned = 0, shelfLand = 0;
+            float deepest = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if (seaDepth[i] > 0f)
+                {
+                    if (!wet[i])
+                        shelfLand++;
+                    continue;
+                }
+                if (h[i] < 0f)
+                {
+                    below++;
+                    deepest = Mathf.Max(deepest, -h[i] / perMetre);
+                }
+                if (wet[i])
+                    drowned++;
+            }
+            return $"step {iteration} (sea {seaLevel / perMetre:F1} m): {below} land cells below today's sea (deepest {deepest:F1} m), {drowned} under the sea, {shelfLand} of shelf dry";
+        }
 
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
@@ -560,6 +584,8 @@ public static class LandscapeGenerator
                 Flood(h, seaDepth, seaLevel, wet, built, flood, gx, gz);
                 for (int i = 0; i < n; i++)
                     outlet[i] = wet[i] || landOutlet[i];
+                if (iteration == fall || iteration == riseStart || iteration == riseEnd || iteration == p.erosionIterations - 1)
+                    history.Add(Valleys(iteration));
             }
 
             // Uplift (not of the shelf, nor of land the rivers built over the sea).
@@ -657,6 +683,8 @@ public static class LandscapeGenerator
         receiverOut = receiver;
         areaOut = area;
         seaPerMetre = Mathf.Max(perMetre, 1e-6f);
+        if (history.Count > 0)
+            Log.Message($"[LivingLandscapes] Sea-level history (model cells): {string.Join("; ", history)}.");
         modelTop = Mathf.Max(1e-6f, h.Max());
         if (seaDepth != null)
         {
