@@ -7,9 +7,8 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Land in the sea: where resistant rock stands as sea stacks (<see cref="MapComponent_Environment.PlannedStacks"/>), the coast
-/// mutator leaves the terrain the geology planned instead of painting sea or beach over it; river valleys the rising sea
-/// drowned (<see cref="MapComponent_Environment.PlannedDrowned"/>) are sea. Elsewhere the sea is shallow or deep by the depth
-/// of the sea floor.
+/// mutator leaves the terrain the geology planned instead of painting sea or beach over it. Elsewhere the sea is shallow or deep
+/// by the depth of the sea floor.
 /// </summary>
 [HarmonyPatch(typeof(TileMutatorWorker_Coast), "CoastTerrainAt")]
 public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
@@ -20,9 +19,6 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
         if (environment == null || !cell.InBounds(map))
             return;
         int i = map.cellIndices.CellToIndex(cell);
-        // A river valley the rising sea drowned (an estuary) is sea, wherever the coast noise put the shore.
-        if ((environment.PlannedDrowned?[i] ?? 0f) > 0f)
-            __result ??= TerrainDefOf.WaterOceanShallow;
         if (__result == null)
             return;
         // A sea stack.

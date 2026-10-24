@@ -103,8 +103,8 @@ public static class Coastline
     }
 
     /// <summary>
-    /// Cells the map's coast mutator will paint as water or beach (its coast noise below the sand limit), less sea stacks, plus
-    /// the river valleys the sea drowned (<see cref="Environment.MapComponent_Environment.PlannedDrowned"/>); null on tiles without one.
+    /// Cells the map's coast mutator will paint as water or beach (its coast noise below the sand limit), less sea stacks; null on
+    /// tiles without one.
     /// </summary>
     public static bool[] SeaCells(Map map)
     {
@@ -115,10 +115,9 @@ public static class Coastline
         float[] noise = NoiseOver(map, coast);
         var environment = map.GetComponent<Environment.MapComponent_Environment>();
         bool[] stacks = environment?.PlannedStacks;
-        float[] drowned = environment?.PlannedDrowned;
         var sea = new bool[map.Area];
         for (int i = 0; i < sea.Length; i++)
-            sea[i] = (stacks == null || !stacks[i]) && (noise[i] < shore || (drowned != null && drowned[i] > 0f));
+            sea[i] = (stacks == null || !stacks[i]) && noise[i] < shore;
         return sea;
     }
 
@@ -177,11 +176,10 @@ public static class Coastline
         float[] mapNoise = NoiseOver(map, coast);
         var noise = new float[n];
         var land = new System.Collections.Generic.List<float>();
-        float[] drowned = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDrowned;
         for (int i = 0; i < n; i++)
         {
             noise[i] = mapNoise[i];
-            if (noise[i] >= shore && (drowned == null || drowned[i] <= 0f))
+            if (noise[i] >= shore)
                 land.Add(height[i]);
         }
         if (land.Count == 0)
@@ -190,8 +188,7 @@ public static class Coastline
         land.Sort();
         float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
         int sizeZ = n / sizeX;
-        bool Drowned(int i) => drowned != null && drowned[i] > 0f;
-        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore && !Drowned(i), sizeX, sizeZ);
+        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= shore, sizeX, sizeZ);
         Hilliness hilliness = map.TileInfo.hilliness;
         bool[] stacks = null;
         int sea = 0, stackCells = 0;
@@ -204,12 +201,6 @@ public static class Coastline
                 stacks[i] = true;
                 height[i] = beach + p.stackHeight * resistant[i];
                 stackCells++;
-            }
-            else if (Drowned(i))
-            {
-                // A river valley the rising sea drowned: as deep as the river cut it while the sea stood lower.
-                height[i] = beach - drowned[i];
-                sea++;
             }
             else if (noise[i] < shore)
             {
