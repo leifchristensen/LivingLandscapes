@@ -79,7 +79,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static int GrowDeltas(float[] height, float[] filled, int[] routed, int[] main, float[] discharge, float[] width, float[] depth,
         bool[] sea, float seaLevel, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, ref int[] receiver,
-        out Dictionary<int, (int second, float share)> forced, out int channelCells, string model = "grown", float[] rockStrength = null)
+        out Dictionary<int, (int second, float share)> forced, out int channelCells, string model = "grown", float[] rockStrength = null, bool[] drowned = null)
     {
         forced = null;
         channelCells = 0;
@@ -187,7 +187,7 @@ public static partial class TerrainChannels
                     var random = new System.Random(Rand.Int ^ start);
                     Rand.PopState();
                     land += DeltaStream.Grow(height, sea, material, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaStream, random, true,
-                        out _, out _, out modelReport);
+                        out _, out _, out modelReport, drowned);
                 }
                 else
                     land += DeltaHydro.Grow(height, sea, erodibility, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaHydro, out _, out _, out modelReport);

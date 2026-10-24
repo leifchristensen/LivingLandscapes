@@ -28,7 +28,8 @@ public static partial class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false)
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
+        bool[] drowned = null)
     {
         int n = sizeX * sizeZ;
         var system = new RiverSystem
@@ -127,7 +128,7 @@ public static partial class TerrainChannels
             if (pass == 1 && deltaModel != "drawn")
             {
                 deltaCells = GrowDeltas(height, filled, routed, main, discharge, width, depth, sea, seaLevel, isOutlet, sizeX, sizeZ, p, system,
-                    ref receiver, out forcedSplits, out deltaBranches, deltaModel, rockStrength);
+                    ref receiver, out forcedSplits, out deltaBranches, deltaModel, rockStrength, drowned);
             }
             else if (pass == 1 && deltaModel == "drawn")
                 deltaCells = BuildDeltas(height, filled, cells, receiver, discharge, dischargeScale, width, inflow, rockStrength, depth, sea, spread,

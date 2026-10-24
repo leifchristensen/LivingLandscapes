@@ -77,7 +77,7 @@ public class GeologyGenerationExtension : DefModExtension
     /// only since it settled, over the last deltaAgeShare. The sea keeps the sediment rivers bring from the start of the rise
     /// (filling the drowning valleys); before that it is lost offshore.
     /// </summary>
-    public float lowstandDepth = 3f;
+    public float lowstandDepth = 1.5f;
     public float lowstandShare = 0.3f;
     public float riseShare = 0.1f;
     public float deltaAgeShare = 0.04f;
@@ -789,7 +789,7 @@ public static class LandscapeGenerator
         // area): their inflow, in model cells of drainage, eroding at the region's own mean rate.
         yield /= Mathf.Max(1, land);
         // The sea fill's working space, made only once a mouth fills (the sea keeps sediment only late in the run).
-        Queue<int> fill = null;
+        PriorityQueue<int, float> fill = null;
         int[] seen = null;
         int stamp = 0;
         float Room(int i) => seaLevel + 1e-4f * top - h[i];
@@ -810,12 +810,14 @@ public static class LandscapeGenerator
             if (wet == null || !wet[c] || !seaKeeps)
                 continue;
             float carried = load[c] * (1f - removal);
-            // Nearest room first, spreading ring by ring over open water (not through land or built cells): built land
-            // grows as lobes. Walking on to the one roomiest neighbour traced one-cell paths, fingers of land on the map (#61).
-            fill ??= new Queue<int>();
+            // Nearest room first (by distance from the mouth, so lobes grow round, not as the squares 8-neighbour rings make),
+            // spreading over open water (not through land or built cells): built land grows as lobes. Walking on to the one
+            // roomiest neighbour traced one-cell paths, fingers of land on the map (#61).
+            fill ??= new PriorityQueue<int, float>();
             seen ??= new int[n];
             fill.Clear();
-            fill.Enqueue(c);
+            fill.Enqueue(c, 0f);
+            int cx = c % gx, cz = c / gx;
             seen[c] = ++stamp;
             for (int visited = 0; fill.Count > 0 && carried > 0f && visited < p.maxFillCells; visited++)
             {
@@ -842,7 +844,7 @@ public static class LandscapeGenerator
                     if (!wet[nb] || built[nb] || seen[nb] == stamp)
                         continue;
                     seen[nb] = stamp;
-                    fill.Enqueue(nb);
+                    fill.Enqueue(nb, (nx - cx) * (nx - cx) + (nz - cz) * (nz - cz));
                 }
             }
         }

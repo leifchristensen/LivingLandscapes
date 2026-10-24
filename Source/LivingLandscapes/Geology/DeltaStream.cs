@@ -126,7 +126,7 @@ public class DeltaStreamSettings
 public static class DeltaStream
 {
     public static int Grow(float[] height, bool[] sea, float[] erodibility, int start, Vector2 heading, float width, float depth, float seaLevel,
-        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report)
+        int sizeX, int sizeZ, DeltaStreamSettings p, System.Random random, bool seedIslands, out float[] flowOut, out float[] speedOut, out string report, bool[] confined = null)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
         int n = sizeX * sizeZ;
@@ -139,6 +139,9 @@ public static class DeltaStream
         // The delta starts where the river meets the sea: the head of its drowned valley (the erosion model's sea-level history,
         // P1), inside the valley's banks.
         Vector2 apex = mouth;
+        // Open water, where the river's jet runs free and builds no islands: deeper than openDepth river depths, outside the banks
+        // of a drowned valley (inside them the water is confined and the delta fills it, however deep).
+        bool Open(int i) => sea[i] && seaLevel - height[i] > p.openDepth * depth && (confined == null || !confined[i]);
 
         // 1. Fixed islands before the delta forms: Galton rows inside the banks, out to the delta front.
         if (seedIslands && p.seedIslands)
@@ -149,7 +152,7 @@ public static class DeltaStream
             for (Vector2 v = apex; v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ; v += heading)
             {
                 int vi = Mathf.FloorToInt(v.y) * sizeX + Mathf.FloorToInt(v.x);
-                if (sea[vi] && seaLevel - height[vi] > p.openDepth * depth)
+                if (Open(vi))
                     break;
                 frontDistance = (v - apex).magnitude;
             }
@@ -182,7 +185,7 @@ public static class DeltaStream
                     if (at.x < r || at.y < r || at.x >= sizeX - r || at.y >= sizeZ - r)
                         continue;
                     int ci = Mathf.FloorToInt(at.y) * sizeX + Mathf.FloorToInt(at.x);
-                    if (!sea[ci] || seaLevel - height[ci] > p.openDepth * depth)
+                    if (!sea[ci] || Open(ci))
                         continue;
                     if (placed.Exists(o => (o.at - at).magnitude < (o.r + r) * p.seedGap))
                         continue;
@@ -251,7 +254,7 @@ public static class DeltaStream
             var queue = new Queue<int>();
             for (int i = 0; i < n; i++)
             {
-                bool open = sea[i] && seaLevel - height[i] > p.openDepth * depth;
+                bool open = Open(i);
                 int x = i % sizeX, z = i / sizeX;
                 if (!open && sea[i] && (x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1) && height[i] < seaLevel)
                     open = true;
