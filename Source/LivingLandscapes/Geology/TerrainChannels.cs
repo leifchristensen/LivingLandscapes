@@ -47,7 +47,7 @@ public static partial class TerrainChannels
         // Only what the ground cannot absorb runs off (a trickle is kept so drainage still orders the cells).
         float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea, riverMouth);
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea, riverMouth, seaLevel);
 
         // Three passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's
         // regime nudges, silts up basins a world river runs into and carves meanders; pass 1 lets water divide where the
@@ -162,6 +162,13 @@ public static partial class TerrainChannels
             }
         }
 
+        if (GenCommandLine.TryGetCommandLineArg("ll-probe-cell", out string probe))
+        {
+            string[] xz = probe.Split(',');
+            int pc = int.Parse(xz[1]) * sizeX + int.Parse(xz[0]);
+            int pr = receiver[pc];
+            Log.Message($"[LivingLandscapes] PROBE ({probe}): height {height[pc] - seaLevel:F2} above the sea, filled {filled[pc] - seaLevel:F2}, sea {sea?[pc]}, delta land {system.DeltaLand?[pc]}, drowned {system.Drowned?[pc]}, outlet {isOutlet(pc)}, discharge {discharge[pc]:F0}, width {width[pc]:F1}; receiver {(pr < 0 ? "none" : $"({pr % sizeX},{pr / sizeX}) height {height[pr] - seaLevel:F2} sea {sea?[pr]} outlet {isOutlet(pr)} width {width[pr]:F1}")}");
+        }
         // Stage 5, channel plans (TerrainChannels.Trace.cs); stage 6, carving, springs and bars (TerrainChannels.Paint.cs),
         // with the sediment budget (Sediment) in between.
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);

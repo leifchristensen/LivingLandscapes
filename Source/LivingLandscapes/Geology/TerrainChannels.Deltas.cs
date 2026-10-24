@@ -90,11 +90,22 @@ public static partial class TerrainChannels
             return 0;
         // Mouths: channel cells running into the sea, wide enough to carry water of their own; one per river (the cell with the
         // most water among mouths within a few widths).
+        // A mouth's width is the river's over its last few cells (the very last can thin where the channel fans into the shore).
+        float RiverWidth(int c)
+        {
+            float w = width[c];
+            for (int k = 0; k < 6 && main[c] >= 0; k++)
+            {
+                c = main[c];
+                w = Mathf.Max(w, width[c]);
+            }
+            return w;
+        }
         var mouths = new List<int>();
         for (int i = 0; i < n; i++)
         {
             int r = routed[i];
-            if (!sea[i] && width[i] >= g.minMouthWidth && r >= 0 && sea[r])
+            if (!sea[i] && r >= 0 && sea[r] && RiverWidth(i) >= g.minMouthWidth)
                 mouths.Add(i);
         }
         mouths.Sort((a, b) => discharge[b].CompareTo(discharge[a]));
@@ -111,7 +122,15 @@ public static partial class TerrainChannels
         }
         if (rivers.Count == 0)
         {
-            Log.Message("[LivingLandscapes] Delta growth: no channel reaches the sea.");
+            int strongest = -1;
+            for (int i = 0; i < n; i++)
+            {
+                int r = routed[i];
+                if (!sea[i] && r >= 0 && sea[r] && (strongest < 0 || discharge[i] > discharge[strongest]))
+                    strongest = i;
+            }
+            Log.Message($"[LivingLandscapes] Delta growth: no channel reaches the sea" + (strongest >= 0
+                ? $" (the most water into it, {discharge[strongest]:F0}, at ({strongest % sizeX}, {strongest / sizeX}), {width[strongest]:F1} wide)." : "."));
             return 0;
         }
 
@@ -168,9 +187,12 @@ public static partial class TerrainChannels
                     var random = new System.Random(Rand.Int ^ start);
                     Rand.PopState();
                     // The drowned valley's apex: valleyWidths river widths up the river's own course.
-                    int valleyHead = mouth;
-                    for (int k = 0; k < p.deltaStream.valleyWidths * w && main[valleyHead] >= 0; k++)
+                    int valleyHead = mouth, steps = 0;
+                    for (; steps < p.deltaStream.valleyWidths * w && main[valleyHead] >= 0; steps++)
                         valleyHead = main[valleyHead];
+                    // The river's course is short here (it reaches the sea by the drainage): the valley runs straight up its heading.
+                    if (steps < 0.5f * p.deltaStream.valleyWidths * w)
+                        valleyHead = -1;
                     system.Drowned ??= new bool[n];
                     land += DeltaStream.Grow(height, sea, material, start, heading, w, d, seaLevel, sizeX, sizeZ, p.deltaStream, random, true,
                         out _, out _, out modelReport, valleyHead, system.Drowned);
@@ -195,7 +217,11 @@ public static partial class TerrainChannels
                 filled[i] = height[i];
             system.DeltaLand[i] = sea[i] && height[i] > seaLevel + 0.05f;
             if (system.DeltaLand[i])
+            {
+                // Land the delta built is no longer sea: not base level, so water runs on across it to open water.
+                sea[i] = false;
                 land++;
+            }
         }
         foreach (var delta in grown)
             filled[delta.mouth] = Mathf.Max(filled[delta.mouth], delta.apex + 0.002f);

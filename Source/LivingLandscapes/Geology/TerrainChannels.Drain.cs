@@ -24,7 +24,7 @@ public static partial class TerrainChannels
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> outlet,
-        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false)
+        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -38,11 +38,15 @@ public static partial class TerrainChannels
             if (inflow[i] > 0f && (x <= 2 || z <= 2 || x >= sizeX - 3 || z >= sizeZ - 3))
                 entries.Add(new Vector2(x, z));
         }
-        // On a coast the sea is the base level: the map edge drains only near it (the land beyond the other edges rises inland),
-        // so rivers run on into the sea rather than leaving through a land edge beside it.
+        // On a coast the sea is the base level (P1): water that reaches it ends there, so rivers find their own way down to it.
+        // The map edge drains only near the sea (the land beyond the other edges rises inland), so rivers run into the sea
+        // rather than leaving through a land edge beside it.
         float[] toSea = sea != null ? GridMath.DistanceTo(i => sea[i], sizeX, sizeZ) : null;
         bool IsOutlet(int i)
         {
+            // The sea's water, not its beach (the coast mask holds both): ground below the sea's surface.
+            if (sea != null && sea[i] && (float.IsNaN(seaLevel) || height[i] < seaLevel))
+                return true;
             int x = i % sizeX, z = i / sizeX;
             if (x != 0 && z != 0 && x != sizeX - 1 && z != sizeZ - 1)
                 return false;
@@ -75,43 +79,27 @@ public static partial class TerrainChannels
     }
 
     /// <summary>
-    /// A world river whose mouth is at the sea ends in the sea: the erosion model lays its course to the map's edge toward
-    /// the sea before the coastline is shaped, so the course may stop on the beach or run on over land. It ends where it
-    /// first enters the sea; a course that never does runs on from where it comes nearest, down the shortest way to the shore.
+    /// A world river whose mouth is at the sea: the erosion model lays its course to the map's edge toward the sea before the
+    /// coastline is shaped, so the course may end on land at the edge (draining there, off the map) or run on over the sea. It is
+    /// cut where it first enters the sea, or else at its point nearest the sea; from there the drainage carries the river down to
+    /// the sea, which is base level (P1), along the ground rather than a drawn line.
     /// </summary>
     private static ChannelCourse ToTheSea(ChannelCourse course, bool[] sea, float[] toSea, int sizeX, int sizeZ)
     {
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
-        var points = new List<Vector2>();
         int nearest = 0;
         for (int k = 0; k < course.Points.Count; k++)
         {
             int c = Cell(course.Points[k]);
             if (sea[c])
             {
-                points.AddRange(course.Points.GetRange(0, k + 1));
-                return new ChannelCourse { Points = points, WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
+                nearest = k;
+                break;
             }
             if (toSea[c] < toSea[Cell(course.Points[nearest])])
                 nearest = k;
         }
-        points.AddRange(course.Points.GetRange(0, nearest + 1));
-        int at = Cell(course.Points[nearest]);
-        for (int guard = 0; guard < sizeX + sizeZ && !sea[at]; guard++)
-        {
-            int x = at % sizeX, z = at / sizeX, best = -1;
-            for (int d = 0; d < 8; d++)
-            {
-                int nx = x + GenAdj.AdjacentCells[d].x, nz = z + GenAdj.AdjacentCells[d].z;
-                if (nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && (best < 0 || toSea[nz * sizeX + nx] < toSea[best]))
-                    best = nz * sizeX + nx;
-            }
-            if (best < 0 || toSea[best] >= toSea[at])
-                break;
-            at = best;
-            points.Add(new Vector2(at % sizeX + 0.5f, at / sizeX + 0.5f));
-        }
-        return new ChannelCourse { Points = points, WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
+        return new ChannelCourse { Points = course.Points.GetRange(0, nearest + 1), WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
     }
 
     /// <summary>Lowers the ground along a course (see <see cref="TerrainChannelSettings.worldCourseTrench"/>), deepest on the line.</summary>

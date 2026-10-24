@@ -105,14 +105,8 @@ public class DeltaStreamSettings
     public float valleyAngle = 32f;
     public float bankNoise = 1.2f;
 
-    /// <summary>
-    /// How far the delta reaches: platformShare of its sediment has built the delta top, a platform platformDepth river depths below the
-    /// sea, over a cone (coneAngle + platformMargin degrees either side of the river) out from the mouth; the delta front lies where
-    /// that sediment runs out. A large river builds a large delta, a creek a small one, whatever the shelf.
-    /// </summary>
-    public float platformShare = 0.6f;
+    /// <summary>The drowned valley's floor (the delta top the islands stand on) lies platformDepth river depths below the sea.</summary>
     public float platformDepth = 0.6f;
-    public float platformMargin = 12f;
     public float firstRow = 1.5f;
     public float rowGrowth = 1.15f;
     public float coneAngle = 30f;
@@ -208,45 +202,17 @@ public static class DeltaStream
         // 1. Fixed islands before the delta forms: Galton rows inside the banks, out to the delta front.
         if (seedIslands && p.seedIslands)
         {
-            // How far the delta reaches: the platform its sediment has built (raised to the delta top over the cone), ring by ring
-            // out from the mouth until the sediment for it runs out.
-            float budget = p.platformShare * p.volumeWidths * width * width * depth;
-            float platform = seaLevel - p.platformDepth * depth;
-            float cone = (p.coneAngle + p.platformMargin) * Mathf.Deg2Rad;
-            var byRing = new List<int>[2 * (sizeX + sizeZ)];
-            for (int i = 0; i < n; i++)
-            {
-                if (!sea[i] || height[i] >= platform)
-                    continue;
-                var o = new Vector2(i % sizeX + 0.5f, i / sizeX + 0.5f) - mouth;
-                float r = o.magnitude;
-                if (r < 1f || Mathf.Acos(Mathf.Clamp(Vector2.Dot(o / r, heading), -1f, 1f)) > cone)
-                    continue;
-                int ring = Mathf.Min(byRing.Length - 1, Mathf.FloorToInt(r));
-                (byRing[ring] ??= new List<int>()).Add(i);
-            }
+            // How far the islands reach: from the valley's head along its axis to where the water turns open (the delta front builds
+            // on from there where the streamlines' water stops and drops its load, P7).
             float frontDistance = 0f;
-            for (int ring = 0; ring < byRing.Length && budget > 0f; ring++)
+            for (Vector2 v = apex; v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ; v += heading)
             {
-                if (byRing[ring] == null)
-                    continue;
-                frontDistance = ring;
-                foreach (int i in byRing[ring])
-                {
-                    float fill = platform - height[i];
-                    if (fill > budget)
-                    {
-                        height[i] += budget;
-                        budget = 0f;
-                        break;
-                    }
-                    height[i] = platform;
-                    budget -= fill;
-                }
+                int vi = Mathf.FloorToInt(v.y) * sizeX + Mathf.FloorToInt(v.x);
+                if (sea[vi] && seaLevel - height[vi] > p.openDepth * depth)
+                    break;
+                frontDistance = (v - apex).magnitude;
             }
             reach = frontDistance;
-            // Rows from the apex: through the drowned valley and out over the front the sediment built.
-            frontDistance += (mouth - apex).magnitude;
             var rowsAt = new List<float>();
             for (float d = p.firstRow * width; d < frontDistance; d *= p.rowGrowth)
                 rowsAt.Add(d);
@@ -602,7 +568,7 @@ public static class DeltaStream
                 land++;
         }
 
-        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; drowned valley {(mouth - apex).magnitude:F0} cells long ({drowned} cells of land drowned), delta top {reach:F0} cells out, {seeded} seed islands; " +
+        report = $"{p.rounds} rounds x {p.streamlines} streamlines in {watch.ElapsedMilliseconds} ms; drowned valley {(mouth - apex).magnitude:F0} cells long ({drowned} cells of land drowned), islands reach {reach:F0} cells from its head, {seeded} seed islands; " +
                  $"deposited {deposited:F0}, eroded {eroded:F0} ({struck:F0} scoured from shores), carried off {offshore:F0}; {land} cells of land over the sea; {strands} streamlines stranded";
         return land;
     }
