@@ -77,6 +77,16 @@ public class GeologyGenerationExtension : DefModExtension
     public float riverInflow = 8f;
 
     /// <summary>
+    /// Antecedent drainage: a world river is older than the relief around it and keeps cutting down as the land rises, so the
+    /// erosion model starts with each world river already flowing from where it enters, through the meeting point the world gives,
+    /// to its exit (a course falling to base level, antecedentDepth of the starting relief below the ground). Uplift, stream power
+    /// and deposition then keep or change it like any other channel. Without it a river follows the region's own slope and can
+    /// leave the map before the rivers of a confluence meet.
+    /// </summary>
+    public bool antecedentRivers = true;
+    public float antecedentDepth = 0.5f;
+
+    /// <summary>
     /// The valley a world river runs in. A map is a slice of a tile that contains the river, so the river's valley
     /// crosses it; this landform guides the river's channel through the map along the world flow direction.
     /// </summary>
@@ -215,8 +225,10 @@ public static class LandscapeGenerator
         foreach ((int cell, float width) in entries)
             inflow[cell] += p.riverInflow * gx * gz * width / mainWidth;
 
+        float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
+            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, outlet, gx, gz, p.antecedentDepth) : null;
         float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop);
+            out float[] area, out float modelTop, floor);
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
@@ -401,6 +413,54 @@ public static class LandscapeGenerator
         return outlet;
     }
 
+    /// <summary>
+    /// The starting floor of the world rivers' antecedent courses (<see cref="GeologyGenerationExtension.antecedentRivers"/>):
+    /// straight from each entry to the meeting point, then on to the exit, falling evenly to base level and lying
+    /// <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
+    /// </summary>
+    private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exit, float[] uplift, bool[] outlet,
+        int gx, int gz, float depth)
+    {
+        int n = gx * gz;
+        var floor = new float[n];
+        for (int i = 0; i < n; i++)
+            floor[i] = float.NaN;
+        Vector2 At(int c) => new Vector2(c % gx, c / gx);
+        // Cells along a segment, in order.
+        List<int> Line(Vector2 a, Vector2 b)
+        {
+            var cells = new List<int>();
+            float length = (b - a).magnitude;
+            for (float t = 0f; t <= length; t += 0.5f)
+            {
+                Vector2 v = Vector2.Lerp(a, b, length > 0f ? t / length : 1f);
+                int c = Mathf.Clamp(Mathf.RoundToInt(v.y), 0, gz - 1) * gx + Mathf.Clamp(Mathf.RoundToInt(v.x), 0, gx - 1);
+                if (cells.Count == 0 || cells[cells.Count - 1] != c)
+                    cells.Add(c);
+            }
+            return cells;
+        }
+        // The starting ground is the uplift's first step (Erode); the courses lie below its lowest along them.
+        foreach ((int entry, float _) in entries)
+        {
+            List<int> course = Line(At(entry), meeting);
+            course.AddRange(Line(meeting, At(exit)));
+            float low = float.MaxValue;
+            foreach (int c in course)
+                low = Mathf.Min(low, uplift[c] * 0.01f);
+            float top = low * (1f - depth);
+            for (int k = 0; k < course.Count; k++)
+            {
+                int c = course[k];
+                if (outlet[c])
+                    continue;
+                float f = top * (1f - (float)k / course.Count);
+                floor[c] = float.IsNaN(floor[c]) ? f : Mathf.Min(floor[c], f);
+            }
+        }
+        return floor;
+    }
+
     private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null, Rect? window = null)
     {
         // Walk from the start (default: the centre) along the direction until leaving the grid.
@@ -427,7 +487,7 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, int gx, int gz,
         GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop)
+        out int[] receiverOut, out float[] areaOut, out float modelTop, float[] initialFloor = null)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -446,7 +506,12 @@ public static class LandscapeGenerator
         float maxCreepFactor = 0.24f / Mathf.Max(1e-6f, p.hillslopeDiffusion);
 
         for (int i = 0; i < n; i++)
+        {
             h[i] = outlet[i] ? 0f : uplift[i] * 0.01f;
+            // A world river's antecedent course (it starts below the ground around it).
+            if (initialFloor != null && !outlet[i] && !float.IsNaN(initialFloor[i]))
+                h[i] = Mathf.Min(h[i], initialFloor[i]);
+        }
         // Sediment: the load each cell passes on.
         var eroded = new float[n];
         var load = new float[n];
