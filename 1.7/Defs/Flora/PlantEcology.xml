@@ -49,6 +49,10 @@
     <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
     <vitalityMin>0.5</vitalityMin>
     <vitalityMax>1.2</vitalityMax>
+    <!-- Habitat inputs (Docs/HABITAT-XML.md): sun-facing slopes dry faster (water = moisture - sunDrying x (sun - 0.7));
+         soil shallower than a species' rooting depth limits it by (soil / rootingDepth) ^ rootRoomExponent. -->
+    <sunDrying>0.15</sunDrying>
+    <rootRoomExponent>0.5</rootRoomExponent>
   </LivingLandscapes.Flora.PlantEcologyDef>
 
 </Defs>

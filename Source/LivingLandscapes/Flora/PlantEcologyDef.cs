@@ -108,7 +108,35 @@ public class PlantEcologyDef : Def
     public float vitalityMin = 0.5f;
     public float vitalityMax = 1.2f;
 
+    /// <summary>Water: sun-facing slopes dry faster; water = moisture - this x (LL_Sun - 0.7), level ground unchanged.</summary>
+    public float sunDrying = 0.15f;
+
+    /// <summary>Root room: fitness x (min(1, soil depth / rooting depth))^this. 0 ignores soil depth.</summary>
+    public float rootRoomExponent = 0.5f;
+
     private static PlantEcologyDef current;
 
-    public static PlantEcologyDef Current => current ??= DefDatabase<PlantEcologyDef>.GetNamedSilentFail("LL_PlantEcology") ?? new PlantEcologyDef();
+    public static PlantEcologyDef Current => current ??= WithOverrides(DefDatabase<PlantEcologyDef>.GetNamedSilentFail("LL_PlantEcology") ?? new PlantEcologyDef());
+
+    /// <summary>Dev: "-ll-ecology-set=field:value,field:value" overrides float fields for tuning sweeps.</summary>
+    private static PlantEcologyDef WithOverrides(PlantEcologyDef def)
+    {
+        if (!GenCommandLine.TryGetCommandLineArg("ll-ecology-set", out string arg))
+            return def;
+        foreach (string pair in arg.Split(','))
+        {
+            string[] parts = pair.Split(':');
+            System.Reflection.FieldInfo field = parts.Length == 2 ? typeof(PlantEcologyDef).GetField(parts[0]) : null;
+            if (field != null && field.FieldType == typeof(float) && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
+            {
+                field.SetValue(def, value);
+                Log.Message($"[LivingLandscapes] Plant ecology: {parts[0]} = {value} (-ll-ecology-set).");
+            }
+            else
+            {
+                Log.Warning($"[LivingLandscapes] Plant ecology: cannot apply -ll-ecology-set entry '{pair}'.");
+            }
+        }
+        return def;
+    }
 }

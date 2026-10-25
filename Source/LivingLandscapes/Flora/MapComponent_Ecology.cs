@@ -96,19 +96,19 @@ public class MapComponent_Ecology : MapComponent
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null)
             return;
-        EnvironmentLayerDef[] needed = { EnvironmentLayerDefOf.LL_Moisture, EnvironmentLayerDefOf.LL_SoilDepth, EnvironmentLayerDefOf.LL_Slope, EnvironmentLayerDefOf.LL_Sun };
+        EnvironmentLayerDef[] needed = { EnvironmentLayerDefOf.LL_Moisture, EnvironmentLayerDefOf.LL_SoilDepth, EnvironmentLayerDefOf.LL_Sun };
         foreach (EnvironmentLayerDef layer in needed)
         {
             if (!environment.TryGetGrid(layer, out _))
                 return;
         }
         float[] Grid(EnvironmentLayerDef layer) => environment.TryGetGrid(layer, out EnvironmentGrid grid) ? grid.ToArray() : null;
-        float[] moisture = Grid(needed[0]), soilDepth = Grid(needed[1]), slope = Grid(needed[2]), sun = Grid(needed[3]);
+        float[] moisture = Grid(needed[0]), soilDepth = Grid(needed[1]), sun = Grid(needed[2]);
 
         sizeX = map.Size.x;
         sizeZ = map.Size.z;
         latitude = SunWorker.LatitudeOf(map);
-        sampler = new HabitatSampler(map, moisture, soilDepth, slope, sun);
+        sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
 
         long start = Stopwatch.GetTimestamp();
@@ -247,12 +247,11 @@ public class MapComponent_Ecology : MapComponent
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
 
-    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness times how well it bears the shade there.</summary>
+    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        float fitness = habitat.HasSiteCurves ? SiteGrid(def, habitat)[index] : 1f;
-        return fitness * Mathf.Lerp(1f - ShadeAt(index), 1f, habitat.shadeTolerance);
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
     }
 
     /// <summary>
