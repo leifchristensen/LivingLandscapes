@@ -171,8 +171,20 @@ public class PlantHabitat : DefModExtension
         PlantProperties p = plant.plant;
         if (p == null || !p.GrowsInClusters)
             return 0f;
-        return clusterRadius > 0f ? clusterRadius : p.wildClusterRadius * PlantEcologyDef.Current.sigmaPerVanillaRadius;
+        if (clusterRadius > 0f)
+            return clusterRadius;
+        // Many small seeds travel a little further than few large ones.
+        return p.wildClusterRadius * PlantEcologyDef.Current.sigmaPerVanillaRadius * Kernel.sigmaScale * Mathf.Lerp(0.8f, 1.2f, seed);
     }
+
+    /// <summary>The dispersal kernel of this species' seed vector.</summary>
+    public DispersalKernel Kernel => PlantEcologyDef.Current.KernelFor(dispersal);
+
+    /// <summary>
+    /// How often a new clump starts away from the species' own kind, relative to <see cref="PlantEcologyDef.clusterNucleation"/>:
+    /// the vector's rate, raised for many small seeds (more of them land far away).
+    /// </summary>
+    public float NucleationScale => Kernel.nucleationScale * Mathf.Lerp(0.6f, 1.4f, seed);
 
     /// <summary>
     /// How many times likelier a spawn is inside a cluster than outside, from vanilla's own numbers (cluster weight and

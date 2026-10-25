@@ -41,7 +41,9 @@ public static class PlantSeeder
             if (wanted < 3)
                 continue;
             float sigma = habitat.ClusterSigma(def);
-            float clump = Mathf.Max(3f, Mathf.PI * 4f * sigma * sigma * tuning.seedFill);
+            // The vector sets clump size as it does in play: strong clumps (clonal) grow larger, frequent new clumps
+            // (wind, many small seeds) leave each one smaller.
+            float clump = Mathf.Max(3f, Mathf.PI * 4f * sigma * sigma * tuning.seedFill * habitat.Kernel.clumpScale / Mathf.Max(habitat.NucleationScale, 0.1f));
             int made = 0, failures = 0;
             while (made < wanted && failures < 400)
             {
@@ -56,7 +58,7 @@ public static class PlantSeeder
                 int offspring = Mathf.RoundToInt(clump * Rand.Range(0.5f, 1.5f));
                 for (int i = 0; i < offspring && made < wanted; i++)
                 {
-                    var cell = new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
+                    IntVec3 cell = ecology.OffspringCell(habitat, parent, sigma);
                     if (Suits(map, ecology, def, cell, tuning) && Place(map, def, cell))
                         made++;
                 }

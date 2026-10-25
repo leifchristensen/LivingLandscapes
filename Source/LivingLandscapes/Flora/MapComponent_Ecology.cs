@@ -29,6 +29,11 @@ public class MapComponent_Ecology : MapComponent
 
     private HabitatSampler sampler;
     private float[] shadeLog;
+
+    /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
+    private float[] aspect;
+
+    private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
@@ -110,6 +115,7 @@ public class MapComponent_Ecology : MapComponent
         latitude = SunWorker.LatitudeOf(map);
         sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
+        aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
 
         long start = Stopwatch.GetTimestamp();
         int count = 0;
@@ -165,7 +171,8 @@ public class MapComponent_Ecology : MapComponent
         {
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
-            Apply(grid, at.x, at.z, ClusterKernel(sigma), sign);
+            int index = map.cellIndices.CellToIndex(at);
+            Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
         if (habitat.clusterRadius2 > 0f && sigma > 0f)
         {
@@ -206,6 +213,49 @@ public class MapComponent_Ecology : MapComponent
         kernel = Build(Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * s), d2 => Mathf.Exp(-d2 / (2f * s * s)));
         clusterKernels[key] = kernel;
         return kernel;
+    }
+
+    /// <summary>
+    /// Seeds carried by water (hydrochory) land downstream: a Gaussian stretched along the downhill direction (sigma x
+    /// <see cref="DownstreamStretch"/>), narrowed across it, and centred one sigma downhill. One kernel per eighth of the
+    /// compass and sigma, cached.
+    /// </summary>
+    private Kernel DownstreamKernel(float sigma, float downhill)
+    {
+        int octant = ((Mathf.RoundToInt(downhill / (Mathf.PI / 4f)) % 8) + 8) % 8;
+        int key = Mathf.RoundToInt(sigma * 4f);
+        if (downstreamKernels.TryGetValue((key, octant), out Kernel kernel))
+            return kernel;
+        float s = key / 4f, along = s * DownstreamStretch, across = s * DownstreamNarrow;
+        float angle = octant * Mathf.PI / 4f, cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
+        int reach = Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * along + s);
+        var values = new float[(2 * reach + 1) * (2 * reach + 1)];
+        for (int dz = -reach; dz <= reach; dz++)
+        {
+            for (int dx = -reach; dx <= reach; dx++)
+            {
+                float a = dx * cos + dz * sin - s, c = -dx * sin + dz * cos;
+                values[(dz + reach) * (2 * reach + 1) + dx + reach] = Mathf.Exp(-(a * a) / (2f * along * along) - (c * c) / (2f * across * across));
+            }
+        }
+        kernel = new Kernel { Reach = reach, Values = values };
+        downstreamKernels[(key, octant)] = kernel;
+        return kernel;
+    }
+
+    private const float DownstreamStretch = 1.5f, DownstreamNarrow = 0.7f;
+
+    /// <summary>
+    /// Where a seed of a water-carried species lands from a parent at this cell: an offset drawn from the same stretched,
+    /// downstream-shifted Gaussian as <see cref="DownstreamKernel"/> (isotropic for other species), used by the seeder.
+    /// </summary>
+    public IntVec3 OffspringCell(PlantHabitat habitat, IntVec3 parent, float sigma)
+    {
+        if (!habitat.Kernel.downstream || aspect == null || !parent.InBounds(map))
+            return new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
+        float angle = aspect[map.cellIndices.CellToIndex(parent)];
+        float a = sigma + Rand.Gaussian(0f, sigma * DownstreamStretch), c = Rand.Gaussian(0f, sigma * DownstreamNarrow);
+        return new IntVec3(Mathf.RoundToInt(parent.x + a * Mathf.Cos(angle) - c * Mathf.Sin(angle)), 0, Mathf.RoundToInt(parent.z + a * Mathf.Sin(angle) + c * Mathf.Cos(angle)));
     }
 
     private (Kernel, (int x, int z)) ShadeKernel(ThingDef def, PlantHabitat habitat)
@@ -328,8 +378,37 @@ public class MapComponent_Ecology : MapComponent
     public float ClusterDensity(ThingDef def, int index) => density.TryGetValue(def, out float[] grid) ? grid[index] : 0f;
 
     /// <summary>
-    /// Chance (0..1) that a spawn attempt on this cell goes ahead: low on ground where none of the biome's plants do
-    /// well, 1 on the best ground (the map's upper fitness range, found by sampling).
+    /// How strongly the species' own plants draw a newcomer to this cell (P13), as a factor on its weight: the vector's
+    /// nucleation rate away from its kind, rising inside a clump to the capped cluster ratio times the vector's clump
+    /// strength, and at the second, larger scale for species that set one. 1 for species that do not cluster.
+    /// </summary>
+    public float ClusterPull(ThingDef def, int index)
+    {
+        PlantHabitat habitat = PlantHabitat.For(def);
+        if (habitat.ClusterSigma(def) <= 0f)
+            return 1f;
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float strength = Strength;
+        float crowding = ClusterDensity(def, index) * tuning.clusterGainPerNeighbour;
+        float inside = Mathf.Lerp(1f, Mathf.Min(habitat.ClusterRatio(def), tuning.clusterMaxRatio) * habitat.Kernel.clumpScale, strength);
+        float outside = Mathf.Lerp(1f, tuning.clusterNucleation * habitat.NucleationScale, strength);
+        float pull = outside + (inside - outside) * (1f - Mathf.Exp(-crowding));
+        // The larger scale: forests and clearings.
+        if (habitat.clusterRadius2 > 0f && habitat.clusterStrength2 > 1f)
+        {
+            float wide = ClusterDensity2(def, index) * tuning.clusterGain2PerNeighbour;
+            float inside2 = Mathf.Lerp(1f, habitat.clusterStrength2, strength);
+            float outside2 = Mathf.Lerp(1f, tuning.clusterNucleation2, strength);
+            pull *= outside2 + (inside2 - outside2) * (1f - Mathf.Exp(-wide));
+        }
+        return pull;
+    }
+
+    /// <summary>
+    /// Chance (0..1) that a spawn attempt on this cell goes ahead: the fitness of the plant likely to establish here
+    /// against the map's upper fitness range (found by sampling). Each species counts by its commonality times how
+    /// strongly its own clumps draw recruits to the cell (<see cref="ClusterPull"/>), so inside a bramble thicket in deep
+    /// shade the recruit is a bramble and the bramble's light limits whether anything grows (light-limited capacity, P12).
     /// </summary>
     public float Acceptance(IntVec3 cell)
     {
@@ -338,8 +417,9 @@ public class MapComponent_Ecology : MapComponent
         float weights = 0f, sum = 0f;
         foreach (BiomePlantRecord record in plants)
         {
-            weights += record.commonality;
-            sum += record.commonality * Fitness(record.plant, index);
+            float weight = record.commonality * ClusterPull(record.plant, index);
+            weights += weight;
+            sum += weight * Fitness(record.plant, index);
         }
         if (weights <= 0f)
             return 1f;

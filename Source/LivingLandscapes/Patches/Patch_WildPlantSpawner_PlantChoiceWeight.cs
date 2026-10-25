@@ -61,19 +61,7 @@ public static class Patch_WildPlantSpawner_PlantChoiceWeight
         if (raw >= VanillaClusterCutoff)
             __result *= Mathf.Pow(1f / (Mathf.PI * radius * radius), strength);
 
-        float crowding = ecology.ClusterDensity(plantDef, index) * tuning.clusterGainPerNeighbour;
-        float inside = Mathf.Lerp(1f, Mathf.Min(habitat.ClusterRatio(plantDef), tuning.clusterMaxRatio), strength);
-        float outside = Mathf.Lerp(1f, tuning.clusterNucleation, strength);
-        __result *= outside + (inside - outside) * (1f - Mathf.Exp(-crowding));
-
-        // The larger scale: forests and clearings.
-        if (habitat.clusterRadius2 > 0f && habitat.clusterStrength2 > 1f)
-        {
-            float wide = ecology.ClusterDensity2(plantDef, index) * tuning.clusterGain2PerNeighbour;
-            float inside2 = Mathf.Lerp(1f, habitat.clusterStrength2, strength);
-            float outside2 = Mathf.Lerp(1f, tuning.clusterNucleation2, strength);
-            __result *= outside2 + (inside2 - outside2) * (1f - Mathf.Exp(-wide));
-        }
+        __result *= ecology.ClusterPull(plantDef, index);
     }
 
     /// <summary>The species' share of the map's plants over its target share (vanilla's own measure); -1 while there are no plants.</summary>

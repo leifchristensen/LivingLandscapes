@@ -18,8 +18,29 @@ public class StratumScale
     public float scale = 1f;
 }
 
+/// <summary>
+/// The dispersal kernel of one seed vector (P13; PLANT-TRAITS.md section 4.2), relative to a species' base clump size:
+/// how far offspring land, how often a new clump starts away from the species' own kind, and how strongly a clump draws
+/// newcomers. Water carries seeds downstream: its kernel is stretched along the downhill direction and shifted down it.
+/// </summary>
+public class DispersalKernel
+{
+    public PlantDispersal vector;
+    public float sigmaScale = 1f;
+    public float nucleationScale = 1f;
+    public float clumpScale = 1f;
+    public bool downstream;
+}
+
 public class PlantEcologyDef : Def
 {
+    /// <summary>Dispersal kernels by seed vector; a vector not listed behaves as the base kernel (all scales 1).</summary>
+    public List<DispersalKernel> dispersalKernels = new List<DispersalKernel>();
+
+    private static readonly DispersalKernel BaseKernel = new DispersalKernel();
+
+    public DispersalKernel KernelFor(PlantDispersal vector) => dispersalKernels.Find(k => k.vector == vector) ?? BaseKernel;
+
     /// <summary>
     /// Forest layers: multiplies the commonality of a biome's canopy, shrub or ground plants, so a forest biome can carry
     /// more trees and understory than vanilla's commonality gives (vanilla's forests are sparse). The spawner's shares are

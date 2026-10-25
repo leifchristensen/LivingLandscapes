@@ -52,6 +52,18 @@
     <!-- Habitat inputs (Docs/HABITAT-XML.md): sun-facing slopes dry faster (water = moisture - sunDrying x (sun - 0.7));
          soil shallower than a species' rooting depth limits it by (soil / rootingDepth) ^ rootRoomExponent. -->
     <sunDrying>0.15</sunDrying>
+    <!-- Dispersal kernels by seed vector (P13, Docs/PLANT-TRAITS.md 4.2), relative to a species' base clump: sigmaScale =
+         how far offspring land, nucleationScale = how often a new clump starts away from the species' own kind,
+         clumpScale = how strongly a clump draws newcomers (after the clusterMaxRatio cap). Water carries seeds downstream
+         (a stretched kernel centred one sigma downhill). The species' seed axis adds 0.8-1.2 x sigma and 0.6-1.4 x
+         nucleation (many small seeds travel further). -->
+    <dispersalKernels>
+      <li><vector>Gravity</vector><sigmaScale>0.7</sigmaScale><nucleationScale>0.6</nucleationScale><clumpScale>1.2</clumpScale></li>
+      <li><vector>Animal</vector><sigmaScale>1.0</sigmaScale><nucleationScale>1.0</nucleationScale><clumpScale>1.0</clumpScale></li>
+      <li><vector>Wind</vector><sigmaScale>1.5</sigmaScale><nucleationScale>2.0</nucleationScale><clumpScale>0.6</clumpScale></li>
+      <li><vector>Water</vector><sigmaScale>1.0</sigmaScale><nucleationScale>1.0</nucleationScale><clumpScale>1.0</clumpScale><downstream>true</downstream></li>
+      <li><vector>Clonal</vector><sigmaScale>0.6</sigmaScale><nucleationScale>0.3</nucleationScale><clumpScale>2.0</clumpScale></li>
+    </dispersalKernels>
     <rootRoomExponent>0.3</rootRoomExponent>
   </LivingLandscapes.Flora.PlantEcologyDef>
 
