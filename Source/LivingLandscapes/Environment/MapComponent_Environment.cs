@@ -36,6 +36,18 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public float[] PlannedRockStrength { get; set; }
 
+    /// <summary>
+    /// Sea stacks (issue #60): resistant rock near the shore that waves left standing above the sea. The coast mutator leaves
+    /// it land; it is bare rock, not deep soil.
+    /// </summary>
+    public bool[] PlannedStacks { get; set; }
+
+    /// <summary>The sea's surface (the beach's height, <see cref="Geology.Coastline"/>); NaN without a coast. Not saved.</summary>
+    public float PlannedSeaLevel { get; set; } = float.NaN;
+
+    /// <summary>Sea shallower than this (metres) is shallow water (<see cref="Geology.CoastlineExtension.shallowWaterDepth"/>). Not saved.</summary>
+    public float PlannedShallowDepth { get; set; } = float.NaN;
+
     /// <summary>Hard beds at or below each cell's surface (<see cref="Geology.RockStrata.HardBedsBelow"/>): the terrace stages follow it. Not saved.</summary>
     public int[] PlannedRockStage { get; set; }
     public ThingDef[] PlannedRock { get; set; }

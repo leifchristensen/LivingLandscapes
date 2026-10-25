@@ -61,6 +61,7 @@ public class SoilModelExtension : DefModExtension
     /// <summary>Gaussian radius (cells) of the soil depth the rock calibration works on: the size of the outcrops it makes.</summary>
     public float outcropSigma = 3f;
 
+
     /// <summary>
     /// Passes (without a Z-level mod a ridge, bluff or canyon rim must not cut a map in two): every walkable area of at least
     /// this share of the map is joined to the largest by a col, the cheapest way over the rock, preferring thin rock and

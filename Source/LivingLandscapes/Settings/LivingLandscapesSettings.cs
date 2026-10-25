@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Verse;
 
 namespace LivingLandscapes.Settings;
@@ -35,6 +36,9 @@ public class LivingLandscapesSettings : ModSettings
     /// <summary>Pawns walk more slowly uphill than across or downhill, and plan routes over gentle ground.</summary>
     public bool slopeMovement = true;
 
+    /// <summary>Overrides of the generation tuning, as text by the value's path (<see cref="Tuning"/>); empty keeps XML's values.</summary>
+    public Dictionary<string, string> tuning = new();
+
     public override void ExposeData()
     {
         base.ExposeData();
@@ -44,5 +48,7 @@ public class LivingLandscapesSettings : ModSettings
         Scribe_Values.Look(ref habitatStrength, "habitatStrength", 1f);
         Scribe_Values.Look(ref gameplaySiting, "gameplaySiting", true);
         Scribe_Values.Look(ref slopeMovement, "slopeMovement", true);
+        Scribe_Collections.Look(ref tuning, "tuning", LookMode.Value, LookMode.Value);
+        tuning ??= new Dictionary<string, string>();
     }
 }

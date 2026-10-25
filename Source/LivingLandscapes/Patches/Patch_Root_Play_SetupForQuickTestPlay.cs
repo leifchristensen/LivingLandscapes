@@ -50,8 +50,18 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             string[] parts = text.Split(',');
             int layer = parts.Length > 1 && int.TryParse(parts[1], out int l) ? l : Find.WorldGrid.Surface.LayerID;
             var reason = new System.Text.StringBuilder();
-            if (int.TryParse(parts[0], out int id) && id >= 0 && id < Find.WorldGrid.Surface.TilesCount
-                && TileFinder.IsValidTileForNewSettlement(new PlanetTile(id, layer), reason))
+            bool known = int.TryParse(parts[0], out int id) && id >= 0 && id < Find.WorldGrid.Surface.TilesCount;
+            // Faction settlements are placed at random per world: one on or beside the player's tile here need not exist in
+            // the player's world, so it gives way.
+            if (known)
+            {
+                var near = new System.Collections.Generic.List<PlanetTile>();
+                Find.WorldGrid.GetTileNeighbors(new PlanetTile(id, layer), near);
+                near.Add(new PlanetTile(id, layer));
+                foreach (var settlement in Find.WorldObjects.Settlements.Where(s => near.Contains(s.Tile)).ToList())
+                    settlement.Destroy();
+            }
+            if (known && TileFinder.IsValidTileForNewSettlement(new PlanetTile(id, layer), reason))
             {
                 Find.GameInitData.startingTile = new PlanetTile(id, layer);
                 Tile tile = Find.WorldGrid[Find.GameInitData.startingTile];
@@ -195,6 +205,16 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
             }
         }
         AssignMutators(tile, coast, (tile as SurfaceTile)?.Rivers?.Count ?? 0);
+        // A mixed biome needs a neighbour of another biome on its whitelist (vanilla's TileMutatorWorker_MixedBiome); a forced
+        // coast can turn that neighbour into ocean, and world generation would not have given the tile the mutator then.
+        var around = new System.Collections.Generic.List<PlanetTile>();
+        Find.WorldGrid.GetTileNeighbors(start, around);
+        foreach (TileMutatorDef mixed in tile.Mutators.Where(m => m.Worker is TileMutatorWorker_MixedBiome).ToList())
+        {
+            if (!around.Any(n => mixed.biomeWhitelist != null && mixed.biomeWhitelist.Contains(Find.WorldGrid[n].PrimaryBiome)
+                                 && Find.WorldGrid[n].PrimaryBiome != tile.PrimaryBiome))
+                tile.RemoveMutator(mixed);
+        }
         Log.Message($"[LivingLandscapes] Forced tile: {tile.PrimaryBiome.defName}, rain {tile.rainfall:F0} mm, {tile.temperature:F0} C, " +
                     $"{(tile as SurfaceTile)?.Rivers?.Count ?? 0} river links, coast {(ocean.Valid ? Find.World.CoastDirectionAt(start).ToStringHuman() : "none")}, " +
                     $"mutators [{string.Join(", ", tile.Mutators.Select(m => m.defName))}].");

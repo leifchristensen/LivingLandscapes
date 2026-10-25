@@ -29,8 +29,18 @@ public class LivingLandscapesMod : Mod
 
     public override string SettingsCategory() => "LL_SettingsCategory".Translate();
 
+    /// <summary>Whether the settings window shows the generation tuning instead of the general settings.</summary>
+    private static bool showTuning;
+
     public override void DoSettingsWindowContents(Rect inRect)
     {
+        if (Widgets.ButtonText(new Rect(inRect.xMax - 220f, inRect.y, 220f, 30f), (showTuning ? "LL_TuningBack" : "LL_TuningOpen").Translate()))
+            showTuning = !showTuning;
+        if (showTuning)
+        {
+            TuningPanel.Draw(new Rect(inRect.x, inRect.y + 36f, inRect.width, inRect.height - 36f), Settings);
+            return;
+        }
         var listing = new Listing_Standard();
         listing.Begin(inRect);
 

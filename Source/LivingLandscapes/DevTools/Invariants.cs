@@ -52,6 +52,8 @@ public static class Invariants
         if (rivers == null || rivers.Channels.Count == 0)
             return;
         int steps = 0, climbing = 0, ended = 0;
+        bool[] coast = Geology.Coastline.SeaCells(map);
+        var stranded = new StringBuilder();
         float maxRise = 0f, length = 0f, straight = 0f;
         IntVec3 worst = IntVec3.Invalid, worstLow = IntVec3.Invalid;
         int worstChannel = -1;
@@ -103,17 +105,21 @@ public static class Invariants
 
 
             Vector2 mouth = plan.Main[plan.Main.Count - 1];
+            int mouthIndex = RiverGrid.Index(mouth, map.Size.x, map.Size.z);
+            // The coast counts with its beach: a stream ending on the sand runs on across it into the sea.
             bool atBase = plan.Parent >= 0 || !Inside(map, mouth) || NearEdge(map, mouth, plan.NominalWidth)
-                          || map.terrainGrid.TerrainAt(RiverGrid.Index(mouth, map.Size.x, map.Size.z)).IsWater;
+                          || map.terrainGrid.TerrainAt(mouthIndex).IsWater || (coast != null && coast[mouthIndex]);
             if (atBase)
                 ended++;
+            else
+                stranded.Append($" ({(int)mouth.x}, {(int)mouth.y}) on {map.terrainGrid.TerrainAt(mouthIndex).defName}, width {plan.NominalWidth:F1};");
         }
         summary.AppendLine($"invariant 1 (water flows downhill): {(climbing == 0 ? "ok" : "FAIL")} | {steps} centre-line cells in {rivers.Channels.Count} channels, " +
                            $"{climbing} above an upstream low point, max rise {maxRise:F2} m{(worst.IsValid ? $" at {worst} (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0}, low point {worstLow}; surface {h[map.cellIndices.CellToIndex(worstLow)]:F2} then {h[map.cellIndices.CellToIndex(worst)]:F2}, water level {rivers.WaterLevel[map.cellIndices.CellToIndex(worstLow)]:F2} then {rivers.WaterLevel[map.cellIndices.CellToIndex(worst)]:F2})" : "")}");
         summary.AppendLine($"channels: {rivers.Channels.Count}, sinuosity {(straight > 1f ? length / straight : 1f):F2}, widths " +
                            string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
-                           "end in another channel, at the map edge or in standing water");
+                           "end in another channel, at the map edge or in standing water" + (stranded.Length > 0 ? $"; ending on land:{stranded}" : ""));
     }
 
     /// <summary>
@@ -152,12 +158,17 @@ public static class Invariants
         var filled = (float[])h.Clone();
         GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         TerrainDef[] terrain = map.terrainGrid.topGrid;
-        // Open still water only: marsh is wet ground (floodplains, seeps), not a lake.
+        bool[] coast = Geology.Coastline.SeaCells(map);
+        // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
+        // pool (vanilla's Caves mutator paints them in its tunnels): the landform there is the rock above, not the cave floor.
+        RoofGrid roofs = map.roofGrid;
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
         bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
-                                  && terrain[i] != TerrainDefOf.Marsh;
+                                  && terrain[i] != TerrainDefOf.Marsh && !(roofs.RoofAt(i)?.isNatural ?? false);
 
         int lakeCount = GridMath.LabelRegions(StillWater, sizeX, sizeZ, out int[] lakeLabels);
         var lakeDepth = new float[lakeCount];
+        var lagoon = new bool[lakeCount];
         var lakeCells = new int[lakeCount];
         var lakeTerrain = new TerrainDef[lakeCount];
         var lakeAt = new IntVec3[lakeCount];
@@ -171,8 +182,24 @@ public static class Invariants
                 lakeAt[l] = map.cellIndices.IndexToCell(i);
             lakeTerrain[l] ??= terrain[i];
             lakeDepth[l] = Mathf.Max(lakeDepth[l], filled[i] - h[i]);
+            // Still water that touches the ocean lies at sea level, open to it: a lagoon, part of the sea. The coast's own
+            // water counts too, ocean or not: on a Lakeshore tile the coast is a lake, painted as lake water, and its pieces
+            // along the map edge belong to the lake beyond it.
+            lagoon[l] |= coast != null && coast[i];
+            if (!lagoon[l])
+                GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= terrain[nb] != null && terrain[nb].IsOcean);
+            // A pool of a channel (a lake its river rises in or runs through) that touches the channel's flowing water at its
+            // own level is held up by the river, not by a rim: part of the river, which invariant 1 checks. A pool above its
+            // river still fails.
+            if (!lagoon[l] && rivers != null && rivers.ChannelOf[i] >= 0 && !float.IsNaN(rivers.WaterLevel[i]))
+            {
+                int channel = rivers.ChannelOf[i];
+                float level = rivers.WaterLevel[i];
+                GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => lagoon[l] |= rivers.ChannelOf[nb] == channel && !rivers.Still[nb]
+                    && rivers.WaterLevel[nb] >= level - Tolerance);
+            }
         }
-        int lakes = 0, inDepression = 0;
+        int lakes = 0, inDepression = 0, lagoons = 0;
         var failing = new StringBuilder();
         for (int l = 0; l < lakeCount; l++)
         {
@@ -181,6 +208,11 @@ public static class Invariants
             lakes++;
             if (lakeDepth[l] > Tolerance)
                 inDepression++;
+            else if (lagoon[l])
+            {
+                inDepression++;
+                lagoons++;
+            }
             else
                 failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]} at {lakeAt[l].x},{lakeAt[l].z}");
         }
@@ -209,7 +241,7 @@ public static class Invariants
                 dryHollows++;
         }
         summary.AppendLine($"invariant 2 (lakes in depressions): {(inDepression == lakes ? "ok" : "FAIL")} | " +
-                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression; " +
+                           $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea or their river ({lagoons} lagoons and river pools); " +
                            $"{hollows} closed depressions >= {DepressionDepth} m deep ({hollowArea} cells), {dryHollows} hold no water" +
                            (failing.Length > 0 ? $"; not in a depression:{failing}" : ""));
     }

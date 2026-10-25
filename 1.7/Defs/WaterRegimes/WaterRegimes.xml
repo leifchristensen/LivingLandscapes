@@ -16,8 +16,7 @@
     below 1 a denser network), width, depth, widthNoise, depthNoise, bankNoise, spread (water divides more readily).
     Keep within about 0.5..3.
     Terrain nudges (step 5): centreDepression or centreKnob (metres, at the river centre, centreRadiusShare of the map
-    across; a knob is resistant rock, knobRockStrength), exitFlatten (0..1, relief eased toward base level within
-    exitReachShare of the map of the river's exit).
+    across; a knob is resistant rock, knobRockStrength).
     replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
     World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
     a confluence).
@@ -26,23 +25,10 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_Delta</defName>
     <label>delta</label>
-    <exitFlatten>0.8</exitFlatten>
-    <nudges>
-      <depth>0.8</depth>
-      <depthNoise>1.4</depthNoise>
-      <spread>2.5</spread>
-      <deposition>2.5</deposition>
-    </nudges>
     <order>10</order>
     <mutators><li>RiverDelta</li></mutators>
     <replacesMutatorTerrain>true</replacesMutatorTerrain>
     <sourceShare>0.03~0.04</sourceShare>
-    <floodplainScale>1.5</floodplainScale>
-    <channelRegimes>
-      <li><regime>LL_Braided</regime><weight>3</weight></li>
-      <li><regime>LL_Anabranching</regime><weight>3</weight></li>
-      <li><regime>LL_Meandering</regime><weight>2</weight></li>
-    </channelRegimes>
   </LivingLandscapes.Geology.WaterRegimeDef>
 
   <LivingLandscapes.Geology.WaterRegimeDef>

@@ -38,6 +38,16 @@ public class SedimentSettings
     /// </summary>
     public float bendBias = 2.5f;
 
+    /// <summary>
+    /// Where a river meets still water (base level) its load leaves the mouth as a plane turbulent jet: the jet's half-width
+    /// grows as b(x) = w / 2 + jetSpreadRate x along its axis, and the load settles over jetSettleWidths channel widths, so the
+    /// deposit falls as exp(-x / L) along the axis and as a Gaussian of half-width b across it (a mouth bar and the lobe beyond),
+    /// out to jetReachLengths settling lengths.
+    /// </summary>
+    public float jetSpreadRate = 0.12f;
+    public float jetSettleWidths = 5f;
+    public float jetReachLengths = 3f;
+
     /// <summary>Grain size falls off with distance from the channel over this many channel widths (levees and bars coarse, back swamps fine).</summary>
     public float finingWidths = 1.5f;
 
@@ -51,16 +61,7 @@ public class SedimentSettings
     /// <summary>Thinner than this (metres, after scaling) counts as no alluvium.</summary>
     public float minThickness = 0.05f;
 
-    /// <summary>
-    /// Land building at base level: where a river drops its load into the sea or a lake, the floor there rises by this share of
-    /// the alluvium laid on it. Ground built above the water becomes delta land, which the water then has to find its way across.
-    /// </summary>
-    public float landBuilding = 1.2f;
-
-    /// <summary>Flow spreading over delta land is multiplied by this: on the flat, fresh deposit the river divides into distributaries.</summary>
-    public float deltaSpread = 3f;
-
-    /// <summary>Main river network for the log's delta count: channels carrying at least this share of the world river's water.</summary>
+    /// <summary>Main river network for the log's branch count: channels carrying at least this share of the world river's water.</summary>
     public float mainRiverShare = 0.12f;
 }
 
@@ -80,9 +81,11 @@ public static class Sediment
     /// summary for the log.
     /// </summary>
     public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
-        float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded)
+        float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded,
+        float[] discharge = null, bool[] still = null)
     {
-        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize);
+        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize, out _,
+            discharge, still);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         int covered = 0;
@@ -97,10 +100,15 @@ public static class Sediment
                $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
     }
 
-    /// <summary>The load and capacity walk down the network: what each channel cell deposits, and its grain size.</summary>
+    /// <summary>
+    /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
+    /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
+    /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
+    /// flow takes up as much as it can carry.
+    /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null)
     {
         int n = filled.Length;
         var load = new float[n];
@@ -120,6 +128,10 @@ public static class Sediment
             float supply = p.erosionPerPower * (1f - rock) * q * slope;
             if (inflow[c] > 0f && !still)
                 supply += p.entryLoadPerDischarge * inflow[c] * dischargeScale;
+            if (gouged != null)
+                supply += gouged[c];
+            if (sand != null && sand[c] && !still)
+                supply = Mathf.Max(supply, capacity - load[c]);
             float grainSupply = Mathf.Clamp01(Mathf.Lerp(0.2f, 1f, slope / Mathf.Max(p.coarseSlope, 1e-4f)) * Mathf.Lerp(0.7f, 1f, rock));
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;
@@ -148,6 +160,50 @@ public static class Sediment
         }
     }
 
+    /// <summary>
+    /// Lays a deposit where a river enters still water as its jet carries it: exp(-x / L) along the axis, a Gaussian of half-width
+    /// w / 2 + jetSpreadRate x across it, on ground no higher than <paramref name="level"/>; coarse near the mouth, finer out.
+    /// </summary>
+    private static void Jet(int c, Vector2 axis, float amount, float grain, float w, float level, float[] natural, int sizeX, int sizeZ, SedimentSettings p,
+        float[] alluvium, float[] grainSum, List<(int cell, float weight, float d)> weights)
+    {
+        float settle = p.jetSettleWidths * w, reach = settle * p.jetReachLengths;
+        var across = new Vector2(-axis.y, axis.x);
+        int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
+        weights.Clear();
+        float sum = 0f;
+        for (int dz = -r; dz <= r; dz++)
+        {
+            for (int dx = -r; dx <= r; dx++)
+            {
+                int x = cx + dx, z = cz + dz;
+                if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                    continue;
+                var offset = new Vector2(dx, dz);
+                float along = Vector2.Dot(offset, axis), side = Vector2.Dot(offset, across);
+                if (along < -0.5f || along > reach)
+                    continue;
+                int i = z * sizeX + x;
+                if (natural[i] > level)
+                    continue;
+                float half = 0.5f * w + p.jetSpreadRate * Mathf.Max(along, 0f);
+                float weight = Mathf.Exp(-Mathf.Max(along, 0f) / settle) * Mathf.Exp(-side * side / (2f * half * half));
+                if (weight < 1e-4f)
+                    continue;
+                weights.Add((i, weight, Mathf.Max(along, 0f)));
+                sum += weight;
+            }
+        }
+        if (sum <= 0f)
+            return;
+        foreach ((int i, float weight, float along) in weights)
+        {
+            float thickness = amount * weight / sum;
+            alluvium[i] += thickness;
+            grainSum[i] += thickness * grain * Mathf.Exp(-along / settle);
+        }
+    }
+
     /// <summary>Water drop per cell over the next few cells downstream (single steps across filled flats are nearly zero).</summary>
     public static float Slope(int c, int[] receiver, float[] filled, int sizeX)
     {
@@ -162,18 +218,43 @@ public static class Sediment
         return run > 0f ? Mathf.Max(0f, filled[c] - filled[d]) / run : 0f;
     }
 
-    /// <summary>Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with distance.</summary>
+    /// <summary>
+    /// Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with
+    /// distance. Where the river meets still water (<paramref name="still"/>) its deposit spreads with its jet instead, along the
+    /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream.
+    /// </summary>
     public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
-        SedimentSettings p, out float[] alluvium, out float[] grainSize)
+        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null)
     {
         int n = filled.Length;
         alluvium = new float[n];
         var grainSum = new float[n];
         var weights = new List<(int cell, float weight, float d)>();
+        // The momentum each cell's water carries (cells are ordered highest first, so donors come before receivers).
+        Vector2[] momentum = null;
+        if (discharge != null && still != null)
+        {
+            momentum = new Vector2[n];
+            foreach (int c in cells)
+            {
+                int r = receiver[c];
+                if (r < 0)
+                    continue;
+                var step = new Vector2(r % sizeX - c % sizeX, r / sizeX - c / sizeX).normalized;
+                Vector2 carried = momentum[c] == Vector2.zero ? step : momentum[c].normalized;
+                momentum[r] += (carried + step).normalized * discharge[c];
+            }
+        }
         foreach (int c in cells)
         {
             if (deposit[c] <= 0f)
                 continue;
+            if (momentum != null && still[c] && momentum[c] != Vector2.zero)
+            {
+                Jet(c, momentum[c].normalized, deposit[c], depositGrain[c], Mathf.Max(width[c], 1f), filled[c] + p.floodHeight, natural, sizeX, sizeZ, p,
+                    alluvium, grainSum, weights);
+                continue;
+            }
             float w = Mathf.Max(width[c], 1f);
             float reach = Mathf.Min(p.floodplainWidths * w, p.maxReach);
             float sigma = Mathf.Max(reach * 0.5f, 1f);
@@ -227,7 +308,7 @@ public static class Sediment
             if (a > 0f)
                 covered.Add(a);
         }
-        float scale = 0f;
+        scale = 0f;
         if (covered.Count > 0)
         {
             covered.Sort();

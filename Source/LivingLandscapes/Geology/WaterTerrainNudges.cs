@@ -9,7 +9,6 @@ namespace LivingLandscapes.Geology;
 /// shapes the ground where the world river runs, and the channels and lakes then follow from topology:
 /// - a depression at the river centre (headwater): the lake model fills it and the river leaves from it;
 /// - a knob of resistant rock at the river centre (river island): the river divides around it;
-/// - relief eased toward base level near the river's exit (delta): flat ground where the water spreads.
 /// Outlines are warped by noise, so no two are alike and none is a circle.
 /// </summary>
 public static class WaterTerrainNudges
@@ -34,8 +33,8 @@ public static class WaterTerrainNudges
         if ((depression > 0f || knob > 0f) && radius > 0f)
         {
             var warp = new Perlin(1.0 / Mathf.Max(radius * 0.8f, 1f), 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
-            // The hollow's floor keeps low swells (as a delta's flats): bars and islands where water spreads over it.
-            var swells = new Perlin(1.0 / p.deltaApronWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+            // The hollow's floor keeps low swells: bars and islands where water spreads over it.
+            var swells = new Perlin(1.0 / p.hollowSwellWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
             for (int i = 0; i < n; i++)
             {
                 int x = i % sizeX, z = i / sizeX;
@@ -51,7 +50,7 @@ public static class WaterTerrainNudges
                 // Swell crests rise from the hollow's floor to above the ground around it: water fills the troughs
                 // and divides around the crests, which stand as bars and islands.
                 if (depression > 0f)
-                    height[i] += (depression + p.deltaApronRelief) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.5f, (float)swells.GetValue(x, 0.0, z))) * f;
+                    height[i] += (depression + p.hollowSwellRelief) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.5f, (float)swells.GetValue(x, 0.0, z))) * f;
                 // Resistant enough to stand in the river, but soil still holds on its top.
                 if (knob > 0f && rockStrength != null)
                     rockStrength[i] = Mathf.Lerp(rockStrength[i], Mathf.Max(rockStrength[i], water.knobRockStrength), inner * 0.5f);
@@ -59,25 +58,6 @@ public static class WaterTerrainNudges
             done = (depression > 0f ? $"centre depression {depression:F1} m" : "") + (knob > 0f ? $" centre knob {knob:F1} m" : "");
         }
 
-        if (water.exitFlatten > 0f && exit.HasValue)
-        {
-            float lowest = float.MaxValue;
-            for (int i = 0; i < n; i++)
-                lowest = Mathf.Min(lowest, height[i]);
-            float reach = water.exitReachShare * size;
-            // The flats keep low swells and swales, so the water divides around them into distributaries.
-            var swells = new Perlin(1.0 / p.deltaApronWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
-            for (int i = 0; i < n; i++)
-            {
-                int x = i % sizeX, z = i / sizeX;
-                float t = 1f - (new Vector2(x, z) - exit.Value).magnitude / reach;
-                if (t <= 0f)
-                    continue;
-                float apron = lowest + p.deltaApronRelief * (0.5f + 0.5f * (float)swells.GetValue(x, 0.0, z));
-                height[i] = Mathf.Lerp(height[i], apron, water.exitFlatten * Mathf.SmoothStep(0f, 1f, t));
-            }
-            done += (done.Length > 0 ? ", " : "") + $"relief eased {water.exitFlatten:P0} toward the exit";
-        }
         return done;
     }
 

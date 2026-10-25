@@ -27,6 +27,12 @@ public class StrataByHilliness
     /// bands; each band then marks a smaller step in height. 0 uses <see cref="RockStrataSettings.bedThickness"/>.
     /// </summary>
     public FloatRange bedsAcrossRelief = FloatRange.Zero;
+
+    /// <summary>
+    /// Resistant bodies (issue #60): share of the ground igneous plugs and dikes cover, harder than the beds they cut. Rivers
+    /// erode round them and split (bedrock anabranching), and near the shore they stand as sea stacks. Rugged tiles have more.
+    /// </summary>
+    public float intrusionShare;
 }
 
 /// <summary>Tuning for <see cref="RockStrata"/>, nested in <see cref="GeologyGenerationExtension"/>. Lengths in map cells.</summary>
@@ -73,6 +79,20 @@ public class RockStrataSettings
     /// and soft beds make features that read at map scale.
     /// </summary>
     public float contrast = 2f;
+
+    /// <summary>
+    /// Resistant bodies (<see cref="StrataByHilliness.intrusionShare"/>): how far they raise the rock's strength toward 1, the
+    /// size of plugs (knobs, noise wavelength in cells), and the width and wavelength of dikes (long thin walls along one
+    /// strike, a share dikeShare of the bodies).
+    /// </summary>
+    public float intrusionHardness = 0.8f;
+    public float plugScale = 30f;
+    public float dikeWidth = 1.5f;
+    public float dikeScale = 90f;
+    public float dikeShare = 0.2f;
+
+    /// <summary>How much longer than wide a dike's noise is stretched along its strike (lower: straighter, longer walls).</summary>
+    public float dikeStretch = 0.4f;
 }
 
 /// <summary>
@@ -92,6 +112,9 @@ public class RockStrata
     private readonly float[] jointSpacings = new float[2];
     private readonly float[] jointOffsets = new float[2];
     private readonly Perlin jointWarp, jointOpen;
+    private readonly Perlin plugs, dikes;
+    private readonly float plugThreshold, dikeThreshold;
+    private readonly Vector2 dikeStrike;
 
     private readonly List<float> bedTops = new List<float>();
     private readonly List<ThingDef> bedRocks = new List<ThingDef>();
@@ -145,6 +168,20 @@ public class RockStrata
             jointOffsets[s] = Rand.Range(0f, jointSpacings[s]);
         }
 
+        // Resistant bodies, seeded in their own random state so the rest of the map's draws do not shift (maps without
+        // intrusions stay as they were). Thresholds put the bodies on about intrusionShare of the ground.
+        float share = Mathf.Clamp01(lie?.intrusionShare ?? 0f);
+        if (share > 0f)
+        {
+            Rand.PushState(Gen.HashCombineInt(Mathf.RoundToInt(jointOffsets[0] * 1000f), 60));
+            plugs = new Perlin(1.0 / Mathf.Max(4f, settings.plugScale), 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+            dikes = new Perlin(1.0 / Mathf.Max(4f, settings.dikeScale), 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
+            dikeStrike = Rotate(dipDirection, Rand.Range(0f, 180f));
+            Rand.PopState();
+            plugThreshold = 1f - 2f * share * (1f - settings.dikeShare);
+            dikeThreshold = share * settings.dikeShare;
+        }
+
         // Beds cover every bed coordinate the queries can reach.
         float reach = extent * sinDip + relief * cosDip + settings.warpAmplitude * 2f + thickness.max;
         float origin = Vector2.Dot(centre, dipDirection) * sinDip;
@@ -190,16 +227,21 @@ public class RockStrata
     /// </summary>
     public int HardBedsBelow(Site site, float height) => hardBelow[BedAt(site, height)];
 
-    /// <summary>The height-independent part of a position: where it lies across the bedding, and its joint weakening.</summary>
+    /// <summary>
+    /// The height-independent part of a position: where it lies across the bedding, its joint weakening, and how much of a
+    /// resistant body (plug or dike) it lies in, 0..1.
+    /// </summary>
     public readonly struct Site
     {
         public readonly float across;
         public readonly float joint;
+        public readonly float hard;
 
-        public Site(float across, float joint)
+        public Site(float across, float joint, float hard)
         {
             this.across = across;
             this.joint = joint;
+            this.hard = hard;
         }
     }
 
@@ -208,12 +250,12 @@ public class RockStrata
     {
         float wx = x + (float)warpX.GetValue(x, 0.0, z) * settings.warpAmplitude;
         float wz = z + (float)warpZ.GetValue(x, 0.0, z) * settings.warpAmplitude;
-        return new Site((wx * dipDirection.x + wz * dipDirection.y) * sinDip, Joint(x, z));
+        return new Site((wx * dipDirection.x + wz * dipDirection.y) * sinDip, Joint(x, z), Intrusion(x, z));
     }
 
-    /// <summary>Strength of the rock at a site and height (cells), 0..1, including joint weakening.</summary>
+    /// <summary>Strength of the rock at a site and height (cells), 0..1, including joint weakening and resistant bodies.</summary>
     public float Strength(Site site, float height) =>
-        bedStrengths[BedAt(site, height)] * (1f - settings.jointWeakness * site.joint);
+        Mathf.Lerp(bedStrengths[BedAt(site, height)] * (1f - settings.jointWeakness * site.joint), 1f, site.hard * settings.intrusionHardness);
 
     /// <summary>Erosion multiplier for the stream-power model: 1 for average rock, higher for weak rock.</summary>
     public float Erodibility(Site site, float height) =>
@@ -253,6 +295,22 @@ public class RockStrata
         // Only part of the network is open: noise above a threshold set by the open share.
         float open = Mathf.Clamp01(((float)jointOpen.GetValue(x, 0.0, z) - (0.5f - settings.openJoints)) * 4f);
         return strongest * open;
+    }
+
+    /// <summary>
+    /// 1 inside a resistant body, 0 outside: plugs where a low-frequency noise passes its threshold (knobs), dikes along one
+    /// strike where a noise stretched along it runs near zero (long thin walls). 0 everywhere on tiles without intrusions.
+    /// </summary>
+    private float Intrusion(float x, float z)
+    {
+        if (plugs == null)
+            return 0f;
+        float plug = Mathf.Clamp01(((float)plugs.GetValue(x, 0.0, z) - plugThreshold) * 8f);
+        // Dikes: the noise is sampled stretched along the strike, so its zero lines run long and straight across it.
+        float along = x * dikeStrike.x + z * dikeStrike.y, across = x * -dikeStrike.y + z * dikeStrike.x;
+        float d = Mathf.Abs((float)dikes.GetValue(along * settings.dikeStretch, 0.0, across));
+        float dike = Mathf.Clamp01(1f - (d - dikeThreshold) / Mathf.Max(1e-3f, dikeThreshold) * 2f) * Mathf.Clamp01(dikeThreshold * 50f);
+        return Mathf.Max(plug, dike);
     }
 
     private static Vector2 Rotate(Vector2 v, float degrees)
