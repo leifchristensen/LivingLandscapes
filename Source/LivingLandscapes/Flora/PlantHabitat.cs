@@ -32,8 +32,17 @@ public class HabitatCurve
     /// <summary>Distance from the optimum at which the response has fallen to about 61% (one standard deviation).</summary>
     public float tolerance = 0.3f;
 
+    /// <summary>
+    /// True: the response stays 1 above the optimum (a saturating response, like photosynthesis against light: a sun
+    /// plant gains nothing above saturation and loses below it). False: it falls on both sides (shade plants are harmed
+    /// by strong light).
+    /// </summary>
+    public bool saturating;
+
     public float Response(float value)
     {
+        if (saturating && value >= optimum)
+            return 1f;
         float d = (value - optimum) / Mathf.Max(tolerance, 0.001f);
         return Mathf.Exp(-0.5f * d * d);
     }
@@ -144,7 +153,7 @@ public class PlantHabitat : DefModExtension
     /// <summary>Fills what the XML left out from the stratum and vanilla's fields (Docs/HABITAT-XML.md, defaults).</summary>
     private void Resolve(ThingDef plant)
     {
-        light ??= new HabitatCurve { optimum = 0.75f, tolerance = stratum == PlantStratum.Canopy ? 0.3f : 0.45f };
+        light ??= new HabitatCurve { optimum = 0.75f, tolerance = stratum == PlantStratum.Canopy ? 0.3f : 0.45f, saturating = true };
         if (rootingDepth <= 0f)
             rootingDepth = stratum switch { PlantStratum.Canopy => 1.5f, PlantStratum.Shrub => 0.8f, _ => 0.3f };
         if (pace < 0f)

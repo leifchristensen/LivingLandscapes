@@ -112,7 +112,7 @@ public class PlantEcologyDef : Def
     public float sunDrying = 0.15f;
 
     /// <summary>Root room: fitness x (min(1, soil depth / rooting depth))^this. 0 ignores soil depth.</summary>
-    public float rootRoomExponent = 0.5f;
+    public float rootRoomExponent = 0.3f;
 
     private static PlantEcologyDef current;
 

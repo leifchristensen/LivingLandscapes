@@ -5,7 +5,8 @@
     Plant habitats (Docs/HABITAT-XML.md, PLANT-TRAITS.md): what each wild plant of vanilla needs, as Gaussian response
     curves (optimum, tolerance = one standard deviation):
       water   moisture 0 dry .. 1 saturated, drier on sun-facing slopes (PlantEcologyDef.sunDrying)
-      light   LL_Sun x canopy transmittance: 0 dark .. 0.7 open level ground .. 1 sun-facing slope
+      light   LL_Sun x canopy transmittance: 0 dark .. 0.7 open level ground .. 1 sun-facing slope; saturating = no
+              loss above the optimum (sun plants, photosynthesis saturates), otherwise strong light harms (shade plants)
     A curve left out means the plant does not care. rootingDepth (m): soil shallower than this limits the plant.
     pace (0 slow, stress tolerant .. 1 fast pioneer), seed (0 few large .. 1 many small) and dispersal (Gravity, Animal,
     Wind, Water, Clonal) describe its life strategy. shadeCast and shadeRadius (cells) make a plant shade the ground
@@ -21,7 +22,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.45</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.68</optimum><tolerance>0.33</tolerance></light>
+          <light><optimum>0.68</optimum><tolerance>0.33</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.9</pace>
           <seed>0.9</seed>
@@ -39,7 +40,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.3</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.68</optimum><tolerance>0.33</tolerance></light>
+          <light><optimum>0.68</optimum><tolerance>0.33</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.8</pace>
           <seed>0.9</seed>
@@ -57,7 +58,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.35</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.73</optimum><tolerance>0.33</tolerance></light>
+          <light><optimum>0.73</optimum><tolerance>0.33</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.8</pace>
           <seed>0.9</seed>
@@ -75,7 +76,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.7</optimum><tolerance>0.3</tolerance></water>
-          <light><optimum>0.69</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.69</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.8</pace>
           <seed>0.8</seed>
@@ -95,7 +96,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.6</optimum><tolerance>0.3</tolerance></water>
-          <light><optimum>0.74</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.74</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.7</pace>
           <seed>0.8</seed>
@@ -133,7 +134,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.45</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.79</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.79</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>1</pace>
           <seed>1</seed>
@@ -151,7 +152,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.35</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.79</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.79</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.4</rootingDepth>
           <pace>0.6</pace>
           <seed>0.6</seed>
@@ -169,7 +170,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.4</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.79</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.79</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>1</pace>
           <seed>1</seed>
@@ -187,7 +188,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.5</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.56</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.45</optimum><tolerance>0.2</tolerance></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.8</pace>
           <seed>0.5</seed>
@@ -205,7 +206,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.5</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.56</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.45</optimum><tolerance>0.2</tolerance></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.8</pace>
           <seed>0.5</seed>
@@ -243,7 +244,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.6</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.54</optimum><tolerance>0.41</tolerance></light>
+          <light><optimum>0.54</optimum><tolerance>0.41</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.5</pace>
           <seed>0.5</seed>
@@ -261,7 +262,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Ground</stratum>
           <water><optimum>0.4</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.63</optimum><tolerance>0.41</tolerance></light>
+          <light><optimum>0.63</optimum><tolerance>0.41</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0.6</pace>
           <seed>0.4</seed>
@@ -279,7 +280,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.45</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.57</optimum><tolerance>0.43</tolerance></light>
+          <light><optimum>0.57</optimum><tolerance>0.43</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.5</pace>
           <seed>0.5</seed>
@@ -297,7 +298,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.45</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.57</optimum><tolerance>0.43</tolerance></light>
+          <light><optimum>0.57</optimum><tolerance>0.43</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.5</pace>
           <seed>0.5</seed>
@@ -315,7 +316,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.55</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.64</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.64</optimum><tolerance>0.39</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.6</pace>
           <seed>0.4</seed>
@@ -333,7 +334,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.55</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.64</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.64</optimum><tolerance>0.39</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.6</pace>
           <seed>0.4</seed>
@@ -369,7 +370,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.35</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.67</optimum><tolerance>0.41</tolerance></light>
+          <light><optimum>0.67</optimum><tolerance>0.41</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.5</pace>
           <seed>0.4</seed>
@@ -387,7 +388,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.92</optimum><tolerance>0.18</tolerance></water>
-          <light><optimum>0.62</optimum><tolerance>0.45</tolerance></light>
+          <light><optimum>0.62</optimum><tolerance>0.45</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.8</pace>
           <seed>0.7</seed>
@@ -405,7 +406,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.9</optimum><tolerance>0.18</tolerance></water>
-          <light><optimum>0.62</optimum><tolerance>0.45</tolerance></light>
+          <light><optimum>0.62</optimum><tolerance>0.45</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.8</pace>
           <seed>0.8</seed>
@@ -459,7 +460,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.12</optimum><tolerance>0.25</tolerance></water>
-          <light><optimum>0.89</optimum><tolerance>0.29</tolerance></light>
+          <light><optimum>0.89</optimum><tolerance>0.29</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.1</pace>
           <seed>0.5</seed>
@@ -477,7 +478,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.12</optimum><tolerance>0.25</tolerance></water>
-          <light><optimum>0.89</optimum><tolerance>0.29</tolerance></light>
+          <light><optimum>0.89</optimum><tolerance>0.29</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.2</rootingDepth>
           <pace>0.1</pace>
           <seed>0.6</seed>
@@ -495,7 +496,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.12</optimum><tolerance>0.25</tolerance></water>
-          <light><optimum>0.89</optimum><tolerance>0.29</tolerance></light>
+          <light><optimum>0.89</optimum><tolerance>0.29</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.3</rootingDepth>
           <pace>0.1</pace>
           <seed>0.6</seed>
@@ -513,7 +514,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.12</optimum><tolerance>0.25</tolerance></water>
-          <light><optimum>0.89</optimum><tolerance>0.29</tolerance></light>
+          <light><optimum>0.89</optimum><tolerance>0.29</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.5</rootingDepth>
           <pace>0</pace>
           <seed>0.6</seed>
@@ -531,7 +532,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.15</optimum><tolerance>0.3</tolerance></water>
-          <light><optimum>0.89</optimum><tolerance>0.29</tolerance></light>
+          <light><optimum>0.89</optimum><tolerance>0.29</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.2</rootingDepth>
           <pace>0.1</pace>
           <seed>0.6</seed>
@@ -549,7 +550,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.5</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.66</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.66</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.2</rootingDepth>
           <pace>0.2</pace>
           <seed>0.1</seed>
@@ -571,7 +572,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.6</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.77</optimum><tolerance>0.35</tolerance></light>
+          <light><optimum>0.77</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.2</rootingDepth>
           <pace>0.8</pace>
           <seed>0.9</seed>
@@ -593,7 +594,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.45</optimum><tolerance>0.5</tolerance></water>
-          <light><optimum>0.77</optimum><tolerance>0.35</tolerance></light>
+          <light><optimum>0.77</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.9</rootingDepth>
           <pace>0.8</pace>
           <seed>0.9</seed>
@@ -615,7 +616,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.4</optimum><tolerance>0.55</tolerance></water>
-          <light><optimum>0.66</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.66</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.8</rootingDepth>
           <pace>0.5</pace>
           <seed>0.6</seed>
@@ -637,7 +638,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.3</optimum><tolerance>0.55</tolerance></water>
-          <light><optimum>0.66</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.66</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.7</rootingDepth>
           <pace>0.4</pace>
           <seed>0.6</seed>
@@ -659,7 +660,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.55</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.64</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.64</optimum><tolerance>0.39</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.3</rootingDepth>
           <pace>0.4</pace>
           <seed>0.5</seed>
@@ -681,7 +682,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.9</optimum><tolerance>0.2</tolerance></water>
-          <light><optimum>0.69</optimum><tolerance>0.39</tolerance></light>
+          <light><optimum>0.69</optimum><tolerance>0.39</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.3</rootingDepth>
           <pace>0.8</pace>
           <seed>0.9</seed>
@@ -703,7 +704,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.9</optimum><tolerance>0.2</tolerance></water>
-          <light><optimum>0.7</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.7</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.3</rootingDepth>
           <pace>0.3</pace>
           <seed>0.5</seed>
@@ -725,7 +726,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.5</optimum><tolerance>0.55</tolerance></water>
-          <light><optimum>0.54</optimum><tolerance>0.41</tolerance></light>
+          <light><optimum>0.54</optimum><tolerance>0.41</tolerance><saturating>true</saturating></light>
           <rootingDepth>1</rootingDepth>
           <pace>0.3</pace>
           <seed>0.4</seed>
@@ -747,7 +748,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.4</optimum><tolerance>0.55</tolerance></water>
-          <light><optimum>0.66</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.66</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.9</rootingDepth>
           <pace>0.3</pace>
           <seed>0.4</seed>
@@ -769,7 +770,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.6</optimum><tolerance>0.4</tolerance></water>
-          <light><optimum>0.66</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.66</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.3</rootingDepth>
           <pace>0.3</pace>
           <seed>0.4</seed>
@@ -791,7 +792,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.7</optimum><tolerance>0.35</tolerance></water>
-          <light><optimum>0.77</optimum><tolerance>0.35</tolerance></light>
+          <light><optimum>0.77</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.2</rootingDepth>
           <pace>1</pace>
           <seed>0.9</seed>
@@ -813,7 +814,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.6</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.75</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.75</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>1</rootingDepth>
           <pace>0.4</pace>
           <seed>0.1</seed>
@@ -835,7 +836,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.6</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.75</optimum><tolerance>0.37</tolerance></light>
+          <light><optimum>0.75</optimum><tolerance>0.37</tolerance><saturating>true</saturating></light>
           <rootingDepth>1</rootingDepth>
           <pace>0.5</pace>
           <seed>0.3</seed>
@@ -857,7 +858,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.75</optimum><tolerance>0.3</tolerance></water>
-          <light><optimum>0.63</optimum><tolerance>0.41</tolerance></light>
+          <light><optimum>0.63</optimum><tolerance>0.41</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.2</rootingDepth>
           <pace>1</pace>
           <seed>0.5</seed>
@@ -879,7 +880,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
           <water><optimum>0.2</optimum><tolerance>0.35</tolerance></water>
-          <light><optimum>0.84</optimum><tolerance>0.31</tolerance></light>
+          <light><optimum>0.84</optimum><tolerance>0.31</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.8</rootingDepth>
           <pace>0.1</pace>
           <seed>0.3</seed>
