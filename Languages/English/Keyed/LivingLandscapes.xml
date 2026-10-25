@@ -26,6 +26,14 @@ Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleT
   <LL_GameplaySiting>Gameplay siting</LL_GameplaySiting>
   <LL_GameplaySitingTip>Shape what vanilla places around the terrain for play: the start spot on good settlement ground (level, near water, room to farm, defensible), ore in veins that follow the rock and grow rarer with distance, discoveries in interesting ground. Off: vanilla's random placement. Applies to new maps.</LL_GameplaySitingTip>
   <LL_SlopeMovement>Slope affects movement</LL_SlopeMovement>
+  <LL_TuningOpen>Generation tuning...</LL_TuningOpen>
+  <LL_TuningBack>Back to settings</LL_TuningBack>
+  <LL_TuningDesc>The constants and multipliers in the geology's equations (rivers, sediment, deltas, coast, erosion). Changes apply to the next map you generate. Grey: the mod's default. Changed values are highlighted.</LL_TuningDesc>
+  <LL_TuningFilter>Filter</LL_TuningFilter>
+  <LL_TuningResetAll>Reset all to defaults</LL_TuningResetAll>
+  <LL_TuningChanged>{0} value(s) changed</LL_TuningChanged>
+  <LL_TuningDefault>Default: {0}</LL_TuningDefault>
+  <LL_TuningReset>Reset</LL_TuningReset>
   <LL_SlopeMovementTip>Pawns walk more slowly uphill than on level ground or downhill, by the steepness of the ground, and plan routes over gentle ground, passes and steps. Applies to maps made with Living Landscapes.</LL_SlopeMovementTip>
 
 </LanguageData>
