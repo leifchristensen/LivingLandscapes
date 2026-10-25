@@ -65,6 +65,10 @@
       <li><vector>Clonal</vector><sigmaScale>0.6</sigmaScale><nucleationScale>0.3</nucleationScale><clumpScale>2.0</clumpScale></li>
     </dispersalKernels>
     <rootRoomExponent>0.3</rootRoomExponent>
+    <!-- Establishment: exponent on the cluster pull in a cell's acceptance chance (1 = the likely recruit decides, 0 =
+         commonality alone). Measured 2026-10-25: 1 added nothing to the forest-edge shrub lead and cost swamps 6% of
+         their plants, so 0 until shade mortality exists (Docs/HABITAT-XML.md, diagnostic). -->
+    <establishmentPull>0</establishmentPull>
   </LivingLandscapes.Flora.PlantEcologyDef>
 
 </Defs>

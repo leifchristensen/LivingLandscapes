@@ -33,6 +33,8 @@ public static class PlantSeeder
             .ToList();
 
         int placed = 0, clumps = 0;
+        placedByLayer = new int[3];
+        deepByLayer = new int[3];
         var cells = map.cellsInRandomOrder;
         foreach (ThingDef def in species)
         {
@@ -48,7 +50,7 @@ public static class PlantSeeder
             while (made < wanted && failures < 400)
             {
                 IntVec3 parent = cells.Get(Rand.Range(0, map.Area));
-                if (!Suits(map, ecology, def, parent, tuning) || !Place(map, def, parent))
+                if (!Suits(map, ecology, def, parent, tuning) || !Place(map, ecology, def, parent))
                 {
                     failures++;
                     continue;
@@ -59,13 +61,13 @@ public static class PlantSeeder
                 for (int i = 0; i < offspring && made < wanted; i++)
                 {
                     IntVec3 cell = ecology.OffspringCell(habitat, parent, sigma);
-                    if (Suits(map, ecology, def, cell, tuning) && Place(map, def, cell))
+                    if (Suits(map, ecology, def, cell, tuning) && Place(map, ecology, def, cell))
                         made++;
                 }
             }
             placed += made;
         }
-        Log.Message($"[LivingLandscapes] Plant seeding on {map}: {placed} plants in {clumps} clumps of {species.Count} clustering species (share {tuning.seedShare:0.##} of target x strength {strength:0.##}).");
+        Log.Message($"[LivingLandscapes] Plant seeding on {map}: {placed} plants in {clumps} clumps of {species.Count} clustering species (share {tuning.seedShare:0.##} of target x strength {strength:0.##}); placed under deep shade (above 0.6) at planting: canopy {deepByLayer[0]}/{placedByLayer[0]}, shrub {deepByLayer[1]}/{placedByLayer[1]}, ground {deepByLayer[2]}/{placedByLayer[2]}.");
         return placed;
     }
 
@@ -85,8 +87,15 @@ public static class PlantSeeder
         return fitness >= tuning.minFitness && Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent);
     }
 
-    private static bool Place(Map map, ThingDef def, IntVec3 c)
+    /// <summary>Plants placed per layer, and how many of them under deep shade at the time (dev log: do clumps end up under canopy that closes later?).</summary>
+    private static int[] placedByLayer = new int[3], deepByLayer = new int[3];
+
+    private static bool Place(Map map, MapComponent_Ecology ecology, ThingDef def, IntVec3 c)
     {
+        int layer = (int)PlantHabitat.For(def).stratum;
+        placedByLayer[layer]++;
+        if (ecology.ShadeAt(map.cellIndices.CellToIndex(c)) > 0.6f)
+            deepByLayer[layer]++;
         WildPlantSpawner.SpawnPlant(def, map, c, setRandomGrowth: true);
         return true;
     }

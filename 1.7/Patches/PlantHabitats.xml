@@ -280,7 +280,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.45</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.57</optimum><tolerance>0.43</tolerance><saturating>true</saturating></light>
+          <light><optimum>0.57</optimum><tolerance>0.25</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.5</pace>
           <seed>0.5</seed>
@@ -298,7 +298,7 @@
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Shrub</stratum>
           <water><optimum>0.45</optimum><tolerance>0.45</tolerance></water>
-          <light><optimum>0.57</optimum><tolerance>0.43</tolerance><saturating>true</saturating></light>
+          <light><optimum>0.57</optimum><tolerance>0.25</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <pace>0.5</pace>
           <seed>0.5</seed>

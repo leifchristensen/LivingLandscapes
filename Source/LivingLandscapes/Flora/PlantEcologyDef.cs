@@ -132,6 +132,12 @@ public class PlantEcologyDef : Def
     /// <summary>Water: sun-facing slopes dry faster; water = moisture - this x (LL_Sun - 0.7), level ground unchanged.</summary>
     public float sunDrying = 0.15f;
 
+    /// <summary>
+    /// Establishment: how much a species' cluster pull weights it in a cell's acceptance chance (exponent on the pull):
+    /// 1 = the likely recruit decides (light-limited thickets), 0 = commonality alone, as before step 3.
+    /// </summary>
+    public float establishmentPull = 0f;
+
     /// <summary>Root room: fitness x (min(1, soil depth / rooting depth))^this. 0 ignores soil depth.</summary>
     public float rootRoomExponent = 0.3f;
 

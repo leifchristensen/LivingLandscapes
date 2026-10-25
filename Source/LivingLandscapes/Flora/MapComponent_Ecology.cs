@@ -297,6 +297,9 @@ public class MapComponent_Ecology : MapComponent
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
 
+    /// <summary>Light reaching the ground on a cell now: LL_Sun x canopy transmittance (what the light curves read).</summary>
+    public float LightAt(int index) => sampler.Light(index, Mathf.Exp(-shadeLog[index]));
+
     /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
     public float Fitness(ThingDef def, int index)
     {
@@ -417,7 +420,7 @@ public class MapComponent_Ecology : MapComponent
         float weights = 0f, sum = 0f;
         foreach (BiomePlantRecord record in plants)
         {
-            float weight = record.commonality * ClusterPull(record.plant, index);
+            float weight = record.commonality * Mathf.Pow(ClusterPull(record.plant, index), PlantEcologyDef.Current.establishmentPull);
             weights += weight;
             sum += weight * Fitness(record.plant, index);
         }
@@ -431,7 +434,11 @@ public class MapComponent_Ecology : MapComponent
         return Mathf.Lerp(1f, accept, Strength);
     }
 
-    /// <summary>The 80th percentile of the biome's commonality-weighted fitness over sampled cells (so 20% of ground counts as best).</summary>
+    /// <summary>
+    /// The 80th percentile of the biome's commonality-weighted fitness over sampled cells (so 20% of ground counts as
+    /// best). Weighting it by cluster pull, like <see cref="Acceptance"/>, was tried and lowered swamp and grassland
+    /// density (Docs/HABITAT-XML.md, diagnostic).
+    /// </summary>
     private float ReferenceCapacity()
     {
         var samples = new List<float>();

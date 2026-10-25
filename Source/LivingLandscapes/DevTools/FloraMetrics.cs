@@ -33,6 +33,7 @@ public static class FloraMetrics
         int area = map.Area;
         var land = new bool[area];
         var layer = new int[area];
+        var shrubDef = new ThingDef[area];
         int landCells = 0;
         for (int i = 0; i < area; i++)
         {
@@ -50,6 +51,8 @@ public static class FloraMetrics
             // Several plants in one cell: the tallest layer (canopy 0) stands for it.
             if (layer[cell] < 0 || stratum < layer[cell])
                 layer[cell] = stratum;
+            if (stratum == (int)PlantStratum.Shrub)
+                shrubDef[cell] = plant.def;
         }
         string prefix = $"[LivingLandscapes] Flora metrics: biome={map.Biome.defName}";
 
@@ -113,6 +116,34 @@ public static class FloraMetrics
                 string text = string.Join(" ", Enumerable.Range(0, 4).Select(b =>
                     $"{bins[b]}:cells={cells[b]},shrub={shrubs[b] / (float)Mathf.Max(cells[b], 1):F3},ground={ground[b] / (float)Mathf.Max(cells[b], 1):F3}"));
                 Log.Message($"{prefix} edges {text}");
+
+                // Diagnostic: the light reaching the ground in each band (quartiles), and the fitness the shrubs standing
+                // there have for their own species now.
+                var light = new List<float>[4];
+                var shrubFitness = new List<float>[4];
+                for (int b = 0; b < 4; b++)
+                {
+                    light[b] = new List<float>();
+                    shrubFitness[b] = new List<float>();
+                }
+                for (int i = 0; i < area; i++)
+                {
+                    if (!land[i])
+                        continue;
+                    int bin = forest[i] ? (inside[i] > 4 ? 0 : 1) : (outside[i] > 4 ? 3 : 2);
+                    light[bin].Add(ecology.LightAt(i));
+                    if (shrubDef[i] != null)
+                        shrubFitness[bin].Add(ecology.Fitness(shrubDef[i], i));
+                }
+                string Quartiles(List<float> values)
+                {
+                    if (values.Count == 0)
+                        return "-";
+                    values.Sort();
+                    return $"{values[values.Count / 4]:F2}/{values[values.Count / 2]:F2}/{values[values.Count * 3 / 4]:F2}";
+                }
+                Log.Message($"{prefix} light " + string.Join(" ", Enumerable.Range(0, 4).Select(b =>
+                    $"{bins[b]}:light={Quartiles(light[b])},shrubFitness={Quartiles(shrubFitness[b])},shrubs={shrubFitness[b].Count}")));
             }
             else
             {
