@@ -41,6 +41,8 @@ public static class LayerImageExporter
             bool markCliffs = layer == EnvironmentLayerDefOf.LL_Height || layer == EnvironmentLayerDefOf.LL_Landform;
             OverlayProperties style = layer.overlay?.ResolveFor(grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
             Export(map, grid, style, path, markCliffs);
+            if (GenCommandLine.CommandLineArgPassed("ll-export-raw"))
+                ExportRaw(grid, Path.Combine(Folder, $"{layer.defName}.f32"));
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
         }
         ExportTerrainMap(map, Path.Combine(Folder, "Map.png"));
@@ -103,6 +105,18 @@ public static class LayerImageExporter
         texture.Apply();
         texture.SaveAsPNG(path);
         Object.Destroy(texture);
+    }
+
+    /// <summary>
+    /// Writes a layer's values as little-endian 32-bit floats, one per cell, x fastest then z (row 0 is the south edge),
+    /// so tools can measure a field instead of reading colours. The map size is in summary.txt.
+    /// </summary>
+    private static void ExportRaw(EnvironmentGrid grid, string path)
+    {
+        float[] values = grid.ToArray();
+        var bytes = new byte[values.Length * sizeof(float)];
+        System.Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+        File.WriteAllBytes(path, bytes);
     }
 
     private static OverlayProperties GreyRamp(float min, float max) => new OverlayProperties
