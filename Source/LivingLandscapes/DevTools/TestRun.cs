@@ -38,7 +38,12 @@ public static class TestRun
                 LayerImageExporter.ExportAll(map);
             Log.Message("[LivingLandscapes] Test run: export done.");
             if (BenchRequested)
+            {
                 PlantBenchmark.Run(map);
+                // The export wrote log.txt before the census: write it again so the census lines reach the test scripts.
+                if (GenCommandLine.CommandLineArgPassed("ll-export"))
+                    LayerImageExporter.WriteLog();
+            }
             Log.Message("[LivingLandscapes] Test run: benchmark done.");
             if (GenCommandLine.CommandLineArgPassed("ll-check-cliffs"))
                 CheckCliffCost(map);
