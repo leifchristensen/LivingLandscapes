@@ -142,10 +142,10 @@ public static class FloraMetrics
                 float straight = (ca - cb).LengthHorizontal;
                 if (straight < 60f || straight > 120f)
                     continue;
-                if (!Shortest(map, withPlants, a, b, out float time, out int steps) || !Shortest(map, withoutPlants, a, b, out float bareTime, out _))
+                if (!Shortest(map, withPlants, a, b, out float time, out float length) || !Shortest(map, withoutPlants, a, b, out float bareTime, out _))
                     continue;
                 timeRatio += time / bareTime;
-                lengthRatio += steps / straight;
+                lengthRatio += length / straight;
                 pairs++;
             }
         }
@@ -266,8 +266,8 @@ public static class FloraMetrics
         return cost;
     }
 
-    /// <summary>Dijkstra on 8 neighbours: walking time from a to b in ticks, and the number of cells on the way.</summary>
-    private static bool Shortest(Map map, float[] cost, int a, int b, out float time, out int steps)
+    /// <summary>Dijkstra on 8 neighbours: walking time from a to b in ticks, and the path's length in cells (diagonal steps 1.41).</summary>
+    private static bool Shortest(Map map, float[] cost, int a, int b, out float time, out float length)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, area = map.Area;
         var best = new float[area];
@@ -310,11 +310,11 @@ public static class FloraMetrics
             }
         }
         time = best[b];
-        steps = 0;
+        length = 0f;
         if (time == float.MaxValue)
             return false;
         for (int c = b; c != a; c = from[c])
-            steps++;
+            length += c % sizeX != from[c] % sizeX && c / sizeX != from[c] / sizeX ? 1.41421356f : 1f;
         return true;
     }
 }
