@@ -189,7 +189,27 @@ public static class LandscapeGenerator
             for (int i = 0; i < seaDepth.Length; i++)
                 seaDepth[i] = seaCell[i] ? Mathf.Max(0.01f, p.coast.SeaDepth(fromLand[i] * mapCellsPerModelCell, world.Hilliness)) : 0f;
         }
-        bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out int riverExit, seaDepth);
+        var mapWindow = new Rect(originX, originZ, sizeX / mapCellsPerModelCell, sizeZ / mapCellsPerModelCell);
+        bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out int riverExit, seaDepth, mapWindow);
+        // Where a river enters, the land beyond the edge slopes in (the river came from there): the region's edge near it does not
+        // drain, or the river would leave again at the next edge cell. The map's channels keep the same guard (entryGuardCells).
+        float guard = p.terrainChannels.entryGuardCells / mapCellsPerModelCell;
+        int guarded = 0;
+        foreach ((int cell, float _) in entries)
+        {
+            int ex = cell % gx, ez = cell / gx;
+            for (int i = 0; i < outlet.Length; i++)
+            {
+                int x = i % gx, z = i / gx;
+                if (!outlet[i] || (x != 0 && z != 0 && x != gx - 1 && z != gz - 1) || (seaDepth != null && seaDepth[i] > 0f) || i == riverExit)
+                    continue;
+                if ((x - ex) * (x - ex) + (z - ez) * (z - ez) <= guard * guard)
+                {
+                    outlet[i] = false;
+                    guarded++;
+                }
+            }
+        }
         float[] inflow = new float[gx * gz];
         float mainWidth = entries.Count > 0 ? Mathf.Max(entries[0].width, 1f) : 1f;
         foreach ((int cell, float width) in entries)
@@ -202,6 +222,9 @@ public static class LandscapeGenerator
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
             mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
             water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
+        if (entries.Count > 0)
+            Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s) ({guarded} edge cells beside them kept from draining); " +
+                        $"{channels.Count} channels extracted, {channels.Count(c => c.VanillaWidth > 0f)} carrying world rivers.");
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];
@@ -314,7 +337,7 @@ public static class LandscapeGenerator
     /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
     private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
-        out List<(int cell, float width)> entries, out int riverExit, float[] seaDepth = null)
+        out List<(int cell, float width)> entries, out int riverExit, float[] seaDepth = null, Rect? mapWindow = null)
     {
         var outlet = new bool[gx * gz];
         if (seaDepth != null)
@@ -364,7 +387,10 @@ public static class LandscapeGenerator
             {
                 for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
                 {
-                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre);
+                    // The main river comes in at the region's edge and cuts its valley across it; the others meet it on this
+                    // tile (where the world puts the confluence), so they come in where their side crosses the map's edge:
+                    // beyond it each runs in its own valley on the neighbouring tile.
+                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre, i > 0 ? mapWindow : null);
                     if (entry == riverExit)
                         continue;
                     outlet[entry] = false;
@@ -375,7 +401,7 @@ public static class LandscapeGenerator
         return outlet;
     }
 
-    private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null)
+    private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null, Rect? window = null)
     {
         // Walk from the start (default: the centre) along the direction until leaving the grid.
         Vector2 pos = from ?? new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
@@ -385,7 +411,7 @@ public static class LandscapeGenerator
         {
             pos += step;
             int x = Mathf.RoundToInt(pos.x), z = Mathf.RoundToInt(pos.y);
-            if (x < 0 || z < 0 || x >= gx || z >= gz)
+            if (x < 0 || z < 0 || x >= gx || z >= gz || (window.HasValue && !window.Value.Contains(pos)))
                 break;
             last = z * gx + x;
         }
