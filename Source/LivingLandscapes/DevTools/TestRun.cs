@@ -7,7 +7,8 @@ namespace LivingLandscapes.DevTools;
 
 /// <summary>
 /// Automated test runs, driven by launch arguments and inactive without them:
-/// "-ll-export" writes every environment layer to PNG once the first map is generated;
+/// "-ll-export" writes every environment layer to PNG once the first map is generated ("-ll-export-raw" also writes
+/// each layer's values as .f32 for measuring);
 /// "-ll-bench-plants" times the plant spawner (<see cref="PlantBenchmark"/>);
 /// "-ll-quit" then closes the game after a pause ("-ll-quit-delay=&lt;seconds&gt;", default 10) during which the
 /// camera shows the whole map, so a person watching can judge the terrain.
