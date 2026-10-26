@@ -98,7 +98,7 @@ public static class PlantSeeder
             return false;
         if (map.fertilityGrid.FertilityAt(c) <= 0f || !def.CanEverPlantAt(c, map))
             return false;
-        float fitness = ecology.Fitness(def, map.cellIndices.CellToIndex(c));
+        float fitness = ecology.Establishment(def, map.cellIndices.CellToIndex(c));
         // Fitness is a product of several curves, so even good ground rarely scores near 1: accept relative to a reference.
         return fitness >= tuning.minFitness && (integrated || Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent));
     }

@@ -49,8 +49,8 @@ public static class Patch_WildPlantSpawner_PlantChoiceWeight
         if (raw >= 0f && scale > 1.01f)
             __result *= Mathf.Pow(ShareBias.Evaluate(raw / scale) / Mathf.Max(ShareBias.Evaluate(raw), 0.01f), strength);
 
-        // 2. Fitness.
-        __result *= Mathf.Lerp(1f, Mathf.Pow(ecology.Fitness(plantDef, index), tuning.fitnessExponent), strength);
+        // 2. Fitness, and the stand's succession stage (young stands favour pioneers, old ones the canopy).
+        __result *= Mathf.Lerp(1f, Mathf.Pow(ecology.Fitness(plantDef, index), tuning.fitnessExponent), strength) * ecology.Succession(plantDef, index);
 
         // 3. Clusters.
         PlantHabitat habitat = PlantHabitat.For(plantDef);

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -46,6 +47,12 @@ public static class PlantBenchmark
         // "-ll-bench-plants=census" stops here; the timing runs below clear and regrow the map.
         if (GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out string mode) && mode == "census")
             return;
+        // "-ll-bench-plants=succession": burn a woodland block and watch it regrow through the stages.
+        if (mode == "succession")
+        {
+            Succession(map);
+            return;
+        }
         WildPlantSpawner spawner = map.wildPlantSpawner;
         int PlantCount() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).Count;
         Log.Message($"[LivingLandscapes] Plant benchmark: map {map.Size.x}x{map.Size.z}, biome {map.Biome.defName}, {PlantCount()} plants after generation, " +
@@ -367,6 +374,83 @@ public static class PlantBenchmark
         string Top(Dictionary<string, int> mix) => string.Join(", ", mix.OrderByDescending(k => k.Value).Take(5).Select(k => $"{k.Key.Replace("Plant_", "")} {k.Value}"));
         Log.Message($"[LivingLandscapes] Plant regrowth: a {block}x{block} block of woodland at ({bestX}, {bestZ}) held {plantsBefore} plants ({treesBefore} trees; {Top(before)}); cleared, " +
                     $"after {days:F0} game days it holds {plantsAfter} plants ({treesAfter} trees; {Top(after)}).");
+    }
+
+    private static readonly AccessTools.FieldRef<TickManager, int> TicksGameOf = AccessTools.FieldRefAccess<TickManager, int>("ticksGameInt");
+
+    /// <summary>
+    /// Succession in play (P22): burns the 36 x 36 block holding the most trees (plants removed, stand age reset as a
+    /// ground fire does), then runs the spawner while game time advances with it, and logs the block's canopy, shrub and
+    /// ground plants and leading species at checkpoints. Plants do not grow or die here: it shows what establishes.
+    /// </summary>
+    public static void Succession(Map map)
+    {
+        const int block = 36;
+        var trees = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList();
+        var standAge = map.GetComponent<Flora.MapComponent_StandAge>();
+        if (trees.Count < 50 || standAge == null)
+            return;
+        int bestX = 0, bestZ = 0, best = -1;
+        for (int bx = 0; bx + block <= map.Size.x; bx += 12)
+        {
+            for (int bz = 0; bz + block <= map.Size.z; bz += 12)
+            {
+                int count = trees.Count(t => t.Position.x >= bx && t.Position.x < bx + block && t.Position.z >= bz && t.Position.z < bz + block);
+                if (count > best)
+                {
+                    best = count;
+                    bestX = bx;
+                    bestZ = bz;
+                }
+            }
+        }
+        bool InBlock(IntVec3 c) => c.x >= bestX && c.x < bestX + block && c.z >= bestZ && c.z < bestZ + block;
+        List<Plant> Standing() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => !p.def.IsDeadPlant && InBlock(p.Position)).ToList();
+        string Describe(List<Plant> plants)
+        {
+            int[] layers = new int[3];
+            foreach (Plant p in plants)
+                layers[(int)Flora.PlantHabitat.For(p.def).stratum]++;
+            string top = string.Join(", ", plants.GroupBy(p => p.def.defName).OrderByDescending(g => g.Count()).Take(4).Select(g => $"{g.Key.Replace("Plant_", "")} {g.Count()}"));
+            return $"{plants.Count} plants (canopy {layers[0]}, shrub {layers[1]}, ground {layers[2]}; {top})";
+        }
+        // The ground fire hook: a fire spawned on a cell outside the block resets that cell's stand.
+        IntVec3 probe = new IntVec3(bestX + block + 2 < map.Size.x ? bestX + block + 2 : bestX - 3, 0, bestZ);
+        int probeIndex = map.cellIndices.CellToIndex(probe);
+        float probeBefore = standAge.Age(probeIndex);
+        Thing fire = GenSpawn.Spawn(ThingDefOf.Fire, probe, map);
+        Log.Message($"[LivingLandscapes] Plant succession: fire check at {probe}: stand age {probeBefore:F1} -> {standAge.Age(probeIndex):F1}.");
+        if (!fire.Destroyed)
+            fire.Destroy();
+        string before = Describe(Standing());
+        foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>().Where(p => InBlock(p.Position)).ToList())
+            plant.Destroy();
+        for (int x = bestX; x < bestX + block; x++)
+        {
+            for (int z = bestZ; z < bestZ + block; z++)
+                standAge.Reset(new IntVec3(x, 0, z));
+        }
+        Log.Message($"[LivingLandscapes] Plant succession: a {block}x{block} woodland block at ({bestX}, {bestZ}) held {before}; burnt (stand age 0), succession {Flora.PlantEcologyDef.Current.successionSpeed:0.#} years per game year.");
+
+        bool fast = DebugSettings.fastEcology;
+        DebugSettings.fastEcology = true;
+        // One fast call is 2000 spawner ticks; game time advances by the same.
+        float[] checkpoints = { 0.25f, 0.5f, 1f, 2f, 3f };
+        int calls = 0, next = 0;
+        while (next < checkpoints.Length)
+        {
+            map.wildPlantSpawner.WildPlantSpawnerTick();
+            TicksGameOf(Find.TickManager) += 2000;
+            calls++;
+            float years = calls * 2000f / GenDate.TicksPerYear;
+            if (years >= checkpoints[next])
+            {
+                float age = standAge.Age(map.cellIndices.CellToIndex(new IntVec3(bestX + block / 2, 0, bestZ + block / 2)));
+                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}.");
+                next++;
+            }
+        }
+        DebugSettings.fastEcology = fast;
     }
 
     private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;

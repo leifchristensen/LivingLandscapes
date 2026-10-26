@@ -32,6 +32,7 @@ public class MapComponent_Ecology : MapComponent
     private HabitatSampler sampler;
     private float[] shadeLog;
     private float[] stems;
+    private MapComponent_StandAge standAge;
 
     /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
     private float[] aspect;
@@ -132,6 +133,8 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         built = true;
+        standAge = map.GetComponent<MapComponent_StandAge>();
+        standAge?.LayersReady();
         // The path grid was computed before the stems existed (a loaded save builds this on the spawner's first call).
         if (PlantEcologyDef.Current.thicketDragMax > 0f)
         {
@@ -358,6 +361,41 @@ public class MapComponent_Ecology : MapComponent
         PlantHabitat habitat = PlantHabitat.For(def);
         return SiteGrid(def, habitat)[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
     }
+
+    /// <summary>
+    /// Succession (P22, P17): how a stand's age since its last fire or windthrow weighs a species' establishment on a
+    /// cell. Canopy species establish with the stand's maturity m = 1 - exp(-age / tau), tau the canopy closure time,
+    /// shorter for fast-growing pioneers (pace); other species are boosted while the stand is young, the more the faster
+    /// they grow: 1 + pioneerBoost x (1 - m) x pace. 1 on old ground and where the map has no stand age.
+    /// </summary>
+    public float Succession(ThingDef def, int index)
+    {
+        if (standAge == null)
+            return 1f;
+        float age = standAge.Age(index);
+        if (age >= 1e6f)
+            return 1f;
+        PlantHabitat habitat = PlantHabitat.For(def);
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float factor;
+        if (habitat.stratum == PlantStratum.Canopy)
+            factor = Maturity(age, tuning.canopyClosureYears * Mathf.Lerp(1.4f, 0.6f, habitat.pace));
+        else
+            factor = 1f + tuning.pioneerBoost * (1f - Maturity(age, tuning.canopyClosureYears)) * habitat.pace;
+        return Mathf.Lerp(1f, factor, Strength);
+    }
+
+    /// <summary>Stand maturity 0..1 at an age (years) for a canopy closure time tau: 1 - exp(-age / tau).</summary>
+    public static float Maturity(float age, float tau) => 1f - Mathf.Exp(-age / Mathf.Max(tau, 0.1f));
+
+    /// <summary>Stand age in succession years on a cell (very old where the map has none).</summary>
+    public float StandAge(int index) => standAge?.Age(index) ?? float.MaxValue;
+
+    /// <summary>
+    /// How likely a species is to establish on a cell: its fitness there times the stand's succession factor. Spawning
+    /// and seeding read this; growth (<see cref="Vitality"/>) reads fitness alone.
+    /// </summary>
+    public float Establishment(ThingDef def, int index) => Fitness(def, index) * Succession(def, index);
 
     /// <summary>
     /// Dev check: rebuilds the shade and cluster grids from the plants standing now and compares them with the live ones

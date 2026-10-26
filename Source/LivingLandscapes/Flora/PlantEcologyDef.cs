@@ -128,6 +128,15 @@ public class PlantEcologyDef : Def
     /// </summary>
     public float shadeCastScale = 0.6f;
 
+    /// <summary>Succession (P22): years for a stand's canopy to close (tau); pioneers (high pace) close in less, down to 0.6 x.</summary>
+    public float canopyClosureYears = 30f;
+
+    /// <summary>Succession: how strongly a young stand favours fast-growing non-canopy species (grass, fireweed, brambles).</summary>
+    public float pioneerBoost = 3f;
+
+    /// <summary>Succession years per game year in play (owner 2026-10-26: about 10, so a burn is a thicket within a year or two).</summary>
+    public float successionSpeed = 10f;
+
     /// <summary>
     /// Carrying capacity (P15): the share of cells that hold a plant around a cell is biome plant density x fertility x
     /// density scale x Lerp(capacityFloor, 1, (capacity / the map's 80th percentile) ^ this) / the map's mean of that

@@ -45,6 +45,12 @@
     <!-- Multiplies every canopy plant's shadeCast. 0.6 (owner 2026-10-26: forests too bare): the understory fills in
          under trees; at 1 deep shade covered about 60% of forest land. -->
     <shadeCastScale>0.6</shadeCastScale>
+    <!-- Succession on the stand age mosaic (P22, tools/Docs/DISTURBANCE-MOSAIC.md): canopy establishes with maturity
+         1 - exp(-age / tau), tau = canopyClosureYears (x 0.6 for the fastest pioneers); other species x (1 + pioneerBoost x
+         (1 - maturity) x pace). successionSpeed: succession years per game year (owner: about 10). -->
+    <canopyClosureYears>30</canopyClosureYears>
+    <pioneerBoost>3</pioneerBoost>
+    <successionSpeed>10</successionSpeed>
     <!-- Carrying capacity (P15), replacing vanilla's even cap: the share of cells with a plant within occupancyRadius
          targets biome plant density x fertility x densityScale x Lerp(capacityFloor, 1, (capacity / the map's 80th
          percentile) ^ densityContrast) / the map's mean of that share: each map keeps its vanilla total unless scaled. -->

@@ -27,7 +27,7 @@ public static class Patch_WildPlantSpawner_CalculatePlantsWhichCanGrowAt
         float threshold = PlantEcologyDef.Current.minFitness * MapComponent_Ecology.Strength;
         for (int i = outPlants.Count - 1; i >= 0; i--)
         {
-            if (ecology.Fitness(outPlants[i], index) < threshold)
+            if (ecology.Establishment(outPlants[i], index) < threshold)
                 outPlants.RemoveAt(i);
         }
     }
