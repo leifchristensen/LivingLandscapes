@@ -42,10 +42,16 @@
     <clusterGain2PerNeighbour>0.5</clusterGain2PerNeighbour>
     <!-- Canopy shadows fall toward the pole by this share of their radius. -->
     <shadowShift>0.5</shadowShift>
-    <!-- A spawn attempt is accepted with a chance from this floor (hopeless ground) to 1 (the best ground). -->
+    <!-- Carrying capacity (P15), replacing vanilla's even cap: the share of cells with a plant within occupancyRadius
+         targets biome plant density x fertility x densityScale x Lerp(capacityFloor, 1, (capacity / the map's 80th
+         percentile) ^ densityContrast). -->
+    <densityContrast>2</densityContrast>
     <capacityFloor>0.2</capacityFloor>
-    <!-- Capacity ratio ^ this before the floor: shaded and poor ground thins faster. -->
-    <capacityExponent>2</capacityExponent>
+    <occupancyRadius>4</occupancyRadius>
+    <densityScales>
+      <li><biome>TemperateForest</biome><scale>2.0</scale></li>
+      <li><biome>TropicalRainforest</biome><scale>2.0</scale></li>
+    </densityScales>
     <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
     <vitalityMin>0.5</vitalityMin>
     <vitalityMax>1.2</vitalityMax>

@@ -69,6 +69,74 @@ public static class FloraMetrics
                 cover[layer[i]]++;
         }
         float n = Mathf.Max(landCells, 1);
+
+        // Density diagnostic: of the fertile land, the share holding a plant, the mean carrying-capacity target, and the
+        // share where no species of the biome reaches minFitness (nothing can grow there).
+        if (ecology != null && ecology.Ready)
+        {
+            int fertile = 0, occupied = 0, hopeless = 0;
+            double target = 0;
+            float minFitness = PlantEcologyDef.Current.minFitness * MapComponent_Ecology.Strength;
+            for (int i = 0; i < area; i++)
+            {
+                IntVec3 c = map.cellIndices.IndexToCell(i);
+                if (!land[i] || map.fertilityGrid.FertilityAt(c) <= 0f)
+                    continue;
+                fertile++;
+                if (layer[i] >= 0)
+                    occupied++;
+                if (i % 7 == 0)
+                    target += ecology.TargetOccupancy(c) * 7;
+                if (!map.Biome.wildPlants.Any(r => ecology.Fitness(r.plant, i) >= minFitness))
+                    hopeless++;
+            }
+            float f = Mathf.Max(fertile, 1);
+            Log.Message($"{prefix} density fertileLand={fertile / n:F2} occupied={occupied / f:F3} meanTarget={target / f:F3} noCandidate={hopeless / f:F3} tileDensityFactor={map.wildPlantSpawner.CurrentPlantDensityFactor:F2}");
+        }
+
+        // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;
+        // clearings = blocks with canopy under a quarter of the mean; closed = blocks with plants on 80% of land.
+        {
+            const int Block = 16;
+            var canopyShare = new List<float>();
+            var plantShare = new List<float>();
+            for (int bz = 0; bz + Block <= map.Size.z; bz += Block)
+            {
+                for (int bx = 0; bx + Block <= map.Size.x; bx += Block)
+                {
+                    int landIn = 0, canopyIn = 0, plantsIn = 0;
+                    for (int z = bz; z < bz + Block; z++)
+                    {
+                        for (int x = bx; x < bx + Block; x++)
+                        {
+                            int i = z * map.Size.x + x;
+                            if (!land[i])
+                                continue;
+                            landIn++;
+                            if (layer[i] == (int)PlantStratum.Canopy)
+                                canopyIn++;
+                            if (layer[i] >= 0)
+                                plantsIn++;
+                        }
+                    }
+                    if (landIn < Block * Block / 2)
+                        continue;
+                    canopyShare.Add((float)canopyIn / landIn);
+                    plantShare.Add((float)plantsIn / landIn);
+                }
+            }
+            if (canopyShare.Count > 0)
+            {
+                float Cv(List<float> v)
+                {
+                    float mean = v.Average();
+                    return mean > 0f ? Mathf.Sqrt(v.Sum(a => (a - mean) * (a - mean)) / v.Count) / mean : 0f;
+                }
+                float canopyMean = canopyShare.Average();
+                Log.Message($"{prefix} blocks n={canopyShare.Count} canopyCv={Cv(canopyShare):F2} plantCv={Cv(plantShare):F2} " +
+                            $"clearings={canopyShare.Count(a => a < canopyMean / 4f) / (float)canopyShare.Count:F2} closed={plantShare.Count(a => a >= 0.8f) / (float)plantShare.Count:F2}");
+            }
+        }
         Log.Message($"{prefix} cover canopy={cover[0] / n:F3} shrub={cover[1] / n:F3} ground={cover[2] / n:F3} bare={bare / n:F3}");
 
         // Clumps per layer.

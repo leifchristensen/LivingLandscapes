@@ -11,6 +11,13 @@ namespace LivingLandscapes.Flora;
 /// habitat strength (0 = vanilla, 1 = full).
 /// </summary>
 /// <summary>How much a biome's plants of one vegetation layer are favoured over vanilla's commonality (see <see cref="PlantEcologyDef.stratumScales"/>).</summary>
+/// <summary>A biome's multiplier on its vanilla plant density (see <see cref="PlantEcologyDef.densityScales"/>).</summary>
+public class BiomeScale
+{
+    public BiomeDef biome;
+    public float scale = 1f;
+}
+
 public class StratumScale
 {
     public BiomeDef biome;
@@ -116,14 +123,32 @@ public class PlantEcologyDef : Def
     public float shadowShift = 0.5f;
 
     /// <summary>
-    /// Carrying capacity: a cell accepts a spawn attempt with a chance between this floor (hopeless ground) and 1 (the
-    /// best ground), by the commonality-weighted fitness of the biome's species there. Raises density in lush places and
-    /// thins it on dry slopes, without changing the map's target total (the spawner keeps trying elsewhere).
+    /// Carrying capacity (P15): the share of cells that hold a plant around a cell is biome plant density x fertility x
+    /// density scale x Lerp(capacityFloor, 1, (capacity / the map's 80th percentile) ^ this), capacity being the
+    /// commonality-weighted fitness of the biome's species there. It replaces vanilla's cap (the biome's density within
+    /// 20 cells), which spreads plants evenly: above 1, poor and shaded ground opens into meadows and clearings faster.
     /// </summary>
-    public float capacityFloor = 0.35f;
+    public float densityContrast = 2f;
 
-    /// <summary>The capacity ratio is raised to this before the floor applies: above 1, shaded and poor ground thins faster than it gains.</summary>
-    public float capacityExponent = 2f;
+    /// <summary>Share of the biome's level that the poorest ground still carries (see <see cref="densityContrast"/>).</summary>
+    public float capacityFloor = 0.2f;
+
+    /// <summary>Radius in cells over which the local share of cells with a plant is counted against the target.</summary>
+    public float occupancyRadius = 4f;
+
+    /// <summary>Multiplies a biome's vanilla plant density in the carrying capacity (owner: denser understory).</summary>
+    public List<BiomeScale> densityScales = new List<BiomeScale>();
+
+    public float DensityScaleFor(BiomeDef biome)
+    {
+        float scale = 1f;
+        foreach (BiomeScale entry in densityScales)
+        {
+            if (entry.biome == biome)
+                scale *= entry.scale;
+        }
+        return scale;
+    }
 
     /// <summary>Vitality: a plant's growth rate is multiplied by this at zero fitness and by <see cref="vitalityMax"/> at 1.</summary>
     public float vitalityMin = 0.5f;

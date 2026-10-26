@@ -459,45 +459,72 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>
-    /// Chance (0..1) that a spawn attempt on this cell goes ahead: the fitness of the plant likely to establish here
-    /// against the map's upper fitness range (found by sampling). Each species counts by its commonality times how
-    /// strongly its own clumps draw recruits to the cell (<see cref="ClusterPull"/>), so inside a bramble thicket in deep
-    /// shade the recruit is a bramble and the bramble's light limits whether anything grows (light-limited capacity, P12).
+    /// Carrying capacity (P15): the share of cells around <paramref name="cell"/> that should hold a plant. The biome's
+    /// vanilla density (x fertility, x the biome's density scale) sets the level, and the habitat shapes it: capacity is
+    /// the commonality-weighted fitness of the biome's species here (each weighted by how strongly its own clumps draw
+    /// recruits). Against the map's best ground (the 80th percentile) it gives a share from
+    /// <see cref="PlantEcologyDef.capacityFloor"/> to 1, raised to <see cref="PlantEcologyDef.densityContrast"/>: good
+    /// ground closes up, poor and shaded ground opens into meadows and clearings, and deserts stay sparse because their
+    /// vanilla density is low.
     /// </summary>
-    public float Acceptance(IntVec3 cell)
+    public float TargetOccupancy(IntVec3 cell)
     {
         int index = map.cellIndices.CellToIndex(cell);
-        List<BiomePlantRecord> plants = map.BiomeAt(cell).wildPlants;
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        if (capacityReference < 0f)
+            capacityReference = ReferenceCapacity();
+        BiomeDef biome = map.BiomeAt(cell);
+        float fertility = map.fertilityGrid.FertilityAt(cell);
+        float level = biome.plantDensity * map.wildPlantSpawner.CurrentPlantDensityFactor * fertility * tuning.DensityScaleFor(biome);
+        float share = Mathf.Lerp(tuning.capacityFloor, 1f, Mathf.Pow(Mathf.Clamp01(Capacity(index, biome) / capacityReference), tuning.densityContrast));
+        return Mathf.Clamp01(level * share);
+    }
+
+    /// <summary>Chance (0..1) that a spawn attempt goes ahead: the target occupancy, so one pass over the map fills each place to it.</summary>
+    public float Acceptance(IntVec3 cell) => Mathf.Lerp(1f, TargetOccupancy(cell), Strength);
+
+    /// <summary>
+    /// Replaces vanilla's local saturation (its biome density within 20 cells): saturated when the share of fertile cells
+    /// within <see cref="PlantEcologyDef.occupancyRadius"/> that hold a plant reaches the target occupancy.
+    /// </summary>
+    public bool Saturated(IntVec3 cell)
+    {
+        int count = GenRadial.NumCellsInRadius(PlantEcologyDef.Current.occupancyRadius), cells = 0, plants = 0;
+        for (int i = 0; i < count; i++)
+        {
+            IntVec3 c = cell + GenRadial.RadialPattern[i];
+            if (!c.InBounds(map) || map.fertilityGrid.FertilityAt(c) <= 0f)
+                continue;
+            cells++;
+            if (c.GetPlant(map) != null)
+                plants++;
+        }
+        return cells == 0 || plants >= TargetOccupancy(cell) * cells;
+    }
+
+    private float Capacity(int index, BiomeDef biome)
+    {
         float weights = 0f, sum = 0f;
-        foreach (BiomePlantRecord record in plants)
+        foreach (BiomePlantRecord record in biome.wildPlants)
         {
             float weight = record.commonality * Mathf.Pow(ClusterPull(record.plant, index), PlantEcologyDef.Current.establishmentPull);
             weights += weight;
             sum += weight * Fitness(record.plant, index);
         }
-        if (weights <= 0f)
-            return 1f;
-        float capacity = sum / weights;
-        if (capacityReference < 0f)
-            capacityReference = ReferenceCapacity();
-        float floor = PlantEcologyDef.Current.capacityFloor;
-        float accept = Mathf.Lerp(floor, 1f, Mathf.Pow(Mathf.Clamp01(capacity / capacityReference), PlantEcologyDef.Current.capacityExponent));
-        return Mathf.Lerp(1f, accept, Strength);
+        return weights > 0f ? sum / weights : 1f;
     }
 
-    /// <summary>
-    /// The 80th percentile of the biome's commonality-weighted fitness over sampled cells (so 20% of ground counts as
-    /// best). Weighting it by cluster pull, like <see cref="Acceptance"/>, was tried and lowered swamp and grassland
-    /// density (Docs/HABITAT-XML.md, diagnostic).
-    /// </summary>
+    /// <summary>The 80th percentile of the capacity over sampled fertile cells (commonality-weighted, without cluster pull): the map's best ground.</summary>
     private float ReferenceCapacity()
     {
-        var samples = new List<float>();
         var rng = new System.Random(map.Tile);
         List<BiomePlantRecord> plants = map.Biome.wildPlants;
-        for (int k = 0; k < 600; k++)
+        var samples = new List<float>();
+        for (int k = 0; k < 4000 && samples.Count < 800; k++)
         {
             int index = rng.Next(sizeX * sizeZ);
+            if (map.fertilityGrid.FertilityAt(map.cellIndices.IndexToCell(index)) <= 0f)
+                continue;
             float weights = 0f, sum = 0f;
             foreach (BiomePlantRecord record in plants)
             {
@@ -506,8 +533,10 @@ public class MapComponent_Ecology : MapComponent
             }
             samples.Add(weights > 0f ? sum / weights : 1f);
         }
+        if (samples.Count == 0)
+            return 1f;
         samples.Sort();
-        return Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.05f);
+        return Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.02f);
     }
 
     /// <summary>
