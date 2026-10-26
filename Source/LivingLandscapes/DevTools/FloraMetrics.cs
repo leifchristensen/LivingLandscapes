@@ -34,6 +34,7 @@ public static class FloraMetrics
         var land = new bool[area];
         var layer = new int[area];
         var shrubDef = new ThingDef[area];
+        var treeGrowth = new float[area];
         int landCells = 0;
         for (int i = 0; i < area; i++)
         {
@@ -53,6 +54,8 @@ public static class FloraMetrics
                 layer[cell] = stratum;
             if (stratum == (int)PlantStratum.Shrub)
                 shrubDef[cell] = plant.def;
+            if (plant.def.plant.IsTree)
+                treeGrowth[cell] = Mathf.Max(treeGrowth[cell], plant.Growth);
         }
         string prefix = $"[LivingLandscapes] Flora metrics: biome={map.Biome.defName}";
         Log.Message($"{prefix} season G={PlantEcologyDef.Current.SeasonOf(map):F2} (growing twelfths {GenTemperature.TwelfthsInAverageTemperatureRange(map.Tile, PlantEcologyDef.Current.growingTemperature.min, PlantEcologyDef.Current.growingTemperature.max)?.Count ?? -1}/12)");
@@ -105,6 +108,9 @@ public static class FloraMetrics
             string[] names = { "open", "thicket", "young", "old" };
             var cells = new int[4];
             var layerCells = new int[4, 3];
+            var trees = new int[4];
+            var growth = new float[4];
+            var light = new float[4];
             for (int i = 0; i < area; i++)
             {
                 if (!land[i])
@@ -115,14 +121,22 @@ public static class FloraMetrics
                 cells[stage]++;
                 if (layer[i] >= 0)
                     layerCells[stage, layer[i]]++;
+                if (treeGrowth[i] > 0f)
+                {
+                    trees[stage]++;
+                    growth[stage] += treeGrowth[i];
+                }
+                light[stage] += ecology.LightAt(i);
             }
             var parts = new List<string>();
             for (int k = 0; k < 4; k++)
             {
                 float c = Mathf.Max(cells[k], 1);
-                parts.Add($"{names[k]}={cells[k] / n:F2}(c{layerCells[k, 0] / c:F2},s{layerCells[k, 1] / c:F2},g{layerCells[k, 2] / c:F2})");
+                // Stem exclusion: trees per land cell, their mean growth and the ground light by stage.
+                parts.Add($"{names[k]}={cells[k] / n:F2}(c{layerCells[k, 0] / c:F2},s{layerCells[k, 1] / c:F2},g{layerCells[k, 2] / c:F2}," +
+                          $"t{trees[k] / c:F3},gr{growth[k] / Mathf.Max(trees[k], 1):F2},L{light[k] / c:F2})");
             }
-            Log.Message($"{prefix} standAge " + string.Join(" ", parts));
+            Log.Message($"{prefix} standAge " + string.Join(" ", parts) + $" thinned={ecology.thinned}");
         }
 
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;

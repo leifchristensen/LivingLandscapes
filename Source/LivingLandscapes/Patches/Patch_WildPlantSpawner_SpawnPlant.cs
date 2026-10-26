@@ -26,6 +26,9 @@ public static class Patch_WildPlantSpawner_SpawnPlant
         PlantHabitat habitat = PlantHabitat.For(__result.def);
         float cap = MapComponent_Ecology.Maturity(age, PlantEcologyDef.Current.canopyClosureYears * Mathf.Lerp(1.4f, 0.6f, habitat.pace));
         if (__result.Growth > cap)
+        {
             __result.Growth = Mathf.Max(0.05f, cap * Rand.Range(0.6f, 1f));
+            ecology.OnGrown(__result, thin: false);
+        }
     }
 }

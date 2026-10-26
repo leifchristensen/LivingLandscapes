@@ -204,6 +204,12 @@ public class PlantEcologyDef : Def
     /// </summary>
     public float shadeCastScale = 0.6f;
 
+    /// <summary>Stem exclusion: thicket weight of a tree up to half grown (young poles crowd close and low; shrubs 0.85-1.4).</summary>
+    public float saplingThicket = 0.5f;
+
+    /// <summary>Self-thinning (P14): a tree's top chance to die of crowding at each size step it reaches; 0 turns it off.</summary>
+    public float thinningMortality = 0.5f;
+
     /// <summary>Succession (P22): years for a stand's canopy to close (tau); pioneers (high pace) close in less, down to 0.6 x.</summary>
     public float canopyClosureYears = 30f;
 

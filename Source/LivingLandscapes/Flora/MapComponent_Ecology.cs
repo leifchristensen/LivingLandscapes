@@ -18,6 +18,7 @@ namespace LivingLandscapes.Flora;
 ///   it dies, so "how crowded is this cell with its own kind" is one array read.
 /// - Shade: the same, summed in log space for canopy plants, so removing a tree lifts its shade exactly.
 /// - Thicket stems: each plant's thicket weight on its own cell, for the path cost of dense shrubs (P18).
+/// - Tree size: a tree's shade and crowding scale with its growth in quarters, re-stamped as it grows (P12, P14).
 /// A map without the environment layers (or with the ecology switched off) is untouched: <see cref="Ready"/> is false and
 /// vanilla's spawner runs as it always did.
 /// </summary>
@@ -44,7 +45,10 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly float[][] crowding = new float[3][];
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
-    private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
+    private readonly Dictionary<(ThingDef, int), (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<(ThingDef, int), (Kernel, (int, int))>();
+
+    /// <summary>The size step (quarters of growth, 1-4) each tree was stamped with, so its removal takes off what was added.</summary>
+    private readonly Dictionary<int, int> treeSteps = new Dictionary<int, int>();
     private bool built;
     private int sizeX, sizeZ;
     private float latitude, capacityReference = -1f, meanShare = 1f;
@@ -192,6 +196,19 @@ public class MapComponent_Ecology : MapComponent
             int index = map.cellIndices.CellToIndex(at);
             Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
+        // A tree shades and crowds with its size (P12, P14): growth in quarters, the step it was stamped with on removal.
+        int step = 4;
+        if (habitat.stratum == PlantStratum.Canopy)
+        {
+            int id = plant.thingIDNumber;
+            if (sign > 0)
+                treeSteps[id] = step = SizeStep(plant);
+            else if (treeSteps.TryGetValue(id, out step))
+                treeSteps.Remove(id);
+            else
+                step = SizeStep(plant);
+        }
+        float size = step / 4f;
         if (habitat.clusterRadius2 > 0f && sigma > 0f)
         {
             if (!density2.TryGetValue(def, out float[] grid2))
@@ -203,20 +220,22 @@ public class MapComponent_Ecology : MapComponent
         {
             int layer = (int)habitat.stratum;
             crowding[layer] ??= new float[sizeX * sizeZ];
-            Apply(crowding[layer], at.x, at.z, CrowdingKernel(thinning.sigma, habitat.dominance), sign);
+            Apply(crowding[layer], at.x, at.z, CrowdingKernel(thinning.sigma, habitat.dominance * size), sign);
         }
         if (habitat.shadeCast > 0f)
         {
-            (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat);
+            (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat, step);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
         }
-        if (habitat.thicket > 0f)
+        // Young poles stand close and low (stem exclusion): a tree up to half grown is a thicket too.
+        float thicket = habitat.thicket + (habitat.stratum == PlantStratum.Canopy && step <= 2 ? PlantEcologyDef.Current.saplingThicket : 0f);
+        if (thicket > 0f)
         {
             int index = map.cellIndices.CellToIndex(at);
             // Growing season (P21): short-season shrubs stay low, so their thickets are easier to cross.
             PlantEcologyDef tuning = PlantEcologyDef.Current;
             float stature = Mathf.Lerp(tuning.shortSeasonStature, 1f, tuning.SeasonOf(map));
-            float v = stems[index] + sign * habitat.thicket * stature;
+            float v = stems[index] + sign * thicket * stature;
             stems[index] = v < 1e-5f ? 0f : v;
             // Vanilla recalculates only the plant's own cell; the drag of every neighbour with stems changes too.
             if (built && PlantEcologyDef.Current.thicketDragMax > 0f)
@@ -230,6 +249,39 @@ public class MapComponent_Ecology : MapComponent
             }
         }
     }
+
+    /// <summary>A tree's size step: its growth rounded up to quarters, 1 to 4.</summary>
+    private static int SizeStep(Plant plant) => Mathf.Clamp(Mathf.CeilToInt(plant.Growth * 4f - 1e-4f), 1, 4);
+
+    /// <summary>
+    /// A tree has grown (vanilla's long tick, or its growth was set after spawning): when it reached a new size step, its
+    /// shade, crowding and thicket are re-stamped at the new size. With <paramref name="thin"/>, self-thinning (P14) then
+    /// decides whether it survives the step: the crowding of the trees around it, over its own weight, is c, and it dies
+    /// with chance thinningMortality x (1 - exp(-strength x c)). A small tree among big ones is suppressed and dies; a big
+    /// one among small ones rarely does, so stems per area fall as the stand's trees grow.
+    /// </summary>
+    public void OnGrown(Plant plant, bool thin)
+    {
+        if (!built || !plant.Spawned || !treeSteps.TryGetValue(plant.thingIDNumber, out int step) || step == SizeStep(plant))
+            return;
+        Stamp(plant, -1);
+        Stamp(plant, 1);
+        PlantHabitat habitat = PlantHabitat.For(plant.def);
+        StratumThinning thinning = PlantEcologyDef.Current.ThinningFor(habitat.stratum);
+        float mortality = PlantEcologyDef.Current.thinningMortality * Strength;
+        if (!thin || thinning == null || mortality <= 0f)
+            return;
+        float own = habitat.dominance * SizeStep(plant) / 4f;
+        float others = CrowdingAt(habitat.stratum, map.cellIndices.CellToIndex(plant.Position)) - own;
+        if (others > 0f && Rand.Value < mortality * (1f - Mathf.Exp(-thinning.strength * others / Mathf.Max(own, 0.05f))))
+        {
+            thinned++;
+            plant.Kill();
+        }
+    }
+
+    /// <summary>Trees that died of self-thinning on this map since it loaded (dev log).</summary>
+    public int thinned;
 
     /// <summary>
     /// Path cost of the thicket at a cell (P18): drag grows with the frontal area density of stems, so the cost is
@@ -348,16 +400,17 @@ public class MapComponent_Ecology : MapComponent
         return new IntVec3(Mathf.RoundToInt(parent.x + a * Mathf.Cos(angle) - c * Mathf.Sin(angle)), 0, Mathf.RoundToInt(parent.z + a * Mathf.Sin(angle) + c * Mathf.Cos(angle)));
     }
 
-    private (Kernel, (int x, int z)) ShadeKernel(ThingDef def, PlantHabitat habitat)
+    private (Kernel, (int x, int z)) ShadeKernel(ThingDef def, PlantHabitat habitat, int step)
     {
-        if (shadeKernels.TryGetValue(def, out var cached))
+        if (shadeKernels.TryGetValue((def, step), out var cached))
             return cached;
-        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale;
+        // A sapling's crown blocks a share of light in proportion to its size.
+        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale * step / 4f;
         // Light reaches the ground through the gaps in the canopy: shade adds as -ln(transmittance), so it can be removed.
         Kernel kernel = Build(Mathf.CeilToInt(radius * 2f), d2 => -Mathf.Log(1f - Mathf.Min(strength * Mathf.Exp(-d2 / (2f * radius * radius)), 0.95f)));
         Vector2 shift = ShadeWorker.ShadowShift(latitude, radius) * (PlantEcologyDef.Current.shadowShift / 0.5f);
         var result = (kernel, (Mathf.RoundToInt(shift.x), Mathf.RoundToInt(shift.y)));
-        shadeKernels[def] = result;
+        shadeKernels[(def, step)] = result;
         return result;
     }
 
@@ -486,7 +539,18 @@ public class MapComponent_Ecology : MapComponent
             Compare(pair.Key.defName, pair.Value, fresh.density.TryGetValue(pair.Key, out float[] other) ? other : null);
         foreach (KeyValuePair<ThingDef, float[]> pair in density2)
             Compare(pair.Key.defName + " (second scale)", pair.Value, fresh.density2.TryGetValue(pair.Key, out float[] other2) ? other2 : null);
-        detail = where;
+        // Trees whose growth changed past a size step without a re-stamp (growth set by something other than a long tick).
+        int stale = 0;
+        string example = "";
+        foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant))
+        {
+            if (thing is Plant plant && treeSteps.TryGetValue(plant.thingIDNumber, out int step) && step != SizeStep(plant))
+            {
+                if (stale++ == 0)
+                    example = $"; e.g. {plant.def.defName} at {plant.Position} stamped {step}/4, growth {plant.Growth:F2}";
+            }
+        }
+        detail = where + (stale > 0 ? $"; {stale} trees with a stale size{example}" : "");
         return worst;
     }
 

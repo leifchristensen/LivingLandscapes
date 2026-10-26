@@ -414,7 +414,16 @@ public static class PlantBenchmark
             foreach (Plant p in plants)
                 layers[(int)Flora.PlantHabitat.For(p.def).stratum]++;
             string top = string.Join(", ", plants.GroupBy(p => p.def.defName).OrderByDescending(g => g.Count()).Take(4).Select(g => $"{g.Key.Replace("Plant_", "")} {g.Count()}"));
-            return $"{plants.Count} plants (canopy {layers[0]}, shrub {layers[1]}, ground {layers[2]}; {top})";
+            // Stem exclusion: the trees' mean growth and the block's mean ground light.
+            List<Plant> treesNow = plants.Where(p => p.def.plant.IsTree).ToList();
+            float growth = treesNow.Count > 0 ? treesNow.Average(p => p.Growth) : 0f, light = 0f;
+            for (int x = bestX; x < bestX + block; x++)
+            {
+                for (int z = bestZ; z < bestZ + block; z++)
+                    light += map.GetComponent<Flora.MapComponent_Ecology>().LightAt(map.cellIndices.CellToIndex(new IntVec3(x, 0, z)));
+            }
+            return $"{plants.Count} plants (canopy {layers[0]}, shrub {layers[1]}, ground {layers[2]}; {top}; tree growth {growth:F2}, " +
+                   $"ground light {light / (block * block):F2}, thinned {map.GetComponent<Flora.MapComponent_Ecology>().thinned})";
         }
         // The ground fire hook: a fire spawned on a cell outside the block resets that cell's stand.
         IntVec3 probe = new IntVec3(bestX + block + 2 < map.Size.x ? bestX + block + 2 : bestX - 3, 0, bestZ);
@@ -440,11 +449,15 @@ public static class PlantBenchmark
         bool fast = DebugSettings.fastEcology;
         DebugSettings.fastEcology = true;
         // One fast call is 2000 spawner ticks; game time advances by the same.
-        float[] checkpoints = { 0.25f, 0.5f, 1f, 2f, 3f };
+        float[] checkpoints = { 0.25f, 0.5f, 1f, 2f, 3f, 4.5f, 6f };
         int calls = 0, next = 0;
         while (next < checkpoints.Length)
         {
             map.wildPlantSpawner.WildPlantSpawnerTick();
+            // The block's plants grow (vanilla's long tick, with the sky's light at this hour), so trees reach their size steps and thin.
+            map.skyManager.SkyManagerUpdate();
+            foreach (Plant plant in Standing())
+                plant.TickLong();
             TicksGameOf(Find.TickManager) += 2000;
             GameComponent_LivingTime.Advance(2000);
             calls++;
