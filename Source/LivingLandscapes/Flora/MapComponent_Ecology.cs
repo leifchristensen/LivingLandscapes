@@ -212,7 +212,10 @@ public class MapComponent_Ecology : MapComponent
         if (habitat.thicket > 0f)
         {
             int index = map.cellIndices.CellToIndex(at);
-            float v = stems[index] + sign * habitat.thicket;
+            // Growing season (P21): short-season shrubs stay low, so their thickets are easier to cross.
+            PlantEcologyDef tuning = PlantEcologyDef.Current;
+            float stature = Mathf.Lerp(tuning.shortSeasonStature, 1f, tuning.SeasonOf(map));
+            float v = stems[index] + sign * habitat.thicket * stature;
             stems[index] = v < 1e-5f ? 0f : v;
             // Vanilla recalculates only the plant's own cell; the drag of every neighbour with stems changes too.
             if (built && PlantEcologyDef.Current.thicketDragMax > 0f)

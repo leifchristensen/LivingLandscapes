@@ -10,15 +10,18 @@
     <defName>LL_PlantEcology</defName>
     <label>plant ecology</label>
     <!-- Forest layers: biome x layer multipliers on vanilla's commonality (vanilla's forests are sparse). Shares renormalise. -->
+    <!-- Growing season (P21): a shrub entry with seasonMin runs from seasonMin on a short-season tile to scale on a long
+         mild one (season factor from the share of the year in 6-42 C: 0 at 0.4, 1 at 0.7; RimWorld's seasons swing more than real ones). Boreal keeps 1.3 whatever the
+         season: thin, acid soil keeps it sparse. -->
     <stratumScales>
       <li><biome>TemperateForest</biome><stratum>Canopy</stratum><scale>2.5</scale></li>
-      <li><biome>TemperateForest</biome><stratum>Shrub</stratum><scale>3.5</scale></li>
+      <li><biome>TemperateForest</biome><stratum>Shrub</stratum><scale>3.5</scale><seasonMin>1.3</seasonMin></li>
       <li><biome>TemperateForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
       <li><biome>BorealForest</biome><stratum>Canopy</stratum><scale>2.2</scale></li>
       <li><biome>BorealForest</biome><stratum>Shrub</stratum><scale>1.3</scale></li>
       <li><biome>BorealForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
       <li><biome>TropicalRainforest</biome><stratum>Canopy</stratum><scale>2.7</scale></li>
-      <li><biome>TropicalRainforest</biome><stratum>Shrub</stratum><scale>3.3</scale></li>
+      <li><biome>TropicalRainforest</biome><stratum>Shrub</stratum><scale>3.3</scale><seasonMin>1.3</seasonMin></li>
       <li><biome>TemperateSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
       <li><biome>TropicalSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
     </stratumScales>

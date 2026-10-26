@@ -55,6 +55,7 @@ public static class FloraMetrics
                 shrubDef[cell] = plant.def;
         }
         string prefix = $"[LivingLandscapes] Flora metrics: biome={map.Biome.defName}";
+        Log.Message($"{prefix} season G={PlantEcologyDef.Current.SeasonOf(map):F2} (growing twelfths {GenTemperature.TwelfthsInAverageTemperatureRange(map.Tile, PlantEcologyDef.Current.growingTemperature.min, PlantEcologyDef.Current.growingTemperature.max)?.Count ?? -1}/12)");
 
         // Cover.
         var cover = new int[3];

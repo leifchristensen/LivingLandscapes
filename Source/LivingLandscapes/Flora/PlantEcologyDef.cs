@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace LivingLandscapes.Flora;
@@ -23,6 +24,12 @@ public class StratumScale
     public BiomeDef biome;
     public PlantStratum stratum;
     public float scale = 1f;
+
+    /// <summary>
+    /// Growing season (P21): when set, the scale on a tile with no growing season to speak of; <see cref="scale"/> applies at
+    /// a full season, with the season factor between them. Negative: the scale does not depend on the season.
+    /// </summary>
+    public float seasonMin = -1f;
 }
 
 /// <summary>Competition among plants of one vegetation layer: how far a plant's crowding reaches and how hard it bites.</summary>
@@ -94,15 +101,45 @@ public class PlantEcologyDef : Def
     /// </summary>
     public List<StratumScale> stratumScales = new List<StratumScale>();
 
-    public float ScaleFor(BiomeDef biome, PlantStratum stratum)
+    public float ScaleFor(BiomeDef biome, PlantStratum stratum, float season = 1f)
     {
         float scale = 1f;
         foreach (StratumScale entry in stratumScales)
         {
             if (entry.biome == biome && entry.stratum == stratum)
-                scale *= entry.scale;
+                scale *= entry.seasonMin >= 0f ? Mathf.Lerp(entry.seasonMin, entry.scale, season) : entry.scale;
         }
         return scale;
+    }
+
+    /// <summary>Growing season (P21): growing temperature range (C) whose months count (vanilla's "Outdoor growing period").</summary>
+    public FloatRange growingTemperature = new FloatRange(6f, 42f);
+
+    /// <summary>Growing season (P21): share of the year growing at which the season factor starts (0) and is full (1).</summary>
+    public FloatRange seasonShare = new FloatRange(0.4f, 0.7f);
+
+    /// <summary>Growing season (P21): a shrub's thicket weight x Lerp(this, 1, season): short-season shrubs are low and easy to cross.</summary>
+    public float shortSeasonStature = 0.5f;
+
+    private static int seasonMap = -1;
+    private static float seasonCached;
+
+    /// <summary>
+    /// Growing season factor 0..1 of a map's tile (P21): g = share of the year whose average temperature is in the growing
+    /// range (vanilla GenTemperature.TwelfthsInAverageTemperatureRange), G = (g - start) / (full - start), clamped.
+    /// RimWorld's seasons swing more than the real analogues: a 13 C temperate tile grows 8 of 12 months, so G is full by
+    /// 8.5 months (start 0.4, full 0.7). 1 where the map has no tile.
+    /// </summary>
+    public float SeasonOf(Map map)
+    {
+        if (map == null || !map.Tile.Valid)
+            return 1f;
+        if (seasonMap == map.uniqueID)
+            return seasonCached;
+        int twelfths = GenTemperature.TwelfthsInAverageTemperatureRange(map.Tile, growingTemperature.min, growingTemperature.max)?.Count ?? 12;
+        seasonMap = map.uniqueID;
+        seasonCached = Mathf.Clamp01((twelfths / 12f - seasonShare.min) / Mathf.Max(seasonShare.max - seasonShare.min, 0.01f));
+        return seasonCached;
     }
 
     /// <summary>A species whose fitness on a cell is below this (times the strength) is not a candidate there.</summary>
