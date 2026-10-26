@@ -582,7 +582,7 @@
       <value>
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
-          <water><optimum>0.6</optimum><tolerance>0.4</tolerance></water>
+          <water><optimum>0.75</optimum><tolerance>0.4</tolerance></water>
           <light><optimum>0.77</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.2</rootingDepth>
           <pace>0.8</pace>
@@ -692,7 +692,7 @@
       <value>
         <li Class="LivingLandscapes.Flora.PlantHabitat">
           <stratum>Canopy</stratum>
-          <water><optimum>0.9</optimum><tolerance>0.2</tolerance></water>
+          <water><optimum>0.9</optimum><tolerance>0.15</tolerance></water>
           <light><optimum>0.69</optimum><tolerance>0.39</tolerance><saturating>true</saturating></light>
           <rootingDepth>1.3</rootingDepth>
           <pace>0.8</pace>
@@ -901,6 +901,339 @@
           <shadeCast>0.46</shadeCast>
           <shadeRadius>2.2</shadeRadius>
         </li>
+      </value>
+    </match>
+  </Operation>
+
+
+  <!-- Vanilla Plants Expanded (each entry is skipped when its plant does not exist). Real analogues set the niches;
+       commonality stays VPE's own. -->
+  <!-- Apple (Malus): temperate orchards and hedgerows, moist well-drained ground, sun. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.55</optimum><tolerance>0.35</tolerance></water>
+          <light><optimum>0.75</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>1.0</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.45</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Wild cherry (Prunus avium): forest edges and clearings, bird-sown pioneer. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.5</optimum><tolerance>0.35</tolerance></water>
+          <light><optimum>0.75</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>1.0</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.4</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Peach (Prunus persica): warm, dry summers; drought-tolerant once rooted. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.35</optimum><tolerance>0.3</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.3</tolerance><saturating>true</saturating></light>
+          <rootingDepth>1.2</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.35</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Plum (Prunus domestica): moist ground at wood edges. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.6</optimum><tolerance>0.3</tolerance></water>
+          <light><optimum>0.75</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.9</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.4</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Pear (Pyrus): tolerates wet heavy soils. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PearTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_PearTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.65</optimum><tolerance>0.3</tolerance></water>
+          <light><optimum>0.75</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>1.0</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.4</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Banana (Musa): wet tropical gaps; spreads by suckers. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.8</optimum><tolerance>0.25</tolerance></water>
+          <light><optimum>0.7</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.6</rootingDepth>
+          <dispersal>Clonal</dispersal>
+          <shadeCast>0.5</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Orange (Citrus): warm, moderately moist, sun. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Canopy</stratum>
+          <water><optimum>0.6</optimum><tolerance>0.3</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.3</tolerance><saturating>true</saturating></light>
+          <rootingDepth>1.0</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <shadeCast>0.45</shadeCast>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Bearberry (Arctostaphylos uva-ursi): low mat on dry, sandy, open ground; walkable. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <water><optimum>0.3</optimum><tolerance>0.3</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.4</rootingDepth>
+          <dispersal>Animal</dispersal>
+          <thicket>0.3</thicket>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Prickly pear (Opuntia): dry open ground; pads root where they fall; spiny clumps. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Shrub</stratum>
+          <water><optimum>0.15</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.85</optimum><tolerance>0.3</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.3</rootingDepth>
+          <dispersal>Clonal</dispersal>
+          <thicket>0.6</thicket>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Aloe: succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Bunny ears cactus (Opuntia microdasys): succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Echeveria: succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Fairy washboard (Haworthia): succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Jade plant (Crassula): succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Peyote (Lophophora): slow, solitary: succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Gravity</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Pincushion (Mammillaria): succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Gravity</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <!-- Snake plant (Dracaena trifasciata): succulent of dry, sunny, shallow ground. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]</xpath>
+      <value>
+        <li Class="LivingLandscapes.Flora.PlantHabitat">
+          <stratum>Ground</stratum>
+          <water><optimum>0.2</optimum><tolerance>0.2</tolerance></water>
+          <light><optimum>0.8</optimum><tolerance>0.35</tolerance><saturating>true</saturating></light>
+          <rootingDepth>0.2</rootingDepth>
+          <dispersal>Clonal</dispersal>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+
+  <!-- Riparian (#36, owner 2026-10-26): willow joins the dry-land biomes; its narrow water niche keeps it on banks. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants[not(Plant_TreeWillow)]</xpath>
+    <match Class="PatchOperationAdd">
+      <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+      <value>
+        <Plant_TreeWillow>0.8</Plant_TreeWillow>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants[not(Plant_TreeWillow)]</xpath>
+    <match Class="PatchOperationAdd">
+      <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+      <value>
+        <Plant_TreeWillow>0.8</Plant_TreeWillow>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/BiomeDef[defName="Grasslands"]/wildPlants[not(Plant_TreeWillow)]</xpath>
+    <match Class="PatchOperationAdd">
+      <xpath>/Defs/BiomeDef[defName="Grasslands"]/wildPlants</xpath>
+      <value>
+        <Plant_TreeWillow>0.8</Plant_TreeWillow>
       </value>
     </match>
   </Operation>
