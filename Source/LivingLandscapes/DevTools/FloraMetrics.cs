@@ -94,6 +94,36 @@ public static class FloraMetrics
             Log.Message($"{prefix} density fertileLand={fertile / n:F2} occupied={occupied / f:F3} meanTarget={target / f:F3} noCandidate={hopeless / f:F3} tileDensityFactor={map.wildPlantSpawner.CurrentPlantDensityFactor:F2}");
         }
 
+        // Stand age (P22): share of land per succession stage (open < 6 years, thicket 6-18, young forest 18-45, old),
+        // with each stage's canopy, shrub and ground cover.
+        if (map.GetComponent<LivingLandscapes.Environment.MapComponent_Environment>() is { } environment
+            && environment.TryGetGrid(LivingLandscapes.Environment.EnvironmentLayerDefOf.LL_StandAge, out var ageGrid))
+        {
+            float[] ages = ageGrid.ToArray();
+            float[] limits = { 6f, 18f, 45f, float.MaxValue };
+            string[] names = { "open", "thicket", "young", "old" };
+            var cells = new int[4];
+            var layerCells = new int[4, 3];
+            for (int i = 0; i < area; i++)
+            {
+                if (!land[i])
+                    continue;
+                int stage = 0;
+                while (ages[i] >= limits[stage])
+                    stage++;
+                cells[stage]++;
+                if (layer[i] >= 0)
+                    layerCells[stage, layer[i]]++;
+            }
+            var parts = new List<string>();
+            for (int k = 0; k < 4; k++)
+            {
+                float c = Mathf.Max(cells[k], 1);
+                parts.Add($"{names[k]}={cells[k] / n:F2}(c{layerCells[k, 0] / c:F2},s{layerCells[k, 1] / c:F2},g{layerCells[k, 2] / c:F2})");
+            }
+            Log.Message($"{prefix} standAge " + string.Join(" ", parts));
+        }
+
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;
         // clearings = blocks with canopy under a quarter of the mean; closed = blocks with plants on 80% of land.
         {
