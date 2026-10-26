@@ -1213,7 +1213,7 @@
     <match Class="PatchOperationAdd">
       <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
       <value>
-        <Plant_TreeWillow>0.8</Plant_TreeWillow>
+        <Plant_TreeWillow>0.5</Plant_TreeWillow>
       </value>
     </match>
   </Operation>
@@ -1223,7 +1223,7 @@
     <match Class="PatchOperationAdd">
       <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
       <value>
-        <Plant_TreeWillow>0.8</Plant_TreeWillow>
+        <Plant_TreeWillow>0.5</Plant_TreeWillow>
       </value>
     </match>
   </Operation>
@@ -1233,7 +1233,7 @@
     <match Class="PatchOperationAdd">
       <xpath>/Defs/BiomeDef[defName="Grasslands"]/wildPlants</xpath>
       <value>
-        <Plant_TreeWillow>0.8</Plant_TreeWillow>
+        <Plant_TreeWillow>0.5</Plant_TreeWillow>
       </value>
     </match>
   </Operation>

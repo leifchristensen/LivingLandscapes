@@ -284,6 +284,8 @@ public static class PlantBenchmark
                 float mean = curved.Average(p => ecology.Vitality(p)), min = curved.Min(p => ecology.Vitality(p)), max = curved.Max(p => ecology.Vitality(p));
                 Log.Message($"[LivingLandscapes] Plant census: growth rate multiplier (vitality) over {curved.Count} wild plants: mean {mean:0.00}, min {min:0.00}, max {max:0.00}.");
             }
+            float rebuildDifference = ecology.VerifyAgainstRebuild(out string rebuildDetail);
+            Log.Message($"[LivingLandscapes] Plant census: live grids against a full rebuild differ by {rebuildDifference:0.#####} ({rebuildDetail}).");
             int shaded = 0;
             for (int i = 0; i < map.Area; i++)
             {

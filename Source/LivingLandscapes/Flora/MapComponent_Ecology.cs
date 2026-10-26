@@ -41,6 +41,7 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
+    private readonly float[][] crowding = new float[3][];
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
     private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
     private bool built;
@@ -196,6 +197,13 @@ public class MapComponent_Ecology : MapComponent
                 density2[def] = grid2 = new float[sizeX * sizeZ];
             Apply(grid2, at.x, at.z, ClusterKernel(habitat.clusterRadius2), sign);
         }
+        StratumThinning thinning = PlantEcologyDef.Current.ThinningFor(habitat.stratum);
+        if (thinning != null)
+        {
+            int layer = (int)habitat.stratum;
+            crowding[layer] ??= new float[sizeX * sizeZ];
+            Apply(crowding[layer], at.x, at.z, CrowdingKernel(thinning.sigma, habitat.dominance), sign);
+        }
         if (habitat.shadeCast > 0f)
         {
             (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat);
@@ -268,6 +276,29 @@ public class MapComponent_Ecology : MapComponent
         kernel = Build(Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * s), d2 => Mathf.Exp(-d2 / (2f * s * s)));
         clusterKernels[key] = kernel;
         return kernel;
+    }
+
+    private readonly Dictionary<(int, int), Kernel> crowdingKernels = new Dictionary<(int, int), Kernel>();
+
+    private Kernel CrowdingKernel(float sigma, float dominance)
+    {
+        var key = (Mathf.RoundToInt(sigma * 4f), Mathf.RoundToInt(dominance * 8f));
+        if (crowdingKernels.TryGetValue(key, out Kernel kernel))
+            return kernel;
+        float s = key.Item1 / 4f, weight = key.Item2 / 8f;
+        kernel = Build(Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * s), d2 => weight * Mathf.Exp(-d2 / (2f * s * s)));
+        crowdingKernels[key] = kernel;
+        return kernel;
+    }
+
+    /// <summary>
+    /// Competition on a cell from the plants of one layer around it (dominance-weighted, Gaussian by distance); 0 where the
+    /// layer does not compete.
+    /// </summary>
+    public float CrowdingAt(PlantStratum stratum, int index)
+    {
+        float[] grid = crowding[(int)stratum];
+        return grid != null ? grid[index] : 0f;
     }
 
     /// <summary>
@@ -414,9 +445,11 @@ public class MapComponent_Ecology : MapComponent
         string where = "none";
         void Compare(string name, float[] live, float[] rebuilt)
         {
-            for (int i = 0; i < live.Length; i++)
+            if (live == null && rebuilt == null)
+                return;
+            for (int i = 0; i < (live ?? rebuilt).Length; i++)
             {
-                float d = Mathf.Abs(live[i] - (rebuilt?[i] ?? 0f));
+                float d = Mathf.Abs((live?[i] ?? 0f) - (rebuilt?[i] ?? 0f));
                 if (d > worst)
                 {
                     worst = d;
@@ -425,6 +458,8 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         Compare("shade", shadeLog, fresh.shadeLog);
+        for (int layer = 0; layer < 3; layer++)
+            Compare("crowding " + (PlantStratum)layer, crowding[layer], fresh.crowding[layer]);
         foreach (KeyValuePair<ThingDef, float[]> pair in density)
             Compare(pair.Key.defName, pair.Value, fresh.density.TryGetValue(pair.Key, out float[] other) ? other : null);
         foreach (KeyValuePair<ThingDef, float[]> pair in density2)

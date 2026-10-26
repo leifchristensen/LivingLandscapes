@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!--
@@ -22,6 +22,12 @@
       <li><biome>TemperateSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
       <li><biome>TropicalSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
     </stratumScales>
+    <!-- Self-thinning (Docs/FLORA-REVIEW.md, #22): same-layer plants within about sigma cells suppress newcomers of that
+         layer by exp(-strength x crowding / dominance); grass-scale ground plants do not compete. -->
+    <thinning>
+      <li><stratum>Canopy</stratum><sigma>1.6</sigma><strength>0.7</strength></li>
+      <li><stratum>Shrub</stratum><sigma>1.1</sigma><strength>0.5</strength></li>
+    </thinning>
     <!-- Species with fitness under this (times strength) are not candidates on a cell. -->
     <minFitness>0.08</minFitness>
     <!-- Choice weight ~ fitness^this. -->

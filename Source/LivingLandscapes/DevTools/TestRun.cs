@@ -47,6 +47,8 @@ public static class TestRun
             Log.Message("[LivingLandscapes] Test run: benchmark done.");
             if (GenCommandLine.CommandLineArgPassed("ll-check-cliffs"))
                 CheckCliffCost(map);
+            if (BenchRequested && GenCommandLine.CommandLineArgPassed("ll-export"))
+                LayerImageExporter.WriteLog();
             // "-ll-roundtrip": save the game, load it again and check the plant ecology came back whole.
             if (GenCommandLine.CommandLineArgPassed("ll-roundtrip"))
             {
@@ -77,6 +79,8 @@ public static class TestRun
                             withFlow++;
                     }
                     Log.Message($"[LivingLandscapes] Round trip: flow map {(loadedFlow == null ? "null" : loadedFlow.Count.ToString())}, {withFlow} of {moving} moving water cells with a direction after loading.");
+                    if (GenCommandLine.CommandLineArgPassed("ll-export"))
+                        LayerImageExporter.WriteLog();
                     quitAt = Time.realtimeSinceStartup + 1f;
                 };
                 // The new map's drawer is not ready in this frame; save and reload a few seconds into the running game.
