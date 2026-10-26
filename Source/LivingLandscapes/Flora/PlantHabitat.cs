@@ -85,10 +85,17 @@ public class PlantHabitat : DefModExtension
     public PlantDispersal dispersal;
 
     /// <summary>
-    /// How much one plant adds to a thicket's stem density (P18), 0..1: tall woody or cane shrubs 1, low herbs less.
+    /// How much one plant adds to a thicket's stem density (P18): 1 a typical shrub, more for tangled thorny canes
+    /// (brambles 1.4), less for open shrubs and low herbs.
     /// Negative: from the stratum (shrubs 1, others 0).
     /// </summary>
     public float thicket = -1f;
+
+    /// <summary>
+    /// Rate of new clumps away from the species' own kind, relative to its seed vector's (<see cref="NucleationScale"/>).
+    /// Below 1: fewer, larger patches (the seeder grows each clump larger to keep the species' share).
+    /// </summary>
+    public float nucleation = 1f;
 
     /// <summary>Share of light this plant blocks beneath it, 0..1. Feeds LL_Shade for the strata placed after it.</summary>
     public float shadeCast;
@@ -192,7 +199,7 @@ public class PlantHabitat : DefModExtension
     /// How often a new clump starts away from the species' own kind, relative to <see cref="PlantEcologyDef.clusterNucleation"/>:
     /// the vector's rate, raised for many small seeds (more of them land far away).
     /// </summary>
-    public float NucleationScale => Kernel.nucleationScale * Mathf.Lerp(0.6f, 1.4f, seed);
+    public float NucleationScale => Kernel.nucleationScale * nucleation * Mathf.Lerp(0.6f, 1.4f, seed);
 
     /// <summary>
     /// How many times likelier a spawn is inside a cluster than outside, from vanilla's own numbers (cluster weight and

@@ -193,6 +193,9 @@
           <pace>0.8</pace>
           <seed>0.5</seed>
           <dispersal>Clonal</dispersal>
+          <clusterRadius>3.2</clusterRadius>
+          <nucleation>0.33</nucleation>
+          <thicket>1.4</thicket>
         </li>
       </value>
     </match>
@@ -211,6 +214,9 @@
           <pace>0.8</pace>
           <seed>0.5</seed>
           <dispersal>Clonal</dispersal>
+          <clusterRadius>3.2</clusterRadius>
+          <nucleation>0.33</nucleation>
+          <thicket>1.4</thicket>
         </li>
       </value>
     </match>
@@ -285,6 +291,7 @@
           <pace>0.5</pace>
           <seed>0.5</seed>
           <dispersal>Animal</dispersal>
+          <thicket>0.85</thicket>
         </li>
       </value>
     </match>
@@ -303,6 +310,7 @@
           <pace>0.5</pace>
           <seed>0.5</seed>
           <dispersal>Animal</dispersal>
+          <thicket>0.85</thicket>
         </li>
       </value>
     </match>

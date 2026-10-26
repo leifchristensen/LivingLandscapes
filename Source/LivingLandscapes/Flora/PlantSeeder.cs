@@ -39,7 +39,9 @@ public static class PlantSeeder
         foreach (ThingDef def in species)
         {
             PlantHabitat habitat = PlantHabitat.For(def);
-            int wanted = Mathf.RoundToInt(desired * spawner.GetCommonalityPctOfPlant(def) * tuning.seedShare * strength);
+            // A clonal species is all patches: seed its whole share, so vanilla's pass does not scatter the rest as singles.
+            float share = habitat.dispersal == PlantDispersal.Clonal ? 1f : tuning.seedShare;
+            int wanted = Mathf.RoundToInt(desired * spawner.GetCommonalityPctOfPlant(def) * share * strength);
             if (wanted < 3)
                 continue;
             float sigma = habitat.ClusterSigma(def);
@@ -58,11 +60,21 @@ public static class PlantSeeder
                 made++;
                 clumps++;
                 int offspring = Mathf.RoundToInt(clump * Rand.Range(0.5f, 1.5f));
-                for (int i = 0; i < offspring && made < wanted; i++)
+                // Clonal plants spread by rhizomes and runners: each new shoot comes up beside one already there (Eden
+                // growth), so the clump stays one contiguous patch instead of a scatter. A shoot that fails (shade,
+                // occupied) is tried again elsewhere on the patch's edge, up to three attempts per shoot.
+                bool clonal = habitat.dispersal == PlantDispersal.Clonal;
+                List<IntVec3> shoots = clonal ? new List<IntVec3> { parent } : null;
+                int grown = 0;
+                for (int i = 0; i < offspring * (clonal ? 3 : 1) && grown < offspring && made < wanted; i++)
                 {
-                    IntVec3 cell = ecology.OffspringCell(habitat, parent, sigma);
-                    if (Suits(map, ecology, def, cell, tuning) && Place(map, ecology, def, cell))
+                    IntVec3 cell = clonal ? shoots.RandomElement() + GenAdj.AdjacentCells[Rand.Range(0, 8)] : ecology.OffspringCell(habitat, parent, sigma);
+                    if (Suits(map, ecology, def, cell, tuning, integrated: clonal) && Place(map, ecology, def, cell))
+                    {
                         made++;
+                        grown++;
+                        shoots?.Add(cell);
+                    }
                 }
             }
             placed += made;
@@ -75,8 +87,12 @@ public static class PlantSeeder
     private static bool IsWaterPlant(ThingDef def) => def.plant.wildPlantUseDistanceToShore || def.plant.sowTags?.Contains("Water") == true
                                                       || (def.terrainAffordanceNeeded != null && def.terrainAffordanceNeeded.defName.Contains("Shallow"));
 
-    /// <summary>The cell is free, vanilla would allow the species there, and a draw against its fitness succeeds.</summary>
-    private static bool Suits(Map map, MapComponent_Ecology ecology, ThingDef def, IntVec3 c, PlantEcologyDef tuning)
+    /// <summary>
+    /// The cell is free, vanilla would allow the species there, and a draw against its fitness succeeds. A clonal shoot
+    /// (<paramref name="integrated"/>) is fed through the rhizome by the patch behind it (clonal integration), so it needs
+    /// only the species' minimum fitness, not the seedling's draw.
+    /// </summary>
+    private static bool Suits(Map map, MapComponent_Ecology ecology, ThingDef def, IntVec3 c, PlantEcologyDef tuning, bool integrated = false)
     {
         if (!c.InBounds(map) || c.GetPlant(map) != null || c.GetCover(map) != null || c.GetEdifice(map) != null || c.Roofed(map))
             return false;
@@ -84,7 +100,7 @@ public static class PlantSeeder
             return false;
         float fitness = ecology.Fitness(def, map.cellIndices.CellToIndex(c));
         // Fitness is a product of several curves, so even good ground rarely scores near 1: accept relative to a reference.
-        return fitness >= tuning.minFitness && Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent);
+        return fitness >= tuning.minFitness && (integrated || Rand.Value < Mathf.Pow(Mathf.Clamp01(fitness / tuning.seedFitnessReference), tuning.fitnessExponent));
     }
 
     /// <summary>Plants placed per layer, and how many of them under deep shade at the time (dev log: do clumps end up under canopy that closes later?).</summary>

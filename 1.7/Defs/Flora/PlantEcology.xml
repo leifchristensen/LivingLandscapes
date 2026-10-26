@@ -69,9 +69,9 @@
          commonality alone). Measured 2026-10-25: 1 added nothing to the forest-edge shrub lead and cost swamps 6% of
          their plants, so 0 until shade mortality exists (Docs/HABITAT-XML.md, diagnostic). -->
     <establishmentPull>0</establishmentPull>
-    <!-- Thicket drag (P18): path cost where a plant's 3x3 neighbourhood is all thicket stems; cost = this x stem density,
-         at least vanilla's. A thick bush is about 20x slower than open soil (owner): 20 x 13 ticks per move = 260, so 250.
-         A lone bush (1/9) gets 28, vanilla's 30 stays. -->
+    <!-- Thicket drag (P18): cost = this x stem density of the 3x3 (sum of the plants' thicket weights / 9), at least
+         vanilla's. A thick bush is about 20x slower than open soil (owner): 20 x 13 ticks per move = 260, so 250 at weight
+         1. Owner playtest 2026-10-26: bushes 0.85 (closed 212), brambles 1.4 (closed 350); a lone bush keeps vanilla's 30. -->
     <thicketDragMax>250</thicketDragMax>
   </LivingLandscapes.Flora.PlantEcologyDef>
 

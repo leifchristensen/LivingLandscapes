@@ -235,7 +235,7 @@ public class MapComponent_Ecology : MapComponent
             for (int x = x0; x <= x1; x++)
                 sum += stems[z * sizeX + x];
         }
-        return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * Mathf.Min(sum / 9f, 1f));
+        return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * sum / 9f);
     }
 
     private void Apply(float[] grid, int cx, int cz, Kernel kernel, int sign)

@@ -84,6 +84,18 @@ public static class FloraMetrics
             Log.Message($"{prefix} clumps layer={s} count={sizes.Count} median={sizes[sizes.Count / 2]} p90={sizes[(int)(sizes.Count * 0.9f)]} largest={sizes[sizes.Count - 1]}");
         }
 
+        // Contiguous patches per shrub species (touching cells, 8 neighbours); cellWeighted = mean patch size seen from a
+        // plant of the species, so a few large patches outweigh many single plants.
+        foreach (ThingDef def in shrubDef.Where(d => d != null).Distinct().OrderBy(d => d.defName))
+        {
+            List<int> sizes = Components(map, i => shrubDef[i] == def, 1);
+            if (sizes.Count == 0)
+                continue;
+            sizes.Sort();
+            long cells = sizes.Sum(), squares = sizes.Sum(s => (long)s * s);
+            Log.Message($"{prefix} patches species={def.defName} cells={cells} count={sizes.Count} median={sizes[sizes.Count / 2]} p90={sizes[(int)(sizes.Count * 0.9f)]} largest={sizes[sizes.Count - 1]} cellWeighted={(double)squares / cells:F1}");
+        }
+
         // Edges: signed distance in cells from the edge of deep shade (negative inside the forest).
         if (ecology != null && ecology.Ready)
         {
