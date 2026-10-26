@@ -95,7 +95,7 @@ public static class FloraMetrics
                     hopeless++;
             }
             float f = Mathf.Max(fertile, 1);
-            Log.Message($"{prefix} density fertileLand={fertile / n:F2} occupied={occupied / f:F3} meanTarget={target / f:F3} noCandidate={hopeless / f:F3} tileDensityFactor={map.wildPlantSpawner.CurrentPlantDensityFactor:F2}");
+            Log.Message($"{prefix} density fertileLand={fertile / n:F2} occupied={occupied / f:F3} meanTarget={target / f:F3} noCandidate={hopeless / f:F3} tileDensityFactor={map.wildPlantSpawner.CurrentPlantDensityFactor:F2} regrowth={ecology.RegrowthRate():F2}x");
         }
 
         // Stand age (P22): share of land per succession stage (open < 6 years, thicket 6-18, young forest 18-45, old),

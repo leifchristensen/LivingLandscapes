@@ -233,6 +233,12 @@ public class PlantEcologyDef : Def
     /// <summary>Runtime equivalence (G5): how much of the target occupancy also gates spawn attempts in play (1 = as at map generation).</summary>
     public float runtimeAcceptance = 0f;
 
+    /// <summary>Regrowth rate (G5): attempts so births exceed deaths at the target by this factor (0: vanilla's rate).</summary>
+    public float regrowthMargin = 1.5f;
+
+    /// <summary>Regrowth rate: at most this many times vanilla's spawn attempts (spawner cost grows with it).</summary>
+    public float regrowthMax = 6f;
+
     /// <summary>Radius in cells over which the local share of cells with a plant is counted against the target.</summary>
     public float occupancyRadius = 4f;
 

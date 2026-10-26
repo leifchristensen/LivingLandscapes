@@ -736,6 +736,55 @@ public class MapComponent_Ecology : MapComponent
         return capacityReference;
     }
 
+    private float regrowth = 1f;
+    private int regrowthTick = int.MinValue;
+
+    /// <summary>
+    /// Regrowth rate (P15, G5): how many times vanilla's spawn attempts a map needs so births match deaths at the target.
+    /// Vanilla tries each cell about c / regrowDays times a day (c: the map's desired plants per fertile cell); a try on an
+    /// occupied cell fails, and plants die at 1 / lifespan, so a place settles at O = aL / (1 + aL), under the target for
+    /// short-lived plants. Births match deaths at target T when a (1 - T) = T D, D the biome's death rate per plant (each
+    /// species' respawning share / its lifespan). R = margin x mean(T / (1 - T)) x D x regrowDays / c over sampled fertile
+    /// cells, at least 1, at most <see cref="PlantEcologyDef.regrowthMax"/>; recomputed every game day. The local
+    /// saturation still caps each place at its target, so only the refill speed changes.
+    /// </summary>
+    public float RegrowthRate()
+    {
+        int now = Find.TickManager?.TicksGame ?? 0;
+        if (now - regrowthTick < GenDate.TicksPerDay && regrowthTick != int.MinValue)
+            return regrowth;
+        regrowthTick = now;
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        WildPlantSpawner spawner = map.wildPlantSpawner;
+        float shares = 0f, deaths = 0f;
+        foreach (BiomePlantRecord record in map.Biome.wildPlants)
+        {
+            float share = spawner.GetCommonalityPctOfPlant(record.plant) * record.plant.plant.plantRespawningCommonalityFactor;
+            shares += share;
+            if (record.plant.plant.LimitedLifespan && record.plant.plant.LifespanDays > 0f)
+                deaths += share / record.plant.plant.LifespanDays;
+        }
+        float chance = spawner.CachedChanceFromDensity;
+        if (tuning.regrowthMargin <= 0f || shares <= 0f || chance <= 0f)
+            return regrowth = 1f;
+        var rng = new System.Random(map.Tile ^ now);
+        float odds = 0f;
+        int samples = 0;
+        for (int k = 0; k < 2000 && samples < 400; k++)
+        {
+            IntVec3 c = map.cellIndices.IndexToCell(rng.Next(sizeX * sizeZ));
+            if (PlantableFertility(c) <= 0f)
+                continue;
+            float target = Mathf.Min(TargetOccupancy(c), 0.9f);
+            odds += target / (1f - target);
+            samples++;
+        }
+        if (samples == 0)
+            return regrowth = 1f;
+        float rate = tuning.regrowthMargin * odds / samples * deaths / shares * map.Biome.wildPlantRegrowDays / chance;
+        return regrowth = Mathf.Lerp(1f, Mathf.Clamp(rate, 1f, tuning.regrowthMax), Strength);
+    }
+
     /// <summary>
     /// Growth rate multiplier of a standing plant from how well its site suits its species: 1 for plants without habitat
     /// data, so crops, modded and DLC plants grow exactly as vanilla has them.

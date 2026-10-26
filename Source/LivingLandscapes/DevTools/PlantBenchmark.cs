@@ -521,7 +521,7 @@ public static class PlantBenchmark
             if (years >= checkpoints[next])
             {
                 float age = standAge.Age(map.cellIndices.CellToIndex(new IntVec3(bestX + block / 2, 0, bestZ + block / 2)));
-                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}; spawner {SpawnerTrace.Describe()}.");
+                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}; regrowth {map.GetComponent<Flora.MapComponent_Ecology>().RegrowthRate():F2}x; spawner {SpawnerTrace.Describe()}.");
                 SpawnerTrace.Reset();
                 next++;
             }
