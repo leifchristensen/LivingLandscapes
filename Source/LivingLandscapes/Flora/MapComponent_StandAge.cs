@@ -7,7 +7,8 @@ namespace LivingLandscapes.Flora;
 
 /// <summary>
 /// Stand age in play (P22, tools/Docs/DISTURBANCE-MOSAIC.md): the generated LL_StandAge layer plus the succession years
-/// that have passed since (<see cref="PlantEcologyDef.successionSpeed"/> per game year), and the cells reset to age 0
+/// that have passed since (<see cref="PlantEcologyDef.successionSpeed"/> per year of the mod's clock,
+/// <see cref="GameComponent_LivingTime"/>), and the cells reset to age 0
 /// since by fire or by cutting a tree. Saves the generation tick and the resets; the layer itself is saved with the
 /// environment.
 /// </summary>
@@ -29,7 +30,7 @@ public class MapComponent_StandAge : MapComponent
         base.FinalizeInit();
         // A new map, or a save from before stand age existed: the layer's ages count from now.
         if (generatedTick < 0)
-            generatedTick = Find.TickManager?.TicksGame ?? 0;
+            generatedTick = GameComponent_LivingTime.Ticks;
     }
 
     public override void ExposeData()
@@ -51,7 +52,7 @@ public class MapComponent_StandAge : MapComponent
             Load();
         if (generated == null)
             return float.MaxValue;
-        int now = Find.TickManager?.TicksGame ?? 0;
+        int now = GameComponent_LivingTime.Ticks;
         int since = resetTicks[index] >= 0 ? resetTicks[index] : generatedTick < 0 ? now : generatedTick;
         float years = (now - since) / (float)GenDate.TicksPerYear * PlantEcologyDef.Current.successionSpeed;
         return resetTicks[index] >= 0 ? years : generated[index] + years;
@@ -64,7 +65,7 @@ public class MapComponent_StandAge : MapComponent
             return;
         if (!loaded)
             Load();
-        int index = map.cellIndices.CellToIndex(cell), now = Find.TickManager?.TicksGame ?? 0;
+        int index = map.cellIndices.CellToIndex(cell), now = GameComponent_LivingTime.Ticks;
         resets[index] = now;
         if (resetTicks != null)
             resetTicks[index] = now;
@@ -82,7 +83,7 @@ public class MapComponent_StandAge : MapComponent
     private void Load()
     {
         // Until the layer exists (still generating, or a map without it) look again at most every 2000 ticks.
-        int now = Find.TickManager?.TicksGame ?? 0;
+        int now = GameComponent_LivingTime.Ticks;
         if (now < nextAttempt)
             return;
         nextAttempt = now + 2000;

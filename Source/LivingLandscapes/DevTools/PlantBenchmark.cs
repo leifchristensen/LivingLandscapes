@@ -432,6 +432,9 @@ public static class PlantBenchmark
         }
         Log.Message($"[LivingLandscapes] Plant succession: a {block}x{block} woodland block at ({bestX}, {bestZ}) held {before}; burnt (stand age 0), succession {Flora.PlantEcologyDef.Current.successionSpeed:0.#} years per game year.");
 
+        // "-ll-time-scale=10": the mod's clock runs that many times faster (as the dev toggle does).
+        if (GenCommandLine.TryGetCommandLineArg("ll-time-scale", out string scaleArg) && int.TryParse(scaleArg, out int timeScale))
+            GameComponent_LivingTime.Scale = timeScale;
         bool fast = DebugSettings.fastEcology;
         DebugSettings.fastEcology = true;
         // One fast call is 2000 spawner ticks; game time advances by the same.
@@ -441,6 +444,7 @@ public static class PlantBenchmark
         {
             map.wildPlantSpawner.WildPlantSpawnerTick();
             TicksGameOf(Find.TickManager) += 2000;
+            GameComponent_LivingTime.Advance(2000);
             calls++;
             float years = calls * 2000f / GenDate.TicksPerYear;
             if (years >= checkpoints[next])

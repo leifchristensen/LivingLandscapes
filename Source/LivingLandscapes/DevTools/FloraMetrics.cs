@@ -194,6 +194,48 @@ public static class FloraMetrics
             Log.Message($"{prefix} patches species={def.defName} cells={cells} count={sizes.Count} median={sizes[sizes.Count / 2]} p90={sizes[(int)(sizes.Count * 0.9f)]} largest={sizes[sizes.Count - 1]} cellWeighted={(double)squares / cells:F1}");
         }
 
+        // Riparian: plants by distance to water (LL_WaterDistance) bands, with fertility, moisture and leading species, to
+        // see whether banks differ from the uplands.
+        if (map.GetComponent<LivingLandscapes.Environment.MapComponent_Environment>() is { } env
+            && env.TryGetGrid(LivingLandscapes.Environment.EnvironmentLayerDefOf.LL_WaterDistance, out var distGrid)
+            && env.TryGetGrid(LivingLandscapes.Environment.EnvironmentLayerDefOf.LL_Moisture, out var moistGrid))
+        {
+            float[] dist = distGrid.ToArray(), moist = moistGrid.ToArray();
+            float[] limits = { 2f, 5f, 10f, 20f, float.MaxValue };
+            string[] names = { "0-2", "2-5", "5-10", "10-20", "20+" };
+            var parts = new List<string>();
+            for (int k = 0; k < limits.Length; k++)
+            {
+                float lo = k == 0 ? 0f : limits[k - 1];
+                int cellsIn = 0;
+                var layers = new int[3];
+                double fert = 0, wet = 0;
+                var species = new Dictionary<string, int>();
+                for (int i = 0; i < area; i++)
+                {
+                    if (!land[i] || dist[i] < lo || dist[i] >= limits[k])
+                        continue;
+                    cellsIn++;
+                    fert += map.fertilityGrid.FertilityAt(map.cellIndices.IndexToCell(i));
+                    wet += moist[i];
+                    if (layer[i] >= 0)
+                        layers[layer[i]]++;
+                }
+                foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>())
+                {
+                    int i = map.cellIndices.CellToIndex(plant.Position);
+                    if (land[i] && dist[i] >= lo && dist[i] < limits[k])
+                        species[plant.def.defName] = species.TryGetValue(plant.def.defName) + 1;
+                }
+                if (cellsIn == 0)
+                    continue;
+                float c = cellsIn;
+                string top = string.Join("/", species.OrderByDescending(e => e.Value).Take(3).Select(e => e.Key.Replace("Plant_", "")));
+                parts.Add($"{names[k]}:land={cellsIn / n:F2},c{layers[0] / c:F2},s{layers[1] / c:F2},g{layers[2] / c:F2},fert{fert / c:F2},moist{wet / c:F2},{top}");
+            }
+            Log.Message($"{prefix} riparian " + string.Join(" ", parts));
+        }
+
         // Edges: signed distance in cells from the edge of deep shade (negative inside the forest).
         if (ecology != null && ecology.Ready)
         {
