@@ -1207,7 +1207,8 @@
   </Operation>
 
 
-  <!-- Riparian (#36, owner 2026-10-26): willow joins the dry-land biomes; its narrow water niche keeps it on banks. -->
+  <!-- Riparian (#36, owner 2026-10-26): willow joins the dry-land biomes; its narrow water niche keeps it on banks.
+       Per biome (owner playtest): grassland only gallery woods (0.05), boreal 0.3, temperate forest 0.5. -->
   <Operation Class="PatchOperationConditional">
     <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants[not(Plant_TreeWillow)]</xpath>
     <match Class="PatchOperationAdd">
@@ -1223,7 +1224,7 @@
     <match Class="PatchOperationAdd">
       <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
       <value>
-        <Plant_TreeWillow>0.5</Plant_TreeWillow>
+        <Plant_TreeWillow>0.3</Plant_TreeWillow>
       </value>
     </match>
   </Operation>
@@ -1233,7 +1234,28 @@
     <match Class="PatchOperationAdd">
       <xpath>/Defs/BiomeDef[defName="Grasslands"]/wildPlants</xpath>
       <value>
-        <Plant_TreeWillow>0.5</Plant_TreeWillow>
+        <Plant_TreeWillow>0.05</Plant_TreeWillow>
+      </value>
+    </match>
+  </Operation>
+
+
+  <!-- Tropical forest (owner playtest 2026-10-26): vanilla's list has no brambles or wild healroot; add them as in temperate forest. -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants[not(Plant_Brambles)]</xpath>
+    <match Class="PatchOperationAdd">
+      <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+      <value>
+        <Plant_Brambles>1.0</Plant_Brambles>
+      </value>
+    </match>
+  </Operation>
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants[not(Plant_HealrootWild)]</xpath>
+    <match Class="PatchOperationAdd">
+      <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+      <value>
+        <Plant_HealrootWild>0.05</Plant_HealrootWild>
       </value>
     </match>
   </Operation>

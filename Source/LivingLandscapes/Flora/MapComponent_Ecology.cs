@@ -39,6 +39,7 @@ public class MapComponent_Ecology : MapComponent
 
     private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly float[][] crowding = new float[3][];
@@ -383,6 +384,24 @@ public class MapComponent_Ecology : MapComponent
         return grid;
     }
 
+    /// <summary>
+    /// Carrying capacity (P15) of a species on a cell: like <see cref="Fitness"/>, but with the fundamental water response
+    /// (wetter ground never carries less). In drylands the desert species' realised niche peaks on dry ground, which made
+    /// dry ground look best; what a site can carry rises with water, and the Gaussian niche still decides who wins it.
+    /// </summary>
+    private float CarryingFitness(ThingDef def, int index)
+    {
+        PlantHabitat habitat = PlantHabitat.For(def);
+        if (!carrying.TryGetValue(def, out float[] grid))
+        {
+            grid = new float[sizeX * sizeZ];
+            for (int i = 0; i < grid.Length; i++)
+                grid[i] = sampler.Site(habitat, i, fundamental: true);
+            carrying[def] = grid;
+        }
+        return grid[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+    }
+
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
 
@@ -551,7 +570,7 @@ public class MapComponent_Ecology : MapComponent
         if (capacityReference < 0f)
             capacityReference = ReferenceCapacity();
         BiomeDef biome = map.BiomeAt(cell);
-        float fertility = map.fertilityGrid.FertilityAt(cell);
+        float fertility = PlantableFertility(cell);
         float level = biome.plantDensity * map.wildPlantSpawner.CurrentPlantDensityFactor * fertility * tuning.DensityScaleFor(biome);
         // Divided by the map's mean share, so the map keeps its vanilla total by default and only redistributes it;
         // densityScales is the deliberate boost.
@@ -565,13 +584,32 @@ public class MapComponent_Ecology : MapComponent
     /// Replaces vanilla's local saturation (its biome density within 20 cells): saturated when the share of fertile cells
     /// within <see cref="PlantEcologyDef.occupancyRadius"/> that hold a plant reaches the target occupancy.
     /// </summary>
+    private bool? waterPlants;
+
+    /// <summary>
+    /// The fertility the carrying capacity counts on a cell. As vanilla does when a wild plant ignores fertility (reeds,
+    /// bulrush, lily pads), shallow water counts as 1: its own fertility is 0, so without this water plants never spawn.
+    /// Rock and deep water stay at 0.
+    /// </summary>
+    private float PlantableFertility(IntVec3 c)
+    {
+        float fertility = map.fertilityGrid.FertilityAt(c);
+        if (fertility > 0f)
+            return fertility;
+        waterPlants ??= map.Biomes.Any(b => b.wildPlants.Any(r => r.plant?.plant?.completelyIgnoreFertility ?? false));
+        if (!waterPlants.Value)
+            return 0f;
+        TerrainDef terrain = c.GetTerrain(map);
+        return terrain != null && terrain.IsWater && terrain.passability != Traversability.Impassable ? 1f : 0f;
+    }
+
     public bool Saturated(IntVec3 cell)
     {
         int count = GenRadial.NumCellsInRadius(PlantEcologyDef.Current.occupancyRadius), cells = 0, plants = 0;
         for (int i = 0; i < count; i++)
         {
             IntVec3 c = cell + GenRadial.RadialPattern[i];
-            if (!c.InBounds(map) || map.fertilityGrid.FertilityAt(c) <= 0f)
+            if (!c.InBounds(map) || PlantableFertility(c) <= 0f)
                 continue;
             cells++;
             if (c.GetPlant(map) != null)
@@ -587,7 +625,7 @@ public class MapComponent_Ecology : MapComponent
         {
             float weight = record.commonality * Mathf.Pow(ClusterPull(record.plant, index), PlantEcologyDef.Current.establishmentPull);
             weights += weight;
-            sum += weight * Fitness(record.plant, index);
+            sum += weight * CarryingFitness(record.plant, index);
         }
         return weights > 0f ? sum / weights : 1f;
     }
@@ -611,13 +649,13 @@ public class MapComponent_Ecology : MapComponent
         for (int k = 0; k < 4000 && samples.Count < 800; k++)
         {
             int index = rng.Next(sizeX * sizeZ);
-            if (map.fertilityGrid.FertilityAt(map.cellIndices.IndexToCell(index)) <= 0f)
+            if (PlantableFertility(map.cellIndices.IndexToCell(index)) <= 0f)
                 continue;
             float weights = 0f, sum = 0f;
             foreach (BiomePlantRecord record in plants)
             {
                 weights += record.commonality;
-                sum += record.commonality * Fitness(record.plant, index);
+                sum += record.commonality * CarryingFitness(record.plant, index);
             }
             samples.Add(weights > 0f ? sum / weights : 1f);
         }

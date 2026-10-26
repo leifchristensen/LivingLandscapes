@@ -39,6 +39,18 @@ public class HabitatCurve
     /// </summary>
     public bool saturating;
 
+    /// <summary>
+    /// The fundamental response (P15): rises to 1 at the optimum and stays there, whatever <see cref="saturating"/> says.
+    /// More of a limiting resource never lowers what a site can carry; it only changes which species wins it.
+    /// </summary>
+    public float ResponseUpTo(float value)
+    {
+        if (value >= optimum)
+            return 1f;
+        float d = (value - optimum) / Mathf.Max(tolerance, 0.001f);
+        return Mathf.Exp(-0.5f * d * d);
+    }
+
     public float Response(float value)
     {
         if (saturating && value >= optimum)

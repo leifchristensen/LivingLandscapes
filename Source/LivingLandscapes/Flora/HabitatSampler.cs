@@ -36,10 +36,13 @@ public class HabitatSampler
     /// <summary>
     /// The site's fitness 0..1 for a species from the ground alone: its water curve times root room,
     /// (min(1, soil depth / rooting depth))^<see cref="PlantEcologyDef.rootRoomExponent"/>. Light is applied by the caller.
+    /// <paramref name="fundamental"/>: the water curve saturates above its optimum (what the site can carry, P15) instead of
+    /// the realised niche (where the species wins against others).
     /// </summary>
-    public float Site(PlantHabitat habitat, int index)
+    public float Site(PlantHabitat habitat, int index, bool fundamental = false)
     {
-        float fitness = habitat.water == null ? 1f : habitat.water.Response(Water(index));
+        float water = Water(index);
+        float fitness = habitat.water == null ? 1f : fundamental ? habitat.water.ResponseUpTo(water) : habitat.water.Response(water);
         if (soilDepth != null && habitat.rootingDepth > 0f)
             fitness *= Mathf.Pow(Mathf.Min(1f, soilDepth[index] / habitat.rootingDepth), PlantEcologyDef.Current.rootRoomExponent);
         return fitness;
