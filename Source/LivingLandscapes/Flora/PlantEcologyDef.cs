@@ -230,6 +230,9 @@ public class PlantEcologyDef : Def
     /// <summary>Share of the biome's level that the poorest ground still carries (see <see cref="densityContrast"/>).</summary>
     public float capacityFloor = 0.2f;
 
+    /// <summary>Runtime equivalence (G5): how much of the target occupancy also gates spawn attempts in play (1 = as at map generation).</summary>
+    public float runtimeAcceptance = 0f;
+
     /// <summary>Radius in cells over which the local share of cells with a plant is counted against the target.</summary>
     public float occupancyRadius = 4f;
 

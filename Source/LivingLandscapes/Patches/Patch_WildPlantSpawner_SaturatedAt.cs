@@ -24,6 +24,8 @@ public static class Patch_WildPlantSpawner_SaturatedAt
         if (ecology == null || !ecology.Ready)
             return true;
         __result = ecology.Saturated(c);
+        if (__result && DevTools.SpawnerTrace.Watching(c))
+            DevTools.SpawnerTrace.Saturated++;
         return false;
     }
 }

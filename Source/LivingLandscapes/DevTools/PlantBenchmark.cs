@@ -381,9 +381,11 @@ public static class PlantBenchmark
     private static readonly AccessTools.FieldRef<TickManager, int> TicksGameOf = AccessTools.FieldRefAccess<TickManager, int>("ticksGameInt");
 
     /// <summary>
-    /// Succession in play (P22): burns the 36 x 36 block holding the most trees (plants removed, stand age reset as a
-    /// ground fire does), then runs the spawner while game time advances with it, and logs the block's canopy, shrub and
-    /// ground plants and leading species at checkpoints. Plants do not grow or die here: it shows what establishes.
+    /// Succession in play (P22) and runtime equivalence (G5): burns a typical woodland block, 36 x 36 cells on land at the
+    /// 75th percentile of tree count (plants removed, stand age reset as a ground fire does), then runs the spawner and the
+    /// block's plants' long ticks (growth, age, death, thinning) while game time advances, and logs the block's canopy,
+    /// shrub and ground plants, leading species, light and thicket at checkpoints, against the block before the burn and
+    /// the map's mean for old stands over the same area. "-ll-bench-years=N": game years to run (default 6).
     /// </summary>
     public static void Succession(Map map)
     {
@@ -392,20 +394,27 @@ public static class PlantBenchmark
         var standAge = map.GetComponent<Flora.MapComponent_StandAge>();
         if (trees.Count < 50 || standAge == null)
             return;
-        int bestX = 0, bestZ = 0, best = -1;
+        // The block: mostly land, at the 75th percentile of tree count (the densest block sits far above the map's mean).
+        var candidates = new List<(int count, int x, int z)>();
         for (int bx = 0; bx + block <= map.Size.x; bx += 12)
         {
             for (int bz = 0; bz + block <= map.Size.z; bz += 12)
             {
-                int count = trees.Count(t => t.Position.x >= bx && t.Position.x < bx + block && t.Position.z >= bz && t.Position.z < bz + block);
-                if (count > best)
+                int land = 0;
+                for (int x = bx; x < bx + block; x += 3)
                 {
-                    best = count;
-                    bestX = bx;
-                    bestZ = bz;
+                    for (int z = bz; z < bz + block; z += 3)
+                        land += new IntVec3(x, 0, z).GetTerrain(map).IsWater ? 0 : 1;
                 }
+                if (land < 0.9f * (block / 3) * (block / 3))
+                    continue;
+                candidates.Add((trees.Count(t => t.Position.x >= bx && t.Position.x < bx + block && t.Position.z >= bz && t.Position.z < bz + block), bx, bz));
             }
         }
+        if (candidates.Count == 0)
+            return;
+        candidates.Sort((a, b) => a.count.CompareTo(b.count));
+        (_, int bestX, int bestZ) = candidates[(int)(candidates.Count * 0.75f)];
         bool InBlock(IntVec3 c) => c.x >= bestX && c.x < bestX + block && c.z >= bestZ && c.z < bestZ + block;
         List<Plant> Standing() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => !p.def.IsDeadPlant && InBlock(p.Position)).ToList();
         string Describe(List<Plant> plants)
@@ -422,9 +431,42 @@ public static class PlantBenchmark
                 for (int z = bestZ; z < bestZ + block; z++)
                     light += map.GetComponent<Flora.MapComponent_Ecology>().LightAt(map.cellIndices.CellToIndex(new IntVec3(x, 0, z)));
             }
+            int thicket = 0, fertile = 0, occupied = 0;
+            float target = 0f;
+            var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
+            for (int x = bestX; x < bestX + block; x++)
+            {
+                for (int z = bestZ; z < bestZ + block; z++)
+                {
+                    var c = new IntVec3(x, 0, z);
+                    thicket += ecology.ThicketCost(c) >= 100 ? 1 : 0;
+                    if (ecology.PlantableFertility(c) > 0f)
+                    {
+                        fertile++;
+                        target += ecology.TargetOccupancy(c);
+                        occupied += c.GetPlant(map) != null ? 1 : 0;
+                    }
+                }
+            }
             return $"{plants.Count} plants (canopy {layers[0]}, shrub {layers[1]}, ground {layers[2]}; {top}; tree growth {growth:F2}, " +
-                   $"ground light {light / (block * block):F2}, thinned {map.GetComponent<Flora.MapComponent_Ecology>().thinned})";
+                   $"ground light {light / (block * block):F2}, thicket cells {thicket}, " +
+                   $"occupied {occupied / (float)Mathf.Max(fertile, 1):F2} of {fertile} fertile cells vs target {target / Mathf.Max(fertile, 1):F2}, thinned {map.GetComponent<Flora.MapComponent_Ecology>().thinned})";
         }
+        // The map's old stands (age over 100 years, on land) for comparison: plants per layer over a block's area.
+        var oldLayers = new float[3];
+        int oldCells = 0;
+        for (int i = 0; i < map.cellIndices.NumGridCells; i++)
+        {
+            if (standAge.Age(i) > 100f && !map.cellIndices.IndexToCell(i).GetTerrain(map).IsWater)
+                oldCells++;
+        }
+        foreach (Plant p in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>())
+        {
+            if (!p.def.IsDeadPlant && standAge.Age(map.cellIndices.CellToIndex(p.Position)) > 100f && !p.Position.GetTerrain(map).IsWater)
+                oldLayers[(int)Flora.PlantHabitat.For(p.def).stratum]++;
+        }
+        float perBlock = block * block / (float)Mathf.Max(oldCells, 1);
+        Log.Message($"[LivingLandscapes] Plant succession: map mean for old stands over {block}x{block}: canopy {oldLayers[0] * perBlock:F0}, shrub {oldLayers[1] * perBlock:F0}, ground {oldLayers[2] * perBlock:F0}.");
         // The ground fire hook: a fire spawned on a cell outside the block resets that cell's stand.
         IntVec3 probe = new IntVec3(bestX + block + 2 < map.Size.x ? bestX + block + 2 : bestX - 3, 0, bestZ);
         int probeIndex = map.cellIndices.CellToIndex(probe);
@@ -441,6 +483,8 @@ public static class PlantBenchmark
             for (int z = bestZ; z < bestZ + block; z++)
                 standAge.Reset(new IntVec3(x, 0, z));
         }
+        SpawnerTrace.Reset();
+        SpawnerTrace.Watch = InBlock;
         Log.Message($"[LivingLandscapes] Plant succession: a {block}x{block} woodland block at ({bestX}, {bestZ}) held {before}; burnt (stand age 0), succession {Flora.PlantEcologyDef.Current.successionSpeed:0.#} years per game year.");
 
         // "-ll-time-scale=10": the mod's clock runs that many times faster (as the dev toggle does).
@@ -449,15 +493,27 @@ public static class PlantBenchmark
         bool fast = DebugSettings.fastEcology;
         DebugSettings.fastEcology = true;
         // One fast call is 2000 spawner ticks; game time advances by the same.
-        float[] checkpoints = { 0.25f, 0.5f, 1f, 2f, 3f, 4.5f, 6f };
+        float runYears = GenCommandLine.TryGetCommandLineArg("ll-bench-years", out string yearsArg) && float.TryParse(yearsArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedYears) ? parsedYears : 6f;
+        float[] checkpoints = new[] { 0.25f, 0.5f, 1f, 2f, 3f, 4.5f, 6f, 9f, 12f, 18f }.Where(y => y < runYears).Append(runYears).ToArray();
         int calls = 0, next = 0;
         while (next < checkpoints.Length)
         {
             map.wildPlantSpawner.WildPlantSpawnerTick();
-            // The block's plants grow (vanilla's long tick, with the sky's light at this hour), so trees reach their size steps and thin.
+            // The block's plants grow (vanilla's long tick, with the sky's light at this hour), so trees reach their size steps and
+            // thin; stumps and dead plants rot away by their deterioration rate (the map's own tick does that in play).
             map.skyManager.SkyManagerUpdate();
-            foreach (Plant plant in Standing())
-                plant.TickLong();
+            foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>().Where(p => InBlock(p.Position)).ToList())
+            {
+                if (plant is DeadPlant)
+                {
+                    float damage = plant.GetStatValue(StatDefOf.DeteriorationRate) * 2000f / GenDate.TicksPerDay;
+                    int whole = Mathf.FloorToInt(damage) + (Rand.Chance(damage - Mathf.Floor(damage)) ? 1 : 0);
+                    if (whole > 0)
+                        plant.TakeDamage(new DamageInfo(DamageDefOf.Deterioration, whole));
+                }
+                else if (!plant.Destroyed)
+                    plant.TickLong();
+            }
             TicksGameOf(Find.TickManager) += 2000;
             GameComponent_LivingTime.Advance(2000);
             calls++;
@@ -465,11 +521,13 @@ public static class PlantBenchmark
             if (years >= checkpoints[next])
             {
                 float age = standAge.Age(map.cellIndices.CellToIndex(new IntVec3(bestX + block / 2, 0, bestZ + block / 2)));
-                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}.");
+                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}; spawner {SpawnerTrace.Describe()}.");
+                SpawnerTrace.Reset();
                 next++;
             }
         }
         DebugSettings.fastEcology = fast;
+        SpawnerTrace.Watch = null;
     }
 
     private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;

@@ -641,8 +641,13 @@ public class MapComponent_Ecology : MapComponent
         return Mathf.Clamp01(level * Share(Capacity(index, biome)) / meanShare);
     }
 
-    /// <summary>Chance (0..1) that a spawn attempt goes ahead: the target occupancy, so one pass over the map fills each place to it.</summary>
-    public float Acceptance(IntVec3 cell) => Mathf.Lerp(1f, TargetOccupancy(cell), Strength);
+    /// <summary>
+    /// Chance (0..1) that a spawn attempt goes ahead: at map generation the target occupancy, so one pass over the map fills
+    /// each place to it; in play, where attempts repeat and the local saturation caps each place at the target, only
+    /// <see cref="PlantEcologyDef.runtimeAcceptance"/> of it (counting it twice would hold regrowth under the target).
+    /// </summary>
+    public float Acceptance(IntVec3 cell, bool generation) =>
+        Mathf.Lerp(1f, TargetOccupancy(cell), Strength * (generation ? 1f : PlantEcologyDef.Current.runtimeAcceptance));
 
     /// <summary>
     /// Replaces vanilla's local saturation (its biome density within 20 cells): saturated when the share of fertile cells
@@ -655,7 +660,7 @@ public class MapComponent_Ecology : MapComponent
     /// bulrush, lily pads), shallow water counts as 1: its own fertility is 0, so without this water plants never spawn.
     /// Rock and deep water stay at 0.
     /// </summary>
-    private float PlantableFertility(IntVec3 c)
+    public float PlantableFertility(IntVec3 c)
     {
         float fertility = map.fertilityGrid.FertilityAt(c);
         if (fertility > 0f)
