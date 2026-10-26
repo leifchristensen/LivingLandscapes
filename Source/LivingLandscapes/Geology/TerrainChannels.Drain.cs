@@ -238,7 +238,12 @@ public static partial class TerrainChannels
                 // would hand the river over on the wrong side, and it would leave again as soon as it entered.
                 if (worldInflows != null && worldInflows.Count > 0 && !worldInflows.Exists(f =>
                         Vector2.Dot((course.Points[first] - riverCentre).normalized, f.From) >= p.entryAgreement))
+                {
+                    Log.Message($"[LivingLandscapes] World river course entering at ({course.Points[first].x:F0}, {course.Points[first].y:F0}) " +
+                                $"(world river {course.WorldRiver}) disagrees with the world's inflow sides " +
+                                $"[{string.Join(", ", worldInflows.Select(f => $"({f.From.x:F2}, {f.From.y:F2})"))}]; not used as an entry.");
                     continue;
+                }
                 inflow[cell] += DischargeFor(course.VanillaWidth);
                 worldSource[cell] = worldEnters = true;
             }

@@ -146,10 +146,14 @@ public static class RiverNetwork
                 continue;
             int a = Mathf.Max(0, first - 1), b = Mathf.Min(course.Count - 1, last + 1);
             var channel = new ChannelCourse { Order = orders[k], WorldRiver = riverExit >= 0 && course.Contains(riverExit) };
+            bool entersHere = false;
             foreach ((int cell, float width) in entries)
             {
                 if (course.Contains(cell))
+                {
                     channel.VanillaWidth = Mathf.Max(channel.VanillaWidth, width);
+                    entersHere |= course[0] == cell;
+                }
             }
             if (channel.WorldRiver)
                 channel.VanillaWidth = Mathf.Max(channel.VanillaWidth, exitWidth);
@@ -158,7 +162,9 @@ public static class RiverNetwork
                 channel.Points.Add(toMap(course[i]));
                 channel.Areas.Add(area[course[i]] * cellArea);
             }
-            if (a < first)
+            // Water from beyond the map: the course comes in across the edge, or starts where a world river enters (a confluence's
+            // tributary enters at the map's edge).
+            if (a < first || entersHere)
                 channel.EntryArea = area[course[first]] * cellArea;
             float inside = 0f;
             for (int i = first; i < last; i++)
