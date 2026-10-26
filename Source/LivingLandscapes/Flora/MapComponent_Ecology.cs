@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Layers;
 using RimWorld;
@@ -43,7 +44,7 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
     private bool built;
     private int sizeX, sizeZ;
-    private float latitude, capacityReference = -1f;
+    private float latitude, capacityReference = -1f, meanShare = 1f;
 
     public MapComponent_Ecology(Map map) : base(map)
     {
@@ -313,7 +314,7 @@ public class MapComponent_Ecology : MapComponent
     {
         if (shadeKernels.TryGetValue(def, out var cached))
             return cached;
-        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast;
+        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale;
         // Light reaches the ground through the gaps in the canopy: shade adds as -ln(transmittance), so it can be removed.
         Kernel kernel = Build(Mathf.CeilToInt(radius * 2f), d2 => -Mathf.Log(1f - Mathf.Min(strength * Mathf.Exp(-d2 / (2f * radius * radius)), 0.95f)));
         Vector2 shift = ShadeWorker.ShadowShift(latitude, radius) * (PlantEcologyDef.Current.shadowShift / 0.5f);
@@ -476,8 +477,9 @@ public class MapComponent_Ecology : MapComponent
         BiomeDef biome = map.BiomeAt(cell);
         float fertility = map.fertilityGrid.FertilityAt(cell);
         float level = biome.plantDensity * map.wildPlantSpawner.CurrentPlantDensityFactor * fertility * tuning.DensityScaleFor(biome);
-        float share = Mathf.Lerp(tuning.capacityFloor, 1f, Mathf.Pow(Mathf.Clamp01(Capacity(index, biome) / capacityReference), tuning.densityContrast));
-        return Mathf.Clamp01(level * share);
+        // Divided by the map's mean share, so the map keeps its vanilla total by default and only redistributes it;
+        // densityScales is the deliberate boost.
+        return Mathf.Clamp01(level * Share(Capacity(index, biome)) / meanShare);
     }
 
     /// <summary>Chance (0..1) that a spawn attempt goes ahead: the target occupancy, so one pass over the map fills each place to it.</summary>
@@ -514,7 +516,17 @@ public class MapComponent_Ecology : MapComponent
         return weights > 0f ? sum / weights : 1f;
     }
 
-    /// <summary>The 80th percentile of the capacity over sampled fertile cells (commonality-weighted, without cluster pull): the map's best ground.</summary>
+    /// <summary>Share of the biome's level a cell of this capacity carries, from capacityFloor to 1 at the map's best ground.</summary>
+    private float Share(float capacity)
+    {
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        return Mathf.Lerp(tuning.capacityFloor, 1f, Mathf.Pow(Mathf.Clamp01(capacity / capacityReference), tuning.densityContrast));
+    }
+
+    /// <summary>
+    /// The 80th percentile of the capacity over sampled fertile cells (commonality-weighted, without cluster pull): the
+    /// map's best ground. Also sets <see cref="meanShare"/>, the mean share over the same cells.
+    /// </summary>
     private float ReferenceCapacity()
     {
         var rng = new System.Random(map.Tile);
@@ -536,7 +548,9 @@ public class MapComponent_Ecology : MapComponent
         if (samples.Count == 0)
             return 1f;
         samples.Sort();
-        return Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.02f);
+        capacityReference = Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.02f);
+        meanShare = Mathf.Max(samples.Average(Share), 0.05f);
+        return capacityReference;
     }
 
     /// <summary>

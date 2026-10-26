@@ -123,9 +123,15 @@ public class PlantEcologyDef : Def
     public float shadowShift = 0.5f;
 
     /// <summary>
+    /// Multiplies every canopy plant's shadeCast (the share of light one crown blocks at its centre). Below 1 the canopy
+    /// lets more light through its gaps, so the understory fills in under trees (owner 2026-10-26: forests too bare).
+    /// </summary>
+    public float shadeCastScale = 0.6f;
+
+    /// <summary>
     /// Carrying capacity (P15): the share of cells that hold a plant around a cell is biome plant density x fertility x
-    /// density scale x Lerp(capacityFloor, 1, (capacity / the map's 80th percentile) ^ this), capacity being the
-    /// commonality-weighted fitness of the biome's species there. It replaces vanilla's cap (the biome's density within
+    /// density scale x Lerp(capacityFloor, 1, (capacity / the map's 80th percentile) ^ this) / the map's mean of that
+    /// share, capacity being the commonality-weighted fitness of the biome's species there. It replaces vanilla's cap (the biome's density within
     /// 20 cells), which spreads plants evenly: above 1, poor and shaded ground opens into meadows and clearings faster.
     /// </summary>
     public float densityContrast = 2f;

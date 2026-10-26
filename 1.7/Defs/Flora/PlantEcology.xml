@@ -42,15 +42,18 @@
     <clusterGain2PerNeighbour>0.5</clusterGain2PerNeighbour>
     <!-- Canopy shadows fall toward the pole by this share of their radius. -->
     <shadowShift>0.5</shadowShift>
+    <!-- Multiplies every canopy plant's shadeCast. 0.6 (owner 2026-10-26: forests too bare): the understory fills in
+         under trees; at 1 deep shade covered about 60% of forest land. -->
+    <shadeCastScale>0.6</shadeCastScale>
     <!-- Carrying capacity (P15), replacing vanilla's even cap: the share of cells with a plant within occupancyRadius
          targets biome plant density x fertility x densityScale x Lerp(capacityFloor, 1, (capacity / the map's 80th
-         percentile) ^ densityContrast). -->
+         percentile) ^ densityContrast) / the map's mean of that share: each map keeps its vanilla total unless scaled. -->
     <densityContrast>2</densityContrast>
     <capacityFloor>0.2</capacityFloor>
     <occupancyRadius>4</occupancyRadius>
     <densityScales>
-      <li><biome>TemperateForest</biome><scale>2.0</scale></li>
-      <li><biome>TropicalRainforest</biome><scale>2.0</scale></li>
+      <li><biome>TemperateForest</biome><scale>1.3</scale></li>
+      <li><biome>TropicalRainforest</biome><scale>1.3</scale></li>
     </densityScales>
     <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
     <vitalityMin>0.5</vitalityMin>
