@@ -309,6 +309,9 @@ public static class PlantBenchmark
                 Log.Message($"[LivingLandscapes] Plant census: layers in {zones[z]} ({cellsIn[z] * 100f / map.Area:F0}% of cells): canopy {counts[z, 0] / n:F2}, shrub {counts[z, 1] / n:F2}, ground {counts[z, 2] / n:F2} plants per cell.");
             }
         }
+        long m0 = Stopwatch.GetTimestamp();
+        FloraMetrics.Report(map, ready ? ecology : null);
+        Log.Message($"[LivingLandscapes] Plant census: flora metrics took {Micros(m0) / 1000.0:F0} ms.");
     }
 
     /// <summary>
