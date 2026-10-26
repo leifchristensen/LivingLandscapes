@@ -84,6 +84,12 @@ public class PlantHabitat : DefModExtension
     /// <summary>How the seeds travel. Unset: from the stratum.</summary>
     public PlantDispersal dispersal;
 
+    /// <summary>
+    /// How much one plant adds to a thicket's stem density (P18), 0..1: tall woody or cane shrubs 1, low herbs less.
+    /// Negative: from the stratum (shrubs 1, others 0).
+    /// </summary>
+    public float thicket = -1f;
+
     /// <summary>Share of light this plant blocks beneath it, 0..1. Feeds LL_Shade for the strata placed after it.</summary>
     public float shadeCast;
 
@@ -162,6 +168,8 @@ public class PlantHabitat : DefModExtension
             seed = stratum switch { PlantStratum.Canopy => 0.3f, PlantStratum.Shrub => 0.5f, _ => 0.8f };
         if (dispersal == PlantDispersal.Unset)
             dispersal = stratum switch { PlantStratum.Canopy => PlantDispersal.Gravity, PlantStratum.Shrub => PlantDispersal.Animal, _ => PlantDispersal.Wind };
+        if (thicket < 0f)
+            thicket = stratum == PlantStratum.Shrub ? 1f : 0f;
         resolved = true;
     }
 

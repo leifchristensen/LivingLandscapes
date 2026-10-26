@@ -138,6 +138,12 @@ public class PlantEcologyDef : Def
     /// </summary>
     public float establishmentPull = 0f;
 
+    /// <summary>
+    /// Thicket drag (P18): path cost of a cell whose 3x3 neighbourhood is full of thicket stems. The cost rises with the
+    /// stem density around a plant (drag ~ frontal area density), so a lone bush keeps vanilla's cost; 0 switches it off.
+    /// </summary>
+    public float thicketDragMax = 250f;
+
     /// <summary>Root room: fitness x (min(1, soil depth / rooting depth))^this. 0 ignores soil depth.</summary>
     public float rootRoomExponent = 0.3f;
 

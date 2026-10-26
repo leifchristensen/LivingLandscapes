@@ -154,10 +154,17 @@ public static class FloraMetrics
         // Travel.
         float[] withPlants = MoveCost(map, includePlants: true), withoutPlants = MoveCost(map, includePlants: false);
         double plantCost = 0;
+        int thicketCells = 0, gridBehind = 0;
         for (int i = 0; i < area; i++)
         {
-            if (land[i])
-                plantCost += withPlants[i] - withoutPlants[i];
+            if (!land[i])
+                continue;
+            plantCost += withPlants[i] - withoutPlants[i];
+            if (withPlants[i] >= 100f)
+                thicketCells++;
+            // The pathfinder reads the path grid: it must hold the thicket cost too.
+            if (map.pathing.Normal.pathGrid.Cost(map.cellIndices.IndexToCell(i)) < withPlants[i])
+                gridBehind++;
         }
         Rand.PushState(map.Tile.tileId ^ 0x5eed);
         double timeRatio = 0, lengthRatio = 0;
@@ -184,7 +191,7 @@ public static class FloraMetrics
         {
             Rand.PopState();
         }
-        Log.Message($"{prefix} travel pairs={pairs} plantCostPerLandCell={plantCost / n:F1} timeWithPlants/without={(pairs > 0 ? timeRatio / pairs : double.NaN):F3} pathLength/straight={(pairs > 0 ? lengthRatio / pairs : double.NaN):F3}");
+        Log.Message($"{prefix} travel pairs={pairs} plantCostPerLandCell={plantCost / n:F1} timeWithPlants/without={(pairs > 0 ? timeRatio / pairs : double.NaN):F3} pathLength/straight={(pairs > 0 ? lengthRatio / pairs : double.NaN):F3} thicketCells(cost>=100)={thicketCells / n:F3} pathGridBehind={gridBehind}");
 
         // Fuel continuity.
         List<int> fine = Components(map, i => layer[i] == (int)PlantStratum.Ground, 1);
@@ -292,6 +299,9 @@ public static class FloraMetrics
                 if (thing.def.pathCost > highest)
                     highest = thing.def.pathCost;
             }
+            // With plants, the thicket drag (P18) as the game applies it.
+            if (includePlants)
+                highest = Mathf.Max(highest, map.GetComponent<MapComponent_Ecology>()?.ThicketCost(map.cellIndices.IndexToCell(i)) ?? 0);
             cost[i] = highest;
         }
         return cost;

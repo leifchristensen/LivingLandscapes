@@ -1,25 +1,36 @@
 using HarmonyLib;
-using LivingLandscapes.Gameplay;
+using LivingLandscapes.Flora;
 using Verse;
 using Verse.AI;
 
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// Route planning over slopes: the static path grid (what the pathfinder plans with) gets an extra cost by a cell's steepest
-/// grade, so pawns prefer gentle ground, passes and steps (<see cref="SlopeMovement.PlanningCost"/>). Movement itself is costed
-/// by direction in <see cref="Patch_Pawn_PathFollower_CostToMoveIntoCell"/>, so the live (non-static) cost is left alone.
+/// Thicket drag (P18): vanilla takes the highest single path cost in a cell, so a closed thicket costs no more than one
+/// bush. The cost of a cell with shrub stems rises with the stem density around it. The pathfinder's grid and each
+/// actual move (Pawn_PathFollower.CostToMoveIntoCell) both come from this method.
 /// </summary>
 [HarmonyPatch(typeof(PathGrid), nameof(PathGrid.CalculatedCostAt))]
 public static class Patch_PathGrid_CalculatedCostAt
 {
-    public static void Postfix(PathGrid __instance, IntVec3 c, bool perceivedStatic, ref int __result)
+    private static Map lastMap;
+    private static MapComponent_Ecology lastEcology;
+
+    public static void Postfix(PathGrid __instance, IntVec3 c, ref int __result)
     {
-        if (!perceivedStatic || __result >= 10000 || !SlopeMovement.Enabled)
+        if (__result >= PathGrid.ImpassableCost || __instance.def.flying)
             return;
         Map map = __instance.map;
-        if (map == null)
+        // Called for every move and every recalculated cell: look the component up once per map, not each call.
+        if (map != lastMap)
+        {
+            lastMap = map;
+            lastEcology = map.GetComponent<MapComponent_Ecology>();
+        }
+        if (lastEcology == null)
             return;
-        __result += SlopeMovement.PlanningCost(map, c);
+        int thicket = lastEcology.ThicketCost(c);
+        if (thicket > __result)
+            __result = thicket;
     }
 }

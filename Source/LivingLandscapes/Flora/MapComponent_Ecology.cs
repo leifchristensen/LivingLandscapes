@@ -16,6 +16,7 @@ namespace LivingLandscapes.Flora;
 /// - Cluster density per species: a Gaussian footprint added for every plant of a clustering species and removed when
 ///   it dies, so "how crowded is this cell with its own kind" is one array read.
 /// - Shade: the same, summed in log space for canopy plants, so removing a tree lifts its shade exactly.
+/// - Thicket stems: each plant's thicket weight on its own cell, for the path cost of dense shrubs (P18).
 /// A map without the environment layers (or with the ecology switched off) is untouched: <see cref="Ready"/> is false and
 /// vanilla's spawner runs as it always did.
 /// </summary>
@@ -29,6 +30,7 @@ public class MapComponent_Ecology : MapComponent
 
     private HabitatSampler sampler;
     private float[] shadeLog;
+    private float[] stems;
 
     /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
     private float[] aspect;
@@ -115,6 +117,7 @@ public class MapComponent_Ecology : MapComponent
         latitude = SunWorker.LatitudeOf(map);
         sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
+        stems = new float[sizeX * sizeZ];
         aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
 
         long start = Stopwatch.GetTimestamp();
@@ -128,6 +131,15 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         built = true;
+        // The path grid was computed before the stems existed (a loaded save builds this on the spawner's first call).
+        if (PlantEcologyDef.Current.thicketDragMax > 0f)
+        {
+            for (int i = 0; i < stems.Length; i++)
+            {
+                if (stems[i] > 0f)
+                    map.pathing.RecalculatePerceivedPathCostAt(map.cellIndices.IndexToCell(i));
+            }
+        }
         Log.Message($"[LivingLandscapes] Plant ecology ready on {map}: {count} plants indexed in {(Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency:F0} ms, " +
                     $"strength {Strength:0.##}.");
     }
@@ -185,6 +197,45 @@ public class MapComponent_Ecology : MapComponent
             (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
         }
+        if (habitat.thicket > 0f)
+        {
+            int index = map.cellIndices.CellToIndex(at);
+            float v = stems[index] + sign * habitat.thicket;
+            stems[index] = v < 1e-5f ? 0f : v;
+            // Vanilla recalculates only the plant's own cell; the drag of every neighbour with stems changes too.
+            if (built && PlantEcologyDef.Current.thicketDragMax > 0f)
+            {
+                foreach (IntVec3 offset in GenAdj.AdjacentCellsAndInside)
+                {
+                    IntVec3 c = at + offset;
+                    if (c.InBounds(map))
+                        map.pathing.RecalculatePerceivedPathCostAt(c);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Path cost of the thicket at a cell (P18): drag grows with the frontal area density of stems, so the cost is
+    /// <see cref="PlantEcologyDef.thicketDragMax"/> x the stem density of the 3x3 around a cell that holds stems itself.
+    /// A path cut through a thicket is open ground again. 0 where there is no thicket or the ecology is off.
+    /// </summary>
+    public int ThicketCost(IntVec3 c)
+    {
+        if (!built || stems == null)
+            return 0;
+        int index = map.cellIndices.CellToIndex(c);
+        if (stems[index] <= 0f)
+            return 0;
+        float sum = 0f;
+        int x0 = Mathf.Max(c.x - 1, 0), x1 = Mathf.Min(c.x + 1, sizeX - 1);
+        int z0 = Mathf.Max(c.z - 1, 0), z1 = Mathf.Min(c.z + 1, sizeZ - 1);
+        for (int z = z0; z <= z1; z++)
+        {
+            for (int x = x0; x <= x1; x++)
+                sum += stems[z * sizeX + x];
+        }
+        return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * Mathf.Min(sum / 9f, 1f));
     }
 
     private void Apply(float[] grid, int cx, int cz, Kernel kernel, int sign)

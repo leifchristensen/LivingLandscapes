@@ -357,6 +357,7 @@
           <pace>0.4</pace>
           <seed>0.4</seed>
           <dispersal>Animal</dispersal>
+          <thicket>0.3</thicket>
         </li>
       </value>
     </match>
@@ -447,6 +448,7 @@
           <pace>0.3</pace>
           <seed>0.3</seed>
           <dispersal>Animal</dispersal>
+          <thicket>0.3</thicket>
         </li>
       </value>
     </match>
@@ -483,6 +485,7 @@
           <pace>0.1</pace>
           <seed>0.6</seed>
           <dispersal>Animal</dispersal>
+          <thicket>0.3</thicket>
         </li>
       </value>
     </match>
