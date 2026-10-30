@@ -37,8 +37,10 @@ public static class Invariants
                 surface[i] += depth[i];
         }
         RiverDownhill(map, surface, summary);
+        EntryRiversJoin(map, summary);
         MovingWaterFlows(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
+        TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
     }
 
     /// <summary>
@@ -142,6 +144,57 @@ public static class Invariants
         }
         summary.AppendLine($"invariant 6 (moving water flows): {(flowing == moving ? "ok" : "FAIL")} | {flowing} of {moving} moving water cells have a flow direction; " +
                            $"river graph {map.waterInfo.riverGraph?.Count ?? 0} segments");
+    }
+
+    /// <summary>
+    /// Invariant 7 (#69): on a tile where two or more world rivers enter the map, every one of them joins the exit river
+    /// on the map. Following Parent links from an entering channel must reach the world river's own channel, and each
+    /// joining point (the tributary's last point) must lie inside the map: a tributary that leaves by the map edge, or
+    /// joins outside it, fails. Silent on tiles with fewer than two entering world rivers.
+    /// The count of entering world rivers comes from the world (the tile's river links, as the generator reads them), not from
+    /// the planned channels: a world river that never became a channel is a river that did not join, and counting only channels
+    /// would hide exactly that case (#69: rx5a35v on SmallHills has two inflows but plans one entry).
+    /// </summary>
+    private static void EntryRiversJoin(Map map, StringBuilder summary)
+    {
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null)
+            return;
+        List<RiverPlan> channels = rivers.Channels;
+        int entering = 0, joined = 0;
+        var lost = new StringBuilder();
+        for (int k = 0; k < channels.Count; k++)
+        {
+            if (!(channels[k].VanillaWidth > 0f && channels[k].EntryArea > 0f))
+                continue;
+            entering++;
+            int index = k;
+            bool joins = false;
+            // The step limit guards against a Parent loop.
+            for (int step = 0; step <= channels.Count; step++)
+            {
+                RiverPlan c = channels[index];
+                if (c.WorldRiver)
+                {
+                    joins = true;
+                    break;
+                }
+                if (c.Parent < 0 || c.Main.Count == 0 || !Inside(map, c.Main[c.Main.Count - 1]))
+                    break;
+                index = c.Parent;
+            }
+            if (joins)
+                joined++;
+            else
+                lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0});");
+        }
+        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count;
+        int expected = Mathf.Max(worldInflows, entering);
+        if (expected < 2)
+            return;
+        string unplanned = entering < expected ? $"; {expected - entering} of the world's {expected} inflows never became a channel" : "";
+        summary.AppendLine($"invariant 7 (world rivers join on the map): {(joined == expected ? "ok" : "FAIL")} | {joined} of {expected} entering world rivers join the exit river on the map " +
+                           $"({entering} planned as channels)" + (lost.Length > 0 ? $"; not joining:{lost}" : "") + unplanned);
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>
