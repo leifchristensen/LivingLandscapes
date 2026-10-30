@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LivingLandscapes.DevTools;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -227,8 +228,29 @@ public static class LandscapeGenerator
 
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
             ? AntecedentCourses(entries, riverCentre, riverExit, uplift, outlet, gx, gz, p.antecedentDepth) : null;
+        // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
+        ErosionGridExport.Begin();
+        System.Action<int, float[], int[], float[], float[]> observe = null;
+        if (ErosionGridExport.Enabled)
+        {
+            ErosionGridExport.Note($"model {gx}x{gz}, {mapCellsPerModelCell:F3} map cells per model cell, map window origin ({originX:F2}, {originZ:F2}), " +
+                                   $"meeting ({riverCentre.x:F2}, {riverCentre.y:F2}), exit {riverExit % gx},{riverExit / gx}, " +
+                                   $"entries {string.Join(" ", entries.Select(e => $"{e.cell % gx},{e.cell / gx}"))}, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +
+                                   $"regional gradient {world.RegionalGradient:F5}, iterations {p.erosionIterations}");
+            ErosionGridExport.Write("Uplift", uplift, gx, gz);
+            ErosionGridExport.Write("Erodibility", erodibility, gx, gz);
+            ErosionGridExport.Write("Outlet", outlet, gx, gz);
+            ErosionGridExport.Write("Floor", floor, gx, gz);
+            observe = (iteration, hNow, receiverNow, areaNow, rockKNow) =>
+            {
+                ErosionGridExport.Write($"H_{iteration}", hNow, gx, gz);
+                ErosionGridExport.Write($"Receiver_{iteration}", receiverNow, gx, gz);
+                ErosionGridExport.Write($"Area_{iteration}", areaNow, gx, gz);
+                ErosionGridExport.Write($"RockK_{iteration}", rockKNow, gx, gz);
+            };
+        }
         float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, floor);
+            out float[] area, out float modelTop, floor, observe);
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
@@ -271,6 +293,10 @@ public static class LandscapeGenerator
             System.Array.Sort(sorted);
             level = (sorted[sorted.Length / 2] - min) / Mathf.Max(max - min, 1e-6f);
         }
+        ErosionGridExport.Write("Window", window, sizeX, sizeZ);
+        // Dev: -ll-tilt=<scale> scales the regional tilt (0 turns it off) to test what it does to the map.
+        float tiltScale = GenCommandLine.TryGetCommandLineArg("ll-tilt", out string tiltArg)
+            ? float.Parse(tiltArg, System.Globalization.CultureInfo.InvariantCulture) : 1f;
         var micro = new Perlin(p.cellSize / p.microWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
         var result = new float[sizeX * sizeZ];
@@ -291,11 +317,12 @@ public static class LandscapeGenerator
                 resistant[z * sizeX + x] = site.hard;
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
-                float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient;
+                float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient * tiltScale;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
                 result[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt + rough;
             }
         }
+        ErosionGridExport.Write("Result", result, sizeX, sizeZ);
         int bodies = resistant.Count(v => v >= 0.5f);
         if (bodies > 0)
             Log.Message($"[LivingLandscapes] Resistant rock bodies (plugs, dikes) cover {(float)bodies / resistant.Length:P1} of {map}.");
@@ -440,21 +467,23 @@ public static class LandscapeGenerator
             }
             return cells;
         }
-        // The starting ground is the uplift's first step (Erode); the courses lie below its lowest along them.
+        // Erode adds a full step of uplift before it first routes the water, so the course must lie below the ground as it stands
+        // then (start height plus one step), below its lowest bank along the course: the river is entrenched from the first routing
+        // on, however unevenly the land rises across it. The floor is returned as a start height (less the first step's uplift).
         foreach ((int entry, float _) in entries)
         {
             List<int> course = Line(At(entry), meeting);
             course.AddRange(Line(meeting, At(exit)));
             float low = float.MaxValue;
             foreach (int c in course)
-                low = Mathf.Min(low, uplift[c] * 0.01f);
+                low = Mathf.Min(low, uplift[c] * 1.01f);
             float top = low * (1f - depth);
             for (int k = 0; k < course.Count; k++)
             {
                 int c = course[k];
                 if (outlet[c])
                     continue;
-                float f = top * (1f - (float)k / course.Count);
+                float f = top * (1f - (float)k / course.Count) - uplift[c];
                 floor[c] = float.IsNaN(floor[c]) ? f : Mathf.Min(floor[c], f);
             }
         }
@@ -487,7 +516,8 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, int gx, int gz,
         GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, float[] initialFloor = null)
+        out int[] receiverOut, out float[] areaOut, out float modelTop, float[] initialFloor = null,
+        System.Action<int, float[], int[], float[], float[]> observe = null)
     {
         int n = gx * gz;
         var h = new float[n];
@@ -619,6 +649,10 @@ public static class LandscapeGenerator
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
+
+            int quarter = Mathf.Max(1, p.erosionIterations / 4);
+            if (observe != null && (iteration == 0 || (iteration + 1) % quarter == 0 || iteration == p.erosionIterations - 1))
+                observe(iteration + 1, h, receiver, area, rockK);
         }
         receiverOut = receiver;
         areaOut = area;
