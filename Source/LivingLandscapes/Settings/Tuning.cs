@@ -135,7 +135,18 @@ public static class TuningStartup
 {
     static TuningStartup()
     {
-        int applied = Tuning.ApplyAll(LivingLandscapesMod.Settings?.tuning);
-        Log.Message($"[LivingLandscapes] Tuning: {Tuning.Entries.Count} tunable values, {applied} overridden in the mod settings.");
+        var overrides = new Dictionary<string, string>(LivingLandscapesMod.Settings?.tuning ?? new Dictionary<string, string>());
+        // Dev: -ll-tune=path:value;path:value overrides tuning values for one test run (on top of the mod settings).
+        if (GenCommandLine.TryGetCommandLineArg("ll-tune", out string tune))
+        {
+            foreach (string pair in tune.Split(';'))
+            {
+                int at = pair.IndexOf(':');
+                if (at > 0)
+                    overrides[pair.Substring(0, at).Trim()] = pair.Substring(at + 1).Trim();
+            }
+        }
+        int applied = Tuning.ApplyAll(overrides);
+        Log.Message($"[LivingLandscapes] Tuning: {Tuning.Entries.Count} tunable values, {applied} overridden in the mod settings or -ll-tune.");
     }
 }
