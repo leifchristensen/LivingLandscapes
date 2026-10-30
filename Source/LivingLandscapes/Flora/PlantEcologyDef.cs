@@ -207,6 +207,13 @@ public class PlantEcologyDef : Def
     /// <summary>Stem exclusion: thicket weight of a tree up to half grown (young poles crowd close and low; shrubs 0.85-1.4).</summary>
     public float saplingThicket = 0.5f;
 
+    /// <summary>
+    /// Forest fungi (E5, P12): a plant that dies in light (cave fungi and their forest ecotypes) on an unroofed cell lives
+    /// while vanilla's ground glow x the canopy transmittance is at most this: deep shade under a closed canopy is dark
+    /// enough, a gap or a felled tree is not.
+    /// </summary>
+    public float canopyDarkGlow = 0.1f;
+
     /// <summary>Self-thinning (P14): a tree's top chance to die of crowding at each size step it reaches; 0 turns it off.</summary>
     public float thinningMortality = 0.5f;
 

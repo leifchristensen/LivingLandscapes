@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!-- Forest fungi (E5; P11 x P12, owner approved 2026-10-30). Every fungus is a cave plant: vanilla spawns those only
+       under natural roofs by their cave weight, and kills them in any light. A forest ecotype inherits the cave fungus
+       (look, harvest, glow, death in light) as an ordinary wild plant, so it spawns from the forest lists by its habitat;
+       the canopy dims the light it sees (Patch_Plant_DyingBecauseExposedToLight), so it lives in deep shade and dies
+       where the canopy opens. Decomposers are not light-limited: the light curve (optimum 0.1) stands in for the litter
+       under a closed canopy. Caves and the cave fungi themselves are untouched. -->
+
+  <!-- forest agarilux -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Agarilux" and not(@Name)]</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationAttributeAdd">
+        <xpath>/Defs/ThingDef[defName="Agarilux"]</xpath>
+        <attribute>Name</attribute>
+        <value>LL_Agarilux_Source</value>
+      </li>
+      <li Class="PatchOperationAdd">
+        <xpath>/Defs</xpath>
+        <value>
+          <ThingDef ParentName="LL_Agarilux_Source">
+            <defName>LL_ForestAgarilux</defName>
+            <label>forest agarilux</label>
+            <description>An agarilux of the deep forest floor, growing in the litter where the canopy shuts out the sun. It glows faintly at night and dies when exposed to light.</description>
+            <plant>
+              <cavePlant>false</cavePlant>
+              <cavePlantWeight>0</cavePlantWeight>
+              <sowTags Inherit="False" />
+            </plant>
+            <modExtensions>
+              <li Class="LivingLandscapes.Flora.PlantHabitat">
+                <stratum>Ground</stratum>
+                <water><optimum>0.7</optimum><tolerance>0.25</tolerance></water>
+                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <rootingDepth>0.1</rootingDepth>
+                <pace>0.6</pace>
+                <seed>0.9</seed>
+                <dispersal>Wind</dispersal>
+              </li>
+            </modExtensions>
+          </ThingDef>
+        </value>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestAgarilux>0.03</LL_ForestAgarilux>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestAgarilux>0.03</LL_ForestAgarilux>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestAgarilux>0.03</LL_ForestAgarilux>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+          <value>
+            <LL_ForestAgarilux>0.03</LL_ForestAgarilux>
+          </value>
+        </match>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <!-- forest glowstool -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Glowstool" and not(@Name)]</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationAttributeAdd">
+        <xpath>/Defs/ThingDef[defName="Glowstool"]</xpath>
+        <attribute>Name</attribute>
+        <value>LL_Glowstool_Source</value>
+      </li>
+      <li Class="PatchOperationAdd">
+        <xpath>/Defs</xpath>
+        <value>
+          <ThingDef ParentName="LL_Glowstool_Source">
+            <defName>LL_ForestGlowstool</defName>
+            <label>forest glowstool</label>
+            <description>A glowstool of the deep forest floor, fruiting from the litter under a closed canopy. It glows at night and dies when exposed to light.</description>
+            <plant>
+              <cavePlant>false</cavePlant>
+              <cavePlantWeight>0</cavePlantWeight>
+              <sowTags Inherit="False" />
+            </plant>
+            <modExtensions>
+              <li Class="LivingLandscapes.Flora.PlantHabitat">
+                <stratum>Ground</stratum>
+                <water><optimum>0.7</optimum><tolerance>0.25</tolerance></water>
+                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <rootingDepth>0.1</rootingDepth>
+                <pace>0.6</pace>
+                <seed>0.9</seed>
+                <dispersal>Wind</dispersal>
+              </li>
+            </modExtensions>
+          </ThingDef>
+        </value>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestGlowstool>0.02</LL_ForestGlowstool>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestGlowstool>0.02</LL_ForestGlowstool>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestGlowstool>0.03</LL_ForestGlowstool>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+          <value>
+            <LL_ForestGlowstool>0.02</LL_ForestGlowstool>
+          </value>
+        </match>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <!-- forest stinker (with Vanilla Plants Expanded - Mushrooms) -->
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker" and not(@Name)]</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationAttributeAdd">
+        <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]</xpath>
+        <attribute>Name</attribute>
+        <value>LL_VPE_Plant_Stinker_Source</value>
+      </li>
+      <li Class="PatchOperationAdd">
+        <xpath>/Defs</xpath>
+        <value>
+          <ThingDef ParentName="LL_VPE_Plant_Stinker_Source">
+            <defName>LL_ForestStinker</defName>
+            <label>forest stinker</label>
+            <description>A stinker of the deep forest floor: a small, fast-growing mushroom that forms patches in the litter under a closed canopy and gives off rotstink. Its fungus is edible. Strong light kills it.</description>
+            <plant>
+              <cavePlant>false</cavePlant>
+              <cavePlantWeight>0</cavePlantWeight>
+              <sowTags Inherit="False" />
+            </plant>
+            <modExtensions>
+              <li Class="LivingLandscapes.Flora.PlantHabitat">
+                <stratum>Ground</stratum>
+                <water><optimum>0.75</optimum><tolerance>0.25</tolerance></water>
+                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <rootingDepth>0.1</rootingDepth>
+                <pace>0.6</pace>
+                <seed>0.9</seed>
+                <dispersal>Wind</dispersal>
+              </li>
+            </modExtensions>
+          </ThingDef>
+        </value>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestStinker>0.04</LL_ForestStinker>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="BorealForest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestStinker>0.04</LL_ForestStinker>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TropicalRainforest"]/wildPlants</xpath>
+          <value>
+            <LL_ForestStinker>0.05</LL_ForestStinker>
+          </value>
+        </match>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/BiomeDef[defName="TemperateSwamp"]/wildPlants</xpath>
+          <value>
+            <LL_ForestStinker>0.04</LL_ForestStinker>
+          </value>
+        </match>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+</Patch>

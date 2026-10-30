@@ -47,6 +47,12 @@ public static class PlantBenchmark
         // "-ll-bench-plants=census" stops here; the timing runs below clear and regrow the map.
         if (GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out string mode) && mode == "census")
             return;
+        // "-ll-bench-plants=fungi": forest fungi live in deep shade and die where the canopy is cut.
+        if (mode == "fungi")
+        {
+            Fungi(map);
+            return;
+        }
         // "-ll-bench-plants=succession": burn a woodland block and watch it regrow through the stages.
         if (mode == "succession")
         {
@@ -528,6 +534,47 @@ public static class PlantBenchmark
         }
         DebugSettings.fastEcology = fast;
         SpawnerTrace.Watch = null;
+    }
+
+    /// <summary>
+    /// Forest fungi (E5): ticks every plant that dies in light for 10 game days (vanilla's long tick, the sky's light at
+    /// each hour), then fells the canopy around half of the survivors and ticks 10 more days. Logs survivors under intact
+    /// canopy and under cut canopy, and the ground light they see.
+    /// </summary>
+    private static void Fungi(Map map)
+    {
+        var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
+        List<Plant> Fungi() => map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>()
+            .Where(p => !p.Destroyed && p.def.plant.diesToLight && !p.Position.Roofed(map)).ToList();
+        void Run(int days)
+        {
+            for (int call = 0; call < days * GenDate.TicksPerDay / 2000; call++)
+            {
+                TicksGameOf(Find.TickManager) += 2000;
+                map.skyManager.SkyManagerUpdate();
+                map.glowGrid.GlowGridUpdate_First();
+                foreach (Plant p in Fungi())
+                    p.TickLong();
+            }
+        }
+        float Light(List<Plant> plants) => plants.Count == 0 ? 0f : plants.Average(p => ecology.LightAt(map.cellIndices.CellToIndex(p.Position)));
+        List<Plant> start = Fungi();
+        Log.Message($"[LivingLandscapes] Forest fungi: {start.Count} outdoors ({string.Join(", ", start.GroupBy(p => p.def.defName).Select(g => $"{g.Key} {g.Count()}"))}), ground light {Light(start):F2}.");
+        if (start.Count == 0)
+            return;
+        Run(10);
+        List<Plant> alive = start.Where(p => !p.Destroyed).ToList();
+        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive.");
+        var cut = alive.Where((p, i) => i % 2 == 0).ToList();
+        var kept = alive.Where((p, i) => i % 2 == 1).ToList();
+        foreach (Plant fungus in cut)
+        {
+            foreach (Plant tree in GenRadial.RadialDistinctThingsAround(fungus.Position, map, 5f, true).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList())
+                tree.Destroy();
+        }
+        Run(10);
+        Log.Message($"[LivingLandscapes] Forest fungi: 10 days after felling the canopy within 5 cells, {cut.Count(p => !p.Destroyed)} of {cut.Count} alive " +
+                    $"(ground light {Light(cut):F2}); under intact canopy {kept.Count(p => !p.Destroyed)} of {kept.Count} (ground light {Light(kept):F2}).");
     }
 
     private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;
