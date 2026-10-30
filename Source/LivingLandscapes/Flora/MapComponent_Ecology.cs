@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Layers;
 using RimWorld;
@@ -16,6 +17,8 @@ namespace LivingLandscapes.Flora;
 /// - Cluster density per species: a Gaussian footprint added for every plant of a clustering species and removed when
 ///   it dies, so "how crowded is this cell with its own kind" is one array read.
 /// - Shade: the same, summed in log space for canopy plants, so removing a tree lifts its shade exactly.
+/// - Thicket stems: each plant's thicket weight on its own cell, for the path cost of dense shrubs (P18).
+/// - Tree size: a tree's shade and crowding scale with its growth in quarters, re-stamped as it grows (P12, P14).
 /// A map without the environment layers (or with the ecology switched off) is untouched: <see cref="Ready"/> is false and
 /// vanilla's spawner runs as it always did.
 /// </summary>
@@ -29,14 +32,26 @@ public class MapComponent_Ecology : MapComponent
 
     private HabitatSampler sampler;
     private float[] shadeLog;
+    private float[] stems;
+    private MapComponent_StandAge standAge;
+
+    /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
+    private float[] aspect;
+
+    private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
+    private readonly float[][] crowding = new float[3][];
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
-    private readonly Dictionary<ThingDef, (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<ThingDef, (Kernel, (int, int))>();
+    private readonly Dictionary<(ThingDef, int), (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<(ThingDef, int), (Kernel, (int, int))>();
+
+    /// <summary>The size step (quarters of growth, 1-4) each tree was stamped with, so its removal takes off what was added.</summary>
+    private readonly Dictionary<int, int> treeSteps = new Dictionary<int, int>();
     private bool built;
     private int sizeX, sizeZ;
-    private float latitude, capacityReference = -1f;
+    private float latitude, capacityReference = -1f, meanShare = 1f;
 
     public MapComponent_Ecology(Map map) : base(map)
     {
@@ -96,20 +111,22 @@ public class MapComponent_Ecology : MapComponent
         var environment = map.GetComponent<MapComponent_Environment>();
         if (environment == null)
             return;
-        EnvironmentLayerDef[] needed = { EnvironmentLayerDefOf.LL_Moisture, EnvironmentLayerDefOf.LL_SoilDepth, EnvironmentLayerDefOf.LL_Slope, EnvironmentLayerDefOf.LL_Sun };
+        EnvironmentLayerDef[] needed = { EnvironmentLayerDefOf.LL_Moisture, EnvironmentLayerDefOf.LL_SoilDepth, EnvironmentLayerDefOf.LL_Sun };
         foreach (EnvironmentLayerDef layer in needed)
         {
             if (!environment.TryGetGrid(layer, out _))
                 return;
         }
         float[] Grid(EnvironmentLayerDef layer) => environment.TryGetGrid(layer, out EnvironmentGrid grid) ? grid.ToArray() : null;
-        float[] moisture = Grid(needed[0]), soilDepth = Grid(needed[1]), slope = Grid(needed[2]), sun = Grid(needed[3]);
+        float[] moisture = Grid(needed[0]), soilDepth = Grid(needed[1]), sun = Grid(needed[2]);
 
         sizeX = map.Size.x;
         sizeZ = map.Size.z;
         latitude = SunWorker.LatitudeOf(map);
-        sampler = new HabitatSampler(map, moisture, soilDepth, slope, sun);
+        sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
+        stems = new float[sizeX * sizeZ];
+        aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
 
         long start = Stopwatch.GetTimestamp();
         int count = 0;
@@ -122,6 +139,17 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         built = true;
+        standAge = map.GetComponent<MapComponent_StandAge>();
+        standAge?.LayersReady();
+        // The path grid was computed before the stems existed (a loaded save builds this on the spawner's first call).
+        if (PlantEcologyDef.Current.thicketDragMax > 0f)
+        {
+            for (int i = 0; i < stems.Length; i++)
+            {
+                if (stems[i] > 0f)
+                    map.pathing.RecalculatePerceivedPathCostAt(map.cellIndices.IndexToCell(i));
+            }
+        }
         Log.Message($"[LivingLandscapes] Plant ecology ready on {map}: {count} plants indexed in {(Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency:F0} ms, " +
                     $"strength {Strength:0.##}.");
     }
@@ -165,19 +193,117 @@ public class MapComponent_Ecology : MapComponent
         {
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
-            Apply(grid, at.x, at.z, ClusterKernel(sigma), sign);
+            int index = map.cellIndices.CellToIndex(at);
+            Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
+        // A tree shades and crowds with its size (P12, P14): growth in quarters, the step it was stamped with on removal.
+        int step = 4;
+        if (habitat.stratum == PlantStratum.Canopy)
+        {
+            int id = plant.thingIDNumber;
+            if (sign > 0)
+                treeSteps[id] = step = SizeStep(plant);
+            else if (treeSteps.TryGetValue(id, out step))
+                treeSteps.Remove(id);
+            else
+                step = SizeStep(plant);
+        }
+        float size = step / 4f;
         if (habitat.clusterRadius2 > 0f && sigma > 0f)
         {
             if (!density2.TryGetValue(def, out float[] grid2))
                 density2[def] = grid2 = new float[sizeX * sizeZ];
             Apply(grid2, at.x, at.z, ClusterKernel(habitat.clusterRadius2), sign);
         }
+        StratumThinning thinning = PlantEcologyDef.Current.ThinningFor(habitat.stratum);
+        if (thinning != null)
+        {
+            int layer = (int)habitat.stratum;
+            crowding[layer] ??= new float[sizeX * sizeZ];
+            Apply(crowding[layer], at.x, at.z, CrowdingKernel(thinning.sigma, habitat.dominance * size), sign);
+        }
         if (habitat.shadeCast > 0f)
         {
-            (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat);
+            (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat, step);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
         }
+        // Young poles stand close and low (stem exclusion): a tree up to half grown is a thicket too.
+        float thicket = habitat.thicket + (habitat.stratum == PlantStratum.Canopy && step <= 2 ? PlantEcologyDef.Current.saplingThicket : 0f);
+        if (thicket > 0f)
+        {
+            int index = map.cellIndices.CellToIndex(at);
+            // Growing season (P21): short-season shrubs stay low, so their thickets are easier to cross.
+            PlantEcologyDef tuning = PlantEcologyDef.Current;
+            float stature = Mathf.Lerp(tuning.shortSeasonStature, 1f, tuning.SeasonOf(map));
+            float v = stems[index] + sign * thicket * stature;
+            stems[index] = v < 1e-5f ? 0f : v;
+            // Vanilla recalculates only the plant's own cell; the drag of every neighbour with stems changes too.
+            if (built && PlantEcologyDef.Current.thicketDragMax > 0f)
+            {
+                foreach (IntVec3 offset in GenAdj.AdjacentCellsAndInside)
+                {
+                    IntVec3 c = at + offset;
+                    if (c.InBounds(map))
+                        map.pathing.RecalculatePerceivedPathCostAt(c);
+                }
+            }
+        }
+    }
+
+    /// <summary>A tree's size step: its growth rounded up to quarters, 1 to 4.</summary>
+    private static int SizeStep(Plant plant) => Mathf.Clamp(Mathf.CeilToInt(plant.Growth * 4f - 1e-4f), 1, 4);
+
+    /// <summary>
+    /// A tree has grown (vanilla's long tick, or its growth was set after spawning): when it reached a new size step, its
+    /// shade, crowding and thicket are re-stamped at the new size. With <paramref name="thin"/>, self-thinning (P14) then
+    /// decides whether it survives the step: the crowding of the trees around it, over its own weight, is c, and it dies
+    /// with chance thinningMortality x (1 - exp(-strength x c)). A small tree among big ones is suppressed and dies; a big
+    /// one among small ones rarely does, so stems per area fall as the stand's trees grow.
+    /// </summary>
+    public void OnGrown(Plant plant, bool thin)
+    {
+        if (!built || !plant.Spawned || !treeSteps.TryGetValue(plant.thingIDNumber, out int step) || step == SizeStep(plant))
+            return;
+        Stamp(plant, -1);
+        Stamp(plant, 1);
+        PlantHabitat habitat = PlantHabitat.For(plant.def);
+        StratumThinning thinning = PlantEcologyDef.Current.ThinningFor(habitat.stratum);
+        float mortality = PlantEcologyDef.Current.thinningMortality * Strength;
+        if (!thin || thinning == null || mortality <= 0f)
+            return;
+        float own = habitat.dominance * SizeStep(plant) / 4f;
+        float others = CrowdingAt(habitat.stratum, map.cellIndices.CellToIndex(plant.Position)) - own;
+        if (others > 0f && Rand.Value < mortality * (1f - Mathf.Exp(-thinning.strength * others / Mathf.Max(own, 0.05f))))
+        {
+            thinned++;
+            plant.Kill();
+        }
+    }
+
+    /// <summary>Trees that died of self-thinning on this map since it loaded (dev log).</summary>
+    public int thinned;
+
+    /// <summary>
+    /// Path cost of the thicket at a cell (P18): drag grows with the frontal area density of stems, so the cost is
+    /// <see cref="PlantEcologyDef.thicketDragMax"/> x the stem density of the 3x3 around a cell that holds stems itself.
+    /// A path cut through a thicket is open ground again. 0 where there is no thicket or the ecology is off.
+    /// </summary>
+    public int ThicketCost(IntVec3 c)
+    {
+        if (!built || stems == null)
+            return 0;
+        int index = map.cellIndices.CellToIndex(c);
+        if (stems[index] <= 0f)
+            return 0;
+        float sum = 0f;
+        int x0 = Mathf.Max(c.x - 1, 0), x1 = Mathf.Min(c.x + 1, sizeX - 1);
+        int z0 = Mathf.Max(c.z - 1, 0), z1 = Mathf.Min(c.z + 1, sizeZ - 1);
+        for (int z = z0; z <= z1; z++)
+        {
+            for (int x = x0; x <= x1; x++)
+                sum += stems[z * sizeX + x];
+        }
+        return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * sum / 9f);
     }
 
     private void Apply(float[] grid, int cx, int cz, Kernel kernel, int sign)
@@ -208,16 +334,83 @@ public class MapComponent_Ecology : MapComponent
         return kernel;
     }
 
-    private (Kernel, (int x, int z)) ShadeKernel(ThingDef def, PlantHabitat habitat)
+    private readonly Dictionary<(int, int), Kernel> crowdingKernels = new Dictionary<(int, int), Kernel>();
+
+    private Kernel CrowdingKernel(float sigma, float dominance)
     {
-        if (shadeKernels.TryGetValue(def, out var cached))
+        var key = (Mathf.RoundToInt(sigma * 4f), Mathf.RoundToInt(dominance * 8f));
+        if (crowdingKernels.TryGetValue(key, out Kernel kernel))
+            return kernel;
+        float s = key.Item1 / 4f, weight = key.Item2 / 8f;
+        kernel = Build(Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * s), d2 => weight * Mathf.Exp(-d2 / (2f * s * s)));
+        crowdingKernels[key] = kernel;
+        return kernel;
+    }
+
+    /// <summary>
+    /// Competition on a cell from the plants of one layer around it (dominance-weighted, Gaussian by distance); 0 where the
+    /// layer does not compete.
+    /// </summary>
+    public float CrowdingAt(PlantStratum stratum, int index)
+    {
+        float[] grid = crowding[(int)stratum];
+        return grid != null ? grid[index] : 0f;
+    }
+
+    /// <summary>
+    /// Seeds carried by water (hydrochory) land downstream: a Gaussian stretched along the downhill direction (sigma x
+    /// <see cref="DownstreamStretch"/>), narrowed across it, and centred one sigma downhill. One kernel per eighth of the
+    /// compass and sigma, cached.
+    /// </summary>
+    private Kernel DownstreamKernel(float sigma, float downhill)
+    {
+        int octant = ((Mathf.RoundToInt(downhill / (Mathf.PI / 4f)) % 8) + 8) % 8;
+        int key = Mathf.RoundToInt(sigma * 4f);
+        if (downstreamKernels.TryGetValue((key, octant), out Kernel kernel))
+            return kernel;
+        float s = key / 4f, along = s * DownstreamStretch, across = s * DownstreamNarrow;
+        float angle = octant * Mathf.PI / 4f, cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
+        int reach = Mathf.CeilToInt(PlantEcologyDef.Current.clusterReach * along + s);
+        var values = new float[(2 * reach + 1) * (2 * reach + 1)];
+        for (int dz = -reach; dz <= reach; dz++)
+        {
+            for (int dx = -reach; dx <= reach; dx++)
+            {
+                float a = dx * cos + dz * sin - s, c = -dx * sin + dz * cos;
+                values[(dz + reach) * (2 * reach + 1) + dx + reach] = Mathf.Exp(-(a * a) / (2f * along * along) - (c * c) / (2f * across * across));
+            }
+        }
+        kernel = new Kernel { Reach = reach, Values = values };
+        downstreamKernels[(key, octant)] = kernel;
+        return kernel;
+    }
+
+    private const float DownstreamStretch = 1.5f, DownstreamNarrow = 0.7f;
+
+    /// <summary>
+    /// Where a seed of a water-carried species lands from a parent at this cell: an offset drawn from the same stretched,
+    /// downstream-shifted Gaussian as <see cref="DownstreamKernel"/> (isotropic for other species), used by the seeder.
+    /// </summary>
+    public IntVec3 OffspringCell(PlantHabitat habitat, IntVec3 parent, float sigma)
+    {
+        if (!habitat.Kernel.downstream || aspect == null || !parent.InBounds(map))
+            return new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
+        float angle = aspect[map.cellIndices.CellToIndex(parent)];
+        float a = sigma + Rand.Gaussian(0f, sigma * DownstreamStretch), c = Rand.Gaussian(0f, sigma * DownstreamNarrow);
+        return new IntVec3(Mathf.RoundToInt(parent.x + a * Mathf.Cos(angle) - c * Mathf.Sin(angle)), 0, Mathf.RoundToInt(parent.z + a * Mathf.Sin(angle) + c * Mathf.Cos(angle)));
+    }
+
+    private (Kernel, (int x, int z)) ShadeKernel(ThingDef def, PlantHabitat habitat, int step)
+    {
+        if (shadeKernels.TryGetValue((def, step), out var cached))
             return cached;
-        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast;
+        // A sapling's crown blocks a share of light in proportion to its size.
+        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale * step / 4f;
         // Light reaches the ground through the gaps in the canopy: shade adds as -ln(transmittance), so it can be removed.
         Kernel kernel = Build(Mathf.CeilToInt(radius * 2f), d2 => -Mathf.Log(1f - Mathf.Min(strength * Mathf.Exp(-d2 / (2f * radius * radius)), 0.95f)));
         Vector2 shift = ShadeWorker.ShadowShift(latitude, radius) * (PlantEcologyDef.Current.shadowShift / 0.5f);
         var result = (kernel, (Mathf.RoundToInt(shift.x), Mathf.RoundToInt(shift.y)));
-        shadeKernels[def] = result;
+        shadeKernels[(def, step)] = result;
         return result;
     }
 
@@ -244,16 +437,73 @@ public class MapComponent_Ecology : MapComponent
         return grid;
     }
 
+    /// <summary>
+    /// Carrying capacity (P15) of a species on a cell: like <see cref="Fitness"/>, but with the fundamental water response
+    /// (wetter ground never carries less). In drylands the desert species' realised niche peaks on dry ground, which made
+    /// dry ground look best; what a site can carry rises with water, and the Gaussian niche still decides who wins it.
+    /// </summary>
+    private float CarryingFitness(ThingDef def, int index)
+    {
+        PlantHabitat habitat = PlantHabitat.For(def);
+        if (!carrying.TryGetValue(def, out float[] grid))
+        {
+            grid = new float[sizeX * sizeZ];
+            for (int i = 0; i < grid.Length; i++)
+                grid[i] = sampler.Site(habitat, i, fundamental: true);
+            carrying[def] = grid;
+        }
+        return grid[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+    }
+
+    /// <summary>Canopy transmittance 0..1 on a cell: the share of sky light that reaches the ground through the crowns (P12).</summary>
+
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
 
-    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness times how well it bears the shade there.</summary>
+    /// <summary>Light reaching the ground on a cell now: LL_Sun x canopy transmittance (what the light curves read).</summary>
+    public float LightAt(int index) => sampler.Light(index, Mathf.Exp(-shadeLog[index]));
+
+    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        float fitness = habitat.HasSiteCurves ? SiteGrid(def, habitat)[index] : 1f;
-        return fitness * Mathf.Lerp(1f - ShadeAt(index), 1f, habitat.shadeTolerance);
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
     }
+
+    /// <summary>
+    /// Succession (P22, P17): how a stand's age since its last fire or windthrow weighs a species' establishment on a
+    /// cell. Canopy species establish with the stand's maturity m = 1 - exp(-age / tau), tau the canopy closure time,
+    /// shorter for fast-growing pioneers (pace); other species are boosted while the stand is young, the more the faster
+    /// they grow: 1 + pioneerBoost x (1 - m) x pace. 1 on old ground and where the map has no stand age.
+    /// </summary>
+    public float Succession(ThingDef def, int index)
+    {
+        if (standAge == null)
+            return 1f;
+        float age = standAge.Age(index);
+        if (age >= 1e6f)
+            return 1f;
+        PlantHabitat habitat = PlantHabitat.For(def);
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float factor;
+        if (habitat.stratum == PlantStratum.Canopy)
+            factor = Maturity(age, tuning.canopyClosureYears * Mathf.Lerp(1.4f, 0.6f, habitat.pace));
+        else
+            factor = 1f + tuning.pioneerBoost * (1f - Maturity(age, tuning.canopyClosureYears)) * habitat.pace;
+        return Mathf.Lerp(1f, factor, Strength);
+    }
+
+    /// <summary>Stand maturity 0..1 at an age (years) for a canopy closure time tau: 1 - exp(-age / tau).</summary>
+    public static float Maturity(float age, float tau) => 1f - Mathf.Exp(-age / Mathf.Max(tau, 0.1f));
+
+    /// <summary>Stand age in succession years on a cell (very old where the map has none).</summary>
+    public float StandAge(int index) => standAge?.Age(index) ?? float.MaxValue;
+
+    /// <summary>
+    /// How likely a species is to establish on a cell: its fitness there times the stand's succession factor. Spawning
+    /// and seeding read this; growth (<see cref="Vitality"/>) reads fitness alone.
+    /// </summary>
+    public float Establishment(ThingDef def, int index) => Fitness(def, index) * Succession(def, index);
 
     /// <summary>
     /// Dev check: rebuilds the shade and cluster grids from the plants standing now and compares them with the live ones
@@ -272,9 +522,11 @@ public class MapComponent_Ecology : MapComponent
         string where = "none";
         void Compare(string name, float[] live, float[] rebuilt)
         {
-            for (int i = 0; i < live.Length; i++)
+            if (live == null && rebuilt == null)
+                return;
+            for (int i = 0; i < (live ?? rebuilt).Length; i++)
             {
-                float d = Mathf.Abs(live[i] - (rebuilt?[i] ?? 0f));
+                float d = Mathf.Abs((live?[i] ?? 0f) - (rebuilt?[i] ?? 0f));
                 if (d > worst)
                 {
                     worst = d;
@@ -283,11 +535,24 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         Compare("shade", shadeLog, fresh.shadeLog);
+        for (int layer = 0; layer < 3; layer++)
+            Compare("crowding " + (PlantStratum)layer, crowding[layer], fresh.crowding[layer]);
         foreach (KeyValuePair<ThingDef, float[]> pair in density)
             Compare(pair.Key.defName, pair.Value, fresh.density.TryGetValue(pair.Key, out float[] other) ? other : null);
         foreach (KeyValuePair<ThingDef, float[]> pair in density2)
             Compare(pair.Key.defName + " (second scale)", pair.Value, fresh.density2.TryGetValue(pair.Key, out float[] other2) ? other2 : null);
-        detail = where;
+        // Trees whose growth changed past a size step without a re-stamp (growth set by something other than a long tick).
+        int stale = 0;
+        string example = "";
+        foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant))
+        {
+            if (thing is Plant plant && treeSteps.TryGetValue(plant.thingIDNumber, out int step) && step != SizeStep(plant))
+            {
+                if (stale++ == 0)
+                    example = $"; e.g. {plant.def.defName} at {plant.Position} stamped {step}/4, growth {plant.Growth:F2}";
+            }
+        }
+        detail = where + (stale > 0 ? $"; {stale} trees with a stale size{example}" : "");
         return worst;
     }
 
@@ -329,48 +594,197 @@ public class MapComponent_Ecology : MapComponent
     public float ClusterDensity(ThingDef def, int index) => density.TryGetValue(def, out float[] grid) ? grid[index] : 0f;
 
     /// <summary>
-    /// Chance (0..1) that a spawn attempt on this cell goes ahead: low on ground where none of the biome's plants do
-    /// well, 1 on the best ground (the map's upper fitness range, found by sampling).
+    /// How strongly the species' own plants draw a newcomer to this cell (P13), as a factor on its weight: the vector's
+    /// nucleation rate away from its kind, rising inside a clump to the capped cluster ratio times the vector's clump
+    /// strength, and at the second, larger scale for species that set one. 1 for species that do not cluster.
     /// </summary>
-    public float Acceptance(IntVec3 cell)
+    public float ClusterPull(ThingDef def, int index)
     {
-        int index = map.cellIndices.CellToIndex(cell);
-        List<BiomePlantRecord> plants = map.BiomeAt(cell).wildPlants;
-        float weights = 0f, sum = 0f;
-        foreach (BiomePlantRecord record in plants)
-        {
-            weights += record.commonality;
-            sum += record.commonality * Fitness(record.plant, index);
-        }
-        if (weights <= 0f)
+        PlantHabitat habitat = PlantHabitat.For(def);
+        if (habitat.ClusterSigma(def) <= 0f)
             return 1f;
-        float capacity = sum / weights;
-        if (capacityReference < 0f)
-            capacityReference = ReferenceCapacity();
-        float floor = PlantEcologyDef.Current.capacityFloor;
-        float accept = Mathf.Lerp(floor, 1f, Mathf.Pow(Mathf.Clamp01(capacity / capacityReference), PlantEcologyDef.Current.capacityExponent));
-        return Mathf.Lerp(1f, accept, Strength);
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float strength = Strength;
+        float crowding = ClusterDensity(def, index) * tuning.clusterGainPerNeighbour;
+        float inside = Mathf.Lerp(1f, Mathf.Min(habitat.ClusterRatio(def), tuning.clusterMaxRatio) * habitat.Kernel.clumpScale, strength);
+        float outside = Mathf.Lerp(1f, tuning.clusterNucleation * habitat.NucleationScale, strength);
+        float pull = outside + (inside - outside) * (1f - Mathf.Exp(-crowding));
+        // The larger scale: forests and clearings.
+        if (habitat.clusterRadius2 > 0f && habitat.clusterStrength2 > 1f)
+        {
+            float wide = ClusterDensity2(def, index) * tuning.clusterGain2PerNeighbour;
+            float inside2 = Mathf.Lerp(1f, habitat.clusterStrength2, strength);
+            float outside2 = Mathf.Lerp(1f, tuning.clusterNucleation2, strength);
+            pull *= outside2 + (inside2 - outside2) * (1f - Mathf.Exp(-wide));
+        }
+        return pull;
     }
 
-    /// <summary>The 80th percentile of the biome's commonality-weighted fitness over sampled cells (so 20% of ground counts as best).</summary>
+    /// <summary>
+    /// Carrying capacity (P15): the share of cells around <paramref name="cell"/> that should hold a plant. The biome's
+    /// vanilla density (x fertility, x the biome's density scale) sets the level, and the habitat shapes it: capacity is
+    /// the commonality-weighted fitness of the biome's species here (each weighted by how strongly its own clumps draw
+    /// recruits). Against the map's best ground (the 80th percentile) it gives a share from
+    /// <see cref="PlantEcologyDef.capacityFloor"/> to 1, raised to <see cref="PlantEcologyDef.densityContrast"/>: good
+    /// ground closes up, poor and shaded ground opens into meadows and clearings, and deserts stay sparse because their
+    /// vanilla density is low.
+    /// </summary>
+    public float TargetOccupancy(IntVec3 cell)
+    {
+        int index = map.cellIndices.CellToIndex(cell);
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        if (capacityReference < 0f)
+            capacityReference = ReferenceCapacity();
+        BiomeDef biome = map.BiomeAt(cell);
+        float fertility = PlantableFertility(cell);
+        float level = biome.plantDensity * map.wildPlantSpawner.CurrentPlantDensityFactor * fertility * tuning.DensityScaleFor(biome);
+        // Divided by the map's mean share, so the map keeps its vanilla total by default and only redistributes it;
+        // densityScales is the deliberate boost.
+        return Mathf.Clamp01(level * Share(Capacity(index, biome)) / meanShare);
+    }
+
+    /// <summary>
+    /// Chance (0..1) that a spawn attempt goes ahead: at map generation the target occupancy, so one pass over the map fills
+    /// each place to it; in play, where attempts repeat and the local saturation caps each place at the target, only
+    /// <see cref="PlantEcologyDef.runtimeAcceptance"/> of it (counting it twice would hold regrowth under the target).
+    /// </summary>
+    public float Acceptance(IntVec3 cell, bool generation) =>
+        Mathf.Lerp(1f, TargetOccupancy(cell), Strength * (generation ? 1f : PlantEcologyDef.Current.runtimeAcceptance));
+
+    /// <summary>
+    /// Replaces vanilla's local saturation (its biome density within 20 cells): saturated when the share of fertile cells
+    /// within <see cref="PlantEcologyDef.occupancyRadius"/> that hold a plant reaches the target occupancy.
+    /// </summary>
+    private bool? waterPlants;
+
+    /// <summary>
+    /// The fertility the carrying capacity counts on a cell. As vanilla does when a wild plant ignores fertility (reeds,
+    /// bulrush, lily pads), shallow water counts as 1: its own fertility is 0, so without this water plants never spawn.
+    /// Rock and deep water stay at 0.
+    /// </summary>
+    public float PlantableFertility(IntVec3 c)
+    {
+        float fertility = map.fertilityGrid.FertilityAt(c);
+        if (fertility > 0f)
+            return fertility;
+        waterPlants ??= map.Biomes.Any(b => b.wildPlants.Any(r => r.plant?.plant?.completelyIgnoreFertility ?? false));
+        if (!waterPlants.Value)
+            return 0f;
+        TerrainDef terrain = c.GetTerrain(map);
+        return terrain != null && terrain.IsWater && terrain.passability != Traversability.Impassable ? 1f : 0f;
+    }
+
+    public bool Saturated(IntVec3 cell)
+    {
+        int count = GenRadial.NumCellsInRadius(PlantEcologyDef.Current.occupancyRadius), cells = 0, plants = 0;
+        for (int i = 0; i < count; i++)
+        {
+            IntVec3 c = cell + GenRadial.RadialPattern[i];
+            if (!c.InBounds(map) || PlantableFertility(c) <= 0f)
+                continue;
+            cells++;
+            if (c.GetPlant(map) != null)
+                plants++;
+        }
+        return cells == 0 || plants >= TargetOccupancy(cell) * cells;
+    }
+
+    private float Capacity(int index, BiomeDef biome)
+    {
+        float weights = 0f, sum = 0f;
+        foreach (BiomePlantRecord record in biome.wildPlants)
+        {
+            float weight = record.commonality * Mathf.Pow(ClusterPull(record.plant, index), PlantEcologyDef.Current.establishmentPull);
+            weights += weight;
+            sum += weight * CarryingFitness(record.plant, index);
+        }
+        return weights > 0f ? sum / weights : 1f;
+    }
+
+    /// <summary>Share of the biome's level a cell of this capacity carries, from capacityFloor to 1 at the map's best ground.</summary>
+    private float Share(float capacity)
+    {
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        return Mathf.Lerp(tuning.capacityFloor, 1f, Mathf.Pow(Mathf.Clamp01(capacity / capacityReference), tuning.densityContrast));
+    }
+
+    /// <summary>
+    /// The 80th percentile of the capacity over sampled fertile cells (commonality-weighted, without cluster pull): the
+    /// map's best ground. Also sets <see cref="meanShare"/>, the mean share over the same cells.
+    /// </summary>
     private float ReferenceCapacity()
     {
-        var samples = new List<float>();
         var rng = new System.Random(map.Tile);
         List<BiomePlantRecord> plants = map.Biome.wildPlants;
-        for (int k = 0; k < 600; k++)
+        var samples = new List<float>();
+        for (int k = 0; k < 4000 && samples.Count < 800; k++)
         {
             int index = rng.Next(sizeX * sizeZ);
+            if (PlantableFertility(map.cellIndices.IndexToCell(index)) <= 0f)
+                continue;
             float weights = 0f, sum = 0f;
             foreach (BiomePlantRecord record in plants)
             {
                 weights += record.commonality;
-                sum += record.commonality * Fitness(record.plant, index);
+                sum += record.commonality * CarryingFitness(record.plant, index);
             }
             samples.Add(weights > 0f ? sum / weights : 1f);
         }
+        if (samples.Count == 0)
+            return 1f;
         samples.Sort();
-        return Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.05f);
+        capacityReference = Mathf.Max(samples[(int)(samples.Count * 0.8f)], 0.02f);
+        meanShare = Mathf.Max(samples.Average(Share), 0.05f);
+        return capacityReference;
+    }
+
+    private float regrowth = 1f;
+    private int regrowthTick = int.MinValue;
+
+    /// <summary>
+    /// Regrowth rate (P15, G5): how many times vanilla's spawn attempts a map needs so births match deaths at the target.
+    /// Vanilla tries each cell about c / regrowDays times a day (c: the map's desired plants per fertile cell); a try on an
+    /// occupied cell fails, and plants die at 1 / lifespan, so a place settles at O = aL / (1 + aL), under the target for
+    /// short-lived plants. Births match deaths at target T when a (1 - T) = T D, D the biome's death rate per plant (each
+    /// species' respawning share / its lifespan). R = margin x mean(T / (1 - T)) x D x regrowDays / c over sampled fertile
+    /// cells, at least 1, at most <see cref="PlantEcologyDef.regrowthMax"/>; recomputed every game day. The local
+    /// saturation still caps each place at its target, so only the refill speed changes.
+    /// </summary>
+    public float RegrowthRate()
+    {
+        int now = Find.TickManager?.TicksGame ?? 0;
+        if (now - regrowthTick < GenDate.TicksPerDay && regrowthTick != int.MinValue)
+            return regrowth;
+        regrowthTick = now;
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        WildPlantSpawner spawner = map.wildPlantSpawner;
+        float shares = 0f, deaths = 0f;
+        foreach (BiomePlantRecord record in map.Biome.wildPlants)
+        {
+            float share = spawner.GetCommonalityPctOfPlant(record.plant) * record.plant.plant.plantRespawningCommonalityFactor;
+            shares += share;
+            if (record.plant.plant.LimitedLifespan && record.plant.plant.LifespanDays > 0f)
+                deaths += share / record.plant.plant.LifespanDays;
+        }
+        float chance = spawner.CachedChanceFromDensity;
+        if (tuning.regrowthMargin <= 0f || shares <= 0f || chance <= 0f)
+            return regrowth = 1f;
+        var rng = new System.Random(map.Tile ^ now);
+        float odds = 0f;
+        int samples = 0;
+        for (int k = 0; k < 2000 && samples < 400; k++)
+        {
+            IntVec3 c = map.cellIndices.IndexToCell(rng.Next(sizeX * sizeZ));
+            if (PlantableFertility(c) <= 0f)
+                continue;
+            float target = Mathf.Min(TargetOccupancy(c), 0.9f);
+            odds += target / (1f - target);
+            samples++;
+        }
+        if (samples == 0)
+            return regrowth = 1f;
+        float rate = tuning.regrowthMargin * odds / samples * deaths / shares * map.Biome.wildPlantRegrowDays / chance;
+        return regrowth = Mathf.Lerp(1f, Mathf.Clamp(rate, 1f, tuning.regrowthMax), Strength);
     }
 
     /// <summary>

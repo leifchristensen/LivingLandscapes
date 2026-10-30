@@ -13,5 +13,7 @@ public static class Patch_Plant_DeSpawn
     {
         // Still spawned here, so Map and Position are valid.
         __instance.Map?.GetComponent<MapComponent_Ecology>()?.OnDespawning(__instance);
+        if (__instance.Spawned && DevTools.SpawnerTrace.Watching(__instance.Position))
+            DevTools.SpawnerTrace.Deaths++;
     }
 }

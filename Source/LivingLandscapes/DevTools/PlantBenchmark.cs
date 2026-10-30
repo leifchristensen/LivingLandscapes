@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -46,6 +47,18 @@ public static class PlantBenchmark
         // "-ll-bench-plants=census" stops here; the timing runs below clear and regrow the map.
         if (GenCommandLine.TryGetCommandLineArg("ll-bench-plants", out string mode) && mode == "census")
             return;
+        // "-ll-bench-plants=fungi": forest fungi live in deep shade and die where the canopy is cut.
+        if (mode == "fungi")
+        {
+            Fungi(map);
+            return;
+        }
+        // "-ll-bench-plants=succession": burn a woodland block and watch it regrow through the stages.
+        if (mode == "succession")
+        {
+            Succession(map);
+            return;
+        }
         WildPlantSpawner spawner = map.wildPlantSpawner;
         int PlantCount() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).Count;
         Log.Message($"[LivingLandscapes] Plant benchmark: map {map.Size.x}x{map.Size.z}, biome {map.Biome.defName}, {PlantCount()} plants after generation, " +
@@ -277,6 +290,8 @@ public static class PlantBenchmark
                 float mean = curved.Average(p => ecology.Vitality(p)), min = curved.Min(p => ecology.Vitality(p)), max = curved.Max(p => ecology.Vitality(p));
                 Log.Message($"[LivingLandscapes] Plant census: growth rate multiplier (vitality) over {curved.Count} wild plants: mean {mean:0.00}, min {min:0.00}, max {max:0.00}.");
             }
+            float rebuildDifference = ecology.VerifyAgainstRebuild(out string rebuildDetail);
+            Log.Message($"[LivingLandscapes] Plant census: live grids against a full rebuild differ by {rebuildDifference:0.#####} ({rebuildDetail}).");
             int shaded = 0;
             for (int i = 0; i < map.Area; i++)
             {
@@ -367,6 +382,224 @@ public static class PlantBenchmark
         string Top(Dictionary<string, int> mix) => string.Join(", ", mix.OrderByDescending(k => k.Value).Take(5).Select(k => $"{k.Key.Replace("Plant_", "")} {k.Value}"));
         Log.Message($"[LivingLandscapes] Plant regrowth: a {block}x{block} block of woodland at ({bestX}, {bestZ}) held {plantsBefore} plants ({treesBefore} trees; {Top(before)}); cleared, " +
                     $"after {days:F0} game days it holds {plantsAfter} plants ({treesAfter} trees; {Top(after)}).");
+    }
+
+    private static readonly AccessTools.FieldRef<TickManager, int> TicksGameOf = AccessTools.FieldRefAccess<TickManager, int>("ticksGameInt");
+
+    /// <summary>
+    /// Succession in play (P22) and runtime equivalence (G5): burns a typical woodland block, 36 x 36 cells on land at the
+    /// 75th percentile of tree count (plants removed, stand age reset as a ground fire does), then runs the spawner and the
+    /// block's plants' long ticks (growth, age, death, thinning) while game time advances, and logs the block's canopy,
+    /// shrub and ground plants, leading species, light and thicket at checkpoints, against the block before the burn and
+    /// the map's mean for old stands over the same area. "-ll-bench-years=N": game years to run (default 6).
+    /// </summary>
+    public static void Succession(Map map)
+    {
+        const int block = 36;
+        var trees = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList();
+        var standAge = map.GetComponent<Flora.MapComponent_StandAge>();
+        if (trees.Count < 50 || standAge == null)
+            return;
+        // The block: mostly land, at the 75th percentile of tree count (the densest block sits far above the map's mean).
+        var candidates = new List<(int count, int x, int z)>();
+        for (int bx = 0; bx + block <= map.Size.x; bx += 12)
+        {
+            for (int bz = 0; bz + block <= map.Size.z; bz += 12)
+            {
+                int land = 0;
+                for (int x = bx; x < bx + block; x += 3)
+                {
+                    for (int z = bz; z < bz + block; z += 3)
+                        land += new IntVec3(x, 0, z).GetTerrain(map).IsWater ? 0 : 1;
+                }
+                if (land < 0.9f * (block / 3) * (block / 3))
+                    continue;
+                candidates.Add((trees.Count(t => t.Position.x >= bx && t.Position.x < bx + block && t.Position.z >= bz && t.Position.z < bz + block), bx, bz));
+            }
+        }
+        if (candidates.Count == 0)
+            return;
+        candidates.Sort((a, b) => a.count.CompareTo(b.count));
+        (_, int bestX, int bestZ) = candidates[(int)(candidates.Count * 0.75f)];
+        bool InBlock(IntVec3 c) => c.x >= bestX && c.x < bestX + block && c.z >= bestZ && c.z < bestZ + block;
+        List<Plant> Standing() => map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => !p.def.IsDeadPlant && InBlock(p.Position)).ToList();
+        string Describe(List<Plant> plants)
+        {
+            int[] layers = new int[3];
+            foreach (Plant p in plants)
+                layers[(int)Flora.PlantHabitat.For(p.def).stratum]++;
+            string top = string.Join(", ", plants.GroupBy(p => p.def.defName).OrderByDescending(g => g.Count()).Take(4).Select(g => $"{g.Key.Replace("Plant_", "")} {g.Count()}"));
+            // Stem exclusion: the trees' mean growth and the block's mean ground light.
+            List<Plant> treesNow = plants.Where(p => p.def.plant.IsTree).ToList();
+            float growth = treesNow.Count > 0 ? treesNow.Average(p => p.Growth) : 0f, light = 0f;
+            for (int x = bestX; x < bestX + block; x++)
+            {
+                for (int z = bestZ; z < bestZ + block; z++)
+                    light += map.GetComponent<Flora.MapComponent_Ecology>().LightAt(map.cellIndices.CellToIndex(new IntVec3(x, 0, z)));
+            }
+            int thicket = 0, fertile = 0, occupied = 0;
+            float target = 0f;
+            var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
+            for (int x = bestX; x < bestX + block; x++)
+            {
+                for (int z = bestZ; z < bestZ + block; z++)
+                {
+                    var c = new IntVec3(x, 0, z);
+                    thicket += ecology.ThicketCost(c) >= 100 ? 1 : 0;
+                    if (ecology.PlantableFertility(c) > 0f)
+                    {
+                        fertile++;
+                        target += ecology.TargetOccupancy(c);
+                        occupied += c.GetPlant(map) != null ? 1 : 0;
+                    }
+                }
+            }
+            return $"{plants.Count} plants (canopy {layers[0]}, shrub {layers[1]}, ground {layers[2]}; {top}; tree growth {growth:F2}, " +
+                   $"ground light {light / (block * block):F2}, thicket cells {thicket}, " +
+                   $"occupied {occupied / (float)Mathf.Max(fertile, 1):F2} of {fertile} fertile cells vs target {target / Mathf.Max(fertile, 1):F2}, thinned {map.GetComponent<Flora.MapComponent_Ecology>().thinned})";
+        }
+        // The map's old stands (age over 100 years, on land) for comparison: plants per layer over a block's area.
+        var oldLayers = new float[3];
+        int oldCells = 0;
+        for (int i = 0; i < map.cellIndices.NumGridCells; i++)
+        {
+            if (standAge.Age(i) > 100f && !map.cellIndices.IndexToCell(i).GetTerrain(map).IsWater)
+                oldCells++;
+        }
+        foreach (Plant p in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>())
+        {
+            if (!p.def.IsDeadPlant && standAge.Age(map.cellIndices.CellToIndex(p.Position)) > 100f && !p.Position.GetTerrain(map).IsWater)
+                oldLayers[(int)Flora.PlantHabitat.For(p.def).stratum]++;
+        }
+        float perBlock = block * block / (float)Mathf.Max(oldCells, 1);
+        Log.Message($"[LivingLandscapes] Plant succession: map mean for old stands over {block}x{block}: canopy {oldLayers[0] * perBlock:F0}, shrub {oldLayers[1] * perBlock:F0}, ground {oldLayers[2] * perBlock:F0}.");
+        // The ground fire hook: a fire spawned on a cell outside the block resets that cell's stand.
+        IntVec3 probe = new IntVec3(bestX + block + 2 < map.Size.x ? bestX + block + 2 : bestX - 3, 0, bestZ);
+        int probeIndex = map.cellIndices.CellToIndex(probe);
+        float probeBefore = standAge.Age(probeIndex);
+        Thing fire = GenSpawn.Spawn(ThingDefOf.Fire, probe, map);
+        Log.Message($"[LivingLandscapes] Plant succession: fire check at {probe}: stand age {probeBefore:F1} -> {standAge.Age(probeIndex):F1}.");
+        if (!fire.Destroyed)
+            fire.Destroy();
+        string before = Describe(Standing());
+        foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>().Where(p => InBlock(p.Position)).ToList())
+            plant.Destroy();
+        for (int x = bestX; x < bestX + block; x++)
+        {
+            for (int z = bestZ; z < bestZ + block; z++)
+                standAge.Reset(new IntVec3(x, 0, z));
+        }
+        SpawnerTrace.Reset();
+        SpawnerTrace.Watch = InBlock;
+        Log.Message($"[LivingLandscapes] Plant succession: a {block}x{block} woodland block at ({bestX}, {bestZ}) held {before}; burnt (stand age 0), succession {Flora.PlantEcologyDef.Current.successionSpeed:0.#} years per game year.");
+
+        // "-ll-time-scale=10": the mod's clock runs that many times faster (as the dev toggle does).
+        if (GenCommandLine.TryGetCommandLineArg("ll-time-scale", out string scaleArg) && int.TryParse(scaleArg, out int timeScale))
+            GameComponent_LivingTime.Scale = timeScale;
+        bool fast = DebugSettings.fastEcology;
+        DebugSettings.fastEcology = true;
+        // One fast call is 2000 spawner ticks; game time advances by the same.
+        float runYears = GenCommandLine.TryGetCommandLineArg("ll-bench-years", out string yearsArg) && float.TryParse(yearsArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedYears) ? parsedYears : 6f;
+        float[] checkpoints = new[] { 0.25f, 0.5f, 1f, 2f, 3f, 4.5f, 6f, 9f, 12f, 18f }.Where(y => y < runYears).Append(runYears).ToArray();
+        int calls = 0, next = 0;
+        while (next < checkpoints.Length)
+        {
+            map.wildPlantSpawner.WildPlantSpawnerTick();
+            // The block's plants grow (vanilla's long tick, with the sky's light at this hour), so trees reach their size steps and
+            // thin; stumps and dead plants rot away by their deterioration rate (the map's own tick does that in play).
+            map.skyManager.SkyManagerUpdate();
+            foreach (Plant plant in map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>().Where(p => InBlock(p.Position)).ToList())
+            {
+                if (plant is DeadPlant)
+                {
+                    float damage = plant.GetStatValue(StatDefOf.DeteriorationRate) * 2000f / GenDate.TicksPerDay;
+                    int whole = Mathf.FloorToInt(damage) + (Rand.Chance(damage - Mathf.Floor(damage)) ? 1 : 0);
+                    if (whole > 0)
+                        plant.TakeDamage(new DamageInfo(DamageDefOf.Deterioration, whole));
+                }
+                else if (!plant.Destroyed)
+                    plant.TickLong();
+            }
+            TicksGameOf(Find.TickManager) += 2000;
+            GameComponent_LivingTime.Advance(2000);
+            calls++;
+            float years = calls * 2000f / GenDate.TicksPerYear;
+            if (years >= checkpoints[next])
+            {
+                float age = standAge.Age(map.cellIndices.CellToIndex(new IntVec3(bestX + block / 2, 0, bestZ + block / 2)));
+                Log.Message($"[LivingLandscapes] Plant succession: after {checkpoints[next]:0.##} game years (stand age {age:F1}): {Describe(Standing())}; regrowth {map.GetComponent<Flora.MapComponent_Ecology>().RegrowthRate():F2}x; spawner {SpawnerTrace.Describe()}.");
+                SpawnerTrace.Reset();
+                next++;
+            }
+        }
+        DebugSettings.fastEcology = fast;
+        SpawnerTrace.Watch = null;
+    }
+
+    /// <summary>
+    /// Forest fungi (E5): ticks every plant that dies in light for 10 game days (vanilla's long tick, the sky's light at
+    /// each hour), then fells the canopy around half of the survivors and ticks 10 more days. Logs survivors under intact
+    /// canopy and under cut canopy, and the ground light they see.
+    /// </summary>
+    private static void Fungi(Map map)
+    {
+        var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
+        List<Plant> Fungi() => map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>()
+            .Where(p => !p.Destroyed && p.def.plant.diesToLight && !p.Position.Roofed(map)).ToList();
+        // Why each fungus was dying at its last tick (vanilla's causes), and the highest canopy-dimmed glow it saw.
+        var cause = new Dictionary<Plant, string>();
+        var peakGlow = new Dictionary<Plant, float>();
+        var peakLamp = new Dictionary<Plant, float>();
+        string Cause(Plant p)
+        {
+            var c = new List<string>();
+            if (p.def.plant.LimitedLifespan && p.Age > p.def.plant.LifespanTicks) c.Add("age");
+            if (p.DyingBecauseExposedToLight) c.Add("light");
+            if (p.DyingBecauseOfTerrainTags) c.Add("terrain");
+            if (p.DyingFromPollution || p.DyingFromNoPollution) c.Add("pollution");
+            if (p.Dying && c.Count == 0) c.Add("other");
+            return string.Join("+", c);
+        }
+        void Run(int days)
+        {
+            for (int call = 0; call < days * GenDate.TicksPerDay / 2000; call++)
+            {
+                TicksGameOf(Find.TickManager) += 2000;
+                map.skyManager.SkyManagerUpdate();
+                // A plant's tick can destroy another listed plant (thinning, spreading): skip those.
+                foreach (Plant p in Fungi())
+                {
+                    if (p.Destroyed)
+                        continue;
+                    float glow = Patches.Patch_Plant_DyingBecauseExposedToLight.LightAtFeet(p, ecology);
+                    peakGlow[p] = Mathf.Max(peakGlow.TryGetValue(p, out float g) ? g : 0f, glow);
+                    float lamps = map.glowGrid.GroundGlowAt(p.Position, ignoreCavePlants: true, ignoreSky: true);
+                    peakLamp[p] = Mathf.Max(peakLamp.TryGetValue(p, out float l) ? l : 0f, lamps);
+                    cause[p] = Cause(p);
+                    p.TickLong();
+                }
+            }
+        }
+        string Deaths(List<Plant> plants) => string.Join(", ", plants.Where(p => p.Destroyed).GroupBy(p => cause.TryGetValue(p, out string c) && c != "" ? c : "none").Select(g => $"{g.Key} {g.Count()}"));
+        string Peak(List<Plant> plants) => plants.Count == 0 ? "-" : $"{plants.Average(p => peakGlow.TryGetValue(p, out float g) ? g : 0f):F2}";
+        float Light(List<Plant> plants) => plants.Count == 0 ? 0f : plants.Average(p => ecology.LightAt(map.cellIndices.CellToIndex(p.Position)));
+        List<Plant> start = Fungi();
+        Log.Message($"[LivingLandscapes] Forest fungi: {start.Count} outdoors ({string.Join(", ", start.GroupBy(p => p.def.defName).Select(g => $"{g.Key} {g.Count()}"))}), ground light {Light(start):F2}.");
+        if (start.Count == 0)
+            return;
+        Run(10);
+        List<Plant> alive = start.Where(p => !p.Destroyed).ToList();
+        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive; deaths by cause: {Deaths(start)}; mean peak dimmed glow {Peak(start)}, survivors {Peak(alive)}; mean peak glow from lights (undimmed) {start.Average(p => peakLamp.TryGetValue(p, out float l) ? l : 0f):F2}, sky now {map.skyManager.CurSkyGlow:F2}.");
+        var cut = alive.Where((p, i) => i % 2 == 0).ToList();
+        var kept = alive.Where((p, i) => i % 2 == 1).ToList();
+        foreach (Plant fungus in cut)
+        {
+            foreach (Plant tree in GenRadial.RadialDistinctThingsAround(fungus.Position, map, 5f, true).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList())
+                tree.Destroy();
+        }
+        Run(10);
+        Log.Message($"[LivingLandscapes] Forest fungi: 10 days after felling the canopy within 5 cells, {cut.Count(p => !p.Destroyed)} of {cut.Count} alive " +
+                    $"(ground light {Light(cut):F2}); under intact canopy {kept.Count(p => !p.Destroyed)} of {kept.Count} (ground light {Light(kept):F2}).");
     }
 
     private static bool PlantHabitat2(ThingDef def) => Flora.PlantHabitat.For(def).clusterRadius2 > 0f;

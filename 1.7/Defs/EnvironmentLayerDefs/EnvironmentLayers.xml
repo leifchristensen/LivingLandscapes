@@ -520,4 +520,51 @@
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
+  <!-- Disturbance mosaic (P22, tools/Docs/DISTURBANCE-MOSAIC.md): years since the last stand-replacing fire or windthrow. -->
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_StandAge</defName>
+    <label>stand age</label>
+    <description>Years since the last stand-replacing disturbance (fire, windthrow). Young patches are meadow and shrub thicket, older ones young then old forest.</description>
+    <workerClass>LivingLandscapes.Layers.StandAgeWorker</workerClass>
+    <unit>years</unit>
+    <precision>UShort</precision>
+    <dependsOn>
+      <li>LL_Moisture</li>
+      <li>LL_Sun</li>
+      <li>LL_SoilDepth</li>
+      <li>LL_Elevation</li>
+    </dependsOn>
+    <overlay>
+      <labelFormat>0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.95, 0.85, 0.30, 0.9)</color></li>
+        <li><value>6</value><color>(0.75, 0.85, 0.30, 0.85)</color></li>
+        <li><value>18</value><color>(0.40, 0.70, 0.25, 0.8)</color></li>
+        <li><value>45</value><color>(0.15, 0.45, 0.15, 0.75)</color></li>
+        <li><value>200</value><color>(0.05, 0.25, 0.10, 0.6)</color></li>
+      </colors>
+    </overlay>
+    <modExtensions>
+      <li Class="LivingLandscapes.Layers.StandAgeExtension">
+        <!-- Rotation R (years) at the biome's typical rainfall; the tile's rainfall scales it (fuel x dryness).
+             Owner approved the draft rotations 2026-10-26. -->
+        <regimes>
+          <li><biome>TemperateForest</biome><years>250</years><rainfall>1200</rainfall><fireShare>0.5</fireShare></li>
+          <li><biome>BorealForest</biome><years>120</years><rainfall>600</rainfall><fireShare>0.8</fireShare></li>
+          <li><biome>TropicalRainforest</biome><years>800</years><rainfall>2500</rainfall><fireShare>0.1</fireShare></li>
+          <li><biome>TemperateSwamp</biome><years>400</years><rainfall>1500</rainfall><fireShare>0.2</fireShare></li>
+          <li><biome>TropicalSwamp</biome><years>800</years><rainfall>2500</rainfall><fireShare>0.1</fireShare></li>
+          <li><biome>Grasslands</biome><years>5</years><rainfall>700</rainfall><fireShare>1</fireShare></li>
+          <li><biome>AridShrubland</biome><years>60</years><rainfall>350</rainfall><fireShare>1</fireShare></li>
+          <li><biome>Desert</biome><years>500</years><rainfall>150</rainfall><fireShare>1</fireShare></li>
+          <li><biome>Tundra</biome><years>300</years><rainfall>300</rainfall><fireShare>0.6</fireShare></li>
+        </regimes>
+        <fallback><years>200</years><rainfall>1000</rainfall><fireShare>0.5</fireShare></fallback>
+        <patchCells>20~3000</patchCells>
+        <fireSizeExponent>0.4</fireSizeExponent>
+        <windSizeExponent>1.0</windSizeExponent>
+      </li>
+    </modExtensions>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
 </Defs>
