@@ -139,6 +139,29 @@ public static class FloraMetrics
             Log.Message($"{prefix} standAge " + string.Join(" ", parts) + $" thinned={ecology.thinned}");
         }
 
+        // Shade specialists (E5: forest fungi, moss): two-sided light curves with an optimum under 0.2. Plants per land cell
+        // by ground light band (deep < 0.15, shaded 0.15-0.5, open > 0.5), per species.
+        var bandCells = new int[3];
+        for (int i = 0; i < area; i++)
+        {
+            if (land[i])
+                bandCells[Band(ecology.LightAt(i))]++;
+        }
+        static int Band(float light) => light < 0.15f ? 0 : light < 0.5f ? 1 : 2;
+        var shadeLines = new List<string>();
+        foreach (IGrouping<ThingDef, Plant> group in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
+                     .Where(p => !p.def.IsDeadPlant && PlantHabitat.For(p.def) is { light: { saturating: false, optimum: < 0.2f } })
+                     .GroupBy(p => p.def))
+        {
+            var counts = new int[3];
+            foreach (Plant p in group)
+                counts[Band(ecology.LightAt(map.cellIndices.CellToIndex(p.Position)))]++;
+            shadeLines.Add($"{group.Key.defName.Replace("Plant_", "")} {group.Count()} (deep {counts[0] / (float)Mathf.Max(bandCells[0], 1):F4}, " +
+                           $"shaded {counts[1] / (float)Mathf.Max(bandCells[1], 1):F4}, open {counts[2] / (float)Mathf.Max(bandCells[2], 1):F4})");
+        }
+        Log.Message($"{prefix} shadeSpecialists bands deep={bandCells[0] / n:F2} shaded={bandCells[1] / n:F2} open={bandCells[2] / n:F2}: " +
+                    (shadeLines.Count > 0 ? string.Join("; ", shadeLines) : "none"));
+
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;
         // clearings = blocks with canopy under a quarter of the mean; closed = blocks with plants on 80% of land.
         {
