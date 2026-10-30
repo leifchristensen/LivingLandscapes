@@ -242,7 +242,7 @@ public static class LandscapeGenerator
 
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
             ? AntecedentCourses(entries, riverCentre, riverExit, uplift, outlet, gx, gz, p.antecedentDepth) : null;
-        int[] baseOf = p.edgesFollowRiver && floor != null ? EdgeBaseLevels(floor, outlet, seaDepth, riverExit, entries, gx, gz) : null;
+        int[] baseOf = p.edgesFollowRiver && floor != null ? EdgeBaseLevels(floor, outlet, seaDepth, riverExit, gx, gz) : null;
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
         ErosionGridExport.Begin();
         System.Action<int, float[], int[], float[], float[]> observe = null;
@@ -511,11 +511,8 @@ public static class LandscapeGenerator
     /// <summary>
     /// For each land outlet on the region's edge (not the river's exit, not the sea), the antecedent course cell nearest to it:
     /// its base level follows the world river's bed there (<see cref="GeologyGenerationExtension.edgesFollowRiver"/>); -1 elsewhere.
-    /// An edge nearest a river's entry is no outlet: the ground beyond it drains into that river before it enters, so its water
-    /// comes back in at the entry and can't leave the region lower down (it would capture the river from its course).
     /// </summary>
-    private static int[] EdgeBaseLevels(float[] floor, bool[] outlet, float[] seaDepth, int riverExit,
-        List<(int cell, float width)> entries, int gx, int gz)
+    private static int[] EdgeBaseLevels(float[] floor, bool[] outlet, float[] seaDepth, int riverExit, int gx, int gz)
     {
         int n = gx * gz;
         var course = new List<int>();
@@ -541,10 +538,7 @@ public static class LandscapeGenerator
                     best = c;
                 }
             }
-            if (entries.Exists(e => e.cell == best))
-                outlet[i] = false;
-            else
-                baseOf[i] = best;
+            baseOf[i] = best;
         }
         return baseOf;
     }
