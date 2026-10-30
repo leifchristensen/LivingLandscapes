@@ -4,4 +4,5 @@
     <File Path="1.7/Defs/SmokeTest.xml" />
   </Folder>
   <Project Path="Source/LivingLandscapes/LivingLandscapes.csproj" />
+  <Project Path="Source/LivingLandscapes.Tests/LivingLandscapes.Tests.csproj" />
 </Solution>
