@@ -316,8 +316,8 @@ public class GridMathTests
 
     // Found by this test: Aspect's summary says "Flat cells get 0", but Atan2(-0, -0) is -pi in IEEE arithmetic, so a
     // flat cell gets pi (west). Harmless for SlopeToward (slope is 0 there), wrong for anything reading aspect alone.
-    // Remove the Skip once GridMath returns 0 for flat cells (or the summary says what it does).
-    [Fact(Skip = "GridMath.Aspect returns pi, not 0, on flat ground (documented contract); reported to the Geology session")]
+    // Filed as #79; remove the Skip once GridMath returns 0 for flat cells.
+    [Fact(Skip = "#79: GridMath.Aspect returns pi, not 0, on flat ground (documented contract)")]
     public void Aspect_IsZeroOnFlatGround()
     {
         Assert.All(GridMath.Aspect(Plane(5, 5, (x, z) => 3f), 5, 5), a => Assert.Equal(0f, a));
