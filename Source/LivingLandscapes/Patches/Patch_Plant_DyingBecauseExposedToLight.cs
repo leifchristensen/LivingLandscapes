@@ -4,14 +4,17 @@ using System.Reflection;
 using HarmonyLib;
 using LivingLandscapes.Flora;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// Forest fungi (E5, P12): vanilla's ground glow ignores tree crowns, so a plant that dies in light (diesToLight) dies on
-/// any forest floor by day. On an unroofed cell it sees the glow dimmed by the canopy above it (vanilla glow x the
-/// ecology's transmittance) and lives while that is at most <see cref="PlantEcologyDef.canopyDarkGlow"/>. Applies to
+/// Forest fungi (E5, P11 x P12): vanilla's ground glow ignores tree crowns, so a plant that dies in light (diesToLight) dies
+/// on any forest floor by day. On an unroofed cell it sees the light the habitat placed it by: the sky's glow x the ground
+/// light (LL_Sun x canopy transmittance), or the glow of lamps nearby (not dimmed) if brighter. It lives while its own
+/// two-sided light curve still answers that light with at least <see cref="PlantEcologyDef.lightDeathResponse"/>; a plant
+/// without one (a saturating curve) keeps vanilla's rule. Applies to
 /// vanilla's getter and to every override (mods' mushroom classes); it only ever turns "dying" into "not dying", so a
 /// plant's own rules stay as strict as they were wherever the canopy is open. Under a roof vanilla decides.
 /// </summary>
@@ -35,9 +38,19 @@ public static class Patch_Plant_DyingBecauseExposedToLight
         var ecology = __instance.Map.GetComponent<MapComponent_Ecology>();
         if (ecology == null || !ecology.Ready)
             return;
-        IntVec3 c = __instance.Position;
-        float glow = __instance.Map.glowGrid.GroundGlowAt(c, ignoreCavePlants: true) * ecology.TransmittanceAt(__instance.Map.cellIndices.CellToIndex(c));
-        if (glow <= PlantEcologyDef.Current.canopyDarkGlow)
+        HabitatCurve curve = PlantHabitat.For(__instance.def).light;
+        if (curve == null || curve.saturating)
+            return;
+        if (curve.Response(LightAtFeet(__instance, ecology)) >= PlantEcologyDef.Current.lightDeathResponse)
             __result = false;
+    }
+
+    /// <summary>The light a plant that dies in light sees on an unroofed cell, on its light curve's scale.</summary>
+    public static float LightAtFeet(Plant plant, MapComponent_Ecology ecology)
+    {
+        Map map = plant.Map;
+        IntVec3 c = plant.Position;
+        float sky = map.skyManager.CurSkyGlow * ecology.LightAt(map.cellIndices.CellToIndex(c));
+        return Mathf.Max(sky, map.glowGrid.GroundGlowAt(c, ignoreCavePlants: true, ignoreSky: true));
     }
 }

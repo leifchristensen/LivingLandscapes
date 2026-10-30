@@ -546,17 +546,42 @@ public static class PlantBenchmark
         var ecology = map.GetComponent<Flora.MapComponent_Ecology>();
         List<Plant> Fungi() => map.listerThings.ThingsInGroup(ThingRequestGroup.Plant).OfType<Plant>()
             .Where(p => !p.Destroyed && p.def.plant.diesToLight && !p.Position.Roofed(map)).ToList();
+        // Why each fungus was dying at its last tick (vanilla's causes), and the highest canopy-dimmed glow it saw.
+        var cause = new Dictionary<Plant, string>();
+        var peakGlow = new Dictionary<Plant, float>();
+        var peakLamp = new Dictionary<Plant, float>();
+        string Cause(Plant p)
+        {
+            var c = new List<string>();
+            if (p.def.plant.LimitedLifespan && p.Age > p.def.plant.LifespanTicks) c.Add("age");
+            if (p.DyingBecauseExposedToLight) c.Add("light");
+            if (p.DyingBecauseOfTerrainTags) c.Add("terrain");
+            if (p.DyingFromPollution || p.DyingFromNoPollution) c.Add("pollution");
+            if (p.Dying && c.Count == 0) c.Add("other");
+            return string.Join("+", c);
+        }
         void Run(int days)
         {
             for (int call = 0; call < days * GenDate.TicksPerDay / 2000; call++)
             {
                 TicksGameOf(Find.TickManager) += 2000;
                 map.skyManager.SkyManagerUpdate();
-                map.glowGrid.GlowGridUpdate_First();
+                // A plant's tick can destroy another listed plant (thinning, spreading): skip those.
                 foreach (Plant p in Fungi())
+                {
+                    if (p.Destroyed)
+                        continue;
+                    float glow = Patches.Patch_Plant_DyingBecauseExposedToLight.LightAtFeet(p, ecology);
+                    peakGlow[p] = Mathf.Max(peakGlow.TryGetValue(p, out float g) ? g : 0f, glow);
+                    float lamps = map.glowGrid.GroundGlowAt(p.Position, ignoreCavePlants: true, ignoreSky: true);
+                    peakLamp[p] = Mathf.Max(peakLamp.TryGetValue(p, out float l) ? l : 0f, lamps);
+                    cause[p] = Cause(p);
                     p.TickLong();
+                }
             }
         }
+        string Deaths(List<Plant> plants) => string.Join(", ", plants.Where(p => p.Destroyed).GroupBy(p => cause.TryGetValue(p, out string c) && c != "" ? c : "none").Select(g => $"{g.Key} {g.Count()}"));
+        string Peak(List<Plant> plants) => plants.Count == 0 ? "-" : $"{plants.Average(p => peakGlow.TryGetValue(p, out float g) ? g : 0f):F2}";
         float Light(List<Plant> plants) => plants.Count == 0 ? 0f : plants.Average(p => ecology.LightAt(map.cellIndices.CellToIndex(p.Position)));
         List<Plant> start = Fungi();
         Log.Message($"[LivingLandscapes] Forest fungi: {start.Count} outdoors ({string.Join(", ", start.GroupBy(p => p.def.defName).Select(g => $"{g.Key} {g.Count()}"))}), ground light {Light(start):F2}.");
@@ -564,7 +589,7 @@ public static class PlantBenchmark
             return;
         Run(10);
         List<Plant> alive = start.Where(p => !p.Destroyed).ToList();
-        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive.");
+        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive; deaths by cause: {Deaths(start)}; mean peak dimmed glow {Peak(start)}, survivors {Peak(alive)}; mean peak glow from lights (undimmed) {start.Average(p => peakLamp.TryGetValue(p, out float l) ? l : 0f):F2}, sky now {map.skyManager.CurSkyGlow:F2}.");
         var cut = alive.Where((p, i) => i % 2 == 0).ToList();
         var kept = alive.Where((p, i) => i % 2 == 1).ToList();
         foreach (Plant fungus in cut)

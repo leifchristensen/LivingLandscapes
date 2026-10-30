@@ -456,7 +456,6 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>Canopy transmittance 0..1 on a cell: the share of sky light that reaches the ground through the crowns (P12).</summary>
-    public float TransmittanceAt(int index) => Mathf.Exp(-shadeLog[index]);
 
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);

@@ -4,8 +4,8 @@
   <!-- Forest fungi (E5; P11 x P12, owner approved 2026-10-30). Every fungus is a cave plant: vanilla spawns those only
        under natural roofs by their cave weight, and kills them in any light. A forest ecotype inherits the cave fungus
        (look, harvest, glow, death in light) as an ordinary wild plant, so it spawns from the forest lists by its habitat;
-       the canopy dims the light it sees (Patch_Plant_DyingBecauseExposedToLight), so it lives in deep shade and dies
-       where the canopy opens. Decomposers are not light-limited: the light curve (optimum 0.1) stands in for the litter
+       the canopy dims the light it sees (Patch_Plant_DyingBecauseExposedToLight), so it lives in the shade its light curve
+       placed it in and dies where the canopy opens. Decomposers are not light-limited: the light curve (optimum 0.1) stands in for the litter
        under a closed canopy. Caves and the cave fungi themselves are untouched. -->
 
   <!-- forest agarilux -->
@@ -13,6 +13,17 @@
     <xpath>/Defs/ThingDef[defName="Agarilux" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
+      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
+           cave fungus already is one, so this changes nothing in caves. -->
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Agarilux"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Agarilux"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+          <value>
+            <overrideIsCavePlant>true</overrideIsCavePlant>
+          </value>
+        </match>
+      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="Agarilux"]</xpath>
         <attribute>Name</attribute>
@@ -89,6 +100,17 @@
     <xpath>/Defs/ThingDef[defName="Glowstool" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
+      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
+           cave fungus already is one, so this changes nothing in caves. -->
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Glowstool"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Glowstool"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+          <value>
+            <overrideIsCavePlant>true</overrideIsCavePlant>
+          </value>
+        </match>
+      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="Glowstool"]</xpath>
         <attribute>Name</attribute>
@@ -165,6 +187,17 @@
     <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
+      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
+           cave fungus already is one, so this changes nothing in caves. -->
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+        <match Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]/comps/li[@Class="CompProperties_Glower"]</xpath>
+          <value>
+            <overrideIsCavePlant>true</overrideIsCavePlant>
+          </value>
+        </match>
+      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]</xpath>
         <attribute>Name</attribute>

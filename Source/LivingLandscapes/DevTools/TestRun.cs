@@ -39,7 +39,15 @@ public static class TestRun
             Log.Message("[LivingLandscapes] Test run: export done.");
             if (BenchRequested)
             {
-                PlantBenchmark.Run(map);
+                // A failing benchmark still rewrites log.txt below, so its error reaches the test scripts.
+                try
+                {
+                    PlantBenchmark.Run(map);
+                }
+                catch (System.Exception e)
+                {
+                    Log.Error($"[LivingLandscapes] Plant benchmark failed: {e}");
+                }
                 // The export wrote log.txt before the census: write it again so the census lines reach the test scripts.
                 if (GenCommandLine.CommandLineArgPassed("ll-export"))
                     LayerImageExporter.WriteLog();
