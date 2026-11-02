@@ -40,7 +40,7 @@ public class DebrisWorker : EnvironmentLayerWorker
         var soilModel = EnvironmentLayerDefOf.LL_SoilDepth.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
         int sizeX = context.SizeX, sizeZ = context.SizeZ, n = height.Length;
-        float[] slope = GridMath.Slope(height, sizeX, sizeZ);
+        float[] slope = context.Get(EnvironmentLayerDefOf.LL_Slope);
 
         var rest = new float[n];
         for (int i = 0; i < n; i++)

@@ -159,6 +159,7 @@
     <unit>m</unit>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.TerraceExtension">
@@ -195,6 +196,7 @@
       <li>LL_Landform</li>
       <li>LL_RockStrength</li>
       <li>LL_Alluvium</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -230,6 +232,7 @@
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_SoilDepth</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
