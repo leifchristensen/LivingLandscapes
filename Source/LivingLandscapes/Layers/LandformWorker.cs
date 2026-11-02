@@ -59,11 +59,14 @@ public class LandformWorker : EnvironmentLayerWorker
                 seaLevel: map.GetComponent<MapComponent_Environment>()?.PlannedSeaLevel ?? float.NaN,
                 // A world river with its mouth at the sea ends in it.
                 riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f,
-                sand: Coastline.BeachCells(map));
+                sand: Coastline.BeachCells(map),
+                downhill: world.Downhill,
+                valleyHalfWidth: (generation.riverValley.size + generation.riverValley.edge) * map.Size.x);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
                 environment.PlannedRivers = rivers.Channels.Count > 0 ? rivers : null;
+                environment.PlannedBaseLevels = rivers.BaseLevel;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRockStage = rockStage;
                 environment.PlannedRock = rock;

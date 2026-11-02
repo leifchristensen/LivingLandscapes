@@ -83,13 +83,6 @@ public class GeologyGenerationExtension : DefModExtension
     public float riverInflow = 8f;
 
     /// <summary>
-    /// Water leaving the region by an edge rejoins the world river beyond the map, so on a world river's tile an edge's base level
-    /// (P1) is the river's bed where the edge lies nearest its course, not sea level: a shorter way to the edge cannot capture
-    /// the river (only the river's exit, and the sea, lie at the bottom).
-    /// </summary>
-    public bool edgesFollowRiver = true;
-
-    /// <summary>
     /// Antecedent drainage: a world river is older than the relief around it and keeps cutting down as the land rises, so the
     /// erosion model starts with each world river already flowing from where it enters, through the meeting point the world gives,
     /// to its exit (a course falling to base level, antecedentDepth of the starting relief below the ground). Uplift, stream power
@@ -213,27 +206,12 @@ public static class LandscapeGenerator
                 seaDepth[i] = seaCell[i] ? Mathf.Max(0.01f, p.coast.SeaDepth(fromLand[i] * mapCellsPerModelCell, world.Hilliness)) : 0f;
         }
         var mapWindow = new Rect(originX, originZ, sizeX / mapCellsPerModelCell, sizeZ / mapCellsPerModelCell);
-        bool[] outlet = Outlets(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out List<float> entryFlows,
+        RiverEnds(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out List<float> entryFlows,
             out int riverExit, seaDepth, mapWindow);
-        // Where a river enters, the land beyond the edge slopes in (the river came from there): the region's edge near it does not
-        // drain, or the river would leave again at the next edge cell. The map's channels keep the same guard (entryGuardCells).
-        float guard = p.terrainChannels.entryGuardCells / mapCellsPerModelCell;
-        int guarded = 0;
-        foreach ((int cell, float _) in entries)
-        {
-            int ex = cell % gx, ez = cell / gx;
-            for (int i = 0; i < outlet.Length; i++)
-            {
-                int x = i % gx, z = i / gx;
-                if (!outlet[i] || (x != 0 && z != 0 && x != gx - 1 && z != gz - 1) || (seaDepth != null && seaDepth[i] > 0f) || i == riverExit)
-                    continue;
-                if ((x - ex) * (x - ex) + (z - ez) * (z - ez) <= guard * guard)
-                {
-                    outlet[i] = false;
-                    guarded++;
-                }
-            }
-        }
+        // Cells at base level from the start: the sea and the river's exit.
+        var fixedOutlet = new bool[gx * gz];
+        for (int i = 0; i < fixedOutlet.Length; i++)
+            fixedOutlet[i] = (seaDepth != null && seaDepth[i] > 0f) || i == riverExit;
         float[] inflow = new float[gx * gz];
         float cellsPerTile = Mathf.Pow(p.tileSpacingMetres / metresPerModelCell, 2f);
         float rainfall = Mathf.Max(1f, map.TileInfo.rainfall);
@@ -241,8 +219,9 @@ public static class LandscapeGenerator
             inflow[entries[k].cell] += Mathf.Max(p.riverInflow * gx * gz, entryFlows[k] / rainfall * cellsPerTile);
 
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
-            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, outlet, gx, gz, p.antecedentDepth) : null;
-        int[] baseOf = p.edgesFollowRiver && floor != null ? EdgeBaseLevels(floor, outlet, seaDepth, riverExit, gx, gz) : null;
+            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth) : null;
+        System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
+            (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
         ErosionGridExport.Begin();
         System.Action<int, float[], int[], float[], float[]> observe = null;
@@ -255,7 +234,6 @@ public static class LandscapeGenerator
                                    $"entry inflow {string.Join(" ", entries.Select(e => inflow[e.cell].ToString("G3")))} model cells (region {gx * gz})");
             ErosionGridExport.Write("Uplift", uplift, gx, gz);
             ErosionGridExport.Write("Erodibility", erodibility, gx, gz);
-            ErosionGridExport.Write("Outlet", outlet, gx, gz);
             ErosionGridExport.Write("Floor", floor, gx, gz);
             observe = (iteration, hNow, receiverNow, areaNow, rockKNow) =>
             {
@@ -265,15 +243,17 @@ public static class LandscapeGenerator
                 ErosionGridExport.Write($"RockK_{iteration}", rockKNow, gx, gz);
             };
         }
-        float[] h = Erode(uplift, erodibility, outlet, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, floor, observe, baseOf);
+        float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
+            out float[] area, out float modelTop, out float[] baseLevel, floor, observe);
+        ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
+        Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
             mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
             water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
         if (entries.Count > 0)
-            Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s) ({guarded} edge cells beside them kept from draining); " +
+            Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s); " +
                         $"{channels.Count} channels extracted, {channels.Count(c => c.VanillaWidth > 0f)} carrying world rivers.");
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
@@ -387,35 +367,14 @@ public static class LandscapeGenerator
     }
 
     /// <summary>
-    /// Base-level cells: edges facing downhill (all edges on level ground), the sea side, and the river's exit.
-    /// Returns the cells where world rivers enter (with vanilla's width): the main river, plus every other river link
+    /// Where the world river leaves the region (its exit: the edge cell toward the world's exit, or where its way out first
+    /// meets the sea) and where world rivers enter (with vanilla's width): the main river, plus every other river link
     /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
-    private static bool[] Outlets(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
+    private static void RiverEnds(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
         out List<(int cell, float width)> entries, out List<float> entryFlows, out int riverExit, float[] seaDepth = null, Rect? mapWindow = null)
     {
         entryFlows = new List<float>();
-        var outlet = new bool[gx * gz];
-        if (seaDepth != null)
-        {
-            for (int i = 0; i < outlet.Length; i++)
-                outlet[i] = seaDepth[i] > 0f;
-        }
-        var centre = new Vector2((gx - 1) * 0.5f, (gz - 1) * 0.5f);
-        bool level = world.Downhill == Vector2.zero;
-        for (int z = 0; z < gz; z++)
-        {
-            for (int x = 0; x < gx; x++)
-            {
-                if (x != 0 && z != 0 && x != gx - 1 && z != gz - 1)
-                    continue;
-                Vector2 outward = (new Vector2(x, z) - centre).normalized;
-                bool facesDownhill = level || Vector2.Dot(outward, world.Downhill) > -0.2f;
-                bool facesSea = world.SeaDirection != Vector2.zero && Vector2.Dot(outward, world.SeaDirection) > 0.5f;
-                outlet[z * gx + x] = facesDownhill || facesSea;
-            }
-        }
-
         entries = new List<(int, float)>();
         riverExit = -1;
         if (world.HasRiver)
@@ -438,7 +397,6 @@ public static class LandscapeGenerator
                     }
                 }
             }
-            outlet[riverExit] = true;
             if (water == null || water.riverInflow)
             {
                 for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
@@ -449,13 +407,43 @@ public static class LandscapeGenerator
                     int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre, i > 0 ? mapWindow : null);
                     if (entry == riverExit)
                         continue;
-                    outlet[entry] = false;
                     entries.Add((entry, world.RiverInflows[i].Width));
                     entryFlows.Add(world.RiverInflows[i].Flow);
                 }
             }
         }
-        return outlet;
+    }
+
+    /// <summary>
+    /// The erosion model's base levels (P1, <see cref="Outlets"/>), recomputed from the surface each iteration: the sea and the
+    /// river's exit at 0 (the model's base), edges at max(Plane, Bed) with Plane rising from 0 at the most downhill edge along
+    /// the surface's own regional trend, and Bed from the world rivers' antecedent courses as they are cut down.
+    /// </summary>
+    private static System.Action<float[], float[]> ModelBaseLevels(WorldContext world, float[] seaDepth, float[] floor,
+        List<(int cell, float width)> entries, int riverExit, int gx, int gz, float valleyHalfWidth)
+    {
+        int n = gx * gz;
+        float[] offset = Outlets.EdgeOffsets(gx, gz, world.Downhill);
+        var entryCells = entries.Select(e => e.cell).ToList();
+        var course = new List<int>();
+        for (int i = 0; floor != null && i < n; i++)
+        {
+            if (!float.IsNaN(floor[i]))
+                course.Add(i);
+        }
+        float[] toEntry = null;
+        int[][] valley = course.Count > 0 ? Outlets.Valleys(gx, gz, course, entryCells, valleyHalfWidth, out toEntry) : null;
+        bool Land(int i) => seaDepth == null || seaDepth[i] <= 0f;
+        return (h, b) =>
+        {
+            for (int i = 0; i < n; i++)
+                b[i] = Land(i) ? float.NaN : 0f;
+            float rise = Outlets.RegionalRise(h, gx, gz, world.Downhill, Land);
+            float entryLevel = entryCells.Count > 0 ? entryCells.Max(c => h[c]) : 0f;
+            // The river's mean fall per cell from its entries to the exit (at 0).
+            float riverSlope = course.Count > 0 ? Mathf.Max(0f, entryLevel) * Mathf.Max(1, entryCells.Count) / course.Count : 0f;
+            Outlets.EdgeLevels(b, offset, 0f, rise, valley, toEntry, h, entryLevel, riverSlope, 0f, h.Max(), riverExit, 0f, entryCells);
+        };
     }
 
     /// <summary>
@@ -508,41 +496,6 @@ public static class LandscapeGenerator
         return floor;
     }
 
-    /// <summary>
-    /// For each land outlet on the region's edge (not the river's exit, not the sea), the antecedent course cell nearest to it:
-    /// its base level follows the world river's bed there (<see cref="GeologyGenerationExtension.edgesFollowRiver"/>); -1 elsewhere.
-    /// </summary>
-    private static int[] EdgeBaseLevels(float[] floor, bool[] outlet, float[] seaDepth, int riverExit, int gx, int gz)
-    {
-        int n = gx * gz;
-        var course = new List<int>();
-        for (int i = 0; i < n; i++)
-        {
-            if (!float.IsNaN(floor[i]))
-                course.Add(i);
-        }
-        var baseOf = new int[n];
-        for (int i = 0; i < n; i++)
-        {
-            baseOf[i] = -1;
-            if (!outlet[i] || i == riverExit || (seaDepth != null && seaDepth[i] > 0f) || course.Count == 0)
-                continue;
-            int x = i % gx, z = i / gx, best = -1;
-            float bestD = float.MaxValue;
-            foreach (int c in course)
-            {
-                float d = (c % gx - x) * (c % gx - x) + (c / gx - z) * (c / gx - z);
-                if (d < bestD)
-                {
-                    bestD = d;
-                    best = c;
-                }
-            }
-            baseOf[i] = best;
-        }
-        return baseOf;
-    }
-
     private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null, Rect? window = null)
     {
         // Walk from the start (default: the centre) along the direction until leaving the grid.
@@ -567,12 +520,15 @@ public static class LandscapeGenerator
     /// Uplift, stream-power incision and hillslope creep. Rock strength is read from the beds exposed at each cell's
     /// current height (scaled to the tile's relief), so cutting down through a hard bed into a soft one speeds up.
     /// </summary>
-    private static float[] Erode(float[] uplift, float[] erodibility, bool[] outlet, float[] inflow, float[] seaDepth, float relief, int gx, int gz,
-        GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, float[] initialFloor = null,
-        System.Action<int, float[], int[], float[], float[]> observe = null, int[] baseOf = null)
+    private static float[] Erode(float[] uplift, float[] erodibility, System.Action<float[], float[]> baseLevels, float[] inflow, float[] seaDepth,
+        float relief, int gx, int gz, GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
+        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, float[] initialFloor = null,
+        System.Action<int, float[], int[], float[], float[]> observe = null)
     {
         int n = gx * gz;
+        // Base levels (P1, Outlets): water leaves a cell once its surface reaches them; NaN where it cannot leave.
+        var baseLevel = new float[n];
+        var outlet = new bool[n];
         var h = new float[n];
         var filled = new float[n];
         var receiver = new int[n];
@@ -590,9 +546,9 @@ public static class LandscapeGenerator
 
         for (int i = 0; i < n; i++)
         {
-            h[i] = outlet[i] ? 0f : uplift[i] * 0.01f;
+            h[i] = seaDepth != null && seaDepth[i] > 0f ? 0f : uplift[i] * 0.01f;
             // A world river's antecedent course (it starts below the ground around it).
-            if (initialFloor != null && !outlet[i] && !float.IsNaN(initialFloor[i]))
+            if (initialFloor != null && !float.IsNaN(initialFloor[i]))
                 h[i] = Mathf.Min(h[i], initialFloor[i]);
         }
         // Sediment: the load each cell passes on.
@@ -615,22 +571,21 @@ public static class LandscapeGenerator
             // Uplift (not of the sea floor).
             for (int i = 0; i < n; i++)
             {
-                if (!outlet[i] && (seaDepth == null || seaDepth[i] <= 0f))
+                if (seaDepth == null || seaDepth[i] <= 0f)
                     h[i] += uplift[i];
             }
-            // Edges whose water rejoins the world river beyond the map stand at the river's bed (EdgeBaseLevels).
-            if (baseOf != null)
+            // Outlets erode down to their base level; one standing below it is not raised (water ponds up to it instead).
+            baseLevels(h, baseLevel);
+            for (int i = 0; i < n; i++)
             {
-                for (int i = 0; i < n; i++)
-                {
-                    if (baseOf[i] >= 0)
-                        h[i] = h[baseOf[i]];
-                }
+                outlet[i] = !float.IsNaN(baseLevel[i]);
+                if (outlet[i] && baseLevel[i] <= h[i])
+                    h[i] = baseLevel[i];
             }
 
-            // Route over the depression-filled surface so closed basins still drain (they fill with sediment).
+            // Route over the surface filled to the spill levels so closed basins still drain (they fill with sediment).
             Array.Copy(h, filled, n);
-            GridMath.FillDepressions(filled, gx, gz, i => outlet[i], 1e-4f, includeEdges: false);
+            Outlets.Fill(filled, gx, gz, baseLevel, 1e-4f);
             for (int c = 0; c < n; c++)
             {
                 receiver[c] = -1;
@@ -718,6 +673,7 @@ public static class LandscapeGenerator
         }
         receiverOut = receiver;
         areaOut = area;
+        baseLevelOut = baseLevel;
         modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
     }

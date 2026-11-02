@@ -88,7 +88,12 @@ public static class SurfaceWaterModel
         System.Func<int, bool> inRiver)
     {
         var filled = (float[])landform.Clone();
-        GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
+        // Water leaves at the map's base levels (#97); without them (Off mode) every edge drains.
+        float[] baseLevel = map.GetComponent<MapComponent_Environment>()?.PlannedBaseLevels;
+        if (baseLevel != null)
+            Geology.Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f);
+        else
+            GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         // One hollow per connected flooded area and spill level (a hollow spilling into a lower one touches it).
         GridMath.LabelRegions(i => filled[i] - landform[i] > 1e-4f, sizeX, sizeZ, out int[] labels);
         var hollows = new Dictionary<(int, float), List<int>>();
