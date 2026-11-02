@@ -68,9 +68,10 @@ public static class Terraces
 {
     /// <summary>The single terrace plan both the walkable height and the cliffs are built from.</summary>
     /// <param name="rockStage">Hard beds below each cell (<see cref="RockStrata.HardBedsBelow"/>), or null: equal stages.</param>
-    public static TerracePlan Plan(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p, int[] rockStage = null)
+    /// <param name="slope">Slope of the landform (LL_Slope); computed here when null.</param>
+    public static TerracePlan Plan(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p, int[] rockStage = null, float[] slope = null)
     {
-        float[] steepness = Steepness(landform, sizeX, sizeZ, cellSize, p);
+        float[] steepness = Steepness(slope ?? GridMath.Slope(landform, sizeX, sizeZ), sizeX, sizeZ, cellSize, p);
         if (p.stagesFromHardBeds && rockStage != null)
         {
             TerracePlan fromRock = FromHardBeds(landform, rockStage, steepness);
@@ -180,9 +181,8 @@ public static class Terraces
     /// How strongly each cell is stepped: 0 on gentle ground, 1 where the (smoothed) landform is cliff-steep.
     /// Cliffs stand where this is at least one half.
     /// </summary>
-    public static float[] Steepness(float[] landform, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
+    public static float[] Steepness(float[] slope, int sizeX, int sizeZ, float cellSize, TerraceExtension p)
     {
-        float[] slope = GridMath.Slope(landform, sizeX, sizeZ);
         float[] smooth = GridMath.Blur(slope, sizeX, sizeZ, p.steepnessSmoothing);
         var weight = new float[slope.Length];
         for (int i = 0; i < weight.Length; i++)

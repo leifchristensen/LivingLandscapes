@@ -68,12 +68,12 @@ public class EnvironmentOverlay
         if (!environment.TryGetGrid(layer, out EnvironmentGrid grid))
             return null;
         Map map = environment.Map;
+        float[] values = grid.ToArray();
         var render = new LayerRender
         {
             layer = layer,
-            style = layer.overlay.ResolveFor(grid.Min, grid.Max),
+            style = layer.overlay.ResolveFor(values, grid.Min, grid.Max),
         };
-        float[] values = grid.ToArray();
 
         if (render.style.IsVectorField)
         {
@@ -85,7 +85,16 @@ public class EnvironmentOverlay
         }
 
         OverlayProperties style = render.style;
-        render.fill = new CellBoolDrawer(_ => true, () => Color.white, i => style.FillColor(values[i]),
+        float[] opacity = style.opacityLayer != null && environment.TryGetGrid(style.opacityLayer, out EnvironmentGrid opacityGrid)
+            ? opacityGrid.ToArray()
+            : null;
+        render.fill = new CellBoolDrawer(_ => true, () => Color.white, i =>
+            {
+                Color color = style.FillColor(values[i]);
+                if (opacity != null)
+                    color.a *= style.OpacityAt(opacity[i]);
+                return color;
+            },
             map.Size.x, map.Size.z, FillRenderQueue, style.fillOpacity);
 
         if (style.contourInterval <= 0f)

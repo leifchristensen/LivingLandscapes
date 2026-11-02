@@ -33,7 +33,9 @@ public static class FlowWriter
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = sizeX * sizeZ;
         RiverSystem rivers = environment.PlannedRivers;
 
-        float[] aspect = GridMath.Aspect(GridMath.Blur(landformGrid.ToArray(), sizeX, sizeZ, FlowSmoothing), sizeX, sizeZ);
+        float[] smoothed = GridMath.Blur(landformGrid.ToArray(), sizeX, sizeZ, FlowSmoothing);
+        float[] aspect = GridMath.Aspect(smoothed, sizeX, sizeZ);
+        float[] slope = GridMath.Slope(smoothed, sizeX, sizeZ);
 
         List<float> flow = map.waterInfo.riverFlowMap;
         if (flow == null || flow.Count != n * 2)
@@ -58,7 +60,8 @@ public static class FlowWriter
             }
             else
             {
-                direction = new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i]));
+                // Level water has no downhill: it stays still rather than flowing an arbitrary way.
+                direction = slope[i] > 0f ? new Vector2(Mathf.Cos(aspect[i]), Mathf.Sin(aspect[i])) : Vector2.zero;
                 downhill++;
             }
             // Vanilla's flow map is indexed x * sizeZ + z.
