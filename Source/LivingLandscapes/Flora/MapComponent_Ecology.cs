@@ -42,7 +42,7 @@ public class MapComponent_Ecology : MapComponent
     private MapComponent_StandAge standAge;
 
     /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
-    private float[] aspect;
+    private float[] aspect, slope;
 
     private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
@@ -135,6 +135,7 @@ public class MapComponent_Ecology : MapComponent
         skyLog = new float[sizeX * sizeZ];
         stems = new float[sizeX * sizeZ];
         aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
+        slope = Grid(EnvironmentLayerDefOf.LL_Slope);
 
         long start = Stopwatch.GetTimestamp();
         int count = 0;
@@ -208,7 +209,7 @@ public class MapComponent_Ecology : MapComponent
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
             int index = map.cellIndices.CellToIndex(at);
-            Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
+            Apply(grid, at.x, at.z, habitat.Kernel.downstream && Downhill(index) ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
         // A tree shades and crowds with its size (P12, P14): growth in quarters, the step it was stamped with on removal.
         int step = 4;
@@ -422,13 +423,19 @@ public class MapComponent_Ecology : MapComponent
 
     private const float DownstreamStretch = 1.5f, DownstreamNarrow = 0.7f;
 
+    /// <summary>Slope (rise over run) below which ground has no downhill for water-carried seed: about 1 degree.</summary>
+    private const float MinDownhillSlope = 0.02f;
+
+    /// <summary>Whether a cell has a downhill for water to carry seed along (its aspect means nothing on level ground, #79).</summary>
+    private bool Downhill(int index) => aspect != null && slope != null && slope[index] >= MinDownhillSlope;
+
     /// <summary>
     /// Where a seed of a water-carried species lands from a parent at this cell: an offset drawn from the same stretched,
     /// downstream-shifted Gaussian as <see cref="DownstreamKernel"/> (isotropic for other species), used by the seeder.
     /// </summary>
     public IntVec3 OffspringCell(PlantHabitat habitat, IntVec3 parent, float sigma)
     {
-        if (!habitat.Kernel.downstream || aspect == null || !parent.InBounds(map))
+        if (!habitat.Kernel.downstream || !parent.InBounds(map) || !Downhill(map.cellIndices.CellToIndex(parent)))
             return new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
         float angle = aspect[map.cellIndices.CellToIndex(parent)];
         float a = sigma + Rand.Gaussian(0f, sigma * DownstreamStretch), c = Rand.Gaussian(0f, sigma * DownstreamNarrow);
