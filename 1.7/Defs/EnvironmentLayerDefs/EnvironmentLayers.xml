@@ -34,7 +34,15 @@
     <overlay>
       <banded>true</banded>
       <relativeColors>true</relativeColors>
-      <autoContourCount>20</autoContourCount>
+      <!-- Contour interval by relief class, as map series fix it (#89): line density then shows real steepness.
+           Class reliefs: Flat 4 m, SmallHills 20, LargeHills 70, Mountainous 180, Impassable 300 (+ mutators). -->
+      <contourIntervals>
+        <li><reliefUpTo>10</reliefUpTo><interval>1</interval></li>
+        <li><reliefUpTo>40</reliefUpTo><interval>2</interval></li>
+        <li><reliefUpTo>120</reliefUpTo><interval>5</interval></li>
+        <li><reliefUpTo>250</reliefUpTo><interval>10</interval></li>
+        <li><reliefUpTo>99999</reliefUpTo><interval>20</interval></li>
+      </contourIntervals>
       <indexEvery>5</indexEvery>
       <labelFormat>0.#</labelFormat>
       <colors>
@@ -159,6 +167,7 @@
     <unit>m</unit>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <modExtensions>
       <li Class="LivingLandscapes.Geology.TerraceExtension">
@@ -195,6 +204,7 @@
       <li>LL_Landform</li>
       <li>LL_RockStrength</li>
       <li>LL_Alluvium</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -230,6 +240,7 @@
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_SoilDepth</li>
+      <li>LL_Slope</li>
     </dependsOn>
     <overlay>
       <labelFormat>0.0</labelFormat>
@@ -303,6 +314,9 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- Aspect means something only where the ground slopes: colour fades out on level ground (owner playtest 2026-11-02). -->
+      <opacityLayer>LL_Slope</opacityLayer>
+      <opacityRange>0~0.5</opacityRange>
       <labelFormat>0.00</labelFormat>
       <colors>
         <li><value>0</value><color>(1.00, 0.00, 0.00)</color></li>

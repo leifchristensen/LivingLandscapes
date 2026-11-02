@@ -21,7 +21,10 @@ public class SoilDepthWorker : EnvironmentLayerWorker
             return null;
         var p = def.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
-        float[] soil = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p, context.Get(EnvironmentLayerDefOf.LL_RockStrength));
+        float[] slope = context.Get(EnvironmentLayerDefOf.LL_Slope);
+        // Computed once: the rock-share calibration below tries the soil model up to 13 times on the same ground.
+        float[] area = GridMath.FlowAccumulationMfd(height, context.SizeX, context.SizeZ);
+        float[] soil = SoilModel.SoilDepth(slope, area, cellSize, p, context.Get(EnvironmentLayerDefOf.LL_RockStrength));
 
         FloatRange share = p.RockShareFor(context.Map.TileInfo.HillinessForElevationGen);
         if (StageFor(context.Map) == GenerationStage.Elevation && share.max > 0f)
@@ -39,18 +42,18 @@ public class SoilDepthWorker : EnvironmentLayerWorker
                 for (int step = 0; step < 12; step++)
                 {
                     float mid = (low + high) / 2f;
-                    float[] trial = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p, rockStrength, mid);
+                    float[] trial = SoilModel.SoilDepth(slope, area, cellSize, p, rockStrength, mid);
                     if (Share(trial, context, cellSize, p, sea) > target)
                         low = mid;
                     else
                         high = mid;
                 }
-                soil = SoilModel.SoilDepth(height, context.SizeX, context.SizeZ, cellSize, p, rockStrength, high);
+                soil = SoilModel.SoilDepth(slope, area, cellSize, p, rockStrength, high);
                 how = $"bare-rock slope x{high:0.0#}";
             }
             else if (before < share.min)
             {
-                float[] exposure = SoilModel.Exposure(height, context.Get(EnvironmentLayerDefOf.LL_RockStrength), context.SizeX, context.SizeZ, p);
+                float[] exposure = SoilModel.Exposure(slope, context.Get(EnvironmentLayerDefOf.LL_RockStrength), context.SizeX, context.SizeZ, p);
                 float shift = SoilModel.CalibrateRock(soil, context.SizeX, context.SizeZ, cellSize, p, target, sea, exposure);
                 how = $"soil shifted {shift:+0.00;-0.00} m";
             }

@@ -151,9 +151,8 @@ public static class SoilModel
     /// the map's own steep ground), smoothed to outcrop size, 0..1. Calibration thins soil there, so the extra rock a tile's
     /// hilliness asks for appears as bands along the contours rather than as plains of thin soil.
     /// </summary>
-    public static float[] Exposure(float[] height, float[] rockStrength, int sizeX, int sizeZ, SoilModelExtension p)
+    public static float[] Exposure(float[] slope, float[] rockStrength, int sizeX, int sizeZ, SoilModelExtension p)
     {
-        float[] slope = GridMath.Slope(height, sizeX, sizeZ);
         var sorted = (float[])slope.Clone();
         System.Array.Sort(sorted);
         float steep = Mathf.Max(sorted[(int)(sorted.Length * 0.9f)], 1e-4f);
@@ -169,12 +168,12 @@ public static class SoilModel
         return exposure;
     }
 
+    /// <param name="slope">Slope of the landform (LL_Slope).</param>
+    /// <param name="area">Upslope area of each cell, in cells (<see cref="GridMath.FlowAccumulationMfd"/>).</param>
     /// <param name="rockStrength">Rock strength (0..1) per cell, or null when unknown (no rock effect).</param>
-    public static float[] SoilDepth(float[] height, int sizeX, int sizeZ, float cellSize, SoilModelExtension p, float[] rockStrength = null, float bareSlopeScale = 1f)
+    public static float[] SoilDepth(float[] slope, float[] area, float cellSize, SoilModelExtension p, float[] rockStrength = null, float bareSlopeScale = 1f)
     {
-        float[] slope = GridMath.Slope(height, sizeX, sizeZ);
-        float[] area = GridMath.FlowAccumulationMfd(height, sizeX, sizeZ);
-        var soil = new float[height.Length];
+        var soil = new float[slope.Length];
         for (int i = 0; i < soil.Length; i++)
         {
             float gradient = slope[i] / cellSize;

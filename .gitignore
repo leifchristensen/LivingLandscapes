@@ -66,6 +66,7 @@ nunit-*.xml
 # Local dev helper scripts (machine-specific paths)
 tools/
 Source/LivingLandscapes/Properties/launchSettings.json
+LocalBuild.props
 
 # Claude Code instructions (local developer notes)
 CLAUDE.md

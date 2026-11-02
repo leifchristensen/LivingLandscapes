@@ -29,7 +29,7 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
-        bool[] sand = null)
+        bool[] sand = null, bool[] edgeOpen = null)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -55,7 +55,10 @@ public static partial class TerrainChannels
         // Only what the ground cannot absorb runs off (a trickle is kept so drainage still orders the cells).
         float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out System.Func<int, bool> isOutlet, worldInflows, sea, riverMouth, seaLevel);
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, worldInflows, sea, riverMouth, seaLevel,
+            edgeOpen);
+        system.BaseLevel = outletLevel;
+        System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
 
         // Passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's regime
         // nudges, silts up basins a world river runs into and carves meanders; the passes after it let water divide where the
@@ -146,7 +149,7 @@ public static partial class TerrainChannels
                     p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
                     impactCuts += cuts;
                     impactCells += cutCells;
                 }
@@ -158,7 +161,7 @@ public static partial class TerrainChannels
                     isOutlet, sizeX, sizeZ, p, out float volume);
                 if (raised > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
                     aggraded += raised;
                     aggradedVolume += volume;
                 }
@@ -170,7 +173,7 @@ public static partial class TerrainChannels
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
                 carvedMeanders = Meanders.Apply(height, filled, cells, receiver, main, width, sinuosity, valley, sizeX, sizeZ, p.meander, out oxbows);
                 if (carvedMeanders > 0)
-                    receiver = Refill(filled, sizeX, sizeZ, isOutlet, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
             }
         }
 
@@ -183,6 +186,14 @@ public static partial class TerrainChannels
         }
         // Stage 5, channel plans (TerrainChannels.Trace.cs); stage 6, carving, springs and bars (TerrainChannels.Paint.cs),
         // with the sediment budget (Sediment) in between.
+        // Junctions (Confluences, #20): where a tributary joins, the flow slows on its side and the scour hole deepens the bed.
+        // Junctions in still water (the sea, lakes) have none.
+        var stillBefore = new bool[n];
+        for (int i = 0; i < n; i++)
+            stillBefore[i] = (sea != null && sea[i]) || filled[i] - height[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences);
+        foreach (int c in cells)
+            depth[c] *= zones.Scour[c];
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
@@ -201,7 +212,7 @@ public static partial class TerrainChannels
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, sand: sand);
+            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, sand: sand, zones: zones);
         // Ground the water's impact cut away joins its load (metres, in the budget's units: the budget is scaled to metres only
         // when it is laid down, so its scale is read from a first pass).
         float gougedTotal = gouged.Sum();
@@ -214,7 +225,7 @@ public static partial class TerrainChannels
                 for (int i = 0; i < n; i++)
                     gouged[i] /= metresPerUnit;
                 Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged, sand);
+                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged, sand, zones);
             }
         }
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
@@ -224,9 +235,9 @@ public static partial class TerrainChannels
             if (!moving[c])
                 deposit[c] = 0f;
         }
-        int bars = Bars(height, cells, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands);
+        int bars = Bars(height, cells, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands, zones);
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
-            deposited, atBase, eroded, discharge, baseLevel);
+            deposited, atBase, eroded, discharge, baseLevel, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();
         foreach (int c in cells)
@@ -257,7 +268,7 @@ public static partial class TerrainChannels
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
-                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {sedimentSummary}; " +
+                    $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {zones.Junctions} junctions (strongest {zones.Strongest:F2}); {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
     }
