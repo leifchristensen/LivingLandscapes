@@ -13,10 +13,12 @@ public class SedimentSettings
     public float erosionPerPower = 0.08f;
 
     /// <summary>
-    /// Water entering the map arrives loaded from the land upstream: this much sediment per unit of discharge (the load a river
-    /// would carry on this slope, metres per cell). A lowland river is loaded from far away, whatever the slope on the map.
+    /// Water entering the map arrives loaded from the land upstream (P7, a graded river): a river from far away neither builds
+    /// nor cuts its bed on average, so it carries its capacity on the reach it runs down, capacityPerPower x q x S, with S its
+    /// mean slope from the entry to base level or the map's edge. This multiplies that load: above 1 the river arrives
+    /// overloaded (it aggrades), below 1 hungry.
     /// </summary>
-    public float entryLoadPerDischarge = 0.01f;
+    public float entryGrade = 1f;
 
     /// <summary>Share of the excess load (load over capacity) that settles in one cell; the rest goes on.</summary>
     public float settleShare = 0.04f;
@@ -127,7 +129,7 @@ public static class Sediment
             float rock = rockStrength != null ? rockStrength[c] : 0.5f;
             float supply = p.erosionPerPower * (1f - rock) * q * slope;
             if (inflow[c] > 0f && !still)
-                supply += p.entryLoadPerDischarge * inflow[c] * dischargeScale;
+                supply += p.entryGrade * p.capacityPerPower * inflow[c] * dischargeScale * MeanSlope(c, receiver, filled, baseLevel, sizeX);
             if (gouged != null)
                 supply += gouged[c];
             if (sand != null && sand[c] && !still)
@@ -210,6 +212,23 @@ public static class Sediment
         int d = c;
         float run = 0f;
         for (int s = 0; s < 5 && receiver[d] >= 0; s++)
+        {
+            int r = receiver[d];
+            run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
+            d = r;
+        }
+        return run > 0f ? Mathf.Max(0f, filled[c] - filled[d]) / run : 0f;
+    }
+
+    /// <summary>
+    /// The mean water slope (metres per cell) from <paramref name="c"/> down its receivers to base level or the map's edge: the
+    /// reach a river entering there runs down on the map, in the map's own vertical scale.
+    /// </summary>
+    private static float MeanSlope(int c, int[] receiver, float[] filled, bool[] baseLevel, int sizeX)
+    {
+        int d = c;
+        float run = 0f;
+        for (int s = 0; s < filled.Length && receiver[d] >= 0 && (baseLevel == null || !baseLevel[d]); s++)
         {
             int r = receiver[d];
             run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
