@@ -178,6 +178,34 @@ public static class FloraMetrics
         shadedLight.Sort();
         string Pct(float q) => shadedLight.Count == 0 ? "-" : $"{shadedLight[(int)(q * (shadedLight.Count - 1))]:F2}";
         string check = darkest < 0 ? "none" : $"glow {map.glowGrid.GroundGlowAt(map.cellIndices.IndexToCell(darkest)):F3} = sky {map.skyManager.CurSkyGlow:F3} x light {ecology.LightAt(darkest):F3}";
+        // Light at tree bases by clump size (owner playtest: a few maples gave 7% at their bases): trees with at most 4
+        // others within 4 cells (small clump), 5-14 (group) and 15 or more (forest).
+        var treePlants = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList();
+        var treeCells = new HashSet<IntVec3>(treePlants.Select(p => p.Position));
+        var clump = new List<float>();
+        var dense = new List<float>();
+        var clumpDirect = new List<float>();
+        var grouped = new List<float>();
+        var denseDirect = new List<float>();
+        foreach (Plant tree in treePlants)
+        {
+            int others = GenRadial.RadialCellsAround(tree.Position, 4f, false).Count(treeCells.Contains);
+            int at = map.cellIndices.CellToIndex(tree.Position);
+            if (others <= 4)
+            {
+                clump.Add(ecology.LightAt(at));
+                clumpDirect.Add(ecology.DirectLightAt(at));
+            }
+            else if (others < 15)
+                grouped.Add(ecology.LightAt(at));
+            else
+            {
+                dense.Add(ecology.LightAt(at));
+                denseDirect.Add(ecology.DirectLightAt(at));
+            }
+        }
+        string Mean(List<float> v) => v.Count == 0 ? "-" : $"{v.Average():F2} (n {v.Count})";
+        Log.Message($"{prefix} treeBaseLight smallClump {Mean(clump)} group {Mean(grouped)} forest {Mean(dense)}; direct stream alone {Mean(clumpDirect)} / {Mean(denseDirect)}");
         Log.Message($"{prefix} noonLight under trees {shadedLight.Count / n:F2} of land: p5 {Pct(0.05f)} p10 {Pct(0.1f)} p25 {Pct(0.25f)} p50 {Pct(0.5f)} p75 {Pct(0.75f)}; darkest cell {check}");
 
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;

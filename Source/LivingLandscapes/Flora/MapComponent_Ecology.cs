@@ -33,7 +33,10 @@ public class MapComponent_Ecology : MapComponent
     private HabitatSampler sampler;
     private float[] shadeLog;
 
-    /// <summary>exp(-shadeLog) per cell, kept for vanilla's glow (read on every glow query; null until built).</summary>
+    /// <summary>Canopy optical depth seen against the whole sky: crowns blurred over the sky view (diffuse light, P12).</summary>
+    private float[] skyLog;
+
+    /// <summary>Ground light per cell (<see cref="LightAt"/>), kept for vanilla's glow (read on every glow query; null until built).</summary>
     private float[] transmittance;
     private float[] stems;
     private MapComponent_StandAge standAge;
@@ -49,6 +52,7 @@ public class MapComponent_Ecology : MapComponent
     private readonly float[][] crowding = new float[3][];
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
     private readonly Dictionary<(ThingDef, int), (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<(ThingDef, int), (Kernel, (int, int))>();
+    private readonly Dictionary<(ThingDef, int), Kernel> skyKernels = new Dictionary<(ThingDef, int), Kernel>();
 
     /// <summary>The size step (quarters of growth, 1-4) each tree was stamped with, so its removal takes off what was added.</summary>
     private readonly Dictionary<int, int> treeSteps = new Dictionary<int, int>();
@@ -128,6 +132,7 @@ public class MapComponent_Ecology : MapComponent
         latitude = SunWorker.LatitudeOf(map);
         sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
+        skyLog = new float[sizeX * sizeZ];
         stems = new float[sizeX * sizeZ];
         aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
 
@@ -143,7 +148,7 @@ public class MapComponent_Ecology : MapComponent
         }
         transmittance = new float[sizeX * sizeZ];
         for (int i = 0; i < transmittance.Length; i++)
-            transmittance[i] = Mathf.Exp(-shadeLog[i]);
+            transmittance[i] = LightAt(i);
         built = true;
         // A loaded save builds the ecology in play, after the glow meshes were drawn without the canopy.
         if (map.mapDrawer != null && SectionsOf(map.mapDrawer) != null)
@@ -235,8 +240,11 @@ public class MapComponent_Ecology : MapComponent
         {
             (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat, step);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
+            // Skylight comes from all round: the same crown, blurred over the sky view, centred on the plant.
+            Kernel sky = SkyKernel(def, kernel, step);
+            Apply(skyLog, at.x, at.z, sky, sign);
             if (transmittance != null)
-                RefreshLight(at.x + shift.x, at.z + shift.z, kernel.Reach);
+                RefreshLight(at.x, at.z, Mathf.Max(sky.Reach, kernel.Reach + Mathf.Max(Mathf.Abs(shift.x), Mathf.Abs(shift.z))));
         }
         // Young poles stand close and low (stem exclusion): a tree up to half grown is a thicket too.
         float thicket = habitat.thicket + (habitat.stratum == PlantStratum.Canopy && step <= 2 ? PlantEcologyDef.Current.saplingThicket : 0f);
@@ -317,7 +325,7 @@ public class MapComponent_Ecology : MapComponent
         return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * sum / 9f);
     }
 
-    /// <summary>Transmittance and vanilla's glow meshes follow a shade stamp around (cx, cz).</summary>
+    /// <summary>Ground light and vanilla's glow meshes follow a shade stamp around (cx, cz).</summary>
     private void RefreshLight(int cx, int cz, int reach)
     {
         int z0 = Mathf.Max(cz - reach, 0), z1 = Mathf.Min(cz + reach, sizeZ - 1);
@@ -327,7 +335,7 @@ public class MapComponent_Ecology : MapComponent
             for (int x = x0; x <= x1; x++)
             {
                 int i = z * sizeX + x;
-                transmittance[i] = Mathf.Exp(-shadeLog[i]);
+                transmittance[i] = LightAt(i);
                 map.mapDrawer?.MapMeshDirty(new IntVec3(x, 0, z), MapMeshFlagDefOf.GroundGlow);
             }
         }
@@ -441,6 +449,38 @@ public class MapComponent_Ecology : MapComponent
         return result;
     }
 
+    /// <summary>
+    /// A crown's optical depth as the sky sees it: its shade kernel convolved with a Gaussian of radius skyViewRadius
+    /// (the convolution keeps the crown's total depth, spread wider and flatter).
+    /// </summary>
+    private Kernel SkyKernel(ThingDef def, Kernel crown, int step)
+    {
+        if (skyKernels.TryGetValue((def, step), out Kernel cached))
+            return cached;
+        float r = PlantEcologyDef.Current.skyViewRadius;
+        int blur = Mathf.CeilToInt(r * 2f), reach = crown.Reach + blur, width = 2 * reach + 1, crownWidth = 2 * crown.Reach + 1;
+        var weights = new float[2 * blur + 1];
+        float sum = 0f;
+        for (int d = -blur; d <= blur; d++)
+            sum += weights[d + blur] = Mathf.Exp(-d * d / (2f * r * r));
+        for (int d = 0; d < weights.Length; d++)
+            weights[d] /= sum;
+        // Separable: blur the rows, then the columns.
+        var rows = new float[crownWidth * width];
+        for (int z = 0; z < crownWidth; z++)
+            for (int x = 0; x < crownWidth; x++)
+                for (int d = -blur; d <= blur; d++)
+                    rows[z * width + x + blur + d] += crown.Values[z * crownWidth + x] * weights[d + blur];
+        var values = new float[width * width];
+        for (int z = 0; z < crownWidth; z++)
+            for (int x = 0; x < width; x++)
+                for (int d = -blur; d <= blur; d++)
+                    values[(z + blur + d) * width + x] += rows[z * width + x] * weights[d + blur];
+        var kernel = new Kernel { Reach = reach, Values = values };
+        skyKernels[(def, step)] = kernel;
+        return kernel;
+    }
+
     private static Kernel Build(int reach, System.Func<float, float> value)
     {
         int width = 2 * reach + 1;
@@ -482,15 +522,32 @@ public class MapComponent_Ecology : MapComponent
         return grid[index] * habitat.light.Response(LightAt(index));
     }
 
-    /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
-    public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
+    /// <summary>Shade 0..1 on a cell from the plants standing now: the share of a clear noon's light they block.</summary>
+    public float ShadeAt(int index) => 1f - LightAt(index);
 
     /// <summary>
-    /// Light reaching the ground on a cell under a clear noon sky (P12): canopy transmittance, 1 in the open. Vanilla's
-    /// ground glow is the sky's glow times this (<see cref="Patches.Patch_GlowGrid_GroundGlowAt"/>), so the light curves
-    /// read the same light that pawns, crops and the Lit % readout see at noon.
+    /// Light reaching the ground on a cell under a clear noon sky, 1 in the open (P12, two streams): the direct sun
+    /// through the crowns on its path, d x exp(-shadeLog), plus diffuse skylight through the canopy seen all round,
+    /// (1 - d) x exp(-skyLog), d = directShare. Vanilla's ground glow is the sky's glow times this
+    /// (<see cref="Patches.Patch_GlowGrid_GroundGlowAt"/>), so the light curves read the light that pawns, crops and the
+    /// Lit % readout see at noon.
     /// </summary>
-    public float LightAt(int index) => Mathf.Exp(-shadeLog[index]);
+    public float LightAt(int index)
+    {
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float d = tuning.directShare;
+        return d * Mathf.Exp(-Depth(shadeLog[index], tuning)) + (1f - d) * Mathf.Exp(-Depth(skyLog[index], tuning));
+    }
+
+    /// <summary>A stacked optical depth under the leaf area ceiling (<see cref="PlantEcologyDef.canopyDepthMax"/>).</summary>
+    private static float Depth(float stacked, PlantEcologyDef tuning)
+    {
+        float max = tuning.canopyDepthMax;
+        return max <= 0f ? stacked : max * (1f - Mathf.Exp(-stacked / max));
+    }
+
+    /// <summary>The direct stream alone (dev metrics): the sun through the crowns on its path.</summary>
+    public float DirectLightAt(int index) => Mathf.Exp(-Depth(shadeLog[index], PlantEcologyDef.Current));
 
     /// <summary>Canopy transmittance for vanilla's glow: 1 where the ecology is off or not built yet.</summary>
     public static float TransmittanceAt(Map map, IntVec3 c)
@@ -581,6 +638,7 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         Compare("shade", shadeLog, fresh.shadeLog);
+        Compare("sky", skyLog, fresh.skyLog);
         for (int layer = 0; layer < 3; layer++)
             Compare("crowding " + (PlantStratum)layer, crowding[layer], fresh.crowding[layer]);
         foreach (KeyValuePair<ThingDef, float[]> pair in density)
