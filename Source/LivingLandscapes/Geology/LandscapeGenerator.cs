@@ -247,6 +247,14 @@ public static class LandscapeGenerator
             out float[] area, out float modelTop, out float[] baseLevel, floor, observe);
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
+        // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
+        Vector2 ToMap(int c) => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell);
+        MapEdgeOpen = Outlets.MapEdgesFromModel(sizeX, sizeZ, receiver,
+            (x, z) => Mathf.Clamp(Mathf.RoundToInt(originZ + z / mapCellsPerModelCell), 0, gz - 1) * gx
+                      + Mathf.Clamp(Mathf.RoundToInt(originX + x / mapCellsPerModelCell), 0, gx - 1),
+            ToMap);
+        Log.Message($"[LivingLandscapes] Map edge from the model (#97): open per side {OpenPerSide(MapEdgeOpen, sizeX, sizeZ)}; " +
+                    $"model cells on the window's border sending water out {ModelOutPerSide(receiver, gx, gz, ToMap, sizeX, sizeZ)}.");
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
@@ -415,9 +423,58 @@ public static class LandscapeGenerator
     }
 
     /// <summary>
+    /// Map edge cells the model's water flows out through (#97, <see cref="Outlets.MapEdgesFromModel"/>), from the last
+    /// <see cref="Generate"/>; null before. Map size, edge cells only.
+    /// </summary>
+    public static bool[] MapEdgeOpen { get; private set; }
+
+    /// <summary>Diagnostic: open map edge cells per side (W, E, S, N).</summary>
+    private static string OpenPerSide(bool[] open, int sizeX, int sizeZ)
+    {
+        int w = 0, e = 0, s = 0, n = 0;
+        for (int k = 0; k < sizeZ; k++)
+        {
+            if (open[k * sizeX]) w++;
+            if (open[k * sizeX + sizeX - 1]) e++;
+        }
+        for (int k = 0; k < sizeX; k++)
+        {
+            if (open[k]) s++;
+            if (open[(sizeZ - 1) * sizeX + k]) n++;
+        }
+        return $"W {(float)w / sizeZ:P0}, E {(float)e / sizeZ:P0}, S {(float)s / sizeX:P0}, N {(float)n / sizeX:P0}";
+    }
+
+    /// <summary>
+    /// Diagnostic for <see cref="Outlets.MapEdgesFromModel"/>: per side, the share of model cells along the map window's border
+    /// whose receiver lies beyond that side. It should match the map's open share (a mismatch is a window or transform error).
+    /// </summary>
+    private static string ModelOutPerSide(int[] receiver, int gx, int gz, System.Func<int, Vector2> toMap, int sizeX, int sizeZ)
+    {
+        int[] count = new int[4], outward = new int[4];
+        for (int c = 0; c < receiver.Length; c++)
+        {
+            Vector2 v = toMap(c);
+            if (v.x < -0.5f || v.y < -0.5f || v.x > sizeX - 0.5f || v.y > sizeZ - 0.5f)
+                continue;
+            int r = receiver[c];
+            Vector2 t = r >= 0 ? toMap(r) : v;
+            // The border cells of each side: within half a model cell of the map's edge line.
+            float half = 0.5f * (toMap(1).x - toMap(0).x);
+            if (v.x <= half) { count[0]++; if (t.x < 0f && t.x < v.x) outward[0]++; }
+            if (v.x >= sizeX - 1 - half) { count[1]++; if (t.x > sizeX - 1 && t.x > v.x) outward[1]++; }
+            if (v.y <= half) { count[2]++; if (t.y < 0f && t.y < v.y) outward[2]++; }
+            if (v.y >= sizeZ - 1 - half) { count[3]++; if (t.y > sizeZ - 1 && t.y > v.y) outward[3]++; }
+        }
+        string Share(int k) => count[k] > 0 ? ((float)outward[k] / count[k]).ToString("P0") : "-";
+        return $"W {Share(0)}, E {Share(1)}, S {Share(2)}, N {Share(3)}";
+    }
+
+    /// <summary>
     /// The erosion model's base levels (P1, <see cref="Outlets"/>), recomputed from the surface each iteration: the sea and the
     /// river's exit at 0 (the model's base), edges at max(Plane, Bed) with Plane rising from 0 at the most downhill edge along
-    /// the surface's own regional trend, and Bed from the world rivers' antecedent courses as they are cut down.
+    /// the surface's own regional trend, and Bed from the world rivers' antecedent courses as they are cut down. Edges whose
+    /// base level stands above the ground are closed, and every land area keeps an outlet.
     /// </summary>
     private static System.Action<float[], float[]> ModelBaseLevels(WorldContext world, float[] seaDepth, float[] floor,
         List<(int cell, float width)> entries, int riverExit, int gx, int gz, float valleyHalfWidth)
@@ -434,6 +491,7 @@ public static class LandscapeGenerator
         float[] toEntry = null;
         int[][] valley = course.Count > 0 ? Outlets.Valleys(gx, gz, course, entryCells, valleyHalfWidth, out toEntry) : null;
         bool Land(int i) => seaDepth == null || seaDepth[i] <= 0f;
+        int regionCount = GridMath.LabelRegions(Land, gx, gz, out int[] regions);
         return (h, b) =>
         {
             for (int i = 0; i < n; i++)
@@ -443,6 +501,8 @@ public static class LandscapeGenerator
             // The river's mean fall per cell from its entries to the exit (at 0).
             float riverSlope = course.Count > 0 ? Mathf.Max(0f, entryLevel) * Mathf.Max(1, entryCells.Count) / course.Count : 0f;
             Outlets.EdgeLevels(b, offset, 0f, rise, valley, toEntry, h, entryLevel, riverSlope, 0f, h.Max(), riverExit, 0f, entryCells);
+            Outlets.CloseAboveGround(b, h, gx, gz, riverExit);
+            Outlets.KeepOneOutlet(b, h, gx, gz, regions, regionCount);
         };
     }
 

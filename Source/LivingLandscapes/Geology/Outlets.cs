@@ -6,14 +6,18 @@ namespace LivingLandscapes.Geology;
 /// <summary>
 /// Where water may leave a grid, and at what level (P1 base level, #97; tools/Docs/LAYER-UNIFICATION.md): one rule for the
 /// erosion model and for the map's routings. Every cell has a base level B: NaN where water cannot leave, otherwise water
-/// standing there leaves once its surface reaches B, so an outlet spills at max(ground, B) (never pinned upward).
+/// standing there leaves once its surface reaches B, so an outlet spills at max(ground, B).
 /// <list type="bullet">
-/// <item>The sea: sea level. The river's exit: its water surface (it always drains).</item>
-/// <item>An edge cell: max(Plane, Bed). Plane is the regional base level beyond it, the surface's own regional trend
-/// continued outward from the most downhill edge (base0 there). Bed applies inside a world river's valley: off-map water
-/// there joins the river, so B is at least the highest bed of the course within the valley's half-width, and beside an
-/// entry it rises on along the river's slope (the river beyond the entry is upstream of it).</item>
-/// <item>A base level above the highest ground can never be reached: NaN (closed). A world river's entry: NaN.</item>
+/// <item>The sea: sea level. The river's exit (and its mouth): always open.</item>
+/// <item>The erosion model's region edge: max(Plane, Bed). Plane is the regional base level beyond it, the surface's own
+/// regional trend continued outward from the most downhill edge (0 there). Bed applies inside a world river's valley: off-map
+/// water there joins the river, so B is at least the highest bed of the course within the valley's half-width, and beside
+/// an entry it rises on along the river's slope. An edge whose B stands above its ground is closed (it never ponds or is
+/// raised); entries are closed.</item>
+/// <item>The map's edge: the regional decision is the model's (ADR 0001, one-way handover). An edge cell is open, at its own
+/// ground, where the model's water there flows on out of the map (<see cref="MapEdgesFromModel"/>), else closed.</item>
+/// <item>Every connected land area keeps at least one outlet (<see cref="KeepOneOutlet"/>): a closed basin is P23's call
+/// (#99), never an accident of the edges.</item>
 /// </list>
 /// Static and array-level: the erosion model calls these every iteration (ADR 0001).
 /// </summary>
@@ -75,21 +79,6 @@ public static class Outlets
         if (count < 2 || var <= 0)
             return 0f;
         return Mathf.Max(0f, (float)((count * sdh - sd * sh) / var));
-    }
-
-    /// <summary>
-    /// The edge cells of the side(s) facing most downhill (all edges on level ground): where base0 is measured on the map.
-    /// </summary>
-    public static bool OnDownhillSide(int i, int sizeX, int sizeZ, Vector2 downhill)
-    {
-        if (!IsEdge(i, sizeX, sizeZ))
-            return false;
-        if (downhill == Vector2.zero)
-            return true;
-        float best = Mathf.Max(Mathf.Max(-downhill.x, downhill.x), Mathf.Max(-downhill.y, downhill.y)) - 1e-4f;
-        int x = i % sizeX, z = i / sizeX;
-        return (x == 0 && -downhill.x >= best) || (x == sizeX - 1 && downhill.x >= best)
-            || (z == 0 && -downhill.y >= best) || (z == sizeZ - 1 && downhill.y >= best);
     }
 
     /// <summary>
@@ -158,6 +147,79 @@ public static class Outlets
             baseLevel[exit] = exitLevel;
         foreach (int e in entries)
             baseLevel[e] = float.NaN;
+    }
+
+    /// <summary>Closes the edge cells whose base level stands above their ground (water would have to pond to leave there).</summary>
+    public static void CloseAboveGround(float[] baseLevel, float[] ground, int sizeX, int sizeZ, int keepOpen = -1)
+    {
+        for (int i = 0; i < baseLevel.Length; i++)
+        {
+            if (i != keepOpen && !float.IsNaN(baseLevel[i]) && baseLevel[i] > ground[i] && IsEdge(i, sizeX, sizeZ))
+                baseLevel[i] = float.NaN;
+        }
+    }
+
+    /// <summary>
+    /// Every connected area of <paramref name="land"/> cells keeps an outlet: one with no outlet inside it or beside it opens
+    /// its lowest edge cell at its ground. <paramref name="regions"/> and <paramref name="regionCount"/> are
+    /// <see cref="GridMath.LabelRegions"/> of the land. Returns the number of cells opened.
+    /// </summary>
+    public static int KeepOneOutlet(float[] baseLevel, float[] ground, int sizeX, int sizeZ, int[] regions, int regionCount)
+    {
+        var drained = new bool[regionCount];
+        var lowest = new int[regionCount];
+        for (int r = 0; r < regionCount; r++)
+            lowest[r] = -1;
+        for (int i = 0; i < baseLevel.Length; i++)
+        {
+            int r = regions[i];
+            if (r < 0)
+                continue;
+            if (!float.IsNaN(baseLevel[i]))
+                drained[r] = true;
+            int x = i % sizeX, z = i / sizeX;
+            // Beside an outlet off the land (the sea).
+            if ((x > 0 && regions[i - 1] < 0 && !float.IsNaN(baseLevel[i - 1])) || (x < sizeX - 1 && regions[i + 1] < 0 && !float.IsNaN(baseLevel[i + 1]))
+                || (z > 0 && regions[i - sizeX] < 0 && !float.IsNaN(baseLevel[i - sizeX])) || (z < sizeZ - 1 && regions[i + sizeX] < 0 && !float.IsNaN(baseLevel[i + sizeX])))
+                drained[r] = true;
+            if (IsEdge(i, sizeX, sizeZ) && (lowest[r] < 0 || ground[i] < ground[lowest[r]]))
+                lowest[r] = i;
+        }
+        int opened = 0;
+        for (int r = 0; r < regionCount; r++)
+        {
+            if (drained[r] || lowest[r] < 0)
+                continue;
+            baseLevel[lowest[r]] = ground[lowest[r]];
+            opened++;
+        }
+        return opened;
+    }
+
+    /// <summary>
+    /// The map's edge from the erosion model's drainage (ADR 0001): a map edge cell is open where the model cell under it sends
+    /// its water on outward, to a cell beyond the map's edge on that side; closed where the model's water there runs into the
+    /// map (beside an entry, up the regional slope) or ends in an outlet. <paramref name="modelCell"/> gives the model cell
+    /// under a map cell and <paramref name="toMap"/> a model cell's position in map cells.
+    /// </summary>
+    public static bool[] MapEdgesFromModel(int sizeX, int sizeZ, int[] receiver, System.Func<int, int, int> modelCell, System.Func<int, Vector2> toMap)
+    {
+        var open = new bool[sizeX * sizeZ];
+        for (int i = 0; i < open.Length; i++)
+        {
+            if (!IsEdge(i, sizeX, sizeZ))
+                continue;
+            int x = i % sizeX, z = i / sizeX;
+            int c = modelCell(x, z);
+            int r = receiver[c];
+            if (r < 0)
+                continue;
+            Vector2 at = toMap(c), to = toMap(r);
+            var outward = new Vector2(x == 0 ? -1f : x == sizeX - 1 ? 1f : 0f, z == 0 ? -1f : z == sizeZ - 1 ? 1f : 0f);
+            bool beyond = to.x < 0f || to.y < 0f || to.x > sizeX - 1 || to.y > sizeZ - 1;
+            open[i] = beyond && Vector2.Dot(to - at, outward) > 0f;
+        }
+        return open;
     }
 
     /// <summary>Whether a cell is an outlet (water can leave it).</summary>

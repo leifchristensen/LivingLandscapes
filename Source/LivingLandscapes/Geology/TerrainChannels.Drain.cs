@@ -10,7 +10,7 @@ namespace LivingLandscapes.Geology;
 /// <summary>
 /// Stage 1, drainage and inflow: where water comes from and which way it runs. The landform gets its micro-relief and the
 /// world river's trench, hollows are filled toward their spill points (the base levels of <see cref="Outlets"/>, P1: the sea,
-/// the river's exit, and the map edge at the regional base level beyond it), and every cell gets its steepest-descent receiver. Water entering from beyond the
+/// the river's exit, and the map edge where the erosion model's water flows out), and every cell gets its steepest-descent receiver. Water entering from beyond the
 /// map is placed on the side the world says it comes from, at the discharge that gives its vanilla width; on a tile without
 /// a world river the map's own discharge is scaled to the tile's world flow (a share of a creek).
 /// </summary>
@@ -25,20 +25,12 @@ public static partial class TerrainChannels
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
-        Vector2 downhill = default, float valleyHalfWidth = 0f)
+        bool[] edgeOpen = null)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
         inflow = Inflow(courses, sizeX, sizeZ, riverCentre, sourceRadius, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
             out worldSource, out vanillaWidth, worldInflows);
-        var entries = new List<int>();
-        for (int i = 0; i < n; i++)
-        {
-            int x = i % sizeX, z = i / sizeX;
-            // A world river's entry cell lies a cell or two inside the edge (its course is cut to the map), so near the edge counts.
-            if (inflow[i] > 0f && (x <= 2 || z <= 2 || x >= sizeX - 3 || z >= sizeZ - 3))
-                entries.Add(i);
-        }
         float[] toSea = sea != null ? GridMath.DistanceTo(i => sea[i], sizeX, sizeZ) : null;
         var laidCourses = new List<(ChannelCourse course, bool toMouth)>();
         // Flats keep a little micro-relief, so water wanders across them instead of running straight or at 45 degrees;
@@ -51,11 +43,12 @@ public static partial class TerrainChannels
         {
             // A river rising on the map (headwater) still runs its course to a mouth at the sea.
             bool toMouth = riverMouth && course.WorldRiver && toSea != null;
+            if (course.VanillaWidth > 0f)
+                laidCourses.Add((course, toMouth));
             if (course.VanillaWidth > 0f && ((water?.riverInflow ?? true) || toMouth))
             {
                 ChannelCourse laid = toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course;
                 Trench(filled, sizeX, sizeZ, laid, p);
-                laidCourses.Add((laid, toMouth));
                 if (toMouth && laid.Points.Count > 0)
                 {
                     Vector2 a = laid.Points[0], b = laid.Points[laid.Points.Count - 1];
@@ -65,66 +58,52 @@ public static partial class TerrainChannels
                 }
             }
         }
-        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, entries, sea, seaLevel, downhill, valleyHalfWidth);
+        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen);
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
     }
 
     /// <summary>
-    /// The map's base levels (P1, <see cref="Outlets"/>), from the ground the water runs on (<paramref name="ground"/>, with
-    /// the world river's trench): the sea's water (ground below the sea's surface) at sea level; the world river's exit at
-    /// its water surface; the edge at max(Plane, Bed), Plane rising from the lowest ground of the most downhill edge along
-    /// the ground's own regional trend (never below sea level), Bed from the world river's trenched course in its valley.
+    /// The map's base levels (P1, <see cref="Outlets"/>): the sea's water (ground below the sea's surface) at sea level; the
+    /// map's edge open at its own ground where the erosion model's water flows on out of the map (<paramref name="edgeOpen"/>;
+    /// every edge without it) and at the world river's exit, closed elsewhere; every land area keeps an outlet.
     /// </summary>
     private static float[] MapBaseLevels(float[] height, float[] ground, int sizeX, int sizeZ, List<(ChannelCourse course, bool toMouth)> courses,
-        List<int> entries, bool[] sea, float seaLevel, Vector2 downhill, float valleyHalfWidth)
+        bool[] sea, float seaLevel, bool[] edgeOpen)
     {
         int n = sizeX * sizeZ;
         var baseLevel = new float[n];
         // The sea's water, not its beach (the coast mask holds both): ground below the sea's surface.
         bool SeaWater(int i) => sea != null && sea[i] && (float.IsNaN(seaLevel) || height[i] < seaLevel);
         for (int i = 0; i < n; i++)
-            baseLevel[i] = SeaWater(i) ? (float.IsNaN(seaLevel) ? ground[i] : seaLevel) : float.NaN;
-        float[] offset = Outlets.EdgeOffsets(sizeX, sizeZ, downhill);
-        float rise = Outlets.RegionalRise(ground, sizeX, sizeZ, downhill, i => !SeaWater(i));
-        float base0 = float.MaxValue, top = float.MinValue;
-        for (int i = 0; i < n; i++)
         {
-            top = Mathf.Max(top, ground[i]);
-            if (!SeaWater(i) && Outlets.OnDownhillSide(i, sizeX, sizeZ, downhill))
-                base0 = Mathf.Min(base0, ground[i] - offset[i] * rise);
+            if (SeaWater(i))
+                baseLevel[i] = float.IsNaN(seaLevel) ? ground[i] : seaLevel;
+            else
+                baseLevel[i] = Outlets.IsEdge(i, sizeX, sizeZ) && (edgeOpen?[i] ?? true) ? ground[i] : float.NaN;
         }
-        bool hasSea = sea != null && !float.IsNaN(seaLevel);
-        if (base0 == float.MaxValue)
-            base0 = hasSea ? seaLevel : 0f;
-
-        // The world river's course, as trenched; its exit is where it reaches the edge (a river with its mouth at the sea has none).
+        // The world river leaves where its course reaches the edge, whatever the model's coarser drainage says there.
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
-        var course = new List<int>();
-        var exits = new List<int>();
+        int exits = 0;
         foreach ((ChannelCourse laid, bool toMouth) in courses)
         {
-            foreach (Vector2 v in laid.Points)
-                course.Add(Cell(v));
             if (toMouth || laid.Points.Count == 0)
                 continue;
             int last = Cell(laid.Points[laid.Points.Count - 1]);
             int x = last % sizeX, z = last / sizeX;
             if (x <= 2) x = 0; else if (x >= sizeX - 3) x = sizeX - 1;
             if (z <= 2) z = 0; else if (z >= sizeZ - 3) z = sizeZ - 1;
-            if (Outlets.IsEdge(z * sizeX + x, sizeX, sizeZ) && !entries.Contains(z * sizeX + x))
-                exits.Add(z * sizeX + x);
+            int exit = z * sizeX + x;
+            if (Outlets.IsEdge(exit, sizeX, sizeZ) && float.IsNaN(baseLevel[exit]))
+            {
+                baseLevel[exit] = ground[exit];
+                exits++;
+            }
         }
-        float[] toEntry = null;
-        int[][] valley = course.Count > 0 ? Outlets.Valleys(sizeX, sizeZ, course, entries, valleyHalfWidth, out toEntry) : null;
-        float entryLevel = entries.Count > 0 ? entries.Max(c => ground[c]) : float.MinValue;
-        float low = course.Count > 0 ? course.Min(c => ground[c]) : 0f;
-        float riverSlope = course.Count > 0 && entries.Count > 0 ? Mathf.Max(0f, entryLevel - low) * entries.Count / course.Count : 0f;
-        Outlets.EdgeLevels(baseLevel, offset, base0, rise, valley, toEntry, ground, entryLevel, riverSlope, hasSea ? seaLevel : float.MinValue,
-            top, -1, 0f, entries);
-        foreach (int exit in exits)
-            baseLevel[exit] = ground[exit];
-        Log.Message($"[LivingLandscapes] Map base levels (#97): base0 {base0:F2}, rise {rise:F4}/cell, {exits.Count} exit(s), " +
-                    $"edge cells draining per side: {Outlets.EdgeSummary(baseLevel, ground, sizeX, sizeZ)}.");
+        int regionCount = GridMath.LabelRegions(i => !SeaWater(i), sizeX, sizeZ, out int[] regions);
+        int opened = Outlets.KeepOneOutlet(baseLevel, ground, sizeX, sizeZ, regions, regionCount);
+        if (edgeOpen != null)
+            Log.Message($"[LivingLandscapes] Map base levels (#97): {exits} river exit(s) opened, {opened} land area(s) given their lowest edge cell; " +
+                        $"edge cells draining per side: {Outlets.EdgeSummary(baseLevel, ground, sizeX, sizeZ)}.");
         return baseLevel;
     }
 
