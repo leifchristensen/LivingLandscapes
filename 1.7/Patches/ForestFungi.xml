@@ -26,7 +26,7 @@
           <ThingDef ParentName="LL_Agarilux_Source">
             <defName>LL_ForestAgarilux</defName>
             <label>forest agarilux</label>
-            <description>An agarilux of the deep forest floor, growing in the litter where the canopy shuts out the sun. It glows faintly at night and dies when exposed to light.</description>
+            <description>An agarilux of the deep forest floor, growing in the litter where the canopy shuts out the sun. It glows at night and dies when exposed to light.</description>
             <plant>
               <cavePlant>false</cavePlant>
               <cavePlantWeight>0</cavePlantWeight>
@@ -34,8 +34,8 @@
             </plant>
             <comps Inherit="False">
               <li Class="CompProperties_Glower">
-                <glowRadius>2.5</glowRadius>
-                <glowColor>(5,4,7,0)</glowColor>
+                <glowRadius>10</glowRadius>
+                <glowColor>(23,15,30,0)</glowColor>
                 <overrideIsCavePlant>true</overrideIsCavePlant>
               </li>
             </comps>
@@ -118,8 +118,8 @@
             </plant>
             <comps Inherit="False">
               <li Class="CompProperties_Glower">
-                <glowRadius>2.5</glowRadius>
-                <glowColor>(1,5,7,0)</glowColor>
+                <glowRadius>5.9</glowRadius>
+                <glowColor>(10,50,64,0)</glowColor>
                 <overrideIsCavePlant>true</overrideIsCavePlant>
               </li>
             </comps>
