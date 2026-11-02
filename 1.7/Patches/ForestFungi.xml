@@ -15,17 +15,6 @@
     <xpath>/Defs/ThingDef[defName="Agarilux" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
-      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
-           cave fungus already is one, so this changes nothing in caves. -->
-      <li Class="PatchOperationConditional">
-        <xpath>/Defs/ThingDef[defName="Agarilux"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-        <match Class="PatchOperationAdd">
-          <xpath>/Defs/ThingDef[defName="Agarilux"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-          <value>
-            <overrideIsCavePlant>true</overrideIsCavePlant>
-          </value>
-        </match>
-      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="Agarilux"]</xpath>
         <attribute>Name</attribute>
@@ -43,6 +32,13 @@
               <cavePlantWeight>0</cavePlantWeight>
               <sowTags Inherit="False" />
             </plant>
+            <comps Inherit="False">
+              <li Class="CompProperties_Glower">
+                <glowRadius>2.5</glowRadius>
+                <glowColor>(5,4,7,0)</glowColor>
+                <overrideIsCavePlant>true</overrideIsCavePlant>
+              </li>
+            </comps>
             <modExtensions>
               <li Class="LivingLandscapes.Flora.PlantHabitat">
                 <stratum>Ground</stratum>
@@ -103,17 +99,6 @@
     <xpath>/Defs/ThingDef[defName="Glowstool" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
-      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
-           cave fungus already is one, so this changes nothing in caves. -->
-      <li Class="PatchOperationConditional">
-        <xpath>/Defs/ThingDef[defName="Glowstool"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-        <match Class="PatchOperationAdd">
-          <xpath>/Defs/ThingDef[defName="Glowstool"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-          <value>
-            <overrideIsCavePlant>true</overrideIsCavePlant>
-          </value>
-        </match>
-      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="Glowstool"]</xpath>
         <attribute>Name</attribute>
@@ -131,6 +116,13 @@
               <cavePlantWeight>0</cavePlantWeight>
               <sowTags Inherit="False" />
             </plant>
+            <comps Inherit="False">
+              <li Class="CompProperties_Glower">
+                <glowRadius>2.5</glowRadius>
+                <glowColor>(1,5,7,0)</glowColor>
+                <overrideIsCavePlant>true</overrideIsCavePlant>
+              </li>
+            </comps>
             <modExtensions>
               <li Class="LivingLandscapes.Flora.PlantHabitat">
                 <stratum>Ground</stratum>
@@ -191,17 +183,6 @@
     <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker" and not(@Name)]</xpath>
     <match Class="PatchOperationSequence">
       <operations>
-      <!-- Its own glow must not count as light on it or its neighbours: vanilla ignores cave plants' glow, and the
-           cave fungus already is one, so this changes nothing in caves. -->
-      <li Class="PatchOperationConditional">
-        <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-        <match Class="PatchOperationAdd">
-          <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]/comps/li[@Class="CompProperties_Glower"]</xpath>
-          <value>
-            <overrideIsCavePlant>true</overrideIsCavePlant>
-          </value>
-        </match>
-      </li>
       <li Class="PatchOperationAttributeAdd">
         <xpath>/Defs/ThingDef[defName="VPE_Plant_Stinker"]</xpath>
         <attribute>Name</attribute>
