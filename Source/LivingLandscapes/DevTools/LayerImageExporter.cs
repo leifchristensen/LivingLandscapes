@@ -40,7 +40,10 @@ public static class LayerImageExporter
             string path = Path.Combine(Folder, $"{layer.defName}.png");
             bool markCliffs = layer == EnvironmentLayerDefOf.LL_Height || layer == EnvironmentLayerDefOf.LL_Landform;
             OverlayProperties style = layer.overlay?.ResolveFor(grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
-            Export(map, grid, style, path, markCliffs);
+            float[] opacity = style.opacityLayer != null && environment.TryGetGrid(style.opacityLayer, out EnvironmentGrid opacityGrid)
+                ? opacityGrid.ToArray()
+                : null;
+            Export(map, grid, style, path, markCliffs, opacity);
             if (GenCommandLine.CommandLineArgPassed("ll-export-raw"))
                 ExportRaw(grid, Path.Combine(Folder, $"{layer.defName}.f32"));
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
@@ -57,7 +60,7 @@ public static class LayerImageExporter
     /// Writes one layer. With <paramref name="markCliffs"/>, terrace cliffs (dark red) and steps (white) are drawn
     /// over it, so their placement can be checked against the contours.
     /// </summary>
-    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path, bool markCliffs)
+    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path, bool markCliffs, float[] opacity = null)
     {
         int sizeX = map.Size.x;
         int sizeZ = map.Size.z;
@@ -82,6 +85,9 @@ public static class LayerImageExporter
                 int i = py * width + px;
                 float v = sampled[i];
                 Color color = style.FillColor(v);
+                // A faded cell shows the white page, as a transparent overlay shows the ground in game.
+                if (opacity != null)
+                    color = Color.Lerp(Color.white, color, style.OpacityAt(opacity[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)]));
                 if (map.terrainGrid.TerrainAt(CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)) is { } terrain
                     && (terrain.IsWater || terrain.IsRiver))
                     color = Color.Lerp(color, WaterTint, 0.6f);

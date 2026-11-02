@@ -306,6 +306,9 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- Aspect means something only where the ground slopes: colour fades out on level ground (owner playtest 2026-11-02). -->
+      <opacityLayer>LL_Slope</opacityLayer>
+      <opacityRange>0~0.5</opacityRange>
       <labelFormat>0.00</labelFormat>
       <colors>
         <li><value>0</value><color>(1.00, 0.00, 0.00)</color></li>

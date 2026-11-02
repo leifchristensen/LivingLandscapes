@@ -63,6 +63,17 @@ public class OverlayProperties
     /// <summary>Texture path of this layer's map toggle button; the generic overlay icon when empty.</summary>
     public string icon;
 
+    /// <summary>
+    /// Another layer that sets each cell's opacity: transparent at <see cref="opacityRange"/>'s min, full at its max. For
+    /// layers that only mean something where another one is strong, like aspect (only where the ground slopes).
+    /// </summary>
+    public EnvironmentLayerDef opacityLayer;
+
+    public FloatRange opacityRange = new FloatRange(0f, 1f);
+
+    /// <summary>Opacity (0..1) for a value of <see cref="opacityLayer"/>.</summary>
+    public float OpacityAt(float value) => Mathf.InverseLerp(opacityRange.min, opacityRange.max, value);
+
     public bool IsVectorField => directionLayer != null;
 
     /// <summary>
