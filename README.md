@@ -36,7 +36,7 @@ You need:
 - The .NET 10 SDK, with Visual Studio 2026 or Rider 2026 (earlier versions do not support .NET 10).
 - A RimWorld 1.7 installation. The project references the game's assemblies from your install folder rather than shipping copies of them.
 
-Set the `RimWorldDir` property to your RimWorld install folder, either as an environment variable or on the command line, then build:
+Set the `RimWorldDir` property to your RimWorld install folder (an environment variable, the command line, or a git-ignored `LocalBuild.props`; see [CONTRIBUTING.md](CONTRIBUTING.md#building)), then build:
 
 ```
 dotnet build Source/LivingLandscapes/LivingLandscapes.csproj -p:RimWorldDir="C:\path\to\RimWorld"
@@ -68,7 +68,7 @@ devenv LivingLandscapes.slnx
 See [Microsoft's notes on this error](https://github.com/dotnet/runtime/blob/main/docs/workflow/debugging/coreclr/debugging-runtime.md#resolving-signature-validation-errors-in-visual-studio) for details.
 
 ## Contributing
-Issues and pull requests are welcome. If you fork the mod to publish your own version, change the `packageId` in `About/About.xml` so the two can coexist.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for how to report a map so it can be regenerated, how to build, and how the mod is put together. If you fork the mod to publish your own version, change the `packageId` in `About/About.xml` so the two can coexist.
 
 ## License
 [MIT](LICENSE). This covers the mod's own code and content only. RimWorld and its assemblies are the property of Ludeon Studios and are not included in this repository.

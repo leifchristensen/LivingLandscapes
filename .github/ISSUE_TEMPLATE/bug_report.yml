@@ -1,0 +1,35 @@
+name: Bug report
+description: An error, a crash, or something the mod does that it should not.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: map
+    attributes:
+      label: Map to reproduce it
+      description: In development mode, the world map's Terrain tab shows "Debug world seed" under the tile ID. Click it and paste the copied arguments here. Leave empty if the bug is not about one map.
+      render: text
+  - type: textarea
+    id: mods
+    attributes:
+      label: Mod list
+      description: Your active mods in load order (or a link to a mod-list export).
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: For errors, the lines from Player.log, or a link to the whole file.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: RimWorld version
+      placeholder: "1.7.xxxx"
