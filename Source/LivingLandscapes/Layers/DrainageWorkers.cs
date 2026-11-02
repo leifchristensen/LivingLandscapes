@@ -22,7 +22,12 @@ public class DrainageAreaWorker : EnvironmentLayerWorker
         if (height == null)
             return null;
         var filled = (float[])height.Clone();
-        GridMath.FillDepressions(filled, context.SizeX, context.SizeZ, _ => false, FillGradient);
+        // Water leaves at the map's base levels (#97); without them (Off mode) every edge drains.
+        float[] baseLevel = context.Environment.PlannedBaseLevels;
+        if (baseLevel != null)
+            Outlets.Fill(filled, context.SizeX, context.SizeZ, baseLevel, FillGradient);
+        else
+            GridMath.FillDepressions(filled, context.SizeX, context.SizeZ, _ => false, FillGradient);
         float[] area = GridMath.FlowAccumulationMfd(filled, context.SizeX, context.SizeZ, inflow: RiverInflow(context));
         for (int i = 0; i < area.Length; i++)
             area[i] = Mathf.Log10(area[i]);

@@ -200,12 +200,6 @@ public class TerrainChannelSettings
     /// </summary>
     public float entryAgreement = 0.5f;
 
-    /// <summary>On a coast tile the map edge drains only within this many cells of the sea.</summary>
-    public float coastEdgeDrain = 6f;
-
-    /// <summary>The map edge within this many cells of where water enters does not drain (the land beyond slopes in).</summary>
-    public float entryGuardCells = 15f;
-
     /// <summary>
     /// Micro-relief (metres, wavelength in cells) added to the ground before routing water: the same on every call, so
     /// the drainage a map is planned with is the drainage it is built with.
