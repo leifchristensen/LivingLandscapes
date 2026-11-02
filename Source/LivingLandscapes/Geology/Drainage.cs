@@ -32,6 +32,7 @@ public class Drainage
     public int SizeX, SizeZ;
 
     private int[] receiver;
+    private (float channelArea, float[] riverLevel, float[] height, float[] area)? lines;
 
     /// <summary>Depth (height units) below its spill level from which a cell counts as in a hollow.</summary>
     private const float HollowDepth = 1e-4f;
@@ -73,6 +74,12 @@ public class Drainage
     /// </summary>
     public float[] LineHeight(float channelArea, float[] riverLevel, int[] channelOf, out float[] lineArea)
     {
+        // Wetness and LL_HeightAboveDrainage ask for the same lines.
+        if (lines != null && lines.Value.channelArea == channelArea && lines.Value.riverLevel == riverLevel)
+        {
+            lineArea = lines.Value.area;
+            return lines.Value.height;
+        }
         int n = Ground.Length;
         var logArea = new float[n];
         for (int i = 0; i < n; i++)
@@ -125,6 +132,7 @@ public class Drainage
                 lineArea[c] = lineArea[next[c]];
             }
         }
+        lines = (channelArea, riverLevel, line, lineArea);
         return line;
     }
 
