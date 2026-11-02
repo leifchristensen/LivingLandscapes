@@ -67,7 +67,7 @@ public class Drainage
     /// Height of the drainage line each cell's water reaches (the base of height above nearest drainage, HAND), following
     /// <see cref="Receiver"/> until a cell whose area reaches <paramref name="channelArea"/> (log10 cells). In a closed
     /// hollow the water table stands at the hollow's water level (P23); until the water balance sets that level (#99) it
-    /// is the hollow's floor, the level water collects at, so the filled surface's routing across the hollow plays no part. Where
+    /// is the spill level, a full hollow (lakes on humid maps are), and the hollow's line area is the largest within it. Where
     /// <paramref name="riverLevel"/> is set (a carved river) the line is the river's water surface, and a channel's whole
     /// width shares its largest area. <paramref name="lineArea"/> is the line's area (log10 cells) where the cell reaches it.
     /// </summary>
@@ -83,16 +83,15 @@ public class Drainage
             if (channelOf[i] >= 0)
                 channelAreas[channelOf[i]] = Mathf.Max(channelAreas.TryGetValue(channelOf[i], out float a) ? a : 0f, logArea[i]);
         }
-        // Each hollow (a connected area below one spill level) and its floor: its lowest ground and that cell's area.
+        // Each hollow (a connected area below one spill level) gathers its whole catchment: its largest area.
         GridMath.LabelRegions(i => Spill[i] - Ground[i] > HollowDepth, SizeX, SizeZ, out int[] region);
-        var floors = new System.Collections.Generic.Dictionary<(int, float), int>();
+        var hollowArea = new System.Collections.Generic.Dictionary<(int, float), float>();
         for (int i = 0; i < n; i++)
         {
             if (region[i] < 0)
                 continue;
             var key = (region[i], Spill[i]);
-            if (!floors.TryGetValue(key, out int lowest) || Ground[i] < Ground[lowest])
-                floors[key] = i;
+            hollowArea[key] = Mathf.Max(hollowArea.TryGetValue(key, out float a) ? a : 0f, logArea[i]);
         }
         // Receivers lie lower on the filled surface, so visiting low to high resolves each cell's receiver first.
         var order = new int[n];
@@ -112,9 +111,8 @@ public class Drainage
             }
             else if (region[c] >= 0)
             {
-                int floor = floors[(region[c], Spill[c])];
-                line[c] = Ground[floor];
-                lineArea[c] = logArea[floor];
+                line[c] = Spill[c];
+                lineArea[c] = hollowArea[(region[c], Spill[c])];
             }
             else if (logArea[c] >= channelArea || next[c] < 0)
             {
