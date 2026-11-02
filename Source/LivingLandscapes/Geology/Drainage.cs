@@ -31,6 +31,11 @@ public class Drainage
 
     public int SizeX, SizeZ;
 
+    private int[] receiver;
+
+    /// <summary>Each cell's steepest downhill neighbour on <see cref="Filled"/> (D8), or -1 where water leaves the map.</summary>
+    public int[] Receiver => receiver ??= GridMath.Receivers(Filled, SizeX, SizeZ);
+
     /// <summary>
     /// Routes water over <paramref name="ground"/>: fills toward the base levels (every map edge drains where they are
     /// null, in Off mode), then accumulates area over the filled surface, adding <paramref name="inflow"/> (cells) where
@@ -53,6 +58,55 @@ public class Drainage
             SizeX = sizeX,
             SizeZ = sizeZ,
         };
+    }
+
+    /// <summary>
+    /// Height of the drainage line each cell's water reaches (the base of height above nearest drainage, HAND), following
+    /// <see cref="Receiver"/> until a cell whose area reaches <paramref name="channelArea"/> (log10 cells). Water in a
+    /// hollow spills on toward the line below it, so a hollow is not a drainage line of its own. Where
+    /// <paramref name="riverLevel"/> is set (a carved river) the line is the river's water surface, and a channel's whole
+    /// width shares its largest area. <paramref name="lineArea"/> is the line's area (log10 cells) where the cell reaches it.
+    /// </summary>
+    public float[] LineHeight(float channelArea, float[] riverLevel, int[] channelOf, out float[] lineArea)
+    {
+        int n = Ground.Length;
+        var logArea = new float[n];
+        for (int i = 0; i < n; i++)
+            logArea[i] = Mathf.Log10(Area[i]);
+        var channelAreas = new System.Collections.Generic.Dictionary<int, float>();
+        for (int i = 0; channelOf != null && i < n; i++)
+        {
+            if (channelOf[i] >= 0)
+                channelAreas[channelOf[i]] = Mathf.Max(channelAreas.TryGetValue(channelOf[i], out float a) ? a : 0f, logArea[i]);
+        }
+        // Receivers lie lower on the filled surface, so visiting low to high resolves each cell's receiver first.
+        var order = new int[n];
+        var keys = (float[])Filled.Clone();
+        for (int i = 0; i < n; i++)
+            order[i] = i;
+        System.Array.Sort(keys, order);
+        var line = new float[n];
+        lineArea = new float[n];
+        int[] next = Receiver;
+        foreach (int c in order)
+        {
+            if (riverLevel != null && !float.IsNaN(riverLevel[c]))
+            {
+                line[c] = riverLevel[c];
+                lineArea[c] = channelOf != null && channelOf[c] >= 0 ? channelAreas[channelOf[c]] : logArea[c];
+            }
+            else if (logArea[c] >= channelArea || next[c] < 0)
+            {
+                line[c] = Ground[c];
+                lineArea[c] = logArea[c];
+            }
+            else
+            {
+                line[c] = line[next[c]];
+                lineArea[c] = lineArea[next[c]];
+            }
+        }
+        return line;
     }
 
     /// <summary>
