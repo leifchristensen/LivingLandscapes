@@ -4,7 +4,7 @@ using UnityEngine;
 namespace LivingLandscapes.Geology;
 
 /// <summary>
-/// Where water may leave a grid, and at what level (P1 base level, #97; tools/Docs/LAYER-UNIFICATION.md): one rule for the
+/// Where water may leave a grid, and at what level (P1 base level, #97, #101): one rule for the
 /// erosion model and for the map's routings. Every cell has a base level B: NaN where water cannot leave, otherwise water
 /// standing there leaves once its surface reaches B, so an outlet spills at max(ground, B).
 /// <list type="bullet">
