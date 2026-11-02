@@ -33,6 +33,18 @@ public class MapComponent_LocalClimate : MapComponent
         return height[index] + day * sun[index] + night * pool[index];
     }
 
+    /// <summary>
+    /// The offset (K) of a cell averaged over days and nights, for where species grow (their thermal niche): height, the
+    /// sun part for the share of the day it acts, the cold pool for the share of the time one stands.
+    /// </summary>
+    public float MeanOffsetAt(int index)
+    {
+        if (height == null && !TryBuild())
+            return 0f;
+        LocalClimateDef tuning = LocalClimateDef.Current;
+        return height[index] + tuning.meanDayShare * sun[index] + tuning.meanPoolShare * pool[index];
+    }
+
     /// <summary>The three parts at a cell (K): height, sun at full day, pool on a clear, calm night. For the dev readout and census.</summary>
     public bool TryGetParts(int index, out float heightPart, out float sunPart, out float poolPart)
     {
@@ -97,7 +109,7 @@ public class MapComponent_LocalClimate : MapComponent
         var poolPart = new float[landform.Length];
         for (int i = 0; i < landform.Length; i++)
         {
-            heightPart[i] = -tuning.lapseRate * (landform[i] - mean);
+            heightPart[i] = -tuning.lapseRate * tuning.lapseScale * (landform[i] - mean);
             sunPart[i] = tuning.sunWarming * (exposure[i] - flatExposure);
             poolPart[i] = -tuning.poolCooling * Mathf.Clamp01((filled[i] - smooth[i]) / Mathf.Max(tuning.poolDepthFull, 0.01f));
         }

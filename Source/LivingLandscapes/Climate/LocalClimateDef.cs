@@ -12,6 +12,12 @@ public class LocalClimateDef : Def
     public float lapseRate = 0.0065f;
 
     /// <summary>
+    /// Stand-in R19 (owner 2026-11-02): the lapse rate times this. A map's relief stands for a compressed landscape, and
+    /// the true rate gives under 1 K across a mountainous map. Replace with a map scale from the world tile's relief.
+    /// </summary>
+    public float lapseScale = 10f;
+
+    /// <summary>
     /// Daytime warming, K per unit of sun exposure above level ground's (LL_Sun): sun-facing slopes run 1-3 K warmer
     /// than level ground by day, slopes facing away as much cooler (Geiger, Climate Near the Ground).
     /// </summary>
@@ -31,6 +37,12 @@ public class LocalClimateDef : Def
 
     /// <summary>Share of the pool left under cloud or rain (cloud cover stops the ground radiating its heat away).</summary>
     public float pooledUnderCloud = 0.3f;
+
+    /// <summary>Share of the day the sun part acts on average, for a cell's mean offset (species placement).</summary>
+    public float meanDayShare = 0.5f;
+
+    /// <summary>Share of the time a full cold pool stands on average (nights that are clear and calm), for the mean offset.</summary>
+    public float meanPoolShare = 0.25f;
 
     private static LocalClimateDef current;
 

@@ -5,13 +5,15 @@
     Local climate (P23, #90, one temperature map): an outdoor cell is colder or warmer than the map's outdoor temperature
     (the mean) by its height, its slope to the sun and cold air pooling in hollows. Vanilla's cell temperature includes
     it, so pawns, plants and their growth temperature windows (Patches/PlantTemperature.xml) all read the same value.
-    Literature values; flat maps change little, as in nature.
+    Literature values, except the lapse rate (stand-in R19); flat maps change little, as in nature.
   -->
   <LivingLandscapes.Climate.LocalClimateDef>
     <defName>LL_LocalClimate</defName>
     <label>local climate</label>
     <!-- K per metre: the environmental lapse rate, 6.5 K per 1000 m. -->
     <lapseRate>0.0065</lapseRate>
+    <!-- Stand-in R19 (owner 2026-11-02): x10, a map's relief stands for a compressed landscape (true rate: under 1 K per map). -->
+    <lapseScale>10</lapseScale>
     <!-- K per unit of LL_Sun exposure above level ground, by day: sun-facing slopes 1-3 K warmer. -->
     <sunWarming>5</sunWarming>
     <!-- Frost hollows on clear, calm nights: K at full depth, and the depth (m) below the spill level for full cooling. -->
@@ -20,6 +22,9 @@
     <poolSmoothing>5</poolSmoothing>
     <mixingWind>1</mixingWind>
     <pooledUnderCloud>0.3</pooledUnderCloud>
+    <!-- Mean offset for where species grow: the sun part acts half the day, a full cold pool a quarter of the time. -->
+    <meanDayShare>0.5</meanDayShare>
+    <meanPoolShare>0.25</meanPoolShare>
   </LivingLandscapes.Climate.LocalClimateDef>
 
 </Defs>

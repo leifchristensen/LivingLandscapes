@@ -47,6 +47,8 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermal = new Dictionary<ThingDef, float[]>();
+    private float[] meanOffset;
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly float[][] crowding = new float[3][];
@@ -500,6 +502,55 @@ public class MapComponent_Ecology : MapComponent
         return new Kernel { Reach = reach, Values = values };
     }
 
+    /// <summary>
+    /// A species' warmth on each cell relative to the map as a whole (P23, #90): g(cell) / g(map), where g is the yearly
+    /// mean of vanilla's temperature growth factor (the species' cardinal temperatures, PlantTemperature.xml) over the
+    /// tile's twelfth mean temperatures plus the cell's mean local offset. 1 on a flat map; in frost hollows and on
+    /// heights a warm species loses more than a cold one, so cold-tolerant species win there. Capped at
+    /// <see cref="ThermalGain"/>; a species that cannot grow at the map's mean is left to the biome (1).
+    /// </summary>
+    private float[] ThermalGrid(ThingDef def)
+    {
+        if (thermal.TryGetValue(def, out float[] grid))
+            return grid;
+        grid = new float[sizeX * sizeZ];
+        var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        if (meanOffset == null && climate != null)
+        {
+            meanOffset = new float[grid.Length];
+            for (int i = 0; i < grid.Length; i++)
+                meanOffset[i] = climate.MeanOffsetAt(i);
+        }
+        var twelfths = new float[12];
+        for (int t = 0; t < 12; t++)
+            twelfths[t] = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+        float Growing(float offset)
+        {
+            float sum = 0f;
+            foreach (float temperature in twelfths)
+                sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+            return sum / 12f;
+        }
+        // g by offset in steps of a quarter kelvin: a few hundred evaluations per species instead of one per cell.
+        float atMean = Growing(0f);
+        var table = new float[(int)((ThermalSpan.max - ThermalSpan.min) * 4f) + 1];
+        for (int k = 0; k < table.Length; k++)
+            table[k] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, Growing(ThermalSpan.min + k / 4f) / atMean);
+        for (int i = 0; i < grid.Length; i++)
+        {
+            float offset = meanOffset == null ? 0f : meanOffset[i];
+            grid[i] = table[Mathf.Clamp(Mathf.RoundToInt((offset - ThermalSpan.min) * 4f), 0, table.Length - 1)];
+        }
+        thermal[def] = grid;
+        return grid;
+    }
+
+    /// <summary>Range of mean local offsets (K) the thermal table covers.</summary>
+    private static readonly FloatRange ThermalSpan = new FloatRange(-30f, 15f);
+
+    /// <summary>Most a warmer cell can raise a species' fitness over the map's mean (its g rises, but sun and space still limit it).</summary>
+    private const float ThermalGain = 1.5f;
+
     private float[] SiteGrid(ThingDef def, PlantHabitat habitat)
     {
         if (site.TryGetValue(def, out float[] grid))
@@ -526,7 +577,7 @@ public class MapComponent_Ecology : MapComponent
                 grid[i] = sampler.Site(habitat, i, fundamental: true);
             carrying[def] = grid;
         }
-        return grid[index] * habitat.light.Response(LightAt(index));
+        return grid[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
     }
 
     /// <summary>Shade 0..1 on a cell from the plants standing now: the share of a clear noon's light they block.</summary>
@@ -573,11 +624,11 @@ public class MapComponent_Ecology : MapComponent
     private static Map cachedMap;
     private static MapComponent_Ecology cachedEcology;
 
-    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
+    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now, times its warmth there (<see cref="ThermalGrid"/>).</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index));
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
     }
 
     /// <summary>

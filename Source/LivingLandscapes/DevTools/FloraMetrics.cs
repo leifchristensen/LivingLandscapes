@@ -278,6 +278,28 @@ public static class FloraMetrics
             Log.Message($"{prefix} patches species={def.defName} cells={cells} count={sizes.Count} median={sizes[sizes.Count / 2]} p90={sizes[(int)(sizes.Count * 0.9f)]} largest={sizes[sizes.Count - 1]} cellWeighted={(double)squares / cells:F1}");
         }
 
+        // Thermal zoning (P23, #90): each common species' mean local offset (K, days and nights averaged) against the land's,
+        // so warmth-loving species should sit above it and cold-hardy ones below it on maps with relief.
+        var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        if (climate != null)
+        {
+            double landSum = 0;
+            int landN = 0;
+            for (int i = 0; i < area; i++)
+                if (land[i])
+                {
+                    landSum += climate.MeanOffsetAt(i);
+                    landN++;
+                }
+            var zones = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
+                .GroupBy(p => p.def).Where(g => g.Count() >= 30)
+                .Select(g => (def: g.Key, n: g.Count(), offset: g.Average(p => climate.MeanOffsetAt(map.cellIndices.CellToIndex(p.Position)))))
+                .OrderBy(z => z.offset).ToList();
+            if (landN > 0 && zones.Count > 0)
+                Log.Message($"{prefix} thermal land={landSum / landN:F2}K " +
+                            string.Join(" ", zones.Select(z => $"{z.def.defName}={z.offset:F2}(n{z.n},opt{z.def.plant.minOptimalGrowthTemperature:F0}-{z.def.plant.maxOptimalGrowthTemperature:F0})")));
+        }
+
         // Riparian: plants by distance to water (LL_WaterDistance) bands, with fertility, moisture and leading species, to
         // see whether banks differ from the uplands.
         if (map.GetComponent<LivingLandscapes.Environment.MapComponent_Environment>() is { } env
