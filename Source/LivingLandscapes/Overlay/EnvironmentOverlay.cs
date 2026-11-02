@@ -68,12 +68,12 @@ public class EnvironmentOverlay
         if (!environment.TryGetGrid(layer, out EnvironmentGrid grid))
             return null;
         Map map = environment.Map;
+        float[] values = grid.ToArray();
         var render = new LayerRender
         {
             layer = layer,
-            style = layer.overlay.ResolveFor(grid.Min, grid.Max),
+            style = layer.overlay.ResolveFor(values, grid.Min, grid.Max),
         };
-        float[] values = grid.ToArray();
 
         if (render.style.IsVectorField)
         {

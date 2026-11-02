@@ -39,7 +39,7 @@ public static class LayerImageExporter
                 continue;
             string path = Path.Combine(Folder, $"{layer.defName}.png");
             bool markCliffs = layer == EnvironmentLayerDefOf.LL_Height || layer == EnvironmentLayerDefOf.LL_Landform;
-            OverlayProperties style = layer.overlay?.ResolveFor(grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
+            OverlayProperties style = layer.overlay?.ResolveFor(grid.ToArray(), grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
             Export(map, grid, style, path, markCliffs);
             if (GenCommandLine.CommandLineArgPassed("ll-export-raw"))
                 ExportRaw(grid, Path.Combine(Folder, $"{layer.defName}.f32"));
