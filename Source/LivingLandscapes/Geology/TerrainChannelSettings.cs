@@ -217,6 +217,9 @@ public class TerrainChannelSettings
     /// <summary>Sediment budget and floodplain deposits (<see cref="Sediment"/>).</summary>
     public SedimentSettings sediment = new SedimentSettings();
 
+    /// <summary>Junctions of moving water: slow zones, bars on the tributary's side and scour holes (<see cref="Confluences"/>, #20).</summary>
+    public ConfluenceSettings confluences = new ConfluenceSettings();
+
     /// <summary>Deposits raising the ground between routing passes (P7 feedback, <see cref="FeedbackSettings"/>).</summary>
     public FeedbackSettings feedback = new FeedbackSettings();
 

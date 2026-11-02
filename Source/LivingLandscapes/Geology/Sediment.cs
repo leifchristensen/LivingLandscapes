@@ -84,10 +84,10 @@ public static class Sediment
     /// </summary>
     public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
         float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded,
-        float[] discharge = null, bool[] still = null)
+        float[] discharge = null, bool[] still = null, ConfluenceZones zones = null)
     {
         Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize, out _,
-            discharge, still);
+            discharge, still, zones);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         int covered = 0;
@@ -110,7 +110,8 @@ public static class Sediment
     /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null,
+        ConfluenceZones zones = null)
     {
         int n = filled.Length;
         var load = new float[n];
@@ -138,10 +139,16 @@ public static class Sediment
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;
             eroded += supply;
-            float dropped = 0f;
-            if (available > capacity)
+            float dropped = still ? (available > capacity ? available : 0f) : Mathf.Max(0f, available - capacity) * p.settleShare;
+            // Below a junction the flow splits across the channel (#20): slow water along the tributary's bank (share a) carries
+            // its share of the load at (v / v_mean)^2 of the capacity, and the rest runs faster through the narrowed width, so
+            // the slow side drops its excess and the fast side carries more.
+            float a = zones != null && !still ? zones.SlowShare[c] : 0f;
+            if (a > 0f)
+                dropped = (Mathf.Max(0f, a * available - a * capacity * zones.SlowCapacity)
+                           + Mathf.Max(0f, (1f - a) * available - capacity / (1f - a))) * p.settleShare;
+            if (dropped > 0f)
             {
-                dropped = still ? available : (available - capacity) * p.settleShare;
                 // The coarsest settles first: a slight excess drops gravel, losing all the power drops everything.
                 float share = dropped / Mathf.Max(available, 1e-6f);
                 float dropGrain = Mathf.Lerp(1f, grain, share);
@@ -243,7 +250,8 @@ public static class Sediment
     /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream.
     /// </summary>
     public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
-        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null)
+        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null,
+        ConfluenceZones zones = null)
     {
         int n = filled.Length;
         alluvium = new float[n];
@@ -289,6 +297,10 @@ public static class Sediment
                 float turn = f1.x * f2.y - f1.y * f2.x;
                 inner = new Vector2(-f1.y, f1.x) * turn;
             }
+            // Below a junction the slow water lies along the tributary's bank: the deposit leans there instead (the stronger
+            // of the two, not both).
+            if (zones != null && zones.SlowShare[c] > 0f && zones.SlowShare[c] > inner.magnitude)
+                inner = zones.SlowSide[c] * zones.SlowShare[c];
             int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
             weights.Clear();
             float sum = 0f;
