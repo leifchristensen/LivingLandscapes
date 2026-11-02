@@ -48,6 +48,9 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> thermal = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermalShare = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> warmth = new Dictionary<ThingDef, float[]>();
+    private float[] bestWarmth;
     private float[] meanOffset;
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
@@ -503,22 +506,71 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>
-    /// A species' warmth on each cell relative to the map as a whole (P23, #90): g(cell) / g(map), where g is the yearly
-    /// mean of vanilla's temperature growth factor (the species' cardinal temperatures, PlantTemperature.xml) over the
-    /// tile's twelfth mean temperatures plus the cell's mean local offset. 1 on a flat map; in frost hollows and on
-    /// heights a warm species loses more than a cold one, so cold-tolerant species win there. Capped at
-    /// <see cref="ThermalGain"/>; a species that cannot grow at the map's mean is left to the biome (1).
+    /// A species' warmth on each cell (P23, #90): g, the yearly mean of vanilla's temperature growth factor (the species'
+    /// cardinal temperatures, PlantTemperature.xml) over the tile's twelfth mean temperatures plus the cell's mean local
+    /// offset: 1 inside its optimal window, falling on the ramps towards its minimum and maximum growth temperatures, 0
+    /// outside them. A species grows less often the further a cell is from its ideal and far less often where it cannot
+    /// grow at all (owner 2026-11-02): it weighs which species a cell gets, as g over the best g of the biome's species on
+    /// that cell (competition is relative: where every species is cold, the hardiest still fills the cell, and cover stays
+    /// with <see cref="ThermalShareGrid"/>), at least <see cref="ThermalFloor"/>.
     /// </summary>
     private float[] ThermalGrid(ThingDef def)
     {
-        if (thermal.TryGetValue(def, out float[] grid))
+        BuildThermal(def);
+        return thermal[def];
+    }
+
+    /// <summary>
+    /// The same warmth relative to the map's mean, g(cell) / g(map), capped at <see cref="ThermalGain"/>: how much a
+    /// cell carries (cover). Vanilla's plant density for the biome already reflects the tile's climate, so local warmth
+    /// only moves cover between warm and cold ground; 1 on a flat map, and 1 for a species that cannot grow at the
+    /// map's mean.
+    /// </summary>
+    private float[] ThermalShareGrid(ThingDef def)
+    {
+        BuildThermal(def);
+        return thermalShare[def];
+    }
+
+    private void BuildThermal(ThingDef def)
+    {
+        if (thermal.ContainsKey(def))
+            return;
+        if (bestWarmth == null)
+        {
+            bestWarmth = new float[sizeX * sizeZ];
+            foreach (var record in map.Biome.wildPlants)
+            {
+                float[] other = Warmth(record.plant);
+                for (int i = 0; i < bestWarmth.Length; i++)
+                    bestWarmth[i] = Mathf.Max(bestWarmth[i], other[i]);
+            }
+        }
+        float[] g = Warmth(def);
+        var absolute = new float[g.Length];
+        var share = new float[g.Length];
+        float atMean = WarmthAt(def, 0f);
+        for (int i = 0; i < g.Length; i++)
+        {
+            float best = Mathf.Max(bestWarmth[i], g[i]);
+            absolute[i] = best < 0.001f ? 1f : Mathf.Max(ThermalFloor, g[i] / best);
+            share[i] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, g[i] / atMean);
+        }
+        thermal[def] = absolute;
+        thermalShare[def] = share;
+    }
+
+    /// <summary>g of a species on each cell (see <see cref="ThermalGrid"/>), cached.</summary>
+    private float[] Warmth(ThingDef def)
+    {
+        if (warmth.TryGetValue(def, out float[] grid))
             return grid;
-        grid = new float[sizeX * sizeZ];
         var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        int area = sizeX * sizeZ;
         if (meanOffset == null && climate != null)
         {
-            meanOffset = new float[grid.Length];
-            for (int i = 0; i < grid.Length; i++)
+            meanOffset = new float[area];
+            for (int i = 0; i < area; i++)
                 meanOffset[i] = climate.MeanOffsetAt(i);
         }
         var twelfths = new float[12];
@@ -532,24 +584,39 @@ public class MapComponent_Ecology : MapComponent
             return sum / 12f;
         }
         // g by offset in steps of a quarter kelvin: a few hundred evaluations per species instead of one per cell.
-        float atMean = Growing(0f);
         var table = new float[(int)((ThermalSpan.max - ThermalSpan.min) * 4f) + 1];
         for (int k = 0; k < table.Length; k++)
-            table[k] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, Growing(ThermalSpan.min + k / 4f) / atMean);
-        for (int i = 0; i < grid.Length; i++)
+            table[k] = Growing(ThermalSpan.min + k / 4f);
+        grid = new float[area];
+        for (int i = 0; i < area; i++)
         {
             float offset = meanOffset == null ? 0f : meanOffset[i];
             grid[i] = table[Mathf.Clamp(Mathf.RoundToInt((offset - ThermalSpan.min) * 4f), 0, table.Length - 1)];
         }
-        thermal[def] = grid;
+        warmth[def] = grid;
         return grid;
+    }
+
+    /// <summary>g of a species at one mean local offset (K): the yearly mean of its temperature growth factor.</summary>
+    private float WarmthAt(ThingDef def, float offset)
+    {
+        float sum = 0f;
+        for (int t = 0; t < 12; t++)
+        {
+            float temperature = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+            sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+        }
+        return sum / 12f;
     }
 
     /// <summary>Range of mean local offsets (K) the thermal table covers.</summary>
     private static readonly FloatRange ThermalSpan = new FloatRange(-30f, 15f);
 
-    /// <summary>Most a warmer cell can raise a species' fitness over the map's mean (its g rises, but sun and space still limit it).</summary>
+    /// <summary>Most a warmer cell can raise a species' cover over the map's mean (its g rises, but sun and space still limit it).</summary>
     private const float ThermalGain = 1.5f;
+
+    /// <summary>Warmth weight of a species where it cannot grow at all: rare, not impossible (a seedling still sprouts in a warm spell).</summary>
+    private const float ThermalFloor = 0.05f;
 
     private float[] SiteGrid(ThingDef def, PlantHabitat habitat)
     {
@@ -577,7 +644,7 @@ public class MapComponent_Ecology : MapComponent
                 grid[i] = sampler.Site(habitat, i, fundamental: true);
             carrying[def] = grid;
         }
-        return grid[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
+        return grid[index] * habitat.light.Response(LightAt(index)) * ThermalShareGrid(def)[index];
     }
 
     /// <summary>Shade 0..1 on a cell from the plants standing now: the share of a clear noon's light they block.</summary>

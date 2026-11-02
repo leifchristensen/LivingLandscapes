@@ -14,7 +14,7 @@
     <lapseRate>0.0065</lapseRate>
     <!-- Stand-in R19 (owner 2026-11-02): x10, a map's relief stands for a compressed landscape (true rate: under 1 K per map). -->
     <lapseScale>10</lapseScale>
-    <!-- K per unit of LL_Sun exposure above level ground, by day: sun-facing slopes 1-3 K warmer. -->
+    <!-- K per unit of LL_Sun exposure above the map's mean, by day: sun-facing slopes 1-3 K warmer. -->
     <sunWarming>5</sunWarming>
     <!-- Frost hollows on clear, calm nights: K at full depth, and the depth (m) below the spill level for full cooling. -->
     <poolCooling>4</poolCooling>

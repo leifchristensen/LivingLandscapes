@@ -18,7 +18,7 @@ public class LocalClimateDef : Def
     public float lapseScale = 10f;
 
     /// <summary>
-    /// Daytime warming, K per unit of sun exposure above level ground's (LL_Sun): sun-facing slopes run 1-3 K warmer
+    /// Daytime warming, K per unit of sun exposure (LL_Sun) above the map's mean: sun-facing slopes run 1-3 K warmer
     /// than level ground by day, slopes facing away as much cooler (Geiger, Climate Near the Ground).
     /// </summary>
     public float sunWarming = 5f;

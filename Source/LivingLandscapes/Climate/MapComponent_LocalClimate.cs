@@ -91,13 +91,16 @@ public class MapComponent_LocalClimate : MapComponent
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float[] landform = landformGrid.ToArray();
         float[] exposure = sunGrid.ToArray();
-        float flatExposure = EnvironmentLayerDefOf.LL_Sun.GetModExtension<SunExtension>()?.flatExposure ?? 0.7f;
 
-        // Height: the lapse rate from the map's mean ground height (the map's temperature is its mean).
-        float mean = 0f;
-        foreach (float h in landform)
-            mean += h;
+        // Height and sun: deviations from the map's mean ground height and mean exposure (the map's temperature is its mean).
+        float mean = 0f, meanExposure = 0f;
+        for (int i = 0; i < landform.Length; i++)
+        {
+            mean += landform[i];
+            meanExposure += exposure[i];
+        }
         mean /= landform.Length;
+        meanExposure /= landform.Length;
 
         // Hollows: depth below the spill level of the smoothed ground (Priority-Flood fill, outlets at the map edge).
         float[] smooth = GridMath.Blur(landform, sizeX, sizeZ, tuning.poolSmoothing);
@@ -110,7 +113,7 @@ public class MapComponent_LocalClimate : MapComponent
         for (int i = 0; i < landform.Length; i++)
         {
             heightPart[i] = -tuning.lapseRate * tuning.lapseScale * (landform[i] - mean);
-            sunPart[i] = tuning.sunWarming * (exposure[i] - flatExposure);
+            sunPart[i] = tuning.sunWarming * (exposure[i] - meanExposure);
             poolPart[i] = -tuning.poolCooling * Mathf.Clamp01((filled[i] - smooth[i]) / Mathf.Max(tuning.poolDepthFull, 0.01f));
         }
         height = heightPart;

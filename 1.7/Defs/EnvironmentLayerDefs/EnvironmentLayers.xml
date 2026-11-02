@@ -437,7 +437,7 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Sun</defName>
     <label>sun exposure</label>
-    <description>0 to 1: how much sun a site gets. Level ground is mid-high; slopes facing the sun (south in the northern hemisphere) more, slopes facing away less. Aspect matters less near the equator.</description>
+    <description>0 to 1: how much direct sun a site gets, level ground 0.7. Slopes facing the sun (south in the northern hemisphere) get more, slopes facing away less, from the angle between the slope and the noon sun at the map's latitude. Clear where level ground is, gold for more sun, blue for less.</description>
     <workerClass>LivingLandscapes.Layers.SunWorker</workerClass>
     <dependsOn>
       <li>LL_Slope</li>
@@ -447,16 +447,14 @@
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.6</fillOpacity>
       <colors>
-        <li><value>0</value><color>(0.15, 0.15, 0.45, 0.8)</color></li>
-        <li><value>0.5</value><color>(1.0, 0.95, 0.6, 0.1)</color></li>
+        <li><value>0</value><color>(0.15, 0.15, 0.45, 0.85)</color></li>
+        <li><value>0.7</value><color>(1.0, 0.95, 0.6, 0)</color></li>
         <li><value>1</value><color>(1.0, 0.75, 0.1, 0.85)</color></li>
       </colors>
     </overlay>
     <modExtensions>
       <li Class="LivingLandscapes.Layers.SunExtension">
         <flatExposure>0.7</flatExposure>
-        <slopeGain>1.5</slopeGain>
-        <fullAspectLatitude>40</fullAspectLatitude>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
