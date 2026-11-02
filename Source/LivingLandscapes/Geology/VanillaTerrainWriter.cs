@@ -56,14 +56,10 @@ public static class VanillaTerrainWriter
         }
         if (water != null)
             fields.Add("WaterDistance", GridMath.DistanceTo(i => water[i] > 0f, sizeX, sizeZ));
-        if (landform != null)
+        // Hollows hold water up to their spill level toward the map's base levels (#97, #98).
+        float[] filled = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SpillDepth, out var spillGrid) ? spillGrid.ToArray() : null;
+        if (filled != null)
         {
-            // Every edge drains here, unlike the base levels (#97) the layers use: filled toward closed edges, a flat dry map
-            // can turn into one edge-wide playa (rsdctaf: 4% -> 16%). Moves to LL_SpillDepth once the edges are settled (#114).
-            var filled = (float[])landform.Clone();
-            GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
-            for (int i = 0; i < filled.Length; i++)
-                filled[i] -= landform[i];
             fields.Add("Hollow", filled);
             // How large the hollow a cell lies in is (cells), so rules can tell a basin floor from a puddle-sized dip.
             int regions = GridMath.LabelRegions(i => filled[i] > 1e-3f, sizeX, sizeZ, out int[] labels);
