@@ -151,12 +151,17 @@ public static class Invariants
 
     /// <summary>
     /// Invariant 2: every body of still water lies in a closed depression (the depression-filled surface stands above
-    /// it). Also counts the closed depressions that hold no water, the candidates for lakes (W6).
+    /// it). Also counts the closed depressions that hold no water, the candidates for lakes (W6). Depressions are filled
+    /// toward the map's base levels (#97): water ponded behind an edge's base level lies in a depression too.
     /// </summary>
     private static void Lakes(Map map, float[] h, int sizeX, int sizeZ, StringBuilder summary)
     {
         var filled = (float[])h.Clone();
-        GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
+        float[] baseLevel = map.GetComponent<MapComponent_Environment>()?.PlannedBaseLevels;
+        if (baseLevel != null)
+            Geology.Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f);
+        else
+            GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         TerrainDef[] terrain = map.terrainGrid.topGrid;
         bool[] coast = Geology.Coastline.SeaCells(map);
         // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
