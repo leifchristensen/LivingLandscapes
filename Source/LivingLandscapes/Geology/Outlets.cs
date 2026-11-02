@@ -229,14 +229,14 @@ public static class Outlets
     /// Fills a surface to be routed toward its outlets: each outlet seeds the fill at its spill level max(ground, B), so
     /// water ponds up to B before it leaves (<see cref="GridMath.FillDepressions"/> from the outlets only).
     /// </summary>
-    public static void Fill(float[] surface, int sizeX, int sizeZ, float[] baseLevel, float epsilon)
+    public static void Fill(float[] surface, int sizeX, int sizeZ, float[] baseLevel, float epsilon, float[] spill = null)
     {
         for (int i = 0; i < surface.Length; i++)
         {
             if (!float.IsNaN(baseLevel[i]))
                 surface[i] = Mathf.Max(surface[i], baseLevel[i]);
         }
-        GridMath.FillDepressions(surface, sizeX, sizeZ, i => !float.IsNaN(baseLevel[i]), epsilon, includeEdges: false);
+        GridMath.FillDepressions(surface, sizeX, sizeZ, i => !float.IsNaN(baseLevel[i]), epsilon, includeEdges: false, spill);
     }
 
     /// <summary>Per side (west, east, south, north): edge cells that drain, and the mean of (B - ground) over them (diagnostic).</summary>

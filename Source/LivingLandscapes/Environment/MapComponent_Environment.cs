@@ -48,6 +48,9 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public float[] PlannedBaseLevels { get; set; }
 
+    /// <summary>Where the final landform's water goes (<see cref="Geology.Drainage.Of"/>, #98), shared by every layer that routes it. Not saved.</summary>
+    public Geology.Drainage PlannedDrainage { get; set; }
+
     /// <summary>The sea's surface (the beach's height, <see cref="Geology.Coastline"/>); NaN without a coast. Not saved.</summary>
     public float PlannedSeaLevel { get; set; } = float.NaN;
 
