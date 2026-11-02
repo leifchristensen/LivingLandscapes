@@ -42,11 +42,16 @@ public class MapComponent_Ecology : MapComponent
     private MapComponent_StandAge standAge;
 
     /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
-    private float[] aspect;
+    private float[] aspect, slope;
 
     private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermal = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermalShare = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> warmth = new Dictionary<ThingDef, float[]>();
+    private float[] bestWarmth;
+    private float[] meanOffset;
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly float[][] crowding = new float[3][];
@@ -135,6 +140,7 @@ public class MapComponent_Ecology : MapComponent
         skyLog = new float[sizeX * sizeZ];
         stems = new float[sizeX * sizeZ];
         aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
+        slope = Grid(EnvironmentLayerDefOf.LL_Slope);
 
         long start = Stopwatch.GetTimestamp();
         int count = 0;
@@ -208,7 +214,7 @@ public class MapComponent_Ecology : MapComponent
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
             int index = map.cellIndices.CellToIndex(at);
-            Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
+            Apply(grid, at.x, at.z, habitat.Kernel.downstream && Downhill(index) ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
         // A tree shades and crowds with its size (P12, P14): growth in quarters, the step it was stamped with on removal.
         int step = 4;
@@ -422,13 +428,19 @@ public class MapComponent_Ecology : MapComponent
 
     private const float DownstreamStretch = 1.5f, DownstreamNarrow = 0.7f;
 
+    /// <summary>Slope (rise over run) below which ground has no downhill for water-carried seed: about 1 degree.</summary>
+    private const float MinDownhillSlope = 0.02f;
+
+    /// <summary>Whether a cell has a downhill for water to carry seed along (its aspect means nothing on level ground, #79).</summary>
+    private bool Downhill(int index) => aspect != null && slope != null && slope[index] >= MinDownhillSlope;
+
     /// <summary>
     /// Where a seed of a water-carried species lands from a parent at this cell: an offset drawn from the same stretched,
     /// downstream-shifted Gaussian as <see cref="DownstreamKernel"/> (isotropic for other species), used by the seeder.
     /// </summary>
     public IntVec3 OffspringCell(PlantHabitat habitat, IntVec3 parent, float sigma)
     {
-        if (!habitat.Kernel.downstream || aspect == null || !parent.InBounds(map))
+        if (!habitat.Kernel.downstream || !parent.InBounds(map) || !Downhill(map.cellIndices.CellToIndex(parent)))
             return new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
         float angle = aspect[map.cellIndices.CellToIndex(parent)];
         float a = sigma + Rand.Gaussian(0f, sigma * DownstreamStretch), c = Rand.Gaussian(0f, sigma * DownstreamNarrow);
@@ -493,6 +505,119 @@ public class MapComponent_Ecology : MapComponent
         return new Kernel { Reach = reach, Values = values };
     }
 
+    /// <summary>
+    /// A species' warmth on each cell (P23, #90): g, the yearly mean of vanilla's temperature growth factor (the species'
+    /// cardinal temperatures, PlantTemperature.xml) over the tile's twelfth mean temperatures plus the cell's mean local
+    /// offset: 1 inside its optimal window, falling on the ramps towards its minimum and maximum growth temperatures, 0
+    /// outside them. A species grows less often the further a cell is from its ideal and far less often where it cannot
+    /// grow at all (owner 2026-11-02): it weighs which species a cell gets, as g over the best g of the biome's species on
+    /// that cell (competition is relative: where every species is cold, the hardiest still fills the cell, and cover stays
+    /// with <see cref="ThermalShareGrid"/>), at least <see cref="ThermalFloor"/>.
+    /// </summary>
+    private float[] ThermalGrid(ThingDef def)
+    {
+        BuildThermal(def);
+        return thermal[def];
+    }
+
+    /// <summary>
+    /// The same warmth relative to the map's mean, g(cell) / g(map), capped at <see cref="ThermalGain"/>: how much a
+    /// cell carries (cover). Vanilla's plant density for the biome already reflects the tile's climate, so local warmth
+    /// only moves cover between warm and cold ground; 1 on a flat map, and 1 for a species that cannot grow at the
+    /// map's mean.
+    /// </summary>
+    private float[] ThermalShareGrid(ThingDef def)
+    {
+        BuildThermal(def);
+        return thermalShare[def];
+    }
+
+    private void BuildThermal(ThingDef def)
+    {
+        if (thermal.ContainsKey(def))
+            return;
+        if (bestWarmth == null)
+        {
+            bestWarmth = new float[sizeX * sizeZ];
+            foreach (var record in map.Biome.wildPlants)
+            {
+                float[] other = Warmth(record.plant);
+                for (int i = 0; i < bestWarmth.Length; i++)
+                    bestWarmth[i] = Mathf.Max(bestWarmth[i], other[i]);
+            }
+        }
+        float[] g = Warmth(def);
+        var absolute = new float[g.Length];
+        var share = new float[g.Length];
+        float atMean = WarmthAt(def, 0f);
+        for (int i = 0; i < g.Length; i++)
+        {
+            float best = Mathf.Max(bestWarmth[i], g[i]);
+            absolute[i] = best < 0.001f ? 1f : Mathf.Max(ThermalFloor, g[i] / best);
+            share[i] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, g[i] / atMean);
+        }
+        thermal[def] = absolute;
+        thermalShare[def] = share;
+    }
+
+    /// <summary>g of a species on each cell (see <see cref="ThermalGrid"/>), cached.</summary>
+    private float[] Warmth(ThingDef def)
+    {
+        if (warmth.TryGetValue(def, out float[] grid))
+            return grid;
+        var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        int area = sizeX * sizeZ;
+        if (meanOffset == null && climate != null)
+        {
+            meanOffset = new float[area];
+            for (int i = 0; i < area; i++)
+                meanOffset[i] = climate.MeanOffsetAt(i);
+        }
+        var twelfths = new float[12];
+        for (int t = 0; t < 12; t++)
+            twelfths[t] = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+        float Growing(float offset)
+        {
+            float sum = 0f;
+            foreach (float temperature in twelfths)
+                sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+            return sum / 12f;
+        }
+        // g by offset in steps of a quarter kelvin: a few hundred evaluations per species instead of one per cell.
+        var table = new float[(int)((ThermalSpan.max - ThermalSpan.min) * 4f) + 1];
+        for (int k = 0; k < table.Length; k++)
+            table[k] = Growing(ThermalSpan.min + k / 4f);
+        grid = new float[area];
+        for (int i = 0; i < area; i++)
+        {
+            float offset = meanOffset == null ? 0f : meanOffset[i];
+            grid[i] = table[Mathf.Clamp(Mathf.RoundToInt((offset - ThermalSpan.min) * 4f), 0, table.Length - 1)];
+        }
+        warmth[def] = grid;
+        return grid;
+    }
+
+    /// <summary>g of a species at one mean local offset (K): the yearly mean of its temperature growth factor.</summary>
+    private float WarmthAt(ThingDef def, float offset)
+    {
+        float sum = 0f;
+        for (int t = 0; t < 12; t++)
+        {
+            float temperature = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+            sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+        }
+        return sum / 12f;
+    }
+
+    /// <summary>Range of mean local offsets (K) the thermal table covers.</summary>
+    private static readonly FloatRange ThermalSpan = new FloatRange(-30f, 15f);
+
+    /// <summary>Most a warmer cell can raise a species' cover over the map's mean (its g rises, but sun and space still limit it).</summary>
+    private const float ThermalGain = 1.5f;
+
+    /// <summary>Warmth weight of a species where it cannot grow at all: rare, not impossible (a seedling still sprouts in a warm spell).</summary>
+    private const float ThermalFloor = 0.05f;
+
     private float[] SiteGrid(ThingDef def, PlantHabitat habitat)
     {
         if (site.TryGetValue(def, out float[] grid))
@@ -519,7 +644,7 @@ public class MapComponent_Ecology : MapComponent
                 grid[i] = sampler.Site(habitat, i, fundamental: true);
             carrying[def] = grid;
         }
-        return grid[index] * habitat.light.Response(LightAt(index));
+        return grid[index] * habitat.light.Response(LightAt(index)) * ThermalShareGrid(def)[index];
     }
 
     /// <summary>Shade 0..1 on a cell from the plants standing now: the share of a clear noon's light they block.</summary>
@@ -566,11 +691,11 @@ public class MapComponent_Ecology : MapComponent
     private static Map cachedMap;
     private static MapComponent_Ecology cachedEcology;
 
-    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
+    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now, times its warmth there (<see cref="ThermalGrid"/>).</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index));
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
     }
 
     /// <summary>
