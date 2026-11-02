@@ -32,6 +32,9 @@ public class MapComponent_Ecology : MapComponent
 
     private HabitatSampler sampler;
     private float[] shadeLog;
+
+    /// <summary>exp(-shadeLog) per cell, kept for vanilla's glow (read on every glow query; null until built).</summary>
+    private float[] transmittance;
     private float[] stems;
     private MapComponent_StandAge standAge;
 
@@ -138,7 +141,13 @@ public class MapComponent_Ecology : MapComponent
                 count++;
             }
         }
+        transmittance = new float[sizeX * sizeZ];
+        for (int i = 0; i < transmittance.Length; i++)
+            transmittance[i] = Mathf.Exp(-shadeLog[i]);
         built = true;
+        // A loaded save builds the ecology in play, after the glow meshes were drawn without the canopy.
+        if (map.mapDrawer != null && SectionsOf(map.mapDrawer) != null)
+            map.mapDrawer.WholeMapChanged(MapMeshFlagDefOf.GroundGlow);
         standAge = map.GetComponent<MapComponent_StandAge>();
         standAge?.LayersReady();
         // The path grid was computed before the stems existed (a loaded save builds this on the spawner's first call).
@@ -226,6 +235,8 @@ public class MapComponent_Ecology : MapComponent
         {
             (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat, step);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
+            if (transmittance != null)
+                RefreshLight(at.x + shift.x, at.z + shift.z, kernel.Reach);
         }
         // Young poles stand close and low (stem exclusion): a tree up to half grown is a thicket too.
         float thicket = habitat.thicket + (habitat.stratum == PlantStratum.Canopy && step <= 2 ? PlantEcologyDef.Current.saplingThicket : 0f);
@@ -304,6 +315,22 @@ public class MapComponent_Ecology : MapComponent
                 sum += stems[z * sizeX + x];
         }
         return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * sum / 9f);
+    }
+
+    /// <summary>Transmittance and vanilla's glow meshes follow a shade stamp around (cx, cz).</summary>
+    private void RefreshLight(int cx, int cz, int reach)
+    {
+        int z0 = Mathf.Max(cz - reach, 0), z1 = Mathf.Min(cz + reach, sizeZ - 1);
+        int x0 = Mathf.Max(cx - reach, 0), x1 = Mathf.Min(cx + reach, sizeX - 1);
+        for (int z = z0; z <= z1; z++)
+        {
+            for (int x = x0; x <= x1; x++)
+            {
+                int i = z * sizeX + x;
+                transmittance[i] = Mathf.Exp(-shadeLog[i]);
+                map.mapDrawer?.MapMeshDirty(new IntVec3(x, 0, z), MapMeshFlagDefOf.GroundGlow);
+            }
+        }
     }
 
     private void Apply(float[] grid, int cx, int cz, Kernel kernel, int sign)
@@ -452,22 +479,41 @@ public class MapComponent_Ecology : MapComponent
                 grid[i] = sampler.Site(habitat, i, fundamental: true);
             carrying[def] = grid;
         }
-        return grid[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+        return grid[index] * habitat.light.Response(LightAt(index));
     }
-
-    /// <summary>Canopy transmittance 0..1 on a cell: the share of sky light that reaches the ground through the crowns (P12).</summary>
 
     /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
     public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
 
-    /// <summary>Light reaching the ground on a cell now: LL_Sun x canopy transmittance (what the light curves read).</summary>
-    public float LightAt(int index) => sampler.Light(index, Mathf.Exp(-shadeLog[index]));
+    /// <summary>
+    /// Light reaching the ground on a cell under a clear noon sky (P12): canopy transmittance, 1 in the open. Vanilla's
+    /// ground glow is the sky's glow times this (<see cref="Patches.Patch_GlowGrid_GroundGlowAt"/>), so the light curves
+    /// read the same light that pawns, crops and the Lit % readout see at noon.
+    /// </summary>
+    public float LightAt(int index) => Mathf.Exp(-shadeLog[index]);
+
+    /// <summary>Canopy transmittance for vanilla's glow: 1 where the ecology is off or not built yet.</summary>
+    public static float TransmittanceAt(Map map, IntVec3 c)
+    {
+        if (map != cachedMap)
+        {
+            cachedMap = map;
+            cachedEcology = map.GetComponent<MapComponent_Ecology>();
+        }
+        float[] t = cachedEcology?.transmittance;
+        return t == null || !c.InBounds(map) ? 1f : t[map.cellIndices.CellToIndex(c)];
+    }
+
+    private static readonly HarmonyLib.AccessTools.FieldRef<MapDrawer, Section[,]> SectionsOf = HarmonyLib.AccessTools.FieldRefAccess<MapDrawer, Section[,]>("sections");
+
+    private static Map cachedMap;
+    private static MapComponent_Ecology cachedEcology;
 
     /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        return SiteGrid(def, habitat)[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index));
     }
 
     /// <summary>
@@ -788,15 +834,17 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>
-    /// Growth rate multiplier of a standing plant from how well its site suits its species: 1 for plants without habitat
-    /// data, so crops, modded and DLC plants grow exactly as vanilla has them.
+    /// Growth rate multiplier of a standing plant from how well its ground (water, root room) suits its species: 1 for
+    /// plants without habitat data, so crops, modded and DLC plants grow exactly as vanilla has them. Light is not in it:
+    /// vanilla's light factor already reads the canopy-dimmed glow.
     /// </summary>
     public float Vitality(Plant plant)
     {
         PlantHabitat habitat = PlantHabitat.For(plant.def);
         if (!habitat.HasSiteCurves || !plant.Position.InBounds(map))
             return 1f;
-        float fitness = Fitness(plant.def, map.cellIndices.CellToIndex(plant.Position));
+        // The ground only: light reaches growth through vanilla's own light factor (the canopy-dimmed glow).
+        float fitness = SiteGrid(plant.def, habitat)[map.cellIndices.CellToIndex(plant.Position)];
         PlantEcologyDef def = PlantEcologyDef.Current;
         return Mathf.Lerp(1f, Mathf.Lerp(def.vitalityMin, def.vitalityMax, Mathf.Sqrt(fitness)), Strength);
     }

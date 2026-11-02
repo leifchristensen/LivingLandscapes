@@ -207,13 +207,6 @@ public class PlantEcologyDef : Def
     /// <summary>Stem exclusion: thicket weight of a tree up to half grown (young poles crowd close and low; shrubs 0.85-1.4).</summary>
     public float saplingThicket = 0.5f;
 
-    /// <summary>
-    /// Forest fungi (E5, P11 x P12): a plant that dies in light (diesToLight) with a two-sided light curve lives on an
-    /// unroofed cell while its light curve's response to the light at its feet is at least this. exp(-2): two tolerances
-    /// past the optimum, the edge of the shade it was placed in; a gap or a felled canopy is past it.
-    /// </summary>
-    public float lightDeathResponse = 0.135f;
-
     /// <summary>Self-thinning (P14): a tree's top chance to die of crowding at each size step it reaches; 0 turns it off.</summary>
     public float thinningMortality = 0.5f;
 

@@ -140,14 +140,15 @@ public static class FloraMetrics
         }
 
         // Shade specialists (E5: forest fungi, moss): two-sided light curves with an optimum under 0.2. Plants per land cell
-        // by ground light band (deep < 0.15, shaded 0.15-0.5, open > 0.5), per species.
+        // by noon ground light band, per species.
         var bandCells = new int[3];
         for (int i = 0; i < area; i++)
         {
             if (land[i])
                 bandCells[Band(ecology.LightAt(i))]++;
         }
-        static int Band(float light) => light < 0.15f ? 0 : light < 0.5f ? 1 : 2;
+        // Noon light bands: deep is vanilla's Dark (< 0.3), shaded up to 0.7, open above.
+        static int Band(float light) => light < 0.3f ? 0 : light < 0.7f ? 1 : 2;
         var shadeLines = new List<string>();
         foreach (IGrouping<ThingDef, Plant> group in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
                      .Where(p => !p.def.IsDeadPlant && PlantHabitat.For(p.def) is { light: { saturating: false, optimum: < 0.2f } })
@@ -161,6 +162,23 @@ public static class FloraMetrics
         }
         Log.Message($"{prefix} shadeSpecialists bands deep={bandCells[0] / n:F2} shaded={bandCells[1] / n:F2} open={bandCells[2] / n:F2}: " +
                     (shadeLines.Count > 0 ? string.Join("; ", shadeLines) : "none"));
+
+        // One light map (P12): noon light under trees (land cells shaded at all) by percentile, target 0.1-0.3 under heavy
+        // canopy; and vanilla's glow on the darkest land cell against the sky's glow x its transmittance.
+        var shadedLight = new List<float>();
+        int darkest = -1;
+        for (int i = 0; i < area; i++)
+        {
+            if (!land[i] || ecology.LightAt(i) >= 0.999f)
+                continue;
+            shadedLight.Add(ecology.LightAt(i));
+            if (darkest < 0 || ecology.LightAt(i) < ecology.LightAt(darkest))
+                darkest = i;
+        }
+        shadedLight.Sort();
+        string Pct(float q) => shadedLight.Count == 0 ? "-" : $"{shadedLight[(int)(q * (shadedLight.Count - 1))]:F2}";
+        string check = darkest < 0 ? "none" : $"glow {map.glowGrid.GroundGlowAt(map.cellIndices.IndexToCell(darkest)):F3} = sky {map.skyManager.CurSkyGlow:F3} x light {ecology.LightAt(darkest):F3}";
+        Log.Message($"{prefix} noonLight under trees {shadedLight.Count / n:F2} of land: p5 {Pct(0.05f)} p10 {Pct(0.1f)} p25 {Pct(0.25f)} p50 {Pct(0.5f)} p75 {Pct(0.75f)}; darkest cell {check}");
 
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;
         // clearings = blocks with canopy under a quarter of the mean; closed = blocks with plants on 80% of land.

@@ -4,8 +4,10 @@
   <!-- Forest fungi (E5; P11 x P12, owner approved 2026-10-30). Every fungus is a cave plant: vanilla spawns those only
        under natural roofs by their cave weight, and kills them in any light. A forest ecotype inherits the cave fungus
        (look, harvest, glow, death in light) as an ordinary wild plant, so it spawns from the forest lists by its habitat;
-       the canopy dims the light it sees (Patch_Plant_DyingBecauseExposedToLight), so it lives in the shade its light curve
-       placed it in and dies where the canopy opens. Decomposers are not light-limited: the light curve (optimum 0.1) stands in for the litter
+       the canopy dims vanilla's glow (Patch_GlowGrid_GroundGlowAt) and it tolerates glow up to its lightLimit 0.3
+       (fruiting bodies dry out in sun: a real closed canopy passes 1-5% of the sun, a gap far more; on this mod's canopy,
+       0.1-0.3 at a clear noon under heavy cover, 0.3 is the closed canopy's edge and vanilla's Dark), so it lives in deep
+       shade and dies where the canopy opens. Decomposers are not light-limited: the light curve (optimum 0.1) stands in for the litter
        under a closed canopy. Caves and the cave fungi themselves are untouched. -->
 
   <!-- forest agarilux -->
@@ -45,7 +47,8 @@
               <li Class="LivingLandscapes.Flora.PlantHabitat">
                 <stratum>Ground</stratum>
                 <water><optimum>0.7</optimum><tolerance>0.25</tolerance></water>
-                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <light><optimum>0.15</optimum><tolerance>0.08</tolerance></light>
+                <lightLimit>0.3</lightLimit>
                 <rootingDepth>0.1</rootingDepth>
                 <pace>0.6</pace>
                 <seed>0.9</seed>
@@ -132,7 +135,8 @@
               <li Class="LivingLandscapes.Flora.PlantHabitat">
                 <stratum>Ground</stratum>
                 <water><optimum>0.7</optimum><tolerance>0.25</tolerance></water>
-                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <light><optimum>0.15</optimum><tolerance>0.08</tolerance></light>
+                <lightLimit>0.3</lightLimit>
                 <rootingDepth>0.1</rootingDepth>
                 <pace>0.6</pace>
                 <seed>0.9</seed>
@@ -219,7 +223,8 @@
               <li Class="LivingLandscapes.Flora.PlantHabitat">
                 <stratum>Ground</stratum>
                 <water><optimum>0.75</optimum><tolerance>0.25</tolerance></water>
-                <light><optimum>0.1</optimum><tolerance>0.15</tolerance></light>
+                <light><optimum>0.15</optimum><tolerance>0.08</tolerance></light>
+                <lightLimit>0.3</lightLimit>
                 <rootingDepth>0.1</rootingDepth>
                 <pace>0.6</pace>
                 <seed>0.9</seed>
