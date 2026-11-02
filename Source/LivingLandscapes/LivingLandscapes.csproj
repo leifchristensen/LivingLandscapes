@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\LocalBuild.props" Condition="Exists('..\..\LocalBuild.props')" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
@@ -18,8 +20,9 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType>portable</DebugType>
 
-    <!-- Override per machine with an environment variable or /p:RimWorldDir=... -->
-    <RimWorldDir Condition="'$(RimWorldDir)' == ''">E:\SteamLibrary\steamapps\common\RimWorld</RimWorldDir>
+    <!-- Where RimWorld is installed: an environment variable, /p:RimWorldDir=..., or a git-ignored LocalBuild.props at the
+         repository root (see CONTRIBUTING.md). Falls back to Steam's default library. -->
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldDir>
   </PropertyGroup>
 
   <!-- Game assemblies: referenced from the install, never copied or committed. -->
@@ -42,5 +45,10 @@
   <ItemGroup>
     <PackageReference Include="Lib.Harmony" Version="3.0.0-rc.2" ExcludeAssets="runtime" />
   </ItemGroup>
+
+  <!-- A clear message instead of dozens of missing-type errors when the game is not where RimWorldDir points. -->
+  <Target Name="CheckRimWorldDir" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(RimWorldDir)\Assembly-CSharp.dll')">
+    <Error Text="RimWorld not found at '$(RimWorldDir)'. Set RimWorldDir to your install folder (see CONTRIBUTING.md)." />
+  </Target>
 
 </Project>

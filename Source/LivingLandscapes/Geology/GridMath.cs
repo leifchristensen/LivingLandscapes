@@ -333,6 +333,9 @@ public static class GridMath
             for (int x = 0; x < sizeX; x++)
             {
                 Gradient(h, sizeX, sizeZ, x, z, out float dx, out float dz);
+                // Atan2(-0, -0) is -pi: without this a flat cell would face west.
+                if (dx == 0f && dz == 0f)
+                    continue;
                 float angle = Mathf.Atan2(-dz, -dx);
                 aspect[z * sizeX + x] = angle < 0f ? angle + 2f * Mathf.PI : angle;
             }

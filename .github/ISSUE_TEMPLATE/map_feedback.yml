@@ -1,0 +1,24 @@
+name: Map feedback
+description: A generated map that looks wrong, unnatural, or plays badly (no error involved).
+labels: [generation]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What looks or plays wrong
+      description: What you see, and what you would expect in a real place like this. Screenshots help most.
+    validations:
+      required: true
+  - type: textarea
+    id: map
+    attributes:
+      label: Map to reproduce it
+      description: In development mode, the world map's Terrain tab shows "Debug world seed" under the tile ID. Click it and paste the copied arguments here.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: mods
+    attributes:
+      label: Mods that change the world or the map
+      description: World generators, biome, terrain or plant mods you use, if any.

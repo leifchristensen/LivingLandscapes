@@ -39,6 +39,9 @@ public class WorldContext
     {
         public Vector2 From;
         public float Width;
+
+        /// <summary>Vanilla's world flow through the tile the river comes from (<see cref="WorldFlow"/>): the water it brings.</summary>
+        public float Flow;
     }
 
     /// <summary>World rivers entering the map, the main one first. Empty at a headwater, where the river rises on the map.</summary>
@@ -119,6 +122,7 @@ public class WorldContext
                 {
                     From = Heading(Find.WorldGrid.GetHeadingFromTo(here, link.neighbor)),
                     Width = link.river.widthOnMap,
+                    Flow = WorldFlow.At(link.neighbor),
                 });
             }
             context.RiverFlow = context.RiverInflows.Count > 0
