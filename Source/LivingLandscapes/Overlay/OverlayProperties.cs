@@ -12,6 +12,13 @@ public class ColorStop
     public Color color = Color.white;
 }
 
+/// <summary>One relief class of a contour standard: maps with relief up to <see cref="reliefUpTo"/> use <see cref="interval"/>.</summary>
+public class ContourClass
+{
+    public float reliefUpTo;
+    public float interval;
+}
+
 /// <summary>
 /// How a layer is drawn, GIS style: cells tinted by a colour ramp (optionally in flat hypsometric bands, one per
 /// contour interval) plus thin dark contour lines, with every n-th (index) line thicker and labelled.
@@ -44,9 +51,13 @@ public class OverlayProperties
     /// For layers whose absolute range differs between maps, like height in metres.</summary>
     public bool relativeColors;
 
-    /// <summary>When above 0, the contour interval is chosen per map as a round number (1, 2 or 5 x 10^n) giving
-    /// about this many contours; <see cref="contourInterval"/> is then ignored.</summary>
-    public int autoContourCount;
+    /// <summary>
+    /// Contour interval by the map's relief class, as map series fix it (1-2 m on flat ground, 5 m in hills, 10-20 m in
+    /// mountains), so line density shows real steepness and maps compare with each other. When set,
+    /// <see cref="contourInterval"/> is ignored. Relief is the spread of the middle 96% of cells, so one pit or spike
+    /// does not set the class.
+    /// </summary>
+    public List<ContourClass> contourIntervals = new List<ContourClass>();
 
     /// <summary>
     /// Draw as a vector field instead of shaded cells: arrows point along <see cref="directionLayer"/> (radians
@@ -80,9 +91,9 @@ public class OverlayProperties
     /// The style for one map's value range: relative colour stops become absolute and an automatic contour interval
     /// is picked. Returns this instance when nothing depends on the range.
     /// </summary>
-    public OverlayProperties ResolveFor(float min, float max)
+    public OverlayProperties ResolveFor(float[] values, float min, float max)
     {
-        if (!relativeColors && autoContourCount <= 0)
+        if (!relativeColors && contourIntervals.Count == 0)
             return this;
         var resolved = (OverlayProperties)MemberwiseClone();
         if (relativeColors)
@@ -91,19 +102,34 @@ public class OverlayProperties
             foreach (ColorStop stop in colors)
                 resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color });
         }
-        if (autoContourCount > 0)
-            resolved.contourInterval = NiceInterval((max - min) / autoContourCount);
+        if (contourIntervals.Count > 0)
+        {
+            resolved.contourInterval = IntervalFor(Relief(values, min, max));
+            // Index lines sit on round heights; a map with too little relief to cross one labels every line instead.
+            float indexStep = resolved.contourInterval * indexEvery;
+            if (Mathf.Floor(max / indexStep) * indexStep < min)
+                resolved.indexEvery = 1;
+        }
         return resolved;
     }
 
-    private static float NiceInterval(float raw)
+    private float IntervalFor(float relief)
     {
-        if (raw <= 0f)
-            return 1f;
-        float magnitude = Mathf.Pow(10f, Mathf.Floor(Mathf.Log10(raw)));
-        float fraction = raw / magnitude;
-        float nice = fraction < 1.5f ? 1f : fraction < 3.5f ? 2f : fraction < 7.5f ? 5f : 10f;
-        return nice * magnitude;
+        foreach (ContourClass c in contourIntervals)
+        {
+            if (relief <= c.reliefUpTo)
+                return c.interval;
+        }
+        return contourIntervals[contourIntervals.Count - 1].interval;
+    }
+
+    private static float Relief(float[] values, float min, float max)
+    {
+        if (values == null || values.Length == 0)
+            return max - min;
+        var sorted = (float[])values.Clone();
+        System.Array.Sort(sorted);
+        return sorted[(int)(sorted.Length * 0.98f)] - sorted[(int)(sorted.Length * 0.02f)];
     }
 
     public void ResolveReferences()
@@ -117,8 +143,13 @@ public class OverlayProperties
             yield return "overlay has no colors.";
         if (contourInterval < 0f)
             yield return "overlay contourInterval is negative.";
-        if (banded && contourInterval <= 0f && autoContourCount <= 0)
-            yield return "overlay is banded but has no contourInterval or autoContourCount.";
+        if (banded && contourInterval <= 0f && contourIntervals.Count == 0)
+            yield return "overlay is banded but has no contourInterval or contourIntervals.";
+        foreach (ContourClass c in contourIntervals)
+        {
+            if (c.interval <= 0f)
+                yield return "overlay contourIntervals has an interval of 0 or less.";
+        }
         if (indexEvery < 1)
             yield return "overlay indexEvery must be at least 1.";
         if (IsVectorField && arrowSpacing < 1)

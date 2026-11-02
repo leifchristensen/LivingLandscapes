@@ -39,7 +39,7 @@ public static class LayerImageExporter
                 continue;
             string path = Path.Combine(Folder, $"{layer.defName}.png");
             bool markCliffs = layer == EnvironmentLayerDefOf.LL_Height || layer == EnvironmentLayerDefOf.LL_Landform;
-            OverlayProperties style = layer.overlay?.ResolveFor(grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
+            OverlayProperties style = layer.overlay?.ResolveFor(grid.ToArray(), grid.Min, grid.Max) ?? GreyRamp(grid.Min, grid.Max);
             float[] opacity = style.opacityLayer != null && environment.TryGetGrid(style.opacityLayer, out EnvironmentGrid opacityGrid)
                 ? opacityGrid.ToArray()
                 : null;
@@ -47,6 +47,22 @@ public static class LayerImageExporter
             if (GenCommandLine.CommandLineArgPassed("ll-export-raw"))
                 ExportRaw(grid, Path.Combine(Folder, $"{layer.defName}.f32"));
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
+        }
+        // The land's relief without the water's depth: channel beds, scour holes and lake floors are left out (the test
+        // battery's relief check reads this line).
+        if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Landform, out EnvironmentGrid landform)
+            && environment.TryGetGrid(EnvironmentLayerDefOf.LL_SurfaceWater, out EnvironmentGrid water))
+        {
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < landform.Count; i++)
+            {
+                if (water[i] > 0f)
+                    continue;
+                lo = System.Math.Min(lo, landform[i]);
+                hi = System.Math.Max(hi, landform[i]);
+            }
+            if (lo <= hi)
+                summary.AppendLine($"LL_Landform dry ground: min {lo:F3} max {hi:F3} m");
         }
         ExportTerrainMap(map, Path.Combine(Folder, "Map.png"));
         Invariants.Report(map, summary);
