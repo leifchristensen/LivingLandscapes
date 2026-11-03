@@ -32,6 +32,7 @@
       <li>LL_Elevation</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/Topology</icon>
       <banded>true</banded>
       <relativeColors>true</relativeColors>
       <!-- Contour interval by relief class, as map series fix it (#89): line density then shows real steepness.
@@ -207,6 +208,7 @@
       <li>LL_Slope</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/SoilDepth</icon>
       <labelFormat>0.0</labelFormat>
       <colors>
         <li><value>0</value><color>(0.45, 0.45, 0.48)</color></li>
@@ -243,6 +245,7 @@
       <li>LL_Slope</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/Debris</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
@@ -271,6 +274,8 @@
     </dependsOn>
     <unit>log10 cells</unit>
     <overlay>
+      <!-- No map toggle (#139): water flow and surface water show the channels. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.65</fillOpacity>
       <colors>
@@ -293,6 +298,8 @@
     </dependsOn>
     <unit>m</unit>
     <overlay>
+      <!-- No map toggle (#139): surface water shows the lakes that formed. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.65</fillOpacity>
       <colors>
@@ -314,6 +321,8 @@
     </dependsOn>
     <unit>m</unit>
     <overlay>
+      <!-- No map toggle (#139): moisture is its gameplay result. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.65</fillOpacity>
       <colors>
@@ -334,6 +343,8 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- No map toggle (#139): walking effort is its gameplay effect. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <relativeColors>true</relativeColors>
       <contourInterval>0</contourInterval>
       <fillOpacity>0.8</fillOpacity>
@@ -356,6 +367,8 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- No map toggle (#139): sun exposure is its gameplay effect. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <!-- Aspect means something only where the ground slopes: colour fades out on level ground (owner playtest 2026-11-02). -->
       <opacityLayer>LL_Slope</opacityLayer>
       <opacityRange>0~0.5</opacityRange>
@@ -413,6 +426,7 @@
     </dependsOn>
     <unit>m</unit>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/SurfaceWater</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.8</fillOpacity>
       <colors>
@@ -445,6 +459,7 @@
       <li>LL_SurfaceWater</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/WaterFlow</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.8</fillOpacity>
       <directionLayer>LL_Aspect</directionLayer>
@@ -475,6 +490,7 @@
       <li>LL_Wetness</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/Moisture</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
@@ -503,6 +519,7 @@
       <li>LL_Aspect</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/SunExposure</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.6</fillOpacity>
       <colors>
@@ -525,6 +542,7 @@
     <workerClass>LivingLandscapes.Layers.ShadeWorker</workerClass>
     <onDemand>true</onDemand>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/CanopyShade</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.7</fillOpacity>
       <colors>
@@ -547,6 +565,7 @@
       <li>LL_Sun</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/PlantFitness</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
@@ -566,6 +585,7 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/WalkingEffort</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.7</fillOpacity>
       <colors>
@@ -592,6 +612,7 @@
       <li>LL_Elevation</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/StandAge</icon>
       <labelFormat>0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>

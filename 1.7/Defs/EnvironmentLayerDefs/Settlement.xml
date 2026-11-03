@@ -15,6 +15,7 @@
       <li>LL_Wetness</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/Settlement</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.7</fillOpacity>
       <colors>
@@ -91,6 +92,7 @@
       <li>LL_Slope</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/Interest</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.6</fillOpacity>
       <colors>

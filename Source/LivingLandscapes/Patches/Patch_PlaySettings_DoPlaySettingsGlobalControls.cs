@@ -25,6 +25,9 @@ public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
             return;
         foreach (EnvironmentLayerDef layer in overlay.Available)
         {
+            // Dev views (computed on demand) are for development; players see only the finished layers.
+            if (!layer.overlay.toggle || (layer.onDemand && !Prefs.DevMode))
+                continue;
             bool on = overlay.IsActive(layer);
             string tooltip = "LL_OverlayToggleTip".Translate(layer.LabelCap, layer.description);
             if (row.ButtonIcon(OverlayTextures.IconFor(layer), tooltip, backgroundColor: on ? ActiveBackground : (Color?)null))

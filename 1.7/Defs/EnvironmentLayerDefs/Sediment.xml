@@ -14,6 +14,8 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- No map toggle (#139): grain size shows the same sediment as terrain. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <labelFormat>0.00</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
@@ -34,6 +36,7 @@
       <li>LL_Alluvium</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/GrainSize</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
