@@ -190,7 +190,8 @@ public class EnvironmentOverlay
             for (int i = colors.Count - 1; i >= 0; i--)
             {
                 Widgets.DrawBoxSolid(new Rect(rect.x + 6f, y + 3f, 24f, Row - 6f), colors[i].color);
-                Widgets.Label(new Rect(rect.x + 38f, y, Width - 44f, Row), colors[i].value.ToString(render.style.labelFormat));
+                string label = colors[i].label.NullOrEmpty() ? colors[i].value.ToString(render.style.labelFormat) : colors[i].label.CapitalizeFirst();
+                Widgets.Label(new Rect(rect.x + 38f, y, Width - 44f, Row), label);
                 y += Row;
             }
             y += 4f;

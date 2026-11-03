@@ -1,5 +1,7 @@
 using LivingLandscapes.Environment;
+using LivingLandscapes.Layers;
 using UnityEngine;
+using Verse;
 
 namespace LivingLandscapes.Geology;
 
@@ -32,8 +34,14 @@ public class Drainage
 
     public int SizeX, SizeZ;
 
+    /// <summary>
+    /// The map's balance lake area per catchment area (<see cref="WaterBalance.LakeShare"/>, P23); infinite where rain
+    /// outweighs evaporation and every hollow fills to its spill level.
+    /// </summary>
+    public float LakeShare = float.PositiveInfinity;
+
     private int[] receiver;
-    private (float channelArea, float[] riverLevel, float[] height, float[] area)? lines;
+    private (float channelArea, float[] riverLevel, float[] height, float[] area, bool[] water)? lines;
 
     /// <summary>Depth (height units) below its spill level from which a cell counts as in a hollow.</summary>
     private const float HollowDepth = 1e-4f;
@@ -79,17 +87,20 @@ public class Drainage
     /// <summary>
     /// Height of the drainage line each cell's water reaches (the base of height above nearest drainage, HAND), following
     /// <see cref="Receiver"/> until a cell whose area reaches <paramref name="channelArea"/> (log10 cells). In a closed
-    /// hollow the water table stands at the hollow's water level (P23); until the water balance sets that level (#99) it
-    /// is the spill level, a full hollow (lakes on humid maps are), and the hollow's line area is the largest within it. Where
+    /// hollow the water table stands at the hollow's water level, set by the water balance as the lake layer sets it (P23,
+    /// #122): the spill level where the hollow fills, its floor where it is dry. The hollow's line area is the largest within it. Where
     /// <paramref name="riverLevel"/> is set (a carved river) the line is the river's water surface, and a channel's whole
     /// width shares its largest area. <paramref name="lineArea"/> is the line's area (log10 cells) where the cell reaches it.
+    /// <paramref name="lineWater"/> is whether water stands on that line (a river, or a hollow the lake layer fills); a
+    /// dry wash or a hollow too shallow to hold a lake keeps its water table below the ground.
     /// </summary>
-    public float[] LineHeight(float channelArea, float[] riverLevel, int[] channelOf, out float[] lineArea)
+    public float[] LineHeight(float channelArea, float[] riverLevel, int[] channelOf, out float[] lineArea, out bool[] lineWater)
     {
         // Wetness and LL_HeightAboveDrainage ask for the same lines.
         if (lines != null && lines.Value.channelArea == channelArea && lines.Value.riverLevel == riverLevel)
         {
             lineArea = lines.Value.area;
+            lineWater = lines.Value.water;
             return lines.Value.height;
         }
         int n = Ground.Length;
@@ -105,12 +116,30 @@ public class Drainage
         // Each hollow (a connected area below one spill level) gathers its whole catchment: its largest area.
         GridMath.LabelRegions(i => Spill[i] - Ground[i] > HollowDepth, SizeX, SizeZ, out int[] region);
         var hollowArea = new System.Collections.Generic.Dictionary<(int, float), float>();
+        var hollowCells = new System.Collections.Generic.Dictionary<(int, float), System.Collections.Generic.List<int>>();
         for (int i = 0; i < n; i++)
         {
             if (region[i] < 0)
                 continue;
             var key = (region[i], Spill[i]);
             hollowArea[key] = Mathf.Max(hollowArea.TryGetValue(key, out float a) ? a : 0f, logArea[i]);
+            if (!hollowCells.TryGetValue(key, out var cells))
+                hollowCells[key] = cells = new System.Collections.Generic.List<int>();
+            cells.Add(i);
+        }
+        // Each hollow's water stands where evaporation from its surface balances its catchment's runoff (P23).
+        // A lake stands in it only where the lake layer draws one: deep and large enough, and deep enough at its level.
+        var lake = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
+        var waterLevel = new System.Collections.Generic.Dictionary<(int, float), float>();
+        var holdsLake = new System.Collections.Generic.Dictionary<(int, float), bool>();
+        foreach (var hollow in hollowCells)
+        {
+            hollow.Value.Sort((a, b) => Ground[a].CompareTo(Ground[b]));
+            float floor = Ground[hollow.Value[0]];
+            float level = WaterBalance.LakeLevel(hollow.Value, Ground, hollow.Key.Item2, Mathf.Pow(10f, hollowArea[hollow.Key]), LakeShare);
+            waterLevel[hollow.Key] = level;
+            holdsLake[hollow.Key] = hollow.Key.Item2 - floor >= lake.minLakeDepth && hollow.Value.Count >= lake.minLakeCells
+                                    && level - floor >= lake.minLakeDepth;
         }
         // Receivers lie lower on the filled surface, so visiting low to high resolves each cell's receiver first.
         var order = new int[n];
@@ -120,6 +149,7 @@ public class Drainage
         System.Array.Sort(keys, order);
         var line = new float[n];
         lineArea = new float[n];
+        lineWater = new bool[n];
         int[] next = Receiver;
         foreach (int c in order)
         {
@@ -127,11 +157,13 @@ public class Drainage
             {
                 line[c] = riverLevel[c];
                 lineArea[c] = channelOf != null && channelOf[c] >= 0 ? channelAreas[channelOf[c]] : logArea[c];
+                lineWater[c] = true;
             }
             else if (region[c] >= 0)
             {
-                line[c] = Spill[c];
+                line[c] = waterLevel[(region[c], Spill[c])];
                 lineArea[c] = hollowArea[(region[c], Spill[c])];
+                lineWater[c] = holdsLake[(region[c], Spill[c])];
             }
             else if (logArea[c] >= channelArea || next[c] < 0)
             {
@@ -142,9 +174,10 @@ public class Drainage
             {
                 line[c] = line[next[c]];
                 lineArea[c] = lineArea[next[c]];
+                lineWater[c] = lineWater[next[c]];
             }
         }
-        lines = (channelArea, riverLevel, line, lineArea);
+        lines = (channelArea, riverLevel, line, lineArea, lineWater);
         return line;
     }
 
@@ -162,6 +195,7 @@ public class Drainage
             return drainage;
         drainage = Build((float[])landform.Clone(), context.Environment.PlannedBaseLevels, context.SizeX, context.SizeZ,
             RiverInflow(context, context.Environment.PlannedRivers), context.Environment.PlannedSinks);
+        drainage.LakeShare = WaterBalance.LakeShare(context.Map, out _);
         context.Environment.PlannedDrainage = drainage;
         return drainage;
     }

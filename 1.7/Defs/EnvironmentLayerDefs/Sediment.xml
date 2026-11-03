@@ -14,6 +14,8 @@
       <li>LL_Landform</li>
     </dependsOn>
     <overlay>
+      <!-- No map toggle (#139): grain size shows the same sediment as terrain. Kept for the PNG export. -->
+      <toggle>false</toggle>
       <labelFormat>0.00</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
@@ -34,13 +36,14 @@
       <li>LL_Alluvium</li>
     </dependsOn>
     <overlay>
+      <icon>UI/LivingLandscapes/Overlays/GrainSize</icon>
       <labelFormat>0.0</labelFormat>
       <fillOpacity>0.75</fillOpacity>
       <colors>
-        <li><value>0</value><color>(0.35, 0.3, 0.25, 0)</color></li>
-        <li><value>0.01</value><color>(0.35, 0.3, 0.25, 0.7)</color></li>
-        <li><value>0.5</value><color>(0.85, 0.75, 0.45, 0.8)</color></li>
-        <li><value>1</value><color>(0.6, 0.6, 0.6, 0.9)</color></li>
+        <li><value>0</value><color>(0.35, 0.3, 0.25, 0)</color><label>no sediment</label></li>
+        <li><value>0.01</value><color>(0.35, 0.3, 0.25, 0.7)</color><label>clay and silt</label></li>
+        <li><value>0.5</value><color>(0.85, 0.75, 0.45, 0.8)</color><label>sand</label></li>
+        <li><value>1</value><color>(0.6, 0.6, 0.6, 0.9)</color><label>gravel</label></li>
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

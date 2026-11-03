@@ -10,6 +10,11 @@ public class ColorStop
 {
     public float value;
     public Color color = Color.white;
+
+    /// <summary>What this value means in words ("gravel", "old forest"), shown in the legend instead of the number.
+    /// For layers whose stops are named classes rather than measurements.</summary>
+    [MustTranslate]
+    public string label;
 }
 
 /// <summary>One relief class of a contour standard: maps with relief up to <see cref="reliefUpTo"/> use <see cref="interval"/>.</summary>
@@ -75,6 +80,12 @@ public class OverlayProperties
     public string icon;
 
     /// <summary>
+    /// Offer a map toggle button for this layer. False for layers whose pattern another overlay already shows closer
+    /// to its gameplay effect (aspect: sun exposure); the style still draws the layer in the PNG export.
+    /// </summary>
+    public bool toggle = true;
+
+    /// <summary>
     /// Another layer that sets each cell's opacity: transparent at <see cref="opacityRange"/>'s min, full at its max. For
     /// layers that only mean something where another one is strong, like aspect (only where the ground slopes).
     /// </summary>
@@ -100,7 +111,7 @@ public class OverlayProperties
         {
             resolved.colors = new List<ColorStop>();
             foreach (ColorStop stop in colors)
-                resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color });
+                resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color, label = stop.label });
         }
         if (contourIntervals.Count > 0)
         {
