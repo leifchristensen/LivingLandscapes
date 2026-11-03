@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Verse;
 
 namespace LivingLandscapes.Geology;
@@ -10,14 +9,13 @@ public enum CliffKind : byte
     Face,
     /// <summary>Any other stage edge: only its lip shows.</summary>
     Rim,
-    /// <summary>Steps between stages.</summary>
-    Steps,
 }
 
 /// <summary>
-/// The terrace cliffs of a map: a band on every cell at the edge of a height stage (the higher side), steps at
-/// intervals along each band, and which sides of each drop to lower ground (each drawn as a thin edge). Planned from the geology during
-/// map generation and spawned once vanilla has placed its rock. Not saved: the cliffs themselves are things.
+/// The terrace cliffs of a map: long bands along the edges of height stages (the higher side), each kept or cleared as a
+/// whole line (<see cref="KeepScarps"/>), and which sides of each drop to lower ground (each drawn as a thin edge).
+/// Planned from the geology during map generation and spawned once vanilla has placed its rock. Not saved: the cliffs
+/// themselves are things.
 /// </summary>
 public class CliffPlan
 {
@@ -45,7 +43,7 @@ public class CliffPlan
 
     /// <summary>
     /// Marks band cells: a cell on a higher stage than one of its four neighbours. Cells where
-    /// <paramref name="excluded"/> is true (mountain rock, gentle ground) neither get bands nor count as lower ground.
+    /// <paramref name="excluded"/> is true (mountain rock, water) neither get bands nor count as lower ground.
     /// </summary>
     public void PlanBands(Map map, int[] stage, System.Func<int, bool> excluded)
     {
@@ -98,95 +96,37 @@ public class CliffPlan
     }
 
     /// <summary>
-    /// Puts steps along every band, about every <paramref name="spacing"/> cells and at least once per band, on
-    /// straight stretches where the drop is a single stage. Bands shorter than half the spacing (small knolls and
-    /// hollows) get none: they are easier to walk around. Returns the number placed.
+    /// Keeps whole scarps, not cells (P26): band cells on ground stepped at least <paramref name="traceSteepness"/> are
+    /// traced into lines (8-connected, as diagonal bands join through their corner cells), so a line runs on while the
+    /// ground stays stepped and ends where it eases. A line stands when its steep-equivalent length, the sum of
+    /// steepness over its cells, is at least <paramref name="minLength"/>: a long line survives gentler stretches, a short
+    /// weak one goes. Everything else is cleared. Returns the number of lines kept.
     /// </summary>
-    public int PlanSteps(Map map, int[] stage, int spacing)
+    public int KeepScarps(Map map, float[] steepness, float traceSteepness, float minLength)
     {
-        int bands = GridMath.LabelRegions(i => Kind[i] == CliffKind.Face || Kind[i] == CliffKind.Rim,
-            map.Size.x, map.Size.z, out int[] labels);
-        var members = new List<int>[bands];
-        for (int b = 0; b < bands; b++)
-            members[b] = new List<int>();
+        for (int i = 0; i < Kind.Length; i++)
+        {
+            if (Kind[i] != CliffKind.None && steepness[i] < traceSteepness)
+                Kind[i] = CliffKind.None;
+        }
+        int lines = GridMath.LabelRegions(i => Kind[i] != CliffKind.None, map.Size.x, map.Size.z, out int[] labels, diagonals: true);
+        var length = new float[lines];
         for (int i = 0; i < labels.Length; i++)
         {
             if (labels[i] >= 0)
-                members[labels[i]].Add(i);
+                length[labels[i]] += steepness[i];
         }
-
-        int placed = 0;
-        foreach (List<int> band in members)
+        int kept = 0;
+        foreach (float l in length)
         {
-            if (band.Count < spacing / 2)
-                continue;
-            int sinceLast = spacing / 2;
-            int fallback = -1;
-            bool any = false;
-            foreach (int i in OrderAlong(band, labels, map))
-            {
-                sinceLast++;
-                if (!IsStepCandidate(map, stage, i))
-                    continue;
-                if (fallback < 0)
-                    fallback = i;
-                if (sinceLast < spacing)
-                    continue;
-                Kind[i] = CliffKind.Steps;
-                sinceLast = 0;
-                any = true;
-                placed++;
-            }
-            if (!any && fallback >= 0)
-            {
-                Kind[fallback] = CliffKind.Steps;
-                placed++;
-            }
+            if (l >= minLength)
+                kept++;
         }
-        return placed;
-    }
-
-    /// <summary>A straight stretch of band (band cells either side along it) dropping exactly one stage.</summary>
-    private bool IsStepCandidate(Map map, int[] stage, int i)
-    {
-        CellIndices indices = map.cellIndices;
-        IntVec3 c = indices.IndexToCell(i);
-        IntVec3 down = c + Facing[i].FacingCell;
-        if (!down.InBounds(map) || stage[i] - stage[indices.CellToIndex(down)] != 1)
-            return false;
-        IntVec3 along = Facing[i].IsHorizontal ? IntVec3.North : IntVec3.East;
-        return IsBand(map, c + along) && IsBand(map, c - along);
-    }
-
-    private bool IsBand(Map map, IntVec3 c)
-    {
-        if (!c.InBounds(map))
-            return false;
-        CliffKind k = Kind[map.cellIndices.CellToIndex(c)];
-        return k == CliffKind.Face || k == CliffKind.Rim;
-    }
-
-    /// <summary>Band cells in walking order (breadth-first from one end), so step spacing follows the band.</summary>
-    private static IEnumerable<int> OrderAlong(List<int> band, int[] labels, Map map)
-    {
-        int label = labels[band[0]];
-        var seen = new HashSet<int> { band[0] };
-        var queue = new Queue<int>();
-        queue.Enqueue(band[0]);
-        while (queue.Count > 0)
+        for (int i = 0; i < labels.Length; i++)
         {
-            int i = queue.Dequeue();
-            yield return i;
-            IntVec3 c = map.cellIndices.IndexToCell(i);
-            foreach (IntVec3 d in Cardinals)
-            {
-                IntVec3 n = c + d;
-                if (!n.InBounds(map))
-                    continue;
-                int ni = map.cellIndices.CellToIndex(n);
-                if (labels[ni] == label && seen.Add(ni))
-                    queue.Enqueue(ni);
-            }
+            if (labels[i] >= 0 && length[labels[i]] < minLength)
+                Kind[i] = CliffKind.None;
         }
+        return kept;
     }
 }

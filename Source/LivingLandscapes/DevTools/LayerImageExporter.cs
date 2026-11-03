@@ -67,6 +67,7 @@ public static class LayerImageExporter
         ExportTerrainMap(map, Path.Combine(Folder, "Map.png"));
         Invariants.Report(map, summary);
         GameplayReport.Append(map, summary);
+        CliffReport.Append(map, summary);
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());
         WriteLog();
         Log.Message($"[LivingLandscapes] Exported environment layers to {Folder}");
