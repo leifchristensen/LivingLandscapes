@@ -10,6 +10,11 @@ public class ColorStop
 {
     public float value;
     public Color color = Color.white;
+
+    /// <summary>What this value means in words ("gravel", "old forest"), shown in the legend instead of the number.
+    /// For layers whose stops are named classes rather than measurements.</summary>
+    [MustTranslate]
+    public string label;
 }
 
 /// <summary>One relief class of a contour standard: maps with relief up to <see cref="reliefUpTo"/> use <see cref="interval"/>.</summary>
@@ -106,7 +111,7 @@ public class OverlayProperties
         {
             resolved.colors = new List<ColorStop>();
             foreach (ColorStop stop in colors)
-                resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color });
+                resolved.colors.Add(new ColorStop { value = Mathf.Lerp(min, max, stop.value), color = stop.color, label = stop.label });
         }
         if (contourIntervals.Count > 0)
         {
