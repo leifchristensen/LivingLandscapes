@@ -717,11 +717,14 @@ public static class LandscapeGenerator
             }
 
             // Stream-power incision, implicit in the receiver's new height (unconditionally stable).
+            Array.Clear(eroded, 0, n);
             for (int k = 0; k < count; k++)
             {
                 int c = stack[k];
                 int r = receiver[c];
-                if (r < 0)
+                // Still water (S <= 0, a hollow routed over its fill toward the rim) does not erode (P2); the implicit step would
+                // otherwise raise the cell toward its receiver, filling hollows with ground from nowhere.
+                if (r < 0 || h[c] <= h[r])
                     continue;
                 float f = p.erodibility * rockK[c] * Mathf.Pow(area[c], p.areaExponent) / receiverDist[c];
                 float before = h[c];
@@ -791,7 +794,8 @@ public static class LandscapeGenerator
             sinks++;
             foreach (int c in cells)
             {
-                if (h[c] >= level)
+                // A dry basin's (playa's) floor is its sink: what reaches it evaporates.
+                if (h[c] > level)
                     break;
                 baseLevel[c] = level;
                 sink[c] = true;
