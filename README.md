@@ -14,7 +14,7 @@ Maps that read as places: hills, rivers, cliffs and plants follow geology, water
 ## Requirements and load order
 - RimWorld **1.7**.
 - [Harmony](https://steamcommunity.com/sharedfiles/filedetails/?id=2009463077). Load it before Living Landscapes.
-- Load Living Landscapes after any world-generation mod (see [Compatibility](#compatibility)).
+- Load Living Landscapes after any world-generation mod (see [Plays nicely with](#plays-nicely-with)).
 
 ## Installation
 Subscribe on the Steam Workshop (link coming once published), or download this repository and place it in your `RimWorld/Mods` folder.
@@ -34,12 +34,20 @@ Options → Mod options → Living Landscapes:
 | Slope movement | On | Pawns walk more slowly uphill than across or downhill, and plan routes over gentle ground. |
 | Scattered ruins and ancient debris | Off | Vanilla's ruins and debris, off while the terrain is in development. |
 
-## Compatibility
-| Mod or kind | Verdict |
+## Plays nicely with
+None of these is required, and their authors don't need to change anything: Living Landscapes detects them at runtime and works from what they already define. Load order only matters for Realistic Planets 2: Living Landscapes loads after it.
+
+| Mod | How Living Landscapes supports it |
 |---|---|
-| [Realistic Planets 2](https://steamcommunity.com/sharedfiles/filedetails/?id=3776715150) | Supported, optional. Load Living Landscapes after it. |
-| Plant mods (tried: Vanilla Plants Expanded, ReGrowth 2, Biomes! Core) | Work. Their plants get sensible habitat defaults from their own stats. |
-| Mods that change map terrain generation | Listed in the settings window. Tile features from other mods that replace the terrain are left to them; plants still follow the terrain they make. |
+| [Realistic Planets 2](https://steamcommunity.com/sharedfiles/filedetails/?id=3776715150) | Its world generation stays in charge of the planet; Living Landscapes builds each map from the tile it makes. It is listed as a supported terrain mod in the settings window, and the plants of its new biomes (savanna, prairie, steppe, cold desert, oasis, permafrost) get habitat defaults from their own stats. Its 1.7 update is still to come; the 1.6 version runs without errors. |
+| [As Above, So Below II](https://steamcommunity.com/sharedfiles/filedetails/?id=3776015553) | Stacked surface and underground levels generate with Living Landscapes active. Known issue: a strip of shallow water can appear where the surface meets the level above ([#54](https://github.com/leifchristensen/LivingLandscapes/issues/54)). |
+| [Vanilla Plants Expanded](https://steamcommunity.com/sharedfiles/filedetails/?id=2134308522) and its More Plants, Mushrooms, Succulents and Flowers add-ons, with [Vanilla Expanded Framework](https://steamcommunity.com/sharedfiles/filedetails/?id=2023507013) | Their wild plants take part in the plant ecology: each gets a habitat (wet or dry ground, shade, slope) derived from its own growth stats, then clusters and competes like vanilla plants. Tested with no errors. |
+| [Better Trees](https://steamcommunity.com/sharedfiles/filedetails/?id=3539609975) | Its trees get derived habitats like any other plant. Tested alongside Vanilla Plants Expanded. |
+| [ReGrowth 2](https://steamcommunity.com/sharedfiles/filedetails/?id=2260097569) | Its plants spawn with its own commonality and derived habitats. Its own regrowth content is left to it. |
+| [Biomes! Core](https://steamcommunity.com/sharedfiles/filedetails/?id=2038000893) with [Biomes! Framework](https://steamcommunity.com/sharedfiles/filedetails/?id=3709492514) | Its biomes generate with Living Landscapes terrain and water; their plants get derived habitats. |
+| [Cyanobot's Plant Gen Patches](https://steamcommunity.com/sharedfiles/filedetails/?id=3218426325) | Runs alongside: both mods adjust wild plant spawning, without errors or conflicting results in testing. |
+
+**Other mods.** Plant mods not listed here usually work too: any wild plant without rules gets habitat defaults from its stats. Mods that replace map terrain generation are listed in the settings window; tile features they make are left to them, and plants still follow the terrain they leave. If something looks wrong, [report it](#reporting-a-problem) with the mod's name.
 
 ## FAQ
 **My existing map didn't change.** By design: only maps generated after enabling the mod are affected. Settle or visit a new tile.
