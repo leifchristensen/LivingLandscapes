@@ -106,15 +106,17 @@ public static class Sediment
     /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
     /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
     /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
-    /// flow takes up as much as it can carry.
+    /// flow takes up as much as it can carry. Where the water divides (<paramref name="secondary"/>), the load divides with it,
+    /// by the same share (#118).
     /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
         out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null,
-        ConfluenceZones zones = null)
+        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
     {
         int n = filled.Length;
         var load = new float[n];
+        var walked = new bool[n];
         var grainLoad = new float[n];
         deposit = new float[n];
         depositGrain = new float[n];
@@ -123,6 +125,7 @@ public static class Sediment
         eroded = 0f;
         foreach (int c in cells)
         {
+            walked[c] = true;
             float q = discharge[c] * dischargeScale;
             float slope = Slope(c, receiver, filled, sizeX);
             bool still = baseLevel != null && baseLevel[c];
@@ -160,6 +163,16 @@ public static class Sediment
                     atBase += dropped;
             }
             float carried = available - dropped;
+            // The second way takes its share of the load, unless routing changed after the split and it was already walked
+            // (then the load stays on the main way, so none is lost).
+            int second = secondary != null ? secondary[c] : -1;
+            if (second >= 0 && !walked[second])
+            {
+                float split = carried * secondaryShare[c];
+                load[second] += split;
+                grainLoad[second] += split * grain;
+                carried -= split;
+            }
             int r = receiver[c];
             if (r >= 0)
             {

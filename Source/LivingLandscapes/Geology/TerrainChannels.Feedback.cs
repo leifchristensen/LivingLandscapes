@@ -28,7 +28,7 @@ public class FeedbackSettings
 public static partial class TerrainChannels
 {
     /// <summary>Raises <paramref name="height"/> and <paramref name="filled"/> by the network's deposits; returns the cells raised.</summary>
-    private static int Aggrade(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] height, float[] filled,
+    private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float[] height, float[] filled,
         float[] inflow, float[] rockStrength, bool[] moving, float[] width, bool[] sand, System.Func<int, bool> isOutlet, int sizeX, int sizeZ,
         TerrainChannelSettings p, out float raisedVolume)
     {
@@ -39,7 +39,7 @@ public static partial class TerrainChannels
         for (int i = 0; i < n; i++)
             baseLevel[i] = isOutlet(i);
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-            out float[] deposit, out float[] depositGrain, out _, out _, out _, sand: sand);
+            out float[] deposit, out float[] depositGrain, out _, out _, out _, sand: sand, secondary: secondary, secondaryShare: secondaryShare);
         foreach (int c in cells)
         {
             if (!moving[c])

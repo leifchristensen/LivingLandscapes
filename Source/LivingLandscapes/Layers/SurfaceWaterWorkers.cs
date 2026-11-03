@@ -52,7 +52,7 @@ public static class SurfaceWaterModel
         public float[] Flow;
     }
 
-    public static Result Compute(Map map, float[] landform, float[] drainage, SurfaceWaterExtension p, bool log = false)
+    public static Result Compute(Map map, float[] landform, float[] drainage, SurfaceWaterExtension p, bool log = false, float[] spill = null)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = landform.Length;
         float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
@@ -71,7 +71,7 @@ public static class SurfaceWaterModel
             result.Flow[i] = rivers.Still != null && rivers.Still[i] ? 0f : 1f;
         }
 
-        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver);
+        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver, spill);
 
         if (!log)
             return result;
@@ -88,17 +88,19 @@ public static class SurfaceWaterModel
     /// <summary>
     /// Lakes: every closed hollow of the landform (found by filling depressions to their spill level) fills to the
     /// level where evaporation from its surface balances the runoff from its catchment, up to the spill level. A
-    /// stream passing through a lake is still water there. Returns the number of lakes.
+    /// stream passing through a lake is still water there. <paramref name="spillLevel"/> is the map's one drainage
+    /// (<see cref="Drainage.Spill"/>, #98): a closed basin is as deep as its rim and the water balance sets its level.
+    /// Returns the number of lakes.
     /// </summary>
     private static int Lakes(Map map, float[] landform, float[] drainage, int sizeX, int sizeZ, SurfaceWaterExtension p, Result result,
-        System.Func<int, bool> inRiver)
+        System.Func<int, bool> inRiver, float[] spillLevel = null)
     {
-        var filled = (float[])landform.Clone();
+        var filled = (float[])(spillLevel ?? landform).Clone();
         // Water leaves at the map's base levels (#97); without them (Off mode) every edge drains.
         float[] baseLevel = map.GetComponent<MapComponent_Environment>()?.PlannedBaseLevels;
-        if (baseLevel != null)
+        if (spillLevel == null && baseLevel != null)
             Geology.Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f);
-        else
+        else if (spillLevel == null)
             GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
         // One hollow per connected flooded area and spill level (a hollow spilling into a lower one touches it).
         GridMath.LabelRegions(i => filled[i] - landform[i] > 1e-4f, sizeX, sizeZ, out int[] labels);
@@ -161,7 +163,7 @@ public class SurfaceWaterWorker : EnvironmentLayerWorker
         if (landform == null || drainage == null || !GeologicalTerrain.AppliesTo(context.Map))
             return null;
         var p = def.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
-        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, log: true).Depth;
+        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, log: true, spill: Drainage.Of(context)?.Spill).Depth;
     }
 }
 
@@ -177,6 +179,6 @@ public class WaterFlowWorker : EnvironmentLayerWorker
         if (landform == null || drainage == null || !GeologicalTerrain.AppliesTo(context.Map))
             return null;
         var p = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
-        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p).Flow;
+        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, spill: Drainage.Of(context)?.Spill).Flow;
     }
 }
