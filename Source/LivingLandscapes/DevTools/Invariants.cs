@@ -177,10 +177,17 @@ public static class Invariants
         bool[] coast = Geology.Coastline.SeaCells(map);
         // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
         // pool (vanilla's Caves mutator paints them in its tunnels): the landform there is the rock above, not the cave floor.
+        // Water inside a generated structure's room is built, not natural (vanilla's toxic water rooms in ruins).
         RoofGrid roofs = map.roofGrid;
         RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        var built = new bool[h.Length];
+        foreach (LayoutStructureSketch sketch in map.layoutStructureSketches)
+            foreach (LayoutRoom room in sketch.structureLayout?.Rooms ?? new List<LayoutRoom>())
+                foreach (CellRect rect in room.rects)
+                    foreach (IntVec3 c in rect.ClipInsideMap(map))
+                        built[map.cellIndices.CellToIndex(c)] = true;
         bool StillWater(int i) => terrain[i] != null && terrain[i].IsWater && !terrain[i].IsRiver && !terrain[i].IsOcean
-                                  && terrain[i] != TerrainDefOf.Marsh && !(roofs.RoofAt(i)?.isNatural ?? false);
+                                  && terrain[i] != TerrainDefOf.Marsh && !(roofs.RoofAt(i)?.isNatural ?? false) && !built[i];
 
         int lakeCount = GridMath.LabelRegions(StillWater, sizeX, sizeZ, out int[] lakeLabels);
         var lakeDepth = new float[lakeCount];
