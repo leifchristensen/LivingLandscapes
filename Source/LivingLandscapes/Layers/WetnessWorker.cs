@@ -28,8 +28,18 @@ public class WetnessExtension : DefModExtension
     /// <summary>Wetness index range mapped to 0..1: ln(upslope area / slope).</summary>
     public FloatRange wetnessIndexRange = new FloatRange(4f, 13f);
 
-    /// <summary>Share of the wetness index (versus height above drainage) in topographic wetness.</summary>
+    /// <summary>
+    /// Share of the wetness index (versus height above drainage) in topographic wetness where no water stands on the
+    /// drainage line: there both only estimate the water table.
+    /// </summary>
     public float wetnessIndexWeight = 0.5f;
+
+    /// <summary>
+    /// Slopes (height per cell) over which a lake's or river's water table stops spreading up its bank: it saturates the
+    /// shore fully below the first, and not at all from the second, where the bank drains.
+    /// </summary>
+    public FloatRange pondingSlope = new FloatRange(0.1f, 0.3f);
+
 
     /// <summary>
     /// Tile rainfall (mm) treated as fully wet. Drier tiles sharpen wetness: only the strongest drainage lines stay
@@ -94,7 +104,7 @@ public class WetnessWorker : EnvironmentLayerWorker
 
         // The water table meets a river at its water surface, not its bed.
         RiverSystem rivers = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
-        float[] drainageHeight = Drainage.Of(context).LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out float[] lineArea);
+        float[] drainageHeight = Drainage.Of(context).LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out float[] lineArea, out bool[] lineWater);
 
         float exponent = Mathf.Lerp(p.aridSharpening, 1f, p.ClimateOf(context.Map));
         var wetness = new float[n];
@@ -108,7 +118,12 @@ public class WetnessWorker : EnvironmentLayerWorker
             float floodScale = p.heightAboveDrainageScale * (1f + p.floodGrowthPerDecade * Mathf.Max(0f, lineArea[i] - p.channelArea))
                                * (rivers?.Regime?.floodplainScale ?? 1f);
             float groundwater = Mathf.Exp(-aboveDrainage / floodScale);
+            // Both predict how near the water table comes (P23): water gathering on the slope, or a drainage line close
+            // below, and are weighed together. Where water stands on that line (a lake or river) its surface is the water
+            // table, which saturates a gentle shore on its own; a steep bank drains.
             float topographic = p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
+            if (lineWater[i])
+                topographic = Mathf.Max(topographic, groundwater * Mathf.InverseLerp(p.pondingSlope.max, p.pondingSlope.min, slope[i]));
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);
         }
 
