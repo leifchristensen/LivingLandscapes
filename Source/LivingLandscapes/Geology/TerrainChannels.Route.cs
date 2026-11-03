@@ -21,10 +21,12 @@ public static partial class TerrainChannels
     /// does: the second way takes slope2^e / (slope1^e + slope2^e), with e the spreading exponent divided by the
     /// cell's spread nudge. A division is kept only where the second share is itself a channel; otherwise all water
     /// stays on the main way, so splits form only where a lot of water meets ground falling away two ways.
+    /// <paramref name="secondaryShare"/> is the share of a cell's water that takes its second way, so what else the water
+    /// carries (its sediment load) divides the same way (#118).
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
         float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
-        out bool[] world, out int[] secondary, out int[] branchFrom, out int splits, out float[] water, float loss = 0f, float scale = 1f)
+        out bool[] world, out int[] secondary, out float[] secondaryShare, out int[] branchFrom, out int splits, out float[] water, float loss = 0f, float scale = 1f)
     {
         int n = filled.Length;
         var order = new int[n];
@@ -35,6 +37,7 @@ public static partial class TerrainChannels
         water = new float[n];
         world = new bool[n];
         secondary = new int[n];
+        secondaryShare = new float[n];
         branchFrom = new int[n];
         for (int i = 0; i < n; i++)
         {
@@ -90,6 +93,7 @@ public static partial class TerrainChannels
                 momentum[second] += Step(c, second, sizeX) * (discharge[c] * share);
                 world[second] |= world[c];
                 secondary[c] = second;
+                secondaryShare[c] = share;
                 if (branchFrom[second] < 0 || discharge[c] > discharge[branchFrom[second]])
                     branchFrom[second] = c;
                 splits++;
