@@ -222,6 +222,65 @@ public static class Outlets
         return open;
     }
 
+    /// <summary>
+    /// Closed basins that keep their water (P23, #99), for the erosion model and the map alike: each hollow of
+    /// <paramref name="ground"/> below its spill level toward the base levels holds a lake of <paramref name="lakeShare"/> x its
+    /// catchment (<see cref="WaterBalance"/>). One whose lake fits below its spill level is a sink: its cells up to the lake's
+    /// level become outlets at that level (a dry basin's floor), marked in <paramref name="sink"/>. The catchment is the area
+    /// that reached the hollow over <paramref name="receiver"/>: its largest while it drained over its rim, the sum over its
+    /// roots once it was a sink. A hollow fed from beyond the map (<paramref name="fed"/>) always fills. Returns the sinks.
+    /// </summary>
+    public static int CloseBasins(float[] ground, float[] baseLevel, float[] area, int[] receiver, float lakeShare, int sizeX, int sizeZ,
+        System.Func<int, bool> fed = null, bool[] sink = null)
+    {
+        int n = ground.Length;
+        var filled = (float[])ground.Clone();
+        var spill = new float[n];
+        Fill(filled, sizeX, sizeZ, baseLevel, 0f, spill);
+        GridMath.LabelRegions(i => float.IsNaN(baseLevel[i]) && spill[i] > ground[i], sizeX, sizeZ, out int[] region);
+        var hollows = new Dictionary<(int, float), List<int>>();
+        for (int i = 0; i < n; i++)
+        {
+            if (region[i] < 0)
+                continue;
+            var key = (region[i], spill[i]);
+            if (!hollows.TryGetValue(key, out List<int> cells))
+                hollows[key] = cells = new List<int>();
+            cells.Add(i);
+        }
+        int sinks = 0;
+        foreach (KeyValuePair<(int, float), List<int>> hollow in hollows)
+        {
+            List<int> cells = hollow.Value;
+            float largest = 0f, roots = 0f;
+            bool isFed = false;
+            foreach (int c in cells)
+            {
+                largest = Mathf.Max(largest, area[c]);
+                if (receiver[c] < 0)
+                    roots += area[c];
+                isFed |= fed != null && fed(c);
+            }
+            if (isFed)
+                continue;
+            cells.Sort((a, b) => ground[a].CompareTo(ground[b]));
+            float spillLevel = hollow.Key.Item2;
+            float level = WaterBalance.LakeLevel(cells, ground, spillLevel, roots > 0f ? roots : largest, lakeShare);
+            if (level >= spillLevel)
+                continue;
+            sinks++;
+            foreach (int c in cells)
+            {
+                if (ground[c] > level)
+                    break;
+                baseLevel[c] = level;
+                if (sink != null)
+                    sink[c] = true;
+            }
+        }
+        return sinks;
+    }
+
     /// <summary>Whether a cell is an outlet (water can leave it).</summary>
     public static bool IsOutlet(float[] baseLevel, int i) => !float.IsNaN(baseLevel[i]);
 
@@ -229,14 +288,14 @@ public static class Outlets
     /// Fills a surface to be routed toward its outlets: each outlet seeds the fill at its spill level max(ground, B), so
     /// water ponds up to B before it leaves (<see cref="GridMath.FillDepressions"/> from the outlets only).
     /// </summary>
-    public static void Fill(float[] surface, int sizeX, int sizeZ, float[] baseLevel, float epsilon)
+    public static void Fill(float[] surface, int sizeX, int sizeZ, float[] baseLevel, float epsilon, float[] spill = null)
     {
         for (int i = 0; i < surface.Length; i++)
         {
             if (!float.IsNaN(baseLevel[i]))
                 surface[i] = Mathf.Max(surface[i], baseLevel[i]);
         }
-        GridMath.FillDepressions(surface, sizeX, sizeZ, i => !float.IsNaN(baseLevel[i]), epsilon, includeEdges: false);
+        GridMath.FillDepressions(surface, sizeX, sizeZ, i => !float.IsNaN(baseLevel[i]), epsilon, includeEdges: false, spill);
     }
 
     /// <summary>Per side (west, east, south, north): edge cells that drain, and the mean of (B - ground) over them (diagnostic).</summary>

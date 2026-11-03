@@ -113,12 +113,7 @@ public static class SurfaceWaterModel
             list.Add(i);
         }
 
-        float rainfall = map.TileInfo?.rainfall ?? 0f;
-        float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
-        var channels = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<Geology.GeologyGenerationExtension>() ?? new Geology.GeologyGenerationExtension()).terrainChannels;
-        float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
-        float temperature = map.TileInfo?.temperature ?? 10f;
-        float evaporation = p.Evaporation(temperature);
+        float lakeShare = WaterBalance.LakeShare(map, out _);
 
         int lakes = 0;
         foreach (List<int> hollow in hollows.Values)
@@ -134,10 +129,8 @@ public static class SurfaceWaterModel
                 continue;
 
             // Lake area at balance: runoff in = net evaporation out. Wetter than evaporation: fills to the spill level.
-            float netEvaporation = evaporation - rainfall;
-            float balanceArea = netEvaporation <= 0f ? float.MaxValue : runoff * rainfall * catchment / netEvaporation;
             hollow.Sort((a, b) => landform[a].CompareTo(landform[b]));
-            float level = balanceArea >= hollow.Count ? spill : landform[hollow[Mathf.Clamp((int)balanceArea, 0, hollow.Count - 1)]];
+            float level = WaterBalance.LakeLevel(hollow, landform, spill, catchment, lakeShare);
             if (level - landform[hollow[0]] < p.minLakeDepth)
                 continue;
             lakes++;

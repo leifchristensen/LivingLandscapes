@@ -22,8 +22,8 @@ public class SoilDepthWorker : EnvironmentLayerWorker
         var p = def.GetModExtension<SoilModelExtension>() ?? new SoilModelExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
         float[] slope = context.Get(EnvironmentLayerDefOf.LL_Slope);
-        // Computed once: the rock-share calibration below tries the soil model up to 13 times on the same ground.
-        float[] area = GridMath.FlowAccumulationMfd(height, context.SizeX, context.SizeZ);
+        // The map's one drainage (#98): water crosses hollows to their spill point instead of collecting in every pit.
+        float[] area = Drainage.Of(context).Area;
         float[] soil = SoilModel.SoilDepth(slope, area, cellSize, p, context.Get(EnvironmentLayerDefOf.LL_RockStrength));
 
         FloatRange share = p.RockShareFor(context.Map.TileInfo.HillinessForElevationGen);
