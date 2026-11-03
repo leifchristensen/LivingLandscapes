@@ -642,7 +642,7 @@ public static class LandscapeGenerator
             // its rim. Its lake is a sink at the balance level: still water, so it does not incise (P2), and sediment settles in it.
             Array.Clear(sink, 0, n);
             if (iteration > 0 && !float.IsInfinity(lakeShare))
-                sinks = Sinks(h, baseLevel, area, receiver, sink, lakeShare, gx, gz);
+                sinks = Outlets.CloseBasins(h, baseLevel, area, receiver, lakeShare, gx, gz, i => inflow[i] > 0f, sink);
             for (int i = 0; i < n; i++)
             {
                 outlet[i] = !float.IsNaN(baseLevel[i]);
@@ -748,60 +748,6 @@ public static class LandscapeGenerator
         baseLevelOut = baseLevel;
         modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
-    }
-
-    /// <summary>
-    /// The closed basins of <paramref name="h"/> that keep their water (P23): each hollow below its spill level toward the
-    /// base levels holds a lake of <paramref name="lakeShare"/> x its catchment (the drainage area that reached it in the
-    /// last routing); one that fills before its spill level is a sink, its lake cells set to base level at the lake's
-    /// level and marked in <paramref name="sink"/>. Returns the number of sinks.
-    /// </summary>
-    private static int Sinks(float[] h, float[] baseLevel, float[] area, int[] receiver, bool[] sink, float lakeShare, int gx, int gz)
-    {
-        int n = h.Length;
-        var filled = (float[])h.Clone();
-        var spill = new float[n];
-        Outlets.Fill(filled, gx, gz, baseLevel, 0f, spill);
-        GridMath.LabelRegions(i => float.IsNaN(baseLevel[i]) && spill[i] > h[i], gx, gz, out int[] region);
-        var hollows = new Dictionary<(int, float), List<int>>();
-        for (int i = 0; i < n; i++)
-        {
-            if (region[i] < 0)
-                continue;
-            var key = (region[i], spill[i]);
-            if (!hollows.TryGetValue(key, out List<int> cells))
-                hollows[key] = cells = new List<int>();
-            cells.Add(i);
-        }
-        int sinks = 0;
-        foreach (KeyValuePair<(int, float), List<int>> hollow in hollows)
-        {
-            List<int> cells = hollow.Value;
-            // A hollow that drained over its rim passed its whole catchment through its lowest-lying cell toward the rim (the
-            // largest area); one that was a sink gathered it in its lake cells (the roots).
-            float largest = 0f, roots = 0f;
-            foreach (int c in cells)
-            {
-                largest = Mathf.Max(largest, area[c]);
-                if (receiver[c] < 0)
-                    roots += area[c];
-            }
-            cells.Sort((a, b) => h[a].CompareTo(h[b]));
-            float spillLevel = hollow.Key.Item2;
-            float level = WaterBalance.LakeLevel(cells, h, spillLevel, roots > 0f ? roots : largest, lakeShare);
-            if (level >= spillLevel)
-                continue;
-            sinks++;
-            foreach (int c in cells)
-            {
-                // A dry basin's (playa's) floor is its sink: what reaches it evaporates.
-                if (h[c] > level)
-                    break;
-                baseLevel[c] = level;
-                sink[c] = true;
-            }
-        }
-        return sinks;
     }
 
     /// <summary>

@@ -25,7 +25,7 @@ public static partial class TerrainChannels
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
-        bool[] edgeOpen = null)
+        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -59,7 +59,22 @@ public static partial class TerrainChannels
             }
         }
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen);
+        var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+        // Closed basins keep their water (P23, #99), as in the erosion model: a hollow whose lake fits below its spill level
+        // is an outlet at the lake's level, so no channel leaves it.
+        if (!float.IsInfinity(lakeShare))
+        {
+            float[] fed = inflow;
+            int closed = Outlets.CloseBasins(ground, baseLevel, GridMath.FlowAccumulationMfd(filled, sizeX, sizeZ), receiver, lakeShare, sizeX, sizeZ,
+                i => fed[i] > 0f);
+            Log.Message($"[LivingLandscapes] Map closed basins (#99): {closed} keep their water.");
+            if (closed > 0)
+            {
+                filled = (float[])ground.Clone();
+                receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+            }
+        }
     }
 
     /// <summary>
