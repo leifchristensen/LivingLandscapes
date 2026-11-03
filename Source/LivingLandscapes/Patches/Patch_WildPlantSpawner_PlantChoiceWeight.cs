@@ -14,7 +14,8 @@ namespace LivingLandscapes.Patches;
 ///    runs "over target" and is wrongly suppressed. The bias is re-evaluated against a target adjusted for that
 ///    (<see cref="MapComponent_Ecology.ShareScale"/>).
 /// 2. Fitness: the weight is multiplied by the species' fitness on the cell.
-/// 3. Clusters: vanilla multiplies a clustering species by about 1 / (pi r^2) away from its own kind, but only while its
+/// 3. Competition (<see cref="PlantEcologyDef.thinning"/>): plants of the same layer nearby lower the weight.
+/// 4. Clusters: vanilla multiplies a clustering species by about 1 / (pi r^2) away from its own kind, but only while its
 ///    share is under 110%; above that it applies nothing, so late plants land at random and clumps stop forming. Here the
 ///    "away from its kind" suppression applies at all times, and weight rises with the Gaussian-weighted crowding of its
 ///    own kind (and at a second, larger scale for species that set one), up to a capped ratio so the share bias can still
@@ -49,11 +50,19 @@ public static class Patch_WildPlantSpawner_PlantChoiceWeight
         if (raw >= 0f && scale > 1.01f)
             __result *= Mathf.Pow(ShareBias.Evaluate(raw / scale) / Mathf.Max(ShareBias.Evaluate(raw), 0.01f), strength);
 
-        // 2. Fitness.
-        __result *= Mathf.Lerp(1f, Mathf.Pow(ecology.Fitness(plantDef, index), tuning.fitnessExponent), strength);
+        // 2. Fitness, and the stand's succession stage (young stands favour pioneers, old ones the canopy).
+        __result *= Mathf.Lerp(1f, Mathf.Pow(ecology.Fitness(plantDef, index), tuning.fitnessExponent), strength) * ecology.Succession(plantDef, index);
 
-        // 3. Clusters.
+        // 3. Competition: plants of its own layer around the cell crowd a newcomer out, big species more than small ones.
         PlantHabitat habitat = PlantHabitat.For(plantDef);
+        StratumThinning thinning = tuning.ThinningFor(habitat.stratum);
+        if (thinning != null)
+        {
+            float crowded = ecology.CrowdingAt(habitat.stratum, index) / Mathf.Max(habitat.dominance, 0.1f);
+            __result *= Mathf.Lerp(1f, Mathf.Exp(-thinning.strength * crowded), strength);
+        }
+
+        // 4. Clusters.
         if (habitat.ClusterSigma(plantDef) <= 0f)
             return;
         float radius = plantDef.plant.wildClusterRadius;
@@ -61,19 +70,7 @@ public static class Patch_WildPlantSpawner_PlantChoiceWeight
         if (raw >= VanillaClusterCutoff)
             __result *= Mathf.Pow(1f / (Mathf.PI * radius * radius), strength);
 
-        float crowding = ecology.ClusterDensity(plantDef, index) * tuning.clusterGainPerNeighbour;
-        float inside = Mathf.Lerp(1f, Mathf.Min(habitat.ClusterRatio(plantDef), tuning.clusterMaxRatio), strength);
-        float outside = Mathf.Lerp(1f, tuning.clusterNucleation, strength);
-        __result *= outside + (inside - outside) * (1f - Mathf.Exp(-crowding));
-
-        // The larger scale: forests and clearings.
-        if (habitat.clusterRadius2 > 0f && habitat.clusterStrength2 > 1f)
-        {
-            float wide = ecology.ClusterDensity2(plantDef, index) * tuning.clusterGain2PerNeighbour;
-            float inside2 = Mathf.Lerp(1f, habitat.clusterStrength2, strength);
-            float outside2 = Mathf.Lerp(1f, tuning.clusterNucleation2, strength);
-            __result *= outside2 + (inside2 - outside2) * (1f - Mathf.Exp(-wide));
-        }
+        __result *= ecology.ClusterPull(plantDef, index);
     }
 
     /// <summary>The species' share of the map's plants over its target share (vanilla's own measure); -1 while there are no plants.</summary>

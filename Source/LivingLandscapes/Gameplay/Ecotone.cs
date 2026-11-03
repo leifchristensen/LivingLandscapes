@@ -14,6 +14,12 @@ public class EcotoneExtension : DefModExtension
 
     /// <summary>Wavelength (cells) of the patches the two biomes interleave in across the zone.</summary>
     public float patchScale = 10f;
+
+    /// <summary>
+    /// Majority filter after the noise interleave, one pass: a cell takes the other biome when at least this many of its 8
+    /// neighbours hold it. 7 clears lone cells and 2-cell specks and keeps the patches; 5 smooths harder; 0 turns it off.
+    /// </summary>
+    public int majorityNeighbours = 7;
 }
 
 /// <summary>
@@ -46,7 +52,33 @@ public static class Ecotone
             if (result[i] != grid[i])
                 changed++;
         }
+        // Majority filter: noise decides cell by cell, so specks of one biome can sit inside the other (a boreal soil cell
+        // with its own plants inside an ice sheet). One pass smooths them into their surroundings; patches stay.
+        var cleaned = (bool[])result.Clone();
+        int islands = 0;
+        for (int z = 1; z < sizeZ - 1 && p.majorityNeighbours > 0; z++)
+        {
+            for (int x = 1; x < sizeX - 1; x++)
+            {
+                int i = z * sizeX + x, other = 0;
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if ((dx != 0 || dz != 0) && result[i + dz * sizeX + dx] != result[i])
+                            other++;
+                    }
+                }
+                if (other >= p.majorityNeighbours)
+                {
+                    cleaned[i] = !result[i];
+                    islands++;
+                    changed += cleaned[i] != grid[i] ? 1 : -1;
+                }
+            }
+        }
+        result = cleaned;
         mixed.biomeGrid = result;
-        Log.Message($"[LivingLandscapes] Biome transition on {map}: {changed} of {n} cells changed biome across a zone {2 * p.halfWidth:0} cells wide.");
+        Log.Message($"[LivingLandscapes] Biome transition on {map}: {changed} of {n} cells changed biome across a zone {2 * p.halfWidth:0} cells wide; {islands} cells joined their surroundings (majority filter).");
     }
 }

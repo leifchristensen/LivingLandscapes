@@ -20,7 +20,8 @@ public static partial class TerrainChannels
     /// scales how readily a deposit forms a bar. Returns the number of bars.
     /// </summary>
     private static int Bars(float[] height, List<int> cells, float[] width, float[] depth, bool[] moving, float[] deposit,
-        float[] deposition, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands)
+        float[] deposition, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands,
+        ConfluenceZones zones = null)
     {
         int n = height.Length;
         islands = 0;
@@ -51,6 +52,9 @@ public static partial class TerrainChannels
         foreach ((int c, float strength) in candidates)
         {
             var at = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
+            // Below a junction the bar lies in the slow water along the tributary's bank, not mid-channel.
+            if (zones != null && zones.SlowShare[c] > 0f)
+                at += zones.SlowSide[c] * width[c] * 0.5f * (1f - zones.SlowShare[c]);
             float length = p.barLengthWidths * width[c], half = p.barWidthShare * width[c] * 0.5f;
             if (placed.Exists(b => (b.at - at).magnitude < Mathf.Max(b.length, length)))
                 continue;
@@ -59,7 +63,7 @@ public static partial class TerrainChannels
             float bed = level - depth[c];
             float crest = bed + (depth[c] + p.barRise) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.barThreshold, 1f, strength));
             Vector2 along = direction[c] == Vector2.zero ? Vector2.right : direction[c], across = new Vector2(-along.y, along.x);
-            int reach = Mathf.CeilToInt(length * 0.5f + 1f);
+            int reach = Mathf.CeilToInt(length * 0.5f + 1f + (at - new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f)).magnitude);
             for (int dz = -reach; dz <= reach; dz++)
             {
                 for (int dx = -reach; dx <= reach; dx++)
@@ -70,7 +74,7 @@ public static partial class TerrainChannels
                     int i = z * sizeX + x;
                     if (float.IsNaN(system.WaterLevel[i]))
                         continue;
-                    var v = new Vector2(dx, dz);
+                    var v = new Vector2(x + 0.5f, z + 0.5f) - at;
                     float a = Vector2.Dot(v, along) / (length * 0.5f);
                     // Teardrop: pointed upstream (narrowing toward a < 0), round downstream, as flow-shaped islands are.
                     float taper = a < 0f ? 1f + 1.2f * -a : 1f;

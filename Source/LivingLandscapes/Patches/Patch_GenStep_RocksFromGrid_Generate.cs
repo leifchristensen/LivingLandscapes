@@ -10,8 +10,8 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Spawns the cliffs the geology planned, right after vanilla places mountain rock and before terrain is chosen: a
-/// cliff band on every band cell (thin edges on its lower sides, tinted with the local rock) and steps facing downhill. Rock fallen from the faces is planned as talus: chunks of the same rock just
-/// below them, spawned once the terrain and water are final.
+/// cliff band on every band cell (thin edges on its lower sides, tinted with the local rock). Rock fallen from the faces
+/// is planned as talus: chunks of the same rock just below them, spawned once the terrain and water are final.
 /// </summary>
 [HarmonyPatch(typeof(GenStep_RocksFromGrid), nameof(GenStep_RocksFromGrid.Generate))]
 public static class Patch_GenStep_RocksFromGrid_Generate
@@ -36,14 +36,13 @@ public static class Patch_GenStep_RocksFromGrid_Generate
             for (int i = 0; i < plan.Kind.Length; i++)
             {
                 CliffKind kind = plan.Kind[i];
-                // Steps are left as gaps in the band: plain ground, the quickest way up (slope and cliff costs add up).
-                if (kind == CliffKind.None || kind == CliffKind.Steps)
+                if (kind == CliffKind.None)
                     continue;
                 IntVec3 cell = map.cellIndices.IndexToCell(i);
                 if (cell.GetEdifice(map) != null)
                     continue;
                 ThingDef rock = GenStep_RocksFromGrid.RockDefAt(cell);
-                ThingDef def = kind == CliffKind.Steps ? CliffDefs.Steps : CliffDefs.Band;
+                ThingDef def = CliffDefs.Band;
                 if (def == null)
                     continue;
                 var cliff = (Building_Cliff)ThingMaker.MakeThing(def);
@@ -53,7 +52,7 @@ public static class Patch_GenStep_RocksFromGrid_Generate
                 spawned++;
 
                 ThingDef chunk = rock?.building?.mineableThing;
-                if (kind != CliffKind.Steps && chunk != null && Rand.Chance(TalusChance))
+                if (chunk != null && Rand.Chance(TalusChance))
                     environment.PlannedTalus.Add((cell + plan.Facing[i].FacingCell * Rand.RangeInclusive(1, TalusMaxDistance), chunk));
             }
             Log.Message($"[LivingLandscapes] Spawned {spawned} cliff cells on {map}.");

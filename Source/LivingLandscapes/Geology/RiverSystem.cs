@@ -33,6 +33,9 @@ public class RiverSystem
 
     public List<RiverPlan> Channels = new List<RiverPlan>();
 
+    /// <summary>Base level of each cell (P1, <see cref="Outlets"/>): water leaves once its surface reaches it; NaN where it cannot leave.</summary>
+    public float[] BaseLevel;
+
     /// <summary>Water surface height in each cell of a live channel (NaN elsewhere), set when the channels are carved.</summary>
     public float[] WaterLevel;
 
@@ -50,6 +53,9 @@ public class RiverSystem
     /// saturated ground (marsh, mud) rather than moving water.
     /// </summary>
     public bool[] Seep;
+
+    /// <summary>Cells of closed basins that keep their water (P23, #99): outlets at the lake's level, a dry basin's floor.</summary>
+    public bool[] Sink;
 
     /// <summary>How close each seep comes to running water, 0..1 (its width as a share of moving water's); 0 elsewhere.</summary>
     public float[] SeepWater;

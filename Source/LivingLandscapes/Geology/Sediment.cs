@@ -13,10 +13,12 @@ public class SedimentSettings
     public float erosionPerPower = 0.08f;
 
     /// <summary>
-    /// Water entering the map arrives loaded from the land upstream: this much sediment per unit of discharge (the load a river
-    /// would carry on this slope, metres per cell). A lowland river is loaded from far away, whatever the slope on the map.
+    /// Water entering the map arrives loaded from the land upstream (P7, a graded river): a river from far away neither builds
+    /// nor cuts its bed on average, so it carries its capacity on the reach it runs down, capacityPerPower x q x S, with S its
+    /// mean slope from the entry to base level or the map's edge. This multiplies that load: above 1 the river arrives
+    /// overloaded (it aggrades), below 1 hungry.
     /// </summary>
-    public float entryLoadPerDischarge = 0.01f;
+    public float entryGrade = 1f;
 
     /// <summary>Share of the excess load (load over capacity) that settles in one cell; the rest goes on.</summary>
     public float settleShare = 0.04f;
@@ -82,10 +84,10 @@ public static class Sediment
     /// </summary>
     public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
         float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded,
-        float[] discharge = null, bool[] still = null)
+        float[] discharge = null, bool[] still = null, ConfluenceZones zones = null)
     {
         Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize, out _,
-            discharge, still);
+            discharge, still, zones);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         int covered = 0;
@@ -104,14 +106,17 @@ public static class Sediment
     /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
     /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
     /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
-    /// flow takes up as much as it can carry.
+    /// flow takes up as much as it can carry. Where the water divides (<paramref name="secondary"/>), the load divides with it,
+    /// by the same share (#118).
     /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null,
+        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
     {
         int n = filled.Length;
         var load = new float[n];
+        var walked = new bool[n];
         var grainLoad = new float[n];
         deposit = new float[n];
         depositGrain = new float[n];
@@ -120,6 +125,7 @@ public static class Sediment
         eroded = 0f;
         foreach (int c in cells)
         {
+            walked[c] = true;
             float q = discharge[c] * dischargeScale;
             float slope = Slope(c, receiver, filled, sizeX);
             bool still = baseLevel != null && baseLevel[c];
@@ -127,7 +133,7 @@ public static class Sediment
             float rock = rockStrength != null ? rockStrength[c] : 0.5f;
             float supply = p.erosionPerPower * (1f - rock) * q * slope;
             if (inflow[c] > 0f && !still)
-                supply += p.entryLoadPerDischarge * inflow[c] * dischargeScale;
+                supply += p.entryGrade * p.capacityPerPower * inflow[c] * dischargeScale * MeanSlope(c, receiver, filled, baseLevel, sizeX);
             if (gouged != null)
                 supply += gouged[c];
             if (sand != null && sand[c] && !still)
@@ -136,10 +142,16 @@ public static class Sediment
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;
             eroded += supply;
-            float dropped = 0f;
-            if (available > capacity)
+            float dropped = still ? (available > capacity ? available : 0f) : Mathf.Max(0f, available - capacity) * p.settleShare;
+            // Below a junction the flow splits across the channel (#20): slow water along the tributary's bank (share a) carries
+            // its share of the load at (v / v_mean)^2 of the capacity, and the rest runs faster through the narrowed width, so
+            // the slow side drops its excess and the fast side carries more.
+            float a = zones != null && !still ? zones.SlowShare[c] : 0f;
+            if (a > 0f)
+                dropped = (Mathf.Max(0f, a * available - a * capacity * zones.SlowCapacity)
+                           + Mathf.Max(0f, (1f - a) * available - capacity / (1f - a))) * p.settleShare;
+            if (dropped > 0f)
             {
-                dropped = still ? available : (available - capacity) * p.settleShare;
                 // The coarsest settles first: a slight excess drops gravel, losing all the power drops everything.
                 float share = dropped / Mathf.Max(available, 1e-6f);
                 float dropGrain = Mathf.Lerp(1f, grain, share);
@@ -151,6 +163,16 @@ public static class Sediment
                     atBase += dropped;
             }
             float carried = available - dropped;
+            // The second way takes its share of the load, unless routing changed after the split and it was already walked
+            // (then the load stays on the main way, so none is lost).
+            int second = secondary != null ? secondary[c] : -1;
+            if (second >= 0 && !walked[second])
+            {
+                float split = carried * secondaryShare[c];
+                load[second] += split;
+                grainLoad[second] += split * grain;
+                carried -= split;
+            }
             int r = receiver[c];
             if (r >= 0)
             {
@@ -219,12 +241,30 @@ public static class Sediment
     }
 
     /// <summary>
+    /// The mean water slope (metres per cell) from <paramref name="c"/> down its receivers to base level or the map's edge: the
+    /// reach a river entering there runs down on the map, in the map's own vertical scale.
+    /// </summary>
+    private static float MeanSlope(int c, int[] receiver, float[] filled, bool[] baseLevel, int sizeX)
+    {
+        int d = c;
+        float run = 0f;
+        for (int s = 0; s < filled.Length && receiver[d] >= 0 && (baseLevel == null || !baseLevel[d]); s++)
+        {
+            int r = receiver[d];
+            run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
+            d = r;
+        }
+        return run > 0f ? Mathf.Max(0f, filled[c] - filled[d]) / run : 0f;
+    }
+
+    /// <summary>
     /// Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with
     /// distance. Where the river meets still water (<paramref name="still"/>) its deposit spreads with its jet instead, along the
     /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream.
     /// </summary>
     public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
-        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null)
+        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null,
+        ConfluenceZones zones = null)
     {
         int n = filled.Length;
         alluvium = new float[n];
@@ -270,6 +310,10 @@ public static class Sediment
                 float turn = f1.x * f2.y - f1.y * f2.x;
                 inner = new Vector2(-f1.y, f1.x) * turn;
             }
+            // Below a junction the slow water lies along the tributary's bank: the deposit leans there instead (the stronger
+            // of the two, not both).
+            if (zones != null && zones.SlowShare[c] > 0f && zones.SlowShare[c] > inner.magnitude)
+                inner = zones.SlowSide[c] * zones.SlowShare[c];
             int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
             weights.Clear();
             float sum = 0f;
