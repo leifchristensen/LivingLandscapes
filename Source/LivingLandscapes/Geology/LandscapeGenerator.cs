@@ -353,8 +353,9 @@ public static class LandscapeGenerator
         const float Tolerance = 1e-4f;
         var landform = (float[])smooth.Clone();
         GridMath.FillDepressions(landform, sizeX, sizeZ, _ => false, 0f);
+        // Filled with the drainage's own gradient, so the floor slopes to its spill point as a graded deposit would, not a flat.
         var spill = (float[])textured.Clone();
-        GridMath.FillDepressions(spill, sizeX, sizeZ, _ => false, 0f);
+        GridMath.FillDepressions(spill, sizeX, sizeZ, _ => false, Drainage.FillGradient);
 
         int count = GridMath.LabelRegions(i => spill[i] - textured[i] > Tolerance, sizeX, sizeZ, out int[] labels);
         var inLandformBasin = new bool[count];
