@@ -19,6 +19,12 @@ public class SurfaceWaterExtension : DefModExtension
     public float minEvaporation = 150f;
 
     /// <summary>
+    /// Yearly evaporation from open water (mm) at a mean temperature: the potential evapotranspiration of the climate,
+    /// which the site water balance (P25, <see cref="MoistureWorker"/>) also reads.
+    /// </summary>
+    public float Evaporation(float temperature) => Mathf.Max(minEvaporation, evaporationAtZero + evaporationPerDegree * temperature);
+
+    /// <summary>
     /// Share of the rain on the catchment that runs off into the hollow (the rest soaks in or evaporates on land). Null:
     /// the same runoff the channels use, from the climate and the biome's absorption (<see cref="Geology.TerrainChannelSettings.RunoffOf"/>),
     /// so a desert's hollows stay dry playas and a bog's fill.
