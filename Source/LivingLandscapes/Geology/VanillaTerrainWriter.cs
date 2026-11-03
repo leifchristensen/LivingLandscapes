@@ -204,7 +204,7 @@ public static class VanillaTerrainWriter
             perRule[rule[i]]++;
         }
 
-        // Terrace cliffs along stage edges where the ground is cliff-steep, away from mountain rock and water.
+        // Terrace cliffs along stage edges between walkable areas, kept as whole scarps (P26), away from mountain rock and water.
         // The terrace plan LL_Height was built from (made once per map); planned again only if that layer was skipped.
         TerracePlan terracePlan = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedTerraces
                                   ?? Terraces.Plan(landform, sizeX, sizeZ, cellSize, terraces);
@@ -214,8 +214,8 @@ public static class VanillaTerrainWriter
         var plan = new CliffPlan(n);
         int knobs = MakeRockKnobs(map, values, stage, steepness, terraces);
         GroundCover[] planned = cover;
-        plan.PlanBands(map, stage, i => values[i] > 0.7f || steepness[i] < 0.5f || GroundCovers.IsWater(planned[i]));
-        int steps = plan.PlanSteps(map, stage, terraces.stepSpacing);
+        plan.PlanBands(map, stage, i => values[i] > 0.7f || GroundCovers.IsWater(planned[i]));
+        int scarps = plan.KeepScarps(map, steepness, terraces.scarpTraceSteepness, terraces.scarpMinLength);
         int bands = 0;
         for (int i = 0; i < n; i++)
         {
@@ -223,8 +223,7 @@ public static class VanillaTerrainWriter
                 continue;
             values[i] = Mathf.Max(values[i], RockFloor);
             cover[i] = GroundCover.None;
-            if (plan.Kind[i] != CliffKind.Steps)
-                bands++;
+            bands++;
         }
 
         // Connectivity: how many separate walkable areas the rock leaves (counting areas over 0.5 % of the map).
@@ -255,7 +254,7 @@ public static class VanillaTerrainWriter
                 shares.Add($"{rules.rules[r].label} {Percent(perRule[r], n)}");
         }
         Log.Message($"[LivingLandscapes] Geological terrain written for {map}: {string.Join(", ", shares)}; stages of {stageHeight:F1} m, " +
-                    $"{bands} cliff cells, {steps} steps, {knobs} cells of rock knobs; {sizeable} walkable areas " +
+                    $"{bands} cliff cells in {scarps} scarps, {knobs} cells of rock knobs; {sizeable} walkable areas " +
                     $"(largest holds {Percent(largest, Mathf.Max(1, walkable))} of walkable ground).");
         return plan;
     }

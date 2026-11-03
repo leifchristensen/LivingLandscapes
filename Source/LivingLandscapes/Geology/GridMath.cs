@@ -375,9 +375,13 @@ public static class GridMath
         dz = (h[z1 * sizeX + x] - h[z0 * sizeX + x]) / (z1 - z0);
     }
 
-    /// <summary>Labels 4-connected regions where <paramref name="member"/> is true; -1 elsewhere. Returns the region count.</summary>
-    public static int LabelRegions(Func<int, bool> member, int sizeX, int sizeZ, out int[] labels)
+    /// <summary>
+    /// Labels 4-connected regions (8-connected with <paramref name="diagonals"/>) where <paramref name="member"/> is true;
+    /// -1 elsewhere. Returns the region count.
+    /// </summary>
+    public static int LabelRegions(Func<int, bool> member, int sizeX, int sizeZ, out int[] labels, bool diagonals = false)
     {
+        int stride = diagonals ? 1 : 2;
         labels = new int[sizeX * sizeZ];
         for (int i = 0; i < labels.Length; i++)
             labels[i] = -1;
@@ -393,7 +397,7 @@ public static class GridMath
             {
                 int c = stack.Pop();
                 int cx = c % sizeX, cz = c / sizeX;
-                for (int d = 0; d < 8; d += 2)
+                for (int d = 0; d < 8; d += stride)
                 {
                     int nx = cx + DX[d], nz = cz + DZ[d];
                     if (nx < 0 || nz < 0 || nx >= sizeX || nz >= sizeZ)
