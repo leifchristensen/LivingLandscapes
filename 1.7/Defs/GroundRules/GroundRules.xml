@@ -82,11 +82,14 @@
         </conditions>
         <cover>Playa</cover>
       </li>
+      <!-- Saturated ground only ponds where the slope lets water stand (P23): marsh, marshy soil and mud keep to gentle
+           ground (slope below 0.25 m per cell); a steep bank above a lake drains. -->
       <li>
         <label>marsh</label>
         <conditions>
           <li><field>LL_Wetness</field><min>0.88</min></li>
           <li><field>Climate</field><min>0.5</min></li>
+          <li><field>LL_Slope</field><max>0.25</max></li>
         </conditions>
         <cover>Marsh</cover>
       </li>
@@ -111,6 +114,7 @@
         <conditions>
           <li><field>LL_Wetness</field><min>0.6</min></li>
           <li><field>Climate</field><min>0.5</min></li>
+          <li><field>LL_Slope</field><max>0.25</max></li>
         </conditions>
         <cover>MarshySoil</cover>
       </li>
@@ -118,6 +122,7 @@
         <label>mud</label>
         <conditions>
           <li><field>LL_Wetness</field><min>0.8</min></li>
+          <li><field>LL_Slope</field><max>0.25</max></li>
         </conditions>
         <cover>Mud</cover>
       </li>
@@ -126,6 +131,7 @@
         <conditions>
           <li><field>WaterDistance</field><max>1.5</max></li>
           <li><field>LL_Wetness</field><min>0.6</min></li>
+          <li><field>LL_Slope</field><max>0.25</max></li>
         </conditions>
         <cover>Mud</cover>
       </li>

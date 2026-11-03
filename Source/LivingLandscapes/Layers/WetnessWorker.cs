@@ -28,8 +28,11 @@ public class WetnessExtension : DefModExtension
     /// <summary>Wetness index range mapped to 0..1: ln(upslope area / slope).</summary>
     public FloatRange wetnessIndexRange = new FloatRange(4f, 13f);
 
-    /// <summary>Depth (m) of the water table below a drainage line no water stands on: a dry wash or a shallow dry hollow.</summary>
-    public float dryLineDepth = 1f;
+    /// <summary>
+    /// Share of the wetness index (versus height above drainage) in topographic wetness where no water stands on the
+    /// drainage line: there both only estimate the water table.
+    /// </summary>
+    public float wetnessIndexWeight = 0.5f;
 
 
     /// <summary>
@@ -105,13 +108,16 @@ public class WetnessWorker : EnvironmentLayerWorker
             float tanSlope = slope[i] / cellSize;
             float index = Mathf.Log(area / Mathf.Max(tanSlope, 0.01f));
             float indexWet = Mathf.InverseLerp(p.wetnessIndexRange.min, p.wetnessIndexRange.max, index);
-            float aboveDrainage = Mathf.Max(0f, height[i] - drainageHeight[i]) + (lineWater[i] ? 0f : p.dryLineDepth);
+            float aboveDrainage = Mathf.Max(0f, height[i] - drainageHeight[i]);
             float floodScale = p.heightAboveDrainageScale * (1f + p.floodGrowthPerDecade * Mathf.Max(0f, lineArea[i] - p.channelArea))
                                * (rivers?.Regime?.floodplainScale ?? 1f);
             float groundwater = Mathf.Exp(-aboveDrainage / floodScale);
-            // Both predict how near the water table comes (P23): water gathering on the slope, or a lake or channel close
-            // below. Either one saturates the ground.
-            float topographic = Mathf.Max(indexWet, groundwater);
+            // Both predict how near the water table comes (P23): water gathering on the slope, or a drainage line close
+            // below. Where water stands on that line (a lake or river) the water table is known there, its surface, and
+            // saturates the ground on its own; a dry line's is only an estimate, weighed with the index.
+            float topographic = lineWater[i]
+                ? Mathf.Max(indexWet, groundwater)
+                : p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);
         }
 

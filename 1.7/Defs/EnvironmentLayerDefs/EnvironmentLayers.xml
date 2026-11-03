@@ -386,6 +386,7 @@
         <channelArea>2.5</channelArea>
         <heightAboveDrainageScale>2</heightAboveDrainageScale>
         <wetnessIndexRange>4~13</wetnessIndexRange>
+        <wetnessIndexWeight>0.5</wetnessIndexWeight>
         <wetRainfallMm>1500</wetRainfallMm>
         <aridSharpening>3</aridSharpening>
         <unknownRainfall>0.4</unknownRainfall>
