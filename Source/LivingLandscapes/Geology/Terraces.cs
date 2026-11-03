@@ -26,18 +26,25 @@ public class TerraceExtension : DefModExtension
     /// </summary>
     public int knobMaxCells = 150;
 
-    /// <summary>Steps between stages come about every this many cells along a cliff band.</summary>
-    public int stepSpacing = 24;
-
-
     /// <summary>
-    /// Only steep ground is stepped into stages, and only there do cliffs form, where contour lines crowd together.
-    /// Below <see cref="gentleSlope"/> (rise over run) the ground keeps its natural shape; above
-    /// <see cref="cliffSlope"/> it is fully stepped and stage edges get cliffs (1.0 = 45 degrees). Keep the two close,
-    /// so stepped ground and cliffs coincide.
+    /// How strongly ground is stepped into stages follows its slope (rise over run): at <see cref="gentleSlope"/> and below
+    /// it keeps its natural shape, at <see cref="cliffSlope"/> and above it is fully stepped (1.0 = 45 degrees), with a
+    /// smooth blend between. Cliffs stand only on stepped ground (<see cref="scarpTraceSteepness"/>).
     /// </summary>
     public float gentleSlope = 0.9f;
     public float cliffSlope = 1.0f;
+
+    /// <summary>
+    /// A cliff band is traced along a stage edge while the ground there is stepped at least this much (0 to 1), and ends
+    /// where it eases: the natural way up (P26).
+    /// </summary>
+    public float scarpTraceSteepness = 0.25f;
+
+    /// <summary>
+    /// A cliff band stands when its steep-equivalent length (cells, the sum of steepness along it) is at least this:
+    /// long bands survive gentler stretches, short weak ones go (P26).
+    /// </summary>
+    public float scarpMinLength = 12f;
 
     /// <summary>Smoothing (cells) of the steepness used to decide where to step, so steep zones are coherent.</summary>
     public float steepnessSmoothing = 2f;

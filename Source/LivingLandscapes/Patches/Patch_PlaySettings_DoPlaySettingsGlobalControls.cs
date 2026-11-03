@@ -9,13 +9,11 @@ namespace LivingLandscapes.Patches;
 
 /// <summary>
 /// Adds one map toggle per environment overlay to the lower right corner, beside vanilla's. Each button shows or hides
-/// its layer and is highlighted while active, so several layers can be compared at once.
+/// its layer and shows vanilla's check or cross for its state, so several layers can be compared at once.
 /// </summary>
 [HarmonyPatch(typeof(PlaySettings), nameof(PlaySettings.DoPlaySettingsGlobalControls))]
 public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
 {
-    private static readonly Color ActiveBackground = new Color(1f, 1f, 1f, 0.25f);
-
     public static void Postfix(WidgetRow row, bool worldView)
     {
         if (worldView || row == null)
@@ -25,9 +23,15 @@ public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
             return;
         foreach (EnvironmentLayerDef layer in overlay.Available)
         {
+            // Dev views (computed on demand) are for development; players see only the finished layers.
+            if (!layer.overlay.toggle || (layer.onDemand && !Prefs.DevMode))
+                continue;
             bool on = overlay.IsActive(layer);
+            bool wasOn = on;
             string tooltip = "LL_OverlayToggleTip".Translate(layer.LabelCap, layer.description);
-            if (row.ButtonIcon(OverlayTextures.IconFor(layer), tooltip, backgroundColor: on ? ActiveBackground : (Color?)null))
+            // Vanilla's toggle: draws the green check or red cross beside the icon, like the play settings around it.
+            row.ToggleableIcon(ref on, OverlayTextures.IconFor(layer), tooltip);
+            if (on != wasOn)
                 overlay.Toggle(layer);
         }
     }

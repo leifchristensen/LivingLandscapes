@@ -61,7 +61,7 @@ public class HeightAboveDrainageWorker : EnvironmentLayerWorker
             return null;
         var p = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension();
         RiverSystem rivers = context.Environment.PlannedRivers;
-        float[] line = drainage.LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out _);
+        float[] line = drainage.LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out _, out _);
         var above = new float[line.Length];
         for (int i = 0; i < above.Length; i++)
             above[i] = Mathf.Max(0f, drainage.Ground[i] - line[i]);
