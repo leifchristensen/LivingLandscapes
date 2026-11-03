@@ -254,6 +254,8 @@ public static partial class TerrainChannels
         float creek = DischargeFor(4f);
         bool anyWorldRiver = courses != null && courses.Exists(c => c.VanillaWidth > 0f);
         bool worldEnters = false;
+        // Which of the world's inflows a course already brings in: each world river enters once, with its own water.
+        var entered = new bool[worldInflows?.Count ?? 0];
         foreach (ChannelCourse course in courses ?? new List<ChannelCourse>())
         {
             vanillaWidth = Mathf.Max(vanillaWidth, course.VanillaWidth);
@@ -280,16 +282,32 @@ public static partial class TerrainChannels
                 }
                 inflow[cell] += DischargeFor(course.VanillaWidth);
                 worldSource[cell] = worldEnters = true;
+                if (entered.Length > 0)
+                {
+                    // The course brings in the inflow on the side it enters from.
+                    Vector2 side = (course.Points[first] - riverCentre).normalized;
+                    int closest = 0;
+                    for (int k = 1; k < entered.Length; k++)
+                    {
+                        if (Vector2.Dot(side, worldInflows[k].From) > Vector2.Dot(side, worldInflows[closest].From))
+                            closest = k;
+                    }
+                    entered[closest] = true;
+                }
             }
             else
                 inflow[cell] += anyWorldRiver && riverEnters ? course.EntryArea * runoff : Mathf.Min(course.EntryArea * runoff, creek);
         }
-        if (anyWorldRiver && !worldEnters && riverEnters && worldInflows != null && worldInflows.Count > 0)
+        if (anyWorldRiver && riverEnters && worldInflows != null && worldInflows.Count > 0)
         {
-            // The erosion model's river does not cross the map edge (its course starts inside): the world says the river comes in,
-            // so it enters at the edge facing the neighbour it comes from, as vanilla lays it, and finds its own way from there.
-            foreach (WorldContext.RiverInflow from in worldInflows)
+            // A world river no course brings in (the erosion model's course starts inside, or several rivers share one
+            // course): the world says it comes in, so it enters at the edge facing the neighbour it comes from, as vanilla
+            // lays it, and finds its own way from there.
+            for (int k = 0; k < worldInflows.Count; k++)
             {
+                if (entered[k])
+                    continue;
+                WorldContext.RiverInflow from = worldInflows[k];
                 Vector2 edge = WaterTerrainNudges.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
                 int cell = RiverGrid.Index(edge, sizeX, sizeZ);
                 inflow[cell] += DischargeFor(from.Width);
