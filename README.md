@@ -28,7 +28,6 @@ Options → Mod options → Living Landscapes:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Geologically driven terrain | On | New maps are shaped by geology. Turn it off with a terrain mod that isn't supported: Living Landscapes then reads that mod's terrain and only places plants to match. |
 | Plant ecology | On | Wild plants follow the ground, cluster and shade each other. Off: vanilla's wild plant placement. |
 | Habitat strength | 100% | How strongly the plant ecology applies (0% is vanilla). |
 | Gameplay siting | On | Start spot, ore and discoveries follow the terrain. Off: vanilla's random placement. |
@@ -40,14 +39,14 @@ Options → Mod options → Living Landscapes:
 |---|---|
 | [Realistic Planets 2](https://steamcommunity.com/sharedfiles/filedetails/?id=3776715150) | Supported, optional. Load Living Landscapes after it. |
 | Plant mods (tried: Vanilla Plants Expanded, ReGrowth 2, Biomes! Core) | Work. Their plants get sensible habitat defaults from their own stats. |
-| Mods that change map terrain generation | Listed in the settings window. If maps look wrong with one, turn *Geologically driven terrain* off. |
+| Mods that change map terrain generation | Listed in the settings window. Tile features from other mods that replace the terrain are left to them; plants still follow the terrain they make. |
 
 ## FAQ
 **My existing map didn't change.** By design: only maps generated after enabling the mod are affected. Settle or visit a new tile.
 
 **The world map shows no river here, so why is there only a creek?** Rivers come from the world map. A tile without one gets at most a creek, damp ground, marsh or a dry wash.
 
-**Maps look wrong with my terrain mod.** Turn *Geologically driven terrain* off and [report it](#reporting-a-problem) with the mod's name.
+**Maps look wrong with my terrain mod.** [Report it](#reporting-a-problem) with the mod's name.
 
 ## Reporting a problem
 Please use [GitHub issues](https://github.com/leifchristensen/LivingLandscapes/issues/new/choose), not comments, so the map can be regenerated:

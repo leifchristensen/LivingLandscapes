@@ -22,8 +22,7 @@ public class LivingLandscapesMod : Mod
         harmony.PatchAll(typeof(LivingLandscapesMod).Assembly);
 
         var harmonyVersion = typeof(Harmony).Assembly.GetName().Version;
-        Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched. " +
-                    $"Geological terrain: {(Settings.geologicalTerrain ? "on" : "off")}.");
+        Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched.");
         Log.Message($"[LivingLandscapes] {DevTools.BuildStamp.Text}");
     }
 
@@ -43,10 +42,6 @@ public class LivingLandscapesMod : Mod
         }
         var listing = new Listing_Standard();
         listing.Begin(inRect);
-
-        listing.CheckboxLabeled("LL_GeologicalTerrain".Translate(), ref Settings.geologicalTerrain, "LL_GeologicalTerrainTip".Translate());
-        listing.Label("LL_GeologicalTerrainDesc".Translate());
-        listing.Gap();
 
         listing.CheckboxLabeled("LL_ScatteredRuins".Translate(), ref Settings.scatteredRuins, "LL_ScatteredRuinsTip".Translate());
         listing.Gap();
