@@ -140,14 +140,15 @@ public static class FloraMetrics
         }
 
         // Shade specialists (E5: forest fungi, moss): two-sided light curves with an optimum under 0.2. Plants per land cell
-        // by ground light band (deep < 0.15, shaded 0.15-0.5, open > 0.5), per species.
+        // by noon ground light band, per species.
         var bandCells = new int[3];
         for (int i = 0; i < area; i++)
         {
             if (land[i])
                 bandCells[Band(ecology.LightAt(i))]++;
         }
-        static int Band(float light) => light < 0.15f ? 0 : light < 0.5f ? 1 : 2;
+        // Noon light bands: deep is vanilla's Dark (< 0.3), shaded up to 0.7, open above.
+        static int Band(float light) => light < 0.3f ? 0 : light < 0.7f ? 1 : 2;
         var shadeLines = new List<string>();
         foreach (IGrouping<ThingDef, Plant> group in map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
                      .Where(p => !p.def.IsDeadPlant && PlantHabitat.For(p.def) is { light: { saturating: false, optimum: < 0.2f } })
@@ -161,6 +162,51 @@ public static class FloraMetrics
         }
         Log.Message($"{prefix} shadeSpecialists bands deep={bandCells[0] / n:F2} shaded={bandCells[1] / n:F2} open={bandCells[2] / n:F2}: " +
                     (shadeLines.Count > 0 ? string.Join("; ", shadeLines) : "none"));
+
+        // One light map (P12): noon light under trees (land cells shaded at all) by percentile, target 0.1-0.3 under heavy
+        // canopy; and vanilla's glow on the darkest land cell against the sky's glow x its transmittance.
+        var shadedLight = new List<float>();
+        int darkest = -1;
+        for (int i = 0; i < area; i++)
+        {
+            if (!land[i] || ecology.LightAt(i) >= 0.999f)
+                continue;
+            shadedLight.Add(ecology.LightAt(i));
+            if (darkest < 0 || ecology.LightAt(i) < ecology.LightAt(darkest))
+                darkest = i;
+        }
+        shadedLight.Sort();
+        string Pct(float q) => shadedLight.Count == 0 ? "-" : $"{shadedLight[(int)(q * (shadedLight.Count - 1))]:F2}";
+        string check = darkest < 0 ? "none" : $"glow {map.glowGrid.GroundGlowAt(map.cellIndices.IndexToCell(darkest)):F3} = sky {map.skyManager.CurSkyGlow:F3} x light {ecology.LightAt(darkest):F3}";
+        // Light at tree bases by clump size (owner playtest: a few maples gave 7% at their bases): trees with at most 4
+        // others within 4 cells (small clump), 5-14 (group) and 15 or more (forest).
+        var treePlants = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>().Where(p => p.def.plant.IsTree).ToList();
+        var treeCells = new HashSet<IntVec3>(treePlants.Select(p => p.Position));
+        var clump = new List<float>();
+        var dense = new List<float>();
+        var clumpDirect = new List<float>();
+        var grouped = new List<float>();
+        var denseDirect = new List<float>();
+        foreach (Plant tree in treePlants)
+        {
+            int others = GenRadial.RadialCellsAround(tree.Position, 4f, false).Count(treeCells.Contains);
+            int at = map.cellIndices.CellToIndex(tree.Position);
+            if (others <= 4)
+            {
+                clump.Add(ecology.LightAt(at));
+                clumpDirect.Add(ecology.DirectLightAt(at));
+            }
+            else if (others < 15)
+                grouped.Add(ecology.LightAt(at));
+            else
+            {
+                dense.Add(ecology.LightAt(at));
+                denseDirect.Add(ecology.DirectLightAt(at));
+            }
+        }
+        string Mean(List<float> v) => v.Count == 0 ? "-" : $"{v.Average():F2} (n {v.Count})";
+        Log.Message($"{prefix} treeBaseLight smallClump {Mean(clump)} group {Mean(grouped)} forest {Mean(dense)}; direct stream alone {Mean(clumpDirect)} / {Mean(denseDirect)}");
+        Log.Message($"{prefix} noonLight under trees {shadedLight.Count / n:F2} of land: p5 {Pct(0.05f)} p10 {Pct(0.1f)} p25 {Pct(0.25f)} p50 {Pct(0.5f)} p75 {Pct(0.75f)}; darkest cell {check}");
 
         // Large-scale variation: canopy and plant cover in 16 x 16 blocks (at least half land). cv = std / mean;
         // clearings = blocks with canopy under a quarter of the mean; closed = blocks with plants on 80% of land.
@@ -230,6 +276,28 @@ public static class FloraMetrics
             sizes.Sort();
             long cells = sizes.Sum(), squares = sizes.Sum(s => (long)s * s);
             Log.Message($"{prefix} patches species={def.defName} cells={cells} count={sizes.Count} median={sizes[sizes.Count / 2]} p90={sizes[(int)(sizes.Count * 0.9f)]} largest={sizes[sizes.Count - 1]} cellWeighted={(double)squares / cells:F1}");
+        }
+
+        // Thermal zoning (P23, #90): each common species' mean local offset (K, days and nights averaged) against the land's,
+        // so warmth-loving species should sit above it and cold-hardy ones below it on maps with relief.
+        var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        if (climate != null)
+        {
+            double landSum = 0;
+            int landN = 0;
+            for (int i = 0; i < area; i++)
+                if (land[i])
+                {
+                    landSum += climate.MeanOffsetAt(i);
+                    landN++;
+                }
+            var zones = map.listerThings.ThingsInGroup(ThingRequestGroup.NonStumpPlant).OfType<Plant>()
+                .GroupBy(p => p.def).Where(g => g.Count() >= 30)
+                .Select(g => (def: g.Key, n: g.Count(), offset: g.Average(p => climate.MeanOffsetAt(map.cellIndices.CellToIndex(p.Position)))))
+                .OrderBy(z => z.offset).ToList();
+            if (landN > 0 && zones.Count > 0)
+                Log.Message($"{prefix} thermal land={landSum / landN:F2}K " +
+                            string.Join(" ", zones.Select(z => $"{z.def.defName}={z.offset:F2}(n{z.n},opt{z.def.plant.minOptimalGrowthTemperature:F0}-{z.def.plant.maxOptimalGrowthTemperature:F0})")));
         }
 
         // Riparian: plants by distance to water (LL_WaterDistance) bands, with fertility, moisture and leading species, to

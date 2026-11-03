@@ -6,8 +6,8 @@ namespace LivingLandscapes.Flora;
 /// <summary>
 /// The environment as plants see it, read from the layer grids once so fitness can be evaluated for any number of
 /// species and cells. Two inputs (PLANT-TRAITS.md section 4): Water (moisture, drier on sun-facing slopes, with the
-/// soil's room for the roots) and Light (sun times canopy transmittance, which changes as plants grow, so the ecology
-/// applies it live through <see cref="Light"/>).
+/// soil's room for the roots) and Light (canopy transmittance, which changes as plants grow, so the ecology applies it
+/// live through <see cref="MapComponent_Ecology.LightAt"/>).
 /// </summary>
 public class HabitatSampler
 {
@@ -29,9 +29,6 @@ public class HabitatSampler
         float level = sun == null ? 0f : sun[index] - 0.7f;
         return Mathf.Clamp01(moisture[index] - PlantEcologyDef.Current.sunDrying * level);
     }
-
-    /// <summary>Light 0..1 at a cell under the given canopy transmittance (1 - shade).</summary>
-    public float Light(int index, float transmittance) => (sun == null ? 0.7f : sun[index]) * transmittance;
 
     /// <summary>
     /// The site's fitness 0..1 for a species from the ground alone: its water curve times root room,

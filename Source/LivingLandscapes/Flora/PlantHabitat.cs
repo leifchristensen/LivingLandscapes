@@ -79,10 +79,16 @@ public class PlantHabitat : DefModExtension
     public HabitatCurve water;
 
     /// <summary>
-    /// Light at the ground, LL_Sun times canopy transmittance (P12): 0 dark, 0.7 open level ground, 1 a sun-facing slope.
-    /// Null takes a default from the stratum (<see cref="Derive"/>).
+    /// Light at the ground under a clear noon sky: canopy transmittance (P12), 0 dark, 1 open ground; vanilla's ground
+    /// glow is the sky's glow times it. Null takes a default from the stratum (<see cref="Derive"/>).
     /// </summary>
     public HabitatCurve light;
+
+    /// <summary>
+    /// For a plant that dies in light (diesToLight): the ground glow it tolerates; it lives at or below this and dies
+    /// above it at vanilla's rate. 0 = vanilla (dies at any glow). Forest fungi: their fruiting bodies dry out in sun.
+    /// </summary>
+    public float lightLimit;
 
     /// <summary>Metres of soil the roots want; shallower soil limits the plant (<see cref="PlantEcologyDef.rootRoomExponent"/>). 0: from the stratum.</summary>
     public float rootingDepth;
@@ -178,7 +184,7 @@ public class PlantHabitat : DefModExtension
     /// <summary>Fills what the XML left out from the stratum and vanilla's fields (Docs/HABITAT-XML.md, defaults).</summary>
     private void Resolve(ThingDef plant)
     {
-        light ??= new HabitatCurve { optimum = 0.75f, tolerance = stratum == PlantStratum.Canopy ? 0.3f : 0.45f, saturating = true };
+        light ??= new HabitatCurve { optimum = 1f, tolerance = stratum == PlantStratum.Canopy ? 0.43f : 0.64f, saturating = true };
         if (rootingDepth <= 0f)
             rootingDepth = stratum switch { PlantStratum.Canopy => 1.5f, PlantStratum.Shrub => 0.8f, _ => 0.3f };
         if (pace < 0f)

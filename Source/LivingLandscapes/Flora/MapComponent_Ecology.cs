@@ -32,20 +32,32 @@ public class MapComponent_Ecology : MapComponent
 
     private HabitatSampler sampler;
     private float[] shadeLog;
+
+    /// <summary>Canopy optical depth seen against the whole sky: crowns blurred over the sky view (diffuse light, P12).</summary>
+    private float[] skyLog;
+
+    /// <summary>Ground light per cell (<see cref="LightAt"/>), kept for vanilla's glow (read on every glow query; null until built).</summary>
+    private float[] transmittance;
     private float[] stems;
     private MapComponent_StandAge standAge;
 
     /// <summary>Downhill direction per cell (LL_Aspect, radians counter-clockwise from east), for seeds carried by water; null without the layer.</summary>
-    private float[] aspect;
+    private float[] aspect, slope;
 
     private readonly Dictionary<(int sigma, int octant), Kernel> downstreamKernels = new Dictionary<(int, int), Kernel>();
     private readonly Dictionary<ThingDef, float[]> site = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermal = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> thermalShare = new Dictionary<ThingDef, float[]>();
+    private readonly Dictionary<ThingDef, float[]> warmth = new Dictionary<ThingDef, float[]>();
+    private float[] bestWarmth;
+    private float[] meanOffset;
     private readonly Dictionary<ThingDef, float[]> density = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> density2 = new Dictionary<ThingDef, float[]>();
     private readonly float[][] crowding = new float[3][];
     private readonly Dictionary<int, Kernel> clusterKernels = new Dictionary<int, Kernel>();
     private readonly Dictionary<(ThingDef, int), (Kernel kernel, (int x, int z) shift)> shadeKernels = new Dictionary<(ThingDef, int), (Kernel, (int, int))>();
+    private readonly Dictionary<(ThingDef, int), Kernel> skyKernels = new Dictionary<(ThingDef, int), Kernel>();
 
     /// <summary>The size step (quarters of growth, 1-4) each tree was stamped with, so its removal takes off what was added.</summary>
     private readonly Dictionary<int, int> treeSteps = new Dictionary<int, int>();
@@ -125,8 +137,10 @@ public class MapComponent_Ecology : MapComponent
         latitude = SunWorker.LatitudeOf(map);
         sampler = new HabitatSampler(map, moisture, soilDepth, sun);
         shadeLog = new float[sizeX * sizeZ];
+        skyLog = new float[sizeX * sizeZ];
         stems = new float[sizeX * sizeZ];
         aspect = Grid(EnvironmentLayerDefOf.LL_Aspect);
+        slope = Grid(EnvironmentLayerDefOf.LL_Slope);
 
         long start = Stopwatch.GetTimestamp();
         int count = 0;
@@ -138,7 +152,13 @@ public class MapComponent_Ecology : MapComponent
                 count++;
             }
         }
+        transmittance = new float[sizeX * sizeZ];
+        for (int i = 0; i < transmittance.Length; i++)
+            transmittance[i] = LightAt(i);
         built = true;
+        // A loaded save builds the ecology in play, after the glow meshes were drawn without the canopy.
+        if (map.mapDrawer != null && SectionsOf(map.mapDrawer) != null)
+            map.mapDrawer.WholeMapChanged(MapMeshFlagDefOf.GroundGlow);
         standAge = map.GetComponent<MapComponent_StandAge>();
         standAge?.LayersReady();
         // The path grid was computed before the stems existed (a loaded save builds this on the spawner's first call).
@@ -194,7 +214,7 @@ public class MapComponent_Ecology : MapComponent
             if (!density.TryGetValue(def, out float[] grid))
                 density[def] = grid = new float[sizeX * sizeZ];
             int index = map.cellIndices.CellToIndex(at);
-            Apply(grid, at.x, at.z, habitat.Kernel.downstream && aspect != null ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
+            Apply(grid, at.x, at.z, habitat.Kernel.downstream && Downhill(index) ? DownstreamKernel(sigma, aspect[index]) : ClusterKernel(sigma), sign);
         }
         // A tree shades and crowds with its size (P12, P14): growth in quarters, the step it was stamped with on removal.
         int step = 4;
@@ -226,6 +246,11 @@ public class MapComponent_Ecology : MapComponent
         {
             (Kernel kernel, (int x, int z) shift) = ShadeKernel(def, habitat, step);
             Apply(shadeLog, at.x + shift.x, at.z + shift.z, kernel, sign);
+            // Skylight comes from all round: the same crown, blurred over the sky view, centred on the plant.
+            Kernel sky = SkyKernel(def, kernel, step);
+            Apply(skyLog, at.x, at.z, sky, sign);
+            if (transmittance != null)
+                RefreshLight(at.x, at.z, Mathf.Max(sky.Reach, kernel.Reach + Mathf.Max(Mathf.Abs(shift.x), Mathf.Abs(shift.z))));
         }
         // Young poles stand close and low (stem exclusion): a tree up to half grown is a thicket too.
         float thicket = habitat.thicket + (habitat.stratum == PlantStratum.Canopy && step <= 2 ? PlantEcologyDef.Current.saplingThicket : 0f);
@@ -304,6 +329,22 @@ public class MapComponent_Ecology : MapComponent
                 sum += stems[z * sizeX + x];
         }
         return Mathf.RoundToInt(PlantEcologyDef.Current.thicketDragMax * sum / 9f);
+    }
+
+    /// <summary>Ground light and vanilla's glow meshes follow a shade stamp around (cx, cz).</summary>
+    private void RefreshLight(int cx, int cz, int reach)
+    {
+        int z0 = Mathf.Max(cz - reach, 0), z1 = Mathf.Min(cz + reach, sizeZ - 1);
+        int x0 = Mathf.Max(cx - reach, 0), x1 = Mathf.Min(cx + reach, sizeX - 1);
+        for (int z = z0; z <= z1; z++)
+        {
+            for (int x = x0; x <= x1; x++)
+            {
+                int i = z * sizeX + x;
+                transmittance[i] = LightAt(i);
+                map.mapDrawer?.MapMeshDirty(new IntVec3(x, 0, z), MapMeshFlagDefOf.GroundGlow);
+            }
+        }
     }
 
     private void Apply(float[] grid, int cx, int cz, Kernel kernel, int sign)
@@ -387,13 +428,19 @@ public class MapComponent_Ecology : MapComponent
 
     private const float DownstreamStretch = 1.5f, DownstreamNarrow = 0.7f;
 
+    /// <summary>Slope (rise over run) below which ground has no downhill for water-carried seed: about 1 degree.</summary>
+    private const float MinDownhillSlope = 0.02f;
+
+    /// <summary>Whether a cell has a downhill for water to carry seed along (its aspect means nothing on level ground, #79).</summary>
+    private bool Downhill(int index) => aspect != null && slope != null && slope[index] >= MinDownhillSlope;
+
     /// <summary>
     /// Where a seed of a water-carried species lands from a parent at this cell: an offset drawn from the same stretched,
     /// downstream-shifted Gaussian as <see cref="DownstreamKernel"/> (isotropic for other species), used by the seeder.
     /// </summary>
     public IntVec3 OffspringCell(PlantHabitat habitat, IntVec3 parent, float sigma)
     {
-        if (!habitat.Kernel.downstream || aspect == null || !parent.InBounds(map))
+        if (!habitat.Kernel.downstream || !parent.InBounds(map) || !Downhill(map.cellIndices.CellToIndex(parent)))
             return new IntVec3(Mathf.RoundToInt(parent.x + Rand.Gaussian(0f, sigma)), 0, Mathf.RoundToInt(parent.z + Rand.Gaussian(0f, sigma)));
         float angle = aspect[map.cellIndices.CellToIndex(parent)];
         float a = sigma + Rand.Gaussian(0f, sigma * DownstreamStretch), c = Rand.Gaussian(0f, sigma * DownstreamNarrow);
@@ -414,6 +461,38 @@ public class MapComponent_Ecology : MapComponent
         return result;
     }
 
+    /// <summary>
+    /// A crown's optical depth as the sky sees it: its shade kernel convolved with a Gaussian of radius skyViewRadius
+    /// (the convolution keeps the crown's total depth, spread wider and flatter).
+    /// </summary>
+    private Kernel SkyKernel(ThingDef def, Kernel crown, int step)
+    {
+        if (skyKernels.TryGetValue((def, step), out Kernel cached))
+            return cached;
+        float r = PlantEcologyDef.Current.skyViewRadius;
+        int blur = Mathf.CeilToInt(r * 2f), reach = crown.Reach + blur, width = 2 * reach + 1, crownWidth = 2 * crown.Reach + 1;
+        var weights = new float[2 * blur + 1];
+        float sum = 0f;
+        for (int d = -blur; d <= blur; d++)
+            sum += weights[d + blur] = Mathf.Exp(-d * d / (2f * r * r));
+        for (int d = 0; d < weights.Length; d++)
+            weights[d] /= sum;
+        // Separable: blur the rows, then the columns.
+        var rows = new float[crownWidth * width];
+        for (int z = 0; z < crownWidth; z++)
+            for (int x = 0; x < crownWidth; x++)
+                for (int d = -blur; d <= blur; d++)
+                    rows[z * width + x + blur + d] += crown.Values[z * crownWidth + x] * weights[d + blur];
+        var values = new float[width * width];
+        for (int z = 0; z < crownWidth; z++)
+            for (int x = 0; x < width; x++)
+                for (int d = -blur; d <= blur; d++)
+                    values[(z + blur + d) * width + x] += rows[z * width + x] * weights[d + blur];
+        var kernel = new Kernel { Reach = reach, Values = values };
+        skyKernels[(def, step)] = kernel;
+        return kernel;
+    }
+
     private static Kernel Build(int reach, System.Func<float, float> value)
     {
         int width = 2 * reach + 1;
@@ -425,6 +504,119 @@ public class MapComponent_Ecology : MapComponent
         }
         return new Kernel { Reach = reach, Values = values };
     }
+
+    /// <summary>
+    /// A species' warmth on each cell (P23, #90): g, the yearly mean of vanilla's temperature growth factor (the species'
+    /// cardinal temperatures, PlantTemperature.xml) over the tile's twelfth mean temperatures plus the cell's mean local
+    /// offset: 1 inside its optimal window, falling on the ramps towards its minimum and maximum growth temperatures, 0
+    /// outside them. A species grows less often the further a cell is from its ideal and far less often where it cannot
+    /// grow at all (owner 2026-11-02): it weighs which species a cell gets, as g over the best g of the biome's species on
+    /// that cell (competition is relative: where every species is cold, the hardiest still fills the cell, and cover stays
+    /// with <see cref="ThermalShareGrid"/>), at least <see cref="ThermalFloor"/>.
+    /// </summary>
+    private float[] ThermalGrid(ThingDef def)
+    {
+        BuildThermal(def);
+        return thermal[def];
+    }
+
+    /// <summary>
+    /// The same warmth relative to the map's mean, g(cell) / g(map), capped at <see cref="ThermalGain"/>: how much a
+    /// cell carries (cover). Vanilla's plant density for the biome already reflects the tile's climate, so local warmth
+    /// only moves cover between warm and cold ground; 1 on a flat map, and 1 for a species that cannot grow at the
+    /// map's mean.
+    /// </summary>
+    private float[] ThermalShareGrid(ThingDef def)
+    {
+        BuildThermal(def);
+        return thermalShare[def];
+    }
+
+    private void BuildThermal(ThingDef def)
+    {
+        if (thermal.ContainsKey(def))
+            return;
+        if (bestWarmth == null)
+        {
+            bestWarmth = new float[sizeX * sizeZ];
+            foreach (var record in map.Biome.wildPlants)
+            {
+                float[] other = Warmth(record.plant);
+                for (int i = 0; i < bestWarmth.Length; i++)
+                    bestWarmth[i] = Mathf.Max(bestWarmth[i], other[i]);
+            }
+        }
+        float[] g = Warmth(def);
+        var absolute = new float[g.Length];
+        var share = new float[g.Length];
+        float atMean = WarmthAt(def, 0f);
+        for (int i = 0; i < g.Length; i++)
+        {
+            float best = Mathf.Max(bestWarmth[i], g[i]);
+            absolute[i] = best < 0.001f ? 1f : Mathf.Max(ThermalFloor, g[i] / best);
+            share[i] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, g[i] / atMean);
+        }
+        thermal[def] = absolute;
+        thermalShare[def] = share;
+    }
+
+    /// <summary>g of a species on each cell (see <see cref="ThermalGrid"/>), cached.</summary>
+    private float[] Warmth(ThingDef def)
+    {
+        if (warmth.TryGetValue(def, out float[] grid))
+            return grid;
+        var climate = map.GetComponent<Climate.MapComponent_LocalClimate>();
+        int area = sizeX * sizeZ;
+        if (meanOffset == null && climate != null)
+        {
+            meanOffset = new float[area];
+            for (int i = 0; i < area; i++)
+                meanOffset[i] = climate.MeanOffsetAt(i);
+        }
+        var twelfths = new float[12];
+        for (int t = 0; t < 12; t++)
+            twelfths[t] = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+        float Growing(float offset)
+        {
+            float sum = 0f;
+            foreach (float temperature in twelfths)
+                sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+            return sum / 12f;
+        }
+        // g by offset in steps of a quarter kelvin: a few hundred evaluations per species instead of one per cell.
+        var table = new float[(int)((ThermalSpan.max - ThermalSpan.min) * 4f) + 1];
+        for (int k = 0; k < table.Length; k++)
+            table[k] = Growing(ThermalSpan.min + k / 4f);
+        grid = new float[area];
+        for (int i = 0; i < area; i++)
+        {
+            float offset = meanOffset == null ? 0f : meanOffset[i];
+            grid[i] = table[Mathf.Clamp(Mathf.RoundToInt((offset - ThermalSpan.min) * 4f), 0, table.Length - 1)];
+        }
+        warmth[def] = grid;
+        return grid;
+    }
+
+    /// <summary>g of a species at one mean local offset (K): the yearly mean of its temperature growth factor.</summary>
+    private float WarmthAt(ThingDef def, float offset)
+    {
+        float sum = 0f;
+        for (int t = 0; t < 12; t++)
+        {
+            float temperature = map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f;
+            sum += PlantUtility.GrowthRateFactorFor_Temperature(def, temperature + offset);
+        }
+        return sum / 12f;
+    }
+
+    /// <summary>Range of mean local offsets (K) the thermal table covers.</summary>
+    private static readonly FloatRange ThermalSpan = new FloatRange(-30f, 15f);
+
+    /// <summary>Most a warmer cell can raise a species' cover over the map's mean (its g rises, but sun and space still limit it).</summary>
+    private const float ThermalGain = 1.5f;
+
+    /// <summary>Warmth weight of a species where it cannot grow at all: rare, not impossible (a seedling still sprouts in a warm spell).</summary>
+    private const float ThermalFloor = 0.05f;
 
     private float[] SiteGrid(ThingDef def, PlantHabitat habitat)
     {
@@ -452,22 +644,58 @@ public class MapComponent_Ecology : MapComponent
                 grid[i] = sampler.Site(habitat, i, fundamental: true);
             carrying[def] = grid;
         }
-        return grid[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+        return grid[index] * habitat.light.Response(LightAt(index)) * ThermalShareGrid(def)[index];
     }
 
-    /// <summary>Canopy transmittance 0..1 on a cell: the share of sky light that reaches the ground through the crowns (P12).</summary>
+    /// <summary>Shade 0..1 on a cell from the plants standing now: the share of a clear noon's light they block.</summary>
+    public float ShadeAt(int index) => 1f - LightAt(index);
 
-    /// <summary>Shade 0..1 on a cell from the plants standing now.</summary>
-    public float ShadeAt(int index) => 1f - Mathf.Exp(-shadeLog[index]);
+    /// <summary>
+    /// Light reaching the ground on a cell under a clear noon sky, 1 in the open (P12, two streams): the direct sun
+    /// through the crowns on its path, d x exp(-shadeLog), plus diffuse skylight through the canopy seen all round,
+    /// (1 - d) x exp(-skyLog), d = directShare. Vanilla's ground glow is the sky's glow times this
+    /// (<see cref="Patches.Patch_GlowGrid_GroundGlowAt"/>), so the light curves read the light that pawns, crops and the
+    /// Lit % readout see at noon.
+    /// </summary>
+    public float LightAt(int index)
+    {
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        float d = tuning.directShare;
+        return d * Mathf.Exp(-Depth(shadeLog[index], tuning)) + (1f - d) * Mathf.Exp(-Depth(skyLog[index], tuning));
+    }
 
-    /// <summary>Light reaching the ground on a cell now: LL_Sun x canopy transmittance (what the light curves read).</summary>
-    public float LightAt(int index) => sampler.Light(index, Mathf.Exp(-shadeLog[index]));
+    /// <summary>A stacked optical depth under the leaf area ceiling (<see cref="PlantEcologyDef.canopyDepthMax"/>).</summary>
+    private static float Depth(float stacked, PlantEcologyDef tuning)
+    {
+        float max = tuning.canopyDepthMax;
+        return max <= 0f ? stacked : max * (1f - Mathf.Exp(-stacked / max));
+    }
 
-    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now.</summary>
+    /// <summary>The direct stream alone (dev metrics): the sun through the crowns on its path.</summary>
+    public float DirectLightAt(int index) => Mathf.Exp(-Depth(shadeLog[index], PlantEcologyDef.Current));
+
+    /// <summary>Canopy transmittance for vanilla's glow: 1 where the ecology is off or not built yet.</summary>
+    public static float TransmittanceAt(Map map, IntVec3 c)
+    {
+        if (map != cachedMap)
+        {
+            cachedMap = map;
+            cachedEcology = map.GetComponent<MapComponent_Ecology>();
+        }
+        float[] t = cachedEcology?.transmittance;
+        return t == null || !c.InBounds(map) ? 1f : t[map.cellIndices.CellToIndex(c)];
+    }
+
+    private static readonly HarmonyLib.AccessTools.FieldRef<MapDrawer, Section[,]> SectionsOf = HarmonyLib.AccessTools.FieldRefAccess<MapDrawer, Section[,]>("sections");
+
+    private static Map cachedMap;
+    private static MapComponent_Ecology cachedEcology;
+
+    /// <summary>Fitness 0..1 of a species on a cell: the ground's fitness (water, root room) times its light curve at the light reaching the ground now, times its warmth there (<see cref="ThermalGrid"/>).</summary>
     public float Fitness(ThingDef def, int index)
     {
         PlantHabitat habitat = PlantHabitat.For(def);
-        return SiteGrid(def, habitat)[index] * habitat.light.Response(sampler.Light(index, Mathf.Exp(-shadeLog[index])));
+        return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
     }
 
     /// <summary>
@@ -535,6 +763,7 @@ public class MapComponent_Ecology : MapComponent
             }
         }
         Compare("shade", shadeLog, fresh.shadeLog);
+        Compare("sky", skyLog, fresh.skyLog);
         for (int layer = 0; layer < 3; layer++)
             Compare("crowding " + (PlantStratum)layer, crowding[layer], fresh.crowding[layer]);
         foreach (KeyValuePair<ThingDef, float[]> pair in density)
@@ -788,15 +1017,17 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>
-    /// Growth rate multiplier of a standing plant from how well its site suits its species: 1 for plants without habitat
-    /// data, so crops, modded and DLC plants grow exactly as vanilla has them.
+    /// Growth rate multiplier of a standing plant from how well its ground (water, root room) suits its species: 1 for
+    /// plants without habitat data, so crops, modded and DLC plants grow exactly as vanilla has them. Light is not in it:
+    /// vanilla's light factor already reads the canopy-dimmed glow.
     /// </summary>
     public float Vitality(Plant plant)
     {
         PlantHabitat habitat = PlantHabitat.For(plant.def);
         if (!habitat.HasSiteCurves || !plant.Position.InBounds(map))
             return 1f;
-        float fitness = Fitness(plant.def, map.cellIndices.CellToIndex(plant.Position));
+        // The ground only: light reaches growth through vanilla's own light factor (the canopy-dimmed glow).
+        float fitness = SiteGrid(plant.def, habitat)[map.cellIndices.CellToIndex(plant.Position)];
         PlantEcologyDef def = PlantEcologyDef.Current;
         return Mathf.Lerp(1f, Mathf.Lerp(def.vitalityMin, def.vitalityMax, Mathf.Sqrt(fitness)), Strength);
     }

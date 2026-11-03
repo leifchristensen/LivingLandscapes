@@ -204,15 +204,29 @@ public class PlantEcologyDef : Def
     /// </summary>
     public float shadeCastScale = 0.6f;
 
-    /// <summary>Stem exclusion: thicket weight of a tree up to half grown (young poles crowd close and low; shrubs 0.85-1.4).</summary>
-    public float saplingThicket = 0.5f;
+    /// <summary>
+    /// Two-stream ground light (P12): the share of a clear noon's light at the ground that comes straight from the sun;
+    /// the rest is diffuse skylight from the whole sky (0.15-0.25 under a clear sky) and light scattered by leaves. The
+    /// direct share passes the crowns on the sun's path, the diffuse share the canopy over <see cref="skyViewRadius"/>.
+    /// </summary>
+    public float directShare = 0.75f;
 
     /// <summary>
-    /// Forest fungi (E5, P11 x P12): a plant that dies in light (diesToLight) with a two-sided light curve lives on an
-    /// unroofed cell while its light curve's response to the light at its feet is at least this. exp(-2): two tolerances
-    /// past the optimum, the edge of the shade it was placed in; a gap or a felled canopy is past it.
+    /// Two-stream ground light (P12): radius (cells, one standard deviation) over which a cell sees the canopy against
+    /// the sky. Under a small clump most of the sky stays open; deep in a forest the sky is covered all round.
     /// </summary>
-    public float lightDeathResponse = 0.135f;
+    public float skyViewRadius = 3f;
+
+    /// <summary>
+    /// Leaf area ceiling (P12): the canopy's optical depth over a cell saturates at this, D_eff = D_max (1 - exp(-D /
+    /// D_max)), because leaves below the light compensation point are shed and crowns in a clump grow narrower, so
+    /// overlapping crowns cannot stack without limit. 3: no canopy passes less than e^-3 = 5% of the direct sun, and
+    /// heavy canopy lands at 0.1-0.3 at a clear noon (owner baseline). 0 turns the ceiling off.
+    /// </summary>
+    public float canopyDepthMax = 3f;
+
+    /// <summary>Stem exclusion: thicket weight of a tree up to half grown (young poles crowd close and low; shrubs 0.85-1.4).</summary>
+    public float saplingThicket = 0.5f;
 
     /// <summary>Self-thinning (P14): a tree's top chance to die of crowding at each size step it reaches; 0 turns it off.</summary>
     public float thinningMortality = 0.5f;

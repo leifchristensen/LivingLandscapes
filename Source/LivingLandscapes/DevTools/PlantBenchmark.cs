@@ -550,6 +550,8 @@ public static class PlantBenchmark
         var cause = new Dictionary<Plant, string>();
         var peakGlow = new Dictionary<Plant, float>();
         var peakLamp = new Dictionary<Plant, float>();
+        var noonGlow = new Dictionary<Plant, float>();
+        float glowError = 0f;
         string Cause(Plant p)
         {
             var c = new List<string>();
@@ -571,7 +573,13 @@ public static class PlantBenchmark
                 {
                     if (p.Destroyed)
                         continue;
-                    float glow = Patches.Patch_Plant_DyingBecauseExposedToLight.LightAtFeet(p, ecology);
+                    float glow = map.glowGrid.GroundGlowAt(p.Position, ignoreCavePlants: true);
+                    // One light map: vanilla's glow is the sky's x the canopy transmittance, or the lamps if brighter.
+                    float lamp = map.glowGrid.GroundGlowAt(p.Position, ignoreCavePlants: true, ignoreSky: true);
+                    float expected = Mathf.Max(lamp, map.skyManager.CurSkyGlow * ecology.LightAt(map.cellIndices.CellToIndex(p.Position)));
+                    glowError = Mathf.Max(glowError, Mathf.Abs(glow - expected));
+                    if (map.skyManager.CurSkyGlow >= 0.99f)
+                        noonGlow[p] = glow;
                     peakGlow[p] = Mathf.Max(peakGlow.TryGetValue(p, out float g) ? g : 0f, glow);
                     float lamps = map.glowGrid.GroundGlowAt(p.Position, ignoreCavePlants: true, ignoreSky: true);
                     peakLamp[p] = Mathf.Max(peakLamp.TryGetValue(p, out float l) ? l : 0f, lamps);
@@ -589,7 +597,7 @@ public static class PlantBenchmark
             return;
         Run(10);
         List<Plant> alive = start.Where(p => !p.Destroyed).ToList();
-        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive; deaths by cause: {Deaths(start)}; mean peak dimmed glow {Peak(start)}, survivors {Peak(alive)}; mean peak glow from lights (undimmed) {start.Average(p => peakLamp.TryGetValue(p, out float l) ? l : 0f):F2}, sky now {map.skyManager.CurSkyGlow:F2}.");
+        Log.Message($"[LivingLandscapes] Forest fungi: after 10 days under their canopy {alive.Count} of {start.Count} alive; deaths by cause: {Deaths(start)}; mean peak dimmed glow {Peak(start)}, survivors {Peak(alive)}; glow vs sky x transmittance max error {glowError:F4}, mean glow at full sky {(noonGlow.Count == 0 ? "-" : $"{noonGlow.Values.Average():F2}")}; mean peak glow from lights (undimmed) {start.Average(p => peakLamp.TryGetValue(p, out float l) ? l : 0f):F2}, sky now {map.skyManager.CurSkyGlow:F2}.");
         var cut = alive.Where((p, i) => i % 2 == 0).ToList();
         var kept = alive.Where((p, i) => i % 2 == 1).ToList();
         foreach (Plant fungus in cut)
