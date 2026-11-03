@@ -510,9 +510,9 @@ public class MapComponent_Ecology : MapComponent
     /// cardinal temperatures, PlantTemperature.xml) over the tile's twelfth mean temperatures plus the cell's mean local
     /// offset: 1 inside its optimal window, falling on the ramps towards its minimum and maximum growth temperatures, 0
     /// outside them. A species grows less often the further a cell is from its ideal and far less often where it cannot
-    /// grow at all (owner 2026-11-02): it weighs which species a cell gets, as g over the best g of the biome's species on
-    /// that cell (competition is relative: where every species is cold, the hardiest still fills the cell, and cover stays
-    /// with <see cref="ThermalShareGrid"/>), at least <see cref="ThermalFloor"/>.
+    /// grow at all (owner 2026-11-02): it weighs which species a cell gets, as g over the best g of the cell's biome's
+    /// species there (competition is relative), at least <see cref="ThermalFloor"/>, times the species' viability there
+    /// (<see cref="Viability"/>): competition picks the hardiest, but no species stands where it cannot grow (#125).
     /// </summary>
     private float[] ThermalGrid(ThingDef def)
     {
@@ -524,7 +524,8 @@ public class MapComponent_Ecology : MapComponent
     /// The same warmth relative to the map's mean, g(cell) / g(map), capped at <see cref="ThermalGain"/>: how much a
     /// cell carries (cover). Vanilla's plant density for the biome already reflects the tile's climate, so local warmth
     /// only moves cover between warm and cold ground; 1 on a flat map, and 1 for a species that cannot grow at the
-    /// map's mean.
+    /// map's mean. Times the species' viability on the cell (<see cref="Viability"/>), so a tile too cold or too hot for
+    /// the biome's species carries less (#125).
     /// </summary>
     private float[] ThermalShareGrid(ThingDef def)
     {
@@ -536,16 +537,7 @@ public class MapComponent_Ecology : MapComponent
     {
         if (thermal.ContainsKey(def))
             return;
-        if (bestWarmth == null)
-        {
-            bestWarmth = new float[sizeX * sizeZ];
-            foreach (var record in map.Biome.wildPlants)
-            {
-                float[] other = Warmth(record.plant);
-                for (int i = 0; i < bestWarmth.Length; i++)
-                    bestWarmth[i] = Mathf.Max(bestWarmth[i], other[i]);
-            }
-        }
+        bestWarmth ??= BestWarmth();
         float[] g = Warmth(def);
         var absolute = new float[g.Length];
         var share = new float[g.Length];
@@ -553,11 +545,76 @@ public class MapComponent_Ecology : MapComponent
         for (int i = 0; i < g.Length; i++)
         {
             float best = Mathf.Max(bestWarmth[i], g[i]);
-            absolute[i] = best < 0.001f ? 1f : Mathf.Max(ThermalFloor, g[i] / best);
-            share[i] = atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, g[i] / atMean);
+            float viability = Viability(def, g[i], meanOffset == null ? 0f : meanOffset[i]);
+            absolute[i] = viability * (best < 0.001f ? 1f : Mathf.Max(ThermalFloor, g[i] / best));
+            share[i] = viability * (atMean < 0.001f ? 1f : Mathf.Min(ThermalGain, g[i] / atMean));
         }
         thermal[def] = absolute;
         thermalShare[def] = share;
+    }
+
+    /// <summary>
+    /// Whether a species can live on a cell at all (P23, #125), 0..1. Absolute, unlike the competition term: the same for
+    /// every biome. Two limits, each with a linear ramp:
+    /// - survival: the cell's coldest and hottest monthly means against the species' cold and hot limits
+    ///   (<see cref="PlantEcologyDef.ColdLimit"/>, <see cref="PlantEcologyDef.HotLimit"/>). Extremes, not the mean, set
+    ///   where a species ranges (Woodward 1987): a tropical tree dies in a cool month that only pauses an oak.
+    /// - a growing season: a plant persists only where a year's growth makes up for a year's losses, so 0 where it never
+    ///   grows, rising to 1 at a yearly growth g of <see cref="PlantEcologyDef.viableWarmth"/>.
+    /// </summary>
+    private float Viability(ThingDef def, float g, float offset)
+    {
+        PlantEcologyDef tuning = PlantEcologyDef.Current;
+        if (monthRange == null)
+        {
+            var months = Enumerable.Range(0, 12)
+                .Select(t => map.Tile.Valid ? GenTemperature.AverageTemperatureAtTileForTwelfth(map.Tile, (Twelfth)t) : 15f).ToList();
+            monthRange = new FloatRange(months.Min(), months.Max());
+        }
+        float ramp = Mathf.Max(tuning.survivalRamp, 0.01f);
+        float cold = Mathf.Clamp01((monthRange.Value.min + offset - tuning.ColdLimit(def)) / ramp);
+        float hot = Mathf.Clamp01((tuning.HotLimit(def) - monthRange.Value.max - offset) / ramp);
+        return cold * hot * Mathf.Clamp01(g / Mathf.Max(tuning.viableWarmth, 0.001f));
+    }
+
+    /// <summary>The tile's coldest and hottest monthly mean temperatures (C).</summary>
+    private FloatRange? monthRange;
+
+    /// <summary>
+    /// The best g on each cell among the wild plants of the biome there (<see cref="Map.BiomeAt"/>: on a mixed-biome map
+    /// each part competes within its own species list).
+    /// </summary>
+    private float[] BestWarmth()
+    {
+        var byBiome = new Dictionary<BiomeDef, float[]>();
+        foreach (BiomeDef biome in map.Biomes.Append(map.Biome).Distinct())
+        {
+            var best = new float[sizeX * sizeZ];
+            foreach (var record in biome.wildPlants)
+            {
+                float[] other = Warmth(record.plant);
+                for (int i = 0; i < best.Length; i++)
+                    best[i] = Mathf.Max(best[i], other[i]);
+            }
+            byBiome[biome] = best;
+        }
+        LogWarmth();
+        if (byBiome.Count == 1)
+            return byBiome[map.Biome];
+        var result = new float[sizeX * sizeZ];
+        for (int i = 0; i < result.Length; i++)
+            result[i] = byBiome.TryGetValue(map.BiomeAt(map.cellIndices.IndexToCell(i)), out float[] best) ? best[i] : 0f;
+        return result;
+    }
+
+    /// <summary>One line per map: the tile's monthly temperature range and each wild species' g and viability at the mean.</summary>
+    private void LogWarmth()
+    {
+        var species = map.Biomes.Append(map.Biome).Distinct().SelectMany(b => b.wildPlants).Select(r => r.plant).Distinct()
+            .Select(def => (def, g: WarmthAt(def, 0f), v: Viability(def, WarmthAt(def, 0f), 0f))).OrderBy(x => x.v).ThenBy(x => x.g)
+            .Select(x => $"{x.def.defName} {x.g:F2}{(x.v < 1f ? $" (viability {x.v:F2})" : "")}").ToList();
+        Log.Message($"[LivingLandscapes] Warmth on {map} (P23, #125): monthly mean {monthRange?.min:F1} to {monthRange?.max:F1} C " +
+                    $"(at the map's mean height); yearly growth g by species: {string.Join(", ", species)}.");
     }
 
     /// <summary>g of a species on each cell (see <see cref="ThermalGrid"/>), cached.</summary>
@@ -615,7 +672,7 @@ public class MapComponent_Ecology : MapComponent
     /// <summary>Most a warmer cell can raise a species' cover over the map's mean (its g rises, but sun and space still limit it).</summary>
     private const float ThermalGain = 1.5f;
 
-    /// <summary>Warmth weight of a species where it cannot grow at all: rare, not impossible (a seedling still sprouts in a warm spell).</summary>
+    /// <summary>Least competition weight of a species against the hardiest one on a cell (its viability still applies).</summary>
     private const float ThermalFloor = 0.05f;
 
     private float[] SiteGrid(ThingDef def, PlantHabitat habitat)
