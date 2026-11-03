@@ -54,6 +54,9 @@ public class RiverSystem
     /// </summary>
     public bool[] Seep;
 
+    /// <summary>Cells of closed basins that keep their water (P23, #99): outlets at the lake's level, a dry basin's floor.</summary>
+    public bool[] Sink;
+
     /// <summary>How close each seep comes to running water, 0..1 (its width as a share of moving water's); 0 elsewhere.</summary>
     public float[] SeepWater;
 

@@ -25,7 +25,7 @@ public static partial class TerrainChannels
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
-        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity)
+        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -67,7 +67,7 @@ public static partial class TerrainChannels
         {
             float[] fed = inflow;
             int closed = Outlets.CloseBasins(ground, baseLevel, GridMath.FlowAccumulationMfd(filled, sizeX, sizeZ), receiver, lakeShare, sizeX, sizeZ,
-                i => fed[i] > 0f);
+                i => fed[i] > 0f, sink);
             Log.Message($"[LivingLandscapes] Map closed basins (#99): {closed} keep their water.");
             if (closed > 0)
             {

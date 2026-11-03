@@ -22,7 +22,8 @@ public class Drainage
 
     /// <summary>
     /// The level each cell's water stands at before it spills on: the rim of its depression, or the ground itself outside
-    /// depressions. Spill minus ground is how deep a depression could hold water (whether it does is a water balance).
+    /// depressions. Spill minus ground is how deep a depression could hold water (whether it does is a water balance), a
+    /// closed basin's too: its sink is not an outlet here.
     /// </summary>
     public float[] Spill;
 
@@ -45,7 +46,7 @@ public class Drainage
     /// null, in Off mode), then accumulates area over the filled surface, adding <paramref name="inflow"/> (cells) where
     /// water enters from beyond the map.
     /// </summary>
-    public static Drainage Build(float[] ground, float[] baseLevel, int sizeX, int sizeZ, float[] inflow = null)
+    public static Drainage Build(float[] ground, float[] baseLevel, int sizeX, int sizeZ, float[] inflow = null, bool[] sink = null)
     {
         var filled = (float[])ground.Clone();
         var spill = new float[ground.Length];
@@ -53,6 +54,17 @@ public class Drainage
             Outlets.Fill(filled, sizeX, sizeZ, baseLevel, FillGradient, spill);
         else
             GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, FillGradient, spill: spill);
+        if (baseLevel != null && sink != null && System.Array.IndexOf(sink, true) >= 0)
+        {
+            // A closed basin's water ends in its sink, but the basin is as deep as its rim.
+            var open = (float[])baseLevel.Clone();
+            for (int i = 0; i < open.Length; i++)
+            {
+                if (sink[i])
+                    open[i] = float.NaN;
+            }
+            Outlets.Fill((float[])ground.Clone(), sizeX, sizeZ, open, 0f, spill);
+        }
         return new Drainage
         {
             Ground = ground,
@@ -149,7 +161,7 @@ public class Drainage
         if (drainage != null && drainage.Ground.Length == landform.Length && System.Linq.Enumerable.SequenceEqual(drainage.Ground, landform))
             return drainage;
         drainage = Build((float[])landform.Clone(), context.Environment.PlannedBaseLevels, context.SizeX, context.SizeZ,
-            RiverInflow(context, context.Environment.PlannedRivers));
+            RiverInflow(context, context.Environment.PlannedRivers), context.Environment.PlannedRivers?.Sink);
         context.Environment.PlannedDrainage = drainage;
         return drainage;
     }
