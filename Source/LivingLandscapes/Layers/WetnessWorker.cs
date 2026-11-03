@@ -94,8 +94,7 @@ public class WetnessWorker : EnvironmentLayerWorker
 
         // The water table meets a river at its water surface, not its bed.
         RiverSystem rivers = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
-        float[] drainageHeight = DrainageLineHeight(height, drainage, rivers?.WaterLevel, rivers?.ChannelOf, p.channelArea,
-            context.SizeX, context.SizeZ, out float[] lineArea);
+        float[] drainageHeight = Drainage.Of(context).LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out float[] lineArea);
 
         float exponent = Mathf.Lerp(p.aridSharpening, 1f, p.ClimateOf(context.Map));
         var wetness = new float[n];
@@ -128,60 +127,5 @@ public class WetnessWorker : EnvironmentLayerWorker
             }
         }
         return wetness;
-    }
-
-    /// <summary>
-    /// Height of the drainage line each cell drains to, following steepest descent (D8) until a cell whose drainage
-    /// area reaches <paramref name="channelArea"/>. Cells are visited from low to high, so each cell's downhill
-    /// neighbour is already resolved. Pits and map edges without a channel count as their own drainage line.
-    /// <paramref name="lineArea"/> is the drainage area (log10 cells) of that line where the cell reaches it.
-    /// </summary>
-    private static float[] DrainageLineHeight(float[] height, float[] drainage, float[] riverLevel, int[] channelOf, float channelArea,
-        int sizeX, int sizeZ, out float[] lineArea)
-    {
-        int n = height.Length;
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        System.Array.Sort(order, (a, b) => height[a].CompareTo(height[b]));
-        var result = new float[n];
-        var area = new float[n];
-        // A channel's discharge belongs to its whole width, rims included.
-        var channelAreas = new Dictionary<int, float>();
-        for (int i = 0; channelOf != null && i < n; i++)
-        {
-            if (channelOf[i] >= 0)
-                channelAreas[channelOf[i]] = Mathf.Max(channelAreas.TryGetValue(channelOf[i], out float a) ? a : 0f, drainage[i]);
-        }
-        foreach (int c in order)
-        {
-            if (riverLevel != null && !float.IsNaN(riverLevel[c]))
-            {
-                result[c] = riverLevel[c];
-                area[c] = channelOf != null && channelOf[c] >= 0 ? channelAreas[channelOf[c]] : drainage[c];
-                continue;
-            }
-            if (drainage[c] >= channelArea)
-            {
-                result[c] = height[c];
-                area[c] = drainage[c];
-                continue;
-            }
-            int lowest = -1;
-            float best = 0f;
-            GridMath.ForEachNeighbour(c, sizeX, sizeZ, nb =>
-            {
-                float drop = height[c] - height[nb];
-                if (drop > best)
-                {
-                    best = drop;
-                    lowest = nb;
-                }
-            });
-            result[c] = lowest >= 0 ? result[lowest] : height[c];
-            area[c] = lowest >= 0 ? area[lowest] : drainage[c];
-        }
-        lineArea = area;
-        return result;
     }
 }

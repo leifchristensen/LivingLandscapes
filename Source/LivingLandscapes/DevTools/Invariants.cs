@@ -156,12 +156,23 @@ public static class Invariants
     /// </summary>
     private static void Lakes(Map map, float[] h, int sizeX, int sizeZ, StringBuilder summary)
     {
-        var filled = (float[])h.Clone();
-        float[] baseLevel = map.GetComponent<MapComponent_Environment>()?.PlannedBaseLevels;
-        if (baseLevel != null)
-            Geology.Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f);
+        float[] filled;
+        Geology.Drainage drainage = map.GetComponent<MapComponent_Environment>()?.PlannedDrainage;
+        if (drainage != null && drainage.Ground.Length == h.Length)
+        {
+            // The map's own drainage (#98): the full-precision landform and the spill levels every layer used.
+            h = drainage.Ground;
+            filled = drainage.Spill;
+        }
         else
-            GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
+        {
+            filled = (float[])h.Clone();
+            float[] baseLevel = map.GetComponent<MapComponent_Environment>()?.PlannedBaseLevels;
+            if (baseLevel != null)
+                Geology.Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f);
+            else
+                GridMath.FillDepressions(filled, sizeX, sizeZ, _ => false, 0f);
+        }
         TerrainDef[] terrain = map.terrainGrid.topGrid;
         bool[] coast = Geology.Coastline.SeaCells(map);
         // Open still water only: marsh is wet ground (floodplains, seeps), not a lake. Water under a natural roof is a cave
