@@ -67,6 +67,7 @@ public class LandformWorker : EnvironmentLayerWorker
             {
                 environment.PlannedRivers = rivers.Channels.Count > 0 ? rivers : null;
                 environment.PlannedBaseLevels = rivers.BaseLevel;
+                environment.PlannedSinks = rivers.Sink;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRockStage = rockStage;
                 environment.PlannedRock = rock;

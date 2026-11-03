@@ -161,7 +161,7 @@ public class Drainage
         if (drainage != null && drainage.Ground.Length == landform.Length && System.Linq.Enumerable.SequenceEqual(drainage.Ground, landform))
             return drainage;
         drainage = Build((float[])landform.Clone(), context.Environment.PlannedBaseLevels, context.SizeX, context.SizeZ,
-            RiverInflow(context, context.Environment.PlannedRivers), context.Environment.PlannedRivers?.Sink);
+            RiverInflow(context, context.Environment.PlannedRivers), context.Environment.PlannedSinks);
         context.Environment.PlannedDrainage = drainage;
         return drainage;
     }
