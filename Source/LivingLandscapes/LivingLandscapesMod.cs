@@ -22,8 +22,7 @@ public class LivingLandscapesMod : Mod
         harmony.PatchAll(typeof(LivingLandscapesMod).Assembly);
 
         var harmonyVersion = typeof(Harmony).Assembly.GetName().Version;
-        Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched. " +
-                    $"Geological terrain: {(Settings.geologicalTerrain ? "on" : "off")}.");
+        Log.Message($"[LivingLandscapes] Loaded. Harmony {harmonyVersion}, {harmony.GetPatchedMethods().Count()} method(s) patched.");
         Log.Message($"[LivingLandscapes] {DevTools.BuildStamp.Text}");
     }
 
@@ -44,10 +43,6 @@ public class LivingLandscapesMod : Mod
         var listing = new Listing_Standard();
         listing.Begin(inRect);
 
-        listing.CheckboxLabeled("LL_GeologicalTerrain".Translate(), ref Settings.geologicalTerrain, "LL_GeologicalTerrainTip".Translate());
-        listing.Label("LL_GeologicalTerrainDesc".Translate());
-        listing.Gap();
-
         listing.CheckboxLabeled("LL_ScatteredRuins".Translate(), ref Settings.scatteredRuins, "LL_ScatteredRuinsTip".Translate());
         listing.Gap();
 
@@ -57,6 +52,12 @@ public class LivingLandscapesMod : Mod
             listing.Label("LL_HabitatStrength".Translate(Settings.habitatStrength.ToStringPercent()), tooltip: "LL_HabitatStrengthTip".Translate());
             Settings.habitatStrength = listing.Slider(Settings.habitatStrength, 0f, 1f);
         }
+        listing.Gap();
+
+        string delay = Settings.fireRainDelayHours >= LivingLandscapesSettings.FireRainNever ? "LL_FireRainNever".Translate().ToString()
+            : Settings.fireRainDelayHours < 0.5f ? "LL_FireRainVanilla".Translate().ToString() : "LL_FireRainHours".Translate(Settings.fireRainDelayHours.ToString("0")).ToString();
+        listing.Label("LL_FireRainDelay".Translate(delay), tooltip: "LL_FireRainDelayTip".Translate());
+        Settings.fireRainDelayHours = UnityEngine.Mathf.Round(listing.Slider(Settings.fireRainDelayHours, 0f, LivingLandscapesSettings.FireRainNever));
         listing.Gap();
 
         listing.CheckboxLabeled("LL_GameplaySiting".Translate(), ref Settings.gameplaySiting, "LL_GameplaySitingTip".Translate());

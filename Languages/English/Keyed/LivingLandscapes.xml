@@ -8,16 +8,17 @@
 {1}
 Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleTip>
 
-  <LL_GeologicalTerrain>Geologically driven terrain</LL_GeologicalTerrain>
-  <LL_GeologicalTerrainTip>On: new maps are reshaped by geological rules. Off: Living Landscapes only reads the terrain that map generation produced. Existing maps are never changed.</LL_GeologicalTerrainTip>
-  <LL_GeologicalTerrainDesc>Shapes new maps from geology: lakes sit in basins, rivers run downhill, and valleys and slopes follow drainage. Turn this off if you use a mod that changes map terrain and isn't listed as supported below; plants will still follow the terrain that mod creates. Only affects newly generated maps.</LL_GeologicalTerrainDesc>
-
   <LL_ScatteredRuins>Scattered ruins and ancient debris</LL_ScatteredRuins>
   <LL_ScatteredRuinsTip>Vanilla's small ruins, shrines and ancient junk scattered across new maps. Off by default while Living Landscapes' terrain is in development; ruins chosen through tile features are unaffected.</LL_ScatteredRuinsTip>
 
   <LL_PlantEcology>Plant ecology</LL_PlantEcology>
   <LL_PlantEcologyTip>Wild plants follow the ground (wetness, soil depth, slope, sun), grow in clumps around their own kind and shade what grows beneath them. Off: vanilla's wild plant placement. Applies to maps made with Living Landscapes; maps generated without it, and plants of mods that define no habitat, are unaffected.</LL_PlantEcologyTip>
   <LL_HabitatStrength>Habitat strength: {0}</LL_HabitatStrength>
+  <LL_FireRainDelay>Rain after a large fire: {0}</LL_FireRainDelay>
+  <LL_FireRainDelayTip>Vanilla brings rain soon after a large fire breaks out, so fires cannot run away. This delays that response by the hours set; all the way right turns it off, and fires burn until they run out of fuel or rain comes on its own.</LL_FireRainDelayTip>
+  <LL_FireRainVanilla>soon (vanilla)</LL_FireRainVanilla>
+  <LL_FireRainHours>after {0} hours</LL_FireRainHours>
+  <LL_FireRainNever>never</LL_FireRainNever>
   <LL_HabitatStrengthTip>How strongly the ground and shade steer which plants grow where, and how closely they clump. 0% is vanilla, 100% is the full effect. Takes effect on new maps and on regrowth in running games.</LL_HabitatStrengthTip>
 
   <LL_SupportedTerrainMods>Supported terrain and world mods active: {0}</LL_SupportedTerrainMods>

@@ -11,6 +11,7 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_RockStrength;
     public static EnvironmentLayerDef LL_SoilDepth;
     public static EnvironmentLayerDef LL_DrainageArea;
+    public static EnvironmentLayerDef LL_SpillDepth;
     public static EnvironmentLayerDef LL_Slope;
     public static EnvironmentLayerDef LL_Aspect;
     public static EnvironmentLayerDef LL_Wetness;
@@ -23,6 +24,7 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Settlement;
     public static EnvironmentLayerDef LL_Interest;
     public static EnvironmentLayerDef LL_Alluvium;
+    public static EnvironmentLayerDef LL_StandAge;
 
     static EnvironmentLayerDefOf()
     {

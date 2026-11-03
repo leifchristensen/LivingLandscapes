@@ -29,7 +29,7 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
-        bool[] sand = null, bool[] edgeOpen = null)
+        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -43,6 +43,7 @@ public static partial class TerrainChannels
         {
             Regime = water, WaterLevel = new float[n], Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n],
             Seep = new bool[n],
+            Sink = new bool[n],
             SeepWater = new float[n],
         };
         for (int i = 0; i < n; i++)
@@ -56,7 +57,7 @@ public static partial class TerrainChannels
         float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, worldInflows, sea, riverMouth, seaLevel,
-            edgeOpen);
+            edgeOpen, lakeShare, system.Sink);
         system.BaseLevel = outletLevel;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
 

@@ -156,11 +156,14 @@ public static class GridMath
     /// Priority-Flood with epsilon (Barnes et al. 2014): raises every depression to its spill level plus a tiny
     /// gradient, so each cell has a strictly downhill path to an outlet. Outlets are the map edge plus any cell
     /// where <paramref name="isOutlet"/> is true (e.g. the sea). With <paramref name="includeEdges"/> false only
-    /// <paramref name="isOutlet"/> cells drain, so closed edges behave like walls.
+    /// <paramref name="isOutlet"/> cells drain, so closed edges behave like walls. <paramref name="spill"/>, if given,
+    /// receives each cell's spill level: the rim height its depression fills to (without the gradient), or its own
+    /// height where it is not in a depression.
     /// </summary>
-    public static void FillDepressions(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool includeEdges = true)
+    public static void FillDepressions(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool includeEdges = true,
+        float[] spill = null)
     {
-        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: false, includeEdges);
+        Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: false, includeEdges, spill);
     }
 
     /// <summary>
@@ -178,8 +181,11 @@ public static class GridMath
         Flood(h, sizeX, sizeZ, isOutlet, epsilon, carve: true, includeEdges: true);
     }
 
-    private static void Flood(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool carve, bool includeEdges)
+    private static void Flood(float[] h, int sizeX, int sizeZ, Func<int, bool> isOutlet, float epsilon, bool carve, bool includeEdges,
+        float[] spill = null)
     {
+        // A raised cell's spill level is its flooder's: the rim where the water spills, passed on through the depression.
+        var raised = spill != null ? new bool[h.Length] : null;
         var closed = new bool[h.Length];
         var parent = new int[h.Length];
         var open = new PriorityQueue<int, float>();
@@ -192,6 +198,8 @@ public static class GridMath
                 bool edge = includeEdges && (x == 0 || z == 0 || x == sizeX - 1 || z == sizeZ - 1);
                 if (edge || isOutlet(i))
                 {
+                    if (spill != null)
+                        spill[i] = h[i];
                     closed[i] = true;
                     open.Enqueue(i, h[i]);
                 }
@@ -225,8 +233,17 @@ public static class GridMath
                     }
                     else
                     {
+                        if (spill != null)
+                        {
+                            spill[n] = raised[c] ? spill[c] : h[c];
+                            raised[n] = true;
+                        }
                         h[n] = h[c] + epsilon * Dist[d];
                     }
+                }
+                else if (spill != null)
+                {
+                    spill[n] = h[n];
                 }
                 open.Enqueue(n, h[n]);
             }
