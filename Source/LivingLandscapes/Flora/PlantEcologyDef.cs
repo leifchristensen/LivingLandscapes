@@ -157,7 +157,7 @@ public class PlantEcologyDef : Def
     /// <see cref="heatMargin"/>. Survival ramps from 0 at a limit to 1 at <see cref="survivalRamp"/> K inside it.
     /// </summary>
     public float tropicalMinGrowth = 15f;
-    public float subtropicalMinGrowth = 8f;
+    public float subtropicalMinGrowth = 12f;
     public float frostMargin = 10f;
     public float heatMargin = 5f;
     public float survivalRamp = 3f;

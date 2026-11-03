@@ -35,10 +35,10 @@
          Outside its growth temperatures all year a species neither stands nor covers, whatever the competition. -->
     <viableWarmth>0.1</viableWarmth>
     <!-- Survival (P23, #125; stand-in R20): coldest monthly mean >= minimum growth temperature for tropical species (minimum
-         >= 15 C), >= minimum - 10 K for subtropical ones (>= 8 C), no cold limit for hardier ones; hottest monthly mean
+         >= 15 C), >= minimum - 10 K for subtropical ones (>= 12 C), no cold limit for hardier ones; hottest monthly mean
          <= maximum growth temperature + 5 K for all; a 3 K ramp inside each limit. -->
     <tropicalMinGrowth>15</tropicalMinGrowth>
-    <subtropicalMinGrowth>8</subtropicalMinGrowth>
+    <subtropicalMinGrowth>12</subtropicalMinGrowth>
     <frostMargin>10</frostMargin>
     <heatMargin>5</heatMargin>
     <survivalRamp>3</survivalRamp>
