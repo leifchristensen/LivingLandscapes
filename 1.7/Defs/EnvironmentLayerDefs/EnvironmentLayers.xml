@@ -468,7 +468,7 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Moisture</defName>
     <label>moisture</label>
-    <description>0 (dry) to 1 (saturated): ground wetness from drainage and climate, raised near water.</description>
+    <description>0 (dry) to 1 (saturated): the water rain keeps in freely drained ground (rainfall over evaporation), raised where water gathers from upslope and near open water. Plants read it.</description>
     <workerClass>LivingLandscapes.Layers.MoistureWorker</workerClass>
     <dependsOn>
       <li>LL_WaterDistance</li>
@@ -487,6 +487,9 @@
     <modExtensions>
       <li Class="LivingLandscapes.Layers.MoistureExtension">
         <waterReachCells>10</waterReachCells>
+        <!-- P25 site water balance: rain alone keeps up to this moisture in drained ground; half of it at aridity index 0.5. -->
+        <climateMoistureMax>0.5</climateMoistureMax>
+        <aridityHalf>0.5</aridityHalf>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

@@ -25,7 +25,7 @@ public static class WaterBalance
         float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
         float rainfall = map.TileInfo?.rainfall ?? 0f;
         float temperature = map.TileInfo?.temperature ?? 10f;
-        float evaporation = Mathf.Max(p.minEvaporation, p.evaporationAtZero + p.evaporationPerDegree * temperature);
+        float evaporation = p.Evaporation(temperature);
         float netEvaporation = evaporation - rainfall;
         return netEvaporation <= 0f ? float.PositiveInfinity : runoff * rainfall / netEvaporation;
     }
