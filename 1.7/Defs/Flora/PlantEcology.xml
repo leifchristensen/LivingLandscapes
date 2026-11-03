@@ -73,7 +73,8 @@
     <successionSpeed>10</successionSpeed>
     <!-- Carrying capacity (P15), replacing vanilla's even cap: the share of cells with a plant within occupancyRadius
          targets biome plant density x fertility x densityScale x Lerp(capacityFloor, 1, (capacity / the map's 80th
-         percentile) ^ densityContrast) / the map's mean of that share: each map keeps its vanilla total unless scaled. -->
+         percentile) ^ densityContrast) / the map's mean of that share: each map keeps its vanilla total unless scaled.
+         Times the best survival among the biome's species (#125): a map they all struggle on carries less. -->
     <densityContrast>2</densityContrast>
     <capacityFloor>0.2</capacityFloor>
     <occupancyRadius>4</occupancyRadius>

@@ -49,6 +49,7 @@ public class MapComponent_Ecology : MapComponent
     private readonly Dictionary<ThingDef, float[]> carrying = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> thermal = new Dictionary<ThingDef, float[]>();
     private readonly Dictionary<ThingDef, float[]> thermalShare = new Dictionary<ThingDef, float[]>();
+    private float[] survival;
     private readonly Dictionary<ThingDef, float[]> warmth = new Dictionary<ThingDef, float[]>();
     private float[] bestWarmth;
     private float[] meanOffset;
@@ -554,6 +555,24 @@ public class MapComponent_Ecology : MapComponent
     }
 
     /// <summary>
+    /// Survival on each cell (#125): the best viability among the wild plants of the biome there (<see cref="Viability"/>).
+    /// 1 where any species lives well, falling where even the hardiest struggles, 0 where none can live.
+    /// </summary>
+    private float[] Survival()
+    {
+        if (survival != null)
+            return survival;
+        var result = new float[sizeX * sizeZ];
+        for (int i = 0; i < result.Length; i++)
+        {
+            List<BiomePlantRecord> plants = map.BiomeAt(map.cellIndices.IndexToCell(i)).wildPlants;
+            float offset = meanOffset == null ? 0f : meanOffset[i];
+            result[i] = plants.Count == 0 ? 1f : plants.Max(r => Viability(r.plant, Warmth(r.plant)[i], offset));
+        }
+        return survival = result;
+    }
+
+    /// <summary>
     /// Whether a species can live on a cell at all (P23, #125), 0..1. Absolute, unlike the competition term: the same for
     /// every biome. Two limits, each with a linear ramp:
     /// - survival: the cell's coldest and hottest monthly means against the species' cold and hot limits
@@ -913,7 +932,7 @@ public class MapComponent_Ecology : MapComponent
     /// recruits). Against the map's best ground (the 80th percentile) it gives a share from
     /// <see cref="PlantEcologyDef.capacityFloor"/> to 1, raised to <see cref="PlantEcologyDef.densityContrast"/>: good
     /// ground closes up, poor and shaded ground opens into meadows and clearings, and deserts stay sparse because their
-    /// vanilla density is low.
+    /// vanilla density is low. Times the survival on the cell (<see cref="Survival"/>, #125).
     /// </summary>
     public float TargetOccupancy(IntVec3 cell)
     {
@@ -925,8 +944,9 @@ public class MapComponent_Ecology : MapComponent
         float fertility = PlantableFertility(cell);
         float level = biome.plantDensity * map.wildPlantSpawner.CurrentPlantDensityFactor * fertility * tuning.DensityScaleFor(biome);
         // Divided by the map's mean share, so the map keeps its vanilla total by default and only redistributes it;
-        // densityScales is the deliberate boost.
-        return Mathf.Clamp01(level * Share(Capacity(index, biome)) / meanShare);
+        // densityScales is the deliberate boost. The reference cancels stress shared by all species, so survival
+        // applies after it: a map whose species all struggle carries less, one where none can live nothing (#125).
+        return Mathf.Clamp01(level * Share(Capacity(index, biome)) / meanShare * Survival()[index]);
     }
 
     /// <summary>
