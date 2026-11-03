@@ -142,6 +142,36 @@ public class PlantEcologyDef : Def
         return seasonCached;
     }
 
+    /// <summary>
+    /// Thermal viability (P23, #125): the yearly growth g (the yearly mean of a species' temperature growth factor) at
+    /// which a species can fully hold a cell; below it, it stands and covers less in proportion, and not at all at g = 0.
+    /// </summary>
+    public float viableWarmth = 0.1f;
+
+    /// <summary>
+    /// Survival limits (P23, #125; stand-in R20 until species carry their own): a species' cold limit on the coldest
+    /// monthly mean, from its minimum growth temperature. Chilling-sensitive (tropical) species, minimum at or above
+    /// <see cref="tropicalMinGrowth"/>, die below it (Koppen A: coldest month 18 C); frost-sensitive (subtropical) ones,
+    /// from <see cref="subtropicalMinGrowth"/>, survive <see cref="frostMargin"/> K below it; hardier ones go dormant and
+    /// have no cold limit. The hot limit on the hottest monthly mean is the maximum growth temperature plus
+    /// <see cref="heatMargin"/>. Survival ramps from 0 at a limit to 1 at <see cref="survivalRamp"/> K inside it.
+    /// </summary>
+    public float tropicalMinGrowth = 15f;
+    public float subtropicalMinGrowth = 12f;
+    public float frostMargin = 10f;
+    public float heatMargin = 5f;
+    public float survivalRamp = 3f;
+
+    public float ColdLimit(ThingDef def)
+    {
+        float min = def.plant?.minGrowthTemperature ?? 0f;
+        if (min >= tropicalMinGrowth)
+            return min;
+        return min >= subtropicalMinGrowth ? min - frostMargin : float.NegativeInfinity;
+    }
+
+    public float HotLimit(ThingDef def) => (def.plant?.maxGrowthTemperature ?? 58f) + heatMargin;
+
     /// <summary>A species whose fitness on a cell is below this (times the strength) is not a candidate there.</summary>
     public float minFitness = 0.08f;
 
