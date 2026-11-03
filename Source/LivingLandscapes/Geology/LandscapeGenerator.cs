@@ -244,7 +244,7 @@ public static class LandscapeGenerator
             };
         }
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out float[] baseLevel, floor, observe);
+            out float[] area, out float modelTop, out float[] baseLevel, floor, observe, WaterBalance.LakeShare(map, out _));
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -583,12 +583,14 @@ public static class LandscapeGenerator
     private static float[] Erode(float[] uplift, float[] erodibility, System.Action<float[], float[]> baseLevels, float[] inflow, float[] seaDepth,
         float relief, int gx, int gz, GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
         out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, float[] initialFloor = null,
-        System.Action<int, float[], int[], float[], float[]> observe = null)
+        System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity)
     {
         int n = gx * gz;
         // Base levels (P1, Outlets): water leaves a cell once its surface reaches them; NaN where it cannot leave.
         var baseLevel = new float[n];
         var outlet = new bool[n];
+        var sink = new bool[n];
+        int sinks = 0;
         var h = new float[n];
         var filled = new float[n];
         var receiver = new int[n];
@@ -636,6 +638,11 @@ public static class LandscapeGenerator
             }
             // Outlets erode down to their base level; one standing below it is not raised (water ponds up to it instead).
             baseLevels(h, baseLevel);
+            // Closed basins (P23, #99): a hollow whose lake evaporates all the runoff its catchment collects sends nothing over
+            // its rim. Its lake is a sink at the balance level: still water, so it does not incise (P2), and sediment settles in it.
+            Array.Clear(sink, 0, n);
+            if (iteration > 0 && !float.IsInfinity(lakeShare))
+                sinks = Sinks(h, baseLevel, area, receiver, sink, lakeShare, gx, gz);
             for (int i = 0; i < n; i++)
             {
                 outlet[i] = !float.IsNaN(baseLevel[i]);
@@ -722,7 +729,7 @@ public static class LandscapeGenerator
                 eroded[c] = Mathf.Max(0f, before - h[c]);
             }
             if (p.deposition > 0f)
-                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, p);
+                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, p);
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
@@ -731,6 +738,8 @@ public static class LandscapeGenerator
             if (observe != null && (iteration == 0 || (iteration + 1) % quarter == 0 || iteration == p.erosionIterations - 1))
                 observe(iteration + 1, h, receiver, area, rockK);
         }
+        if (!float.IsInfinity(lakeShare))
+            Log.Message($"[LivingLandscapes] Erosion model closed basins (#99): {sinks} keep their water (lake area {lakeShare:G3} x catchment).");
         receiverOut = receiver;
         areaOut = area;
         baseLevelOut = baseLevel;
@@ -739,12 +748,66 @@ public static class LandscapeGenerator
     }
 
     /// <summary>
+    /// The closed basins of <paramref name="h"/> that keep their water (P23): each hollow below its spill level toward the
+    /// base levels holds a lake of <paramref name="lakeShare"/> x its catchment (the drainage area that reached it in the
+    /// last routing); one that fills before its spill level is a sink, its lake cells set to base level at the lake's
+    /// level and marked in <paramref name="sink"/>. Returns the number of sinks.
+    /// </summary>
+    private static int Sinks(float[] h, float[] baseLevel, float[] area, int[] receiver, bool[] sink, float lakeShare, int gx, int gz)
+    {
+        int n = h.Length;
+        var filled = (float[])h.Clone();
+        var spill = new float[n];
+        Outlets.Fill(filled, gx, gz, baseLevel, 0f, spill);
+        GridMath.LabelRegions(i => float.IsNaN(baseLevel[i]) && spill[i] > h[i], gx, gz, out int[] region);
+        var hollows = new Dictionary<(int, float), List<int>>();
+        for (int i = 0; i < n; i++)
+        {
+            if (region[i] < 0)
+                continue;
+            var key = (region[i], spill[i]);
+            if (!hollows.TryGetValue(key, out List<int> cells))
+                hollows[key] = cells = new List<int>();
+            cells.Add(i);
+        }
+        int sinks = 0;
+        foreach (KeyValuePair<(int, float), List<int>> hollow in hollows)
+        {
+            List<int> cells = hollow.Value;
+            // A hollow that drained over its rim passed its whole catchment through its lowest-lying cell toward the rim (the
+            // largest area); one that was a sink gathered it in its lake cells (the roots).
+            float largest = 0f, roots = 0f;
+            foreach (int c in cells)
+            {
+                largest = Mathf.Max(largest, area[c]);
+                if (receiver[c] < 0)
+                    roots += area[c];
+            }
+            cells.Sort((a, b) => h[a].CompareTo(h[b]));
+            float spillLevel = hollow.Key.Item2;
+            float level = WaterBalance.LakeLevel(cells, h, spillLevel, roots > 0f ? roots : largest, lakeShare);
+            if (level >= spillLevel)
+                continue;
+            sinks++;
+            foreach (int c in cells)
+            {
+                if (h[c] >= level)
+                    break;
+                baseLevel[c] = level;
+                sink[c] = true;
+            }
+        }
+        return sinks;
+    }
+
+    /// <summary>
     /// Deposition (Davy and Lague 2009): the load runs down the drainage tree from the divides; each land cell keeps
     /// G x load / drainage area of it (rivers drop their load where they gather little more water and slow) and passes the
-    /// rest on. What reaches base level (the sea, the region's edges) leaves the model.
+    /// rest on. What reaches base level (the sea, the region's edges) leaves the model; what reaches a closed basin's lake
+    /// settles there, up to the lake's level.
     /// </summary>
     private static void Deposit(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area, int[] stack, int count,
-        bool[] outlet, GeologyGenerationExtension p)
+        bool[] outlet, bool[] sink, float[] baseLevel, GeologyGenerationExtension p)
     {
         int n = h.Length;
         Array.Clear(load, 0, n);
@@ -772,6 +835,8 @@ public static class LandscapeGenerator
                 h[c] += keep;
                 load[r] += load[c] - keep;
             }
+            else if (sink[c])
+                h[c] = Mathf.Min(h[c] + load[c], baseLevel[c]);
         }
     }
 
