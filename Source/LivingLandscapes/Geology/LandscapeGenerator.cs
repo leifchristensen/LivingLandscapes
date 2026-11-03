@@ -304,6 +304,7 @@ public static class LandscapeGenerator
         var micro = new Perlin(p.cellSize / p.microWavelength, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         var centre = new Vector2(sizeX * 0.5f, sizeZ * 0.5f);
         var result = new float[sizeX * sizeZ];
+        var smooth = new float[sizeX * sizeZ];
         rockStrength = new float[sizeX * sizeZ];
         rock = new ThingDef[sizeX * sizeZ];
         rockStage = new int[sizeX * sizeZ];
@@ -323,9 +324,13 @@ public static class LandscapeGenerator
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
                 float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient * tiltScale;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
-                result[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt + rough;
+                smooth[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt;
+                result[z * sizeX + x] = smooth[z * sizeX + x] + rough;
             }
         }
+        int textureHollows = FillTextureHollows(result, smooth, sizeX, sizeZ);
+        if (textureHollows > 0)
+            Log.Message($"[LivingLandscapes] Micro-relief on {map}: {textureHollows} closed hollows it made filled to their rims.");
         ErosionGridExport.Write("Result", result, sizeX, sizeZ);
         int bodies = resistant.Count(v => v >= 0.5f);
         if (bodies > 0)
@@ -334,6 +339,36 @@ public static class LandscapeGenerator
         if (sea > 0)
             Log.Message($"[LivingLandscapes] Coastline on {map}: {sea} sea cells set below the beach, land eased down to it.");
         return result;
+    }
+
+    /// <summary>
+    /// The micro-relief is surface texture, not a landform process, so it must not make closed hollows of its own (#81):
+    /// soil creep wears bumps of its wavelength down within centuries, and real small hollows need a process that keeps
+    /// making them (tree throw, wind scour, karst). Each hollow of <paramref name="textured"/> that lies wholly outside the
+    /// depressions <paramref name="smooth"/> already had is raised to its spill level; the texture stays on slopes, and the
+    /// basins the landform made (roughened floors included) are left to the water balance. Returns the hollows filled.
+    /// </summary>
+    private static int FillTextureHollows(float[] textured, float[] smooth, int sizeX, int sizeZ)
+    {
+        const float Tolerance = 1e-4f;
+        var landform = (float[])smooth.Clone();
+        GridMath.FillDepressions(landform, sizeX, sizeZ, _ => false, 0f);
+        var spill = (float[])textured.Clone();
+        GridMath.FillDepressions(spill, sizeX, sizeZ, _ => false, 0f);
+
+        int count = GridMath.LabelRegions(i => spill[i] - textured[i] > Tolerance, sizeX, sizeZ, out int[] labels);
+        var inLandformBasin = new bool[count];
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i] >= 0 && landform[i] - smooth[i] > Tolerance)
+                inLandformBasin[labels[i]] = true;
+        }
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i] >= 0 && !inLandformBasin[labels[i]])
+                textured[i] = spill[i];
+        }
+        return inLandformBasin.Count(b => !b);
     }
 
     /// <summary>
