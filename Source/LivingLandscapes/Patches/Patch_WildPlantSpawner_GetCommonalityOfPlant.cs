@@ -28,6 +28,7 @@ public static class Patch_WildPlantSpawner_GetCommonalityOfPlant
         PlantHabitat habitat = PlantHabitat.For(plant);
         if (!habitat.HasSiteCurves)
             return;
-        __result *= Mathf.Lerp(1f, def.ScaleFor(MapOf(__instance).Biome, habitat.stratum), strength);
+        Map map = MapOf(__instance);
+        __result *= Mathf.Lerp(1f, def.ScaleFor(map.Biome, habitat.stratum, def.SeasonOf(map)), strength);
     }
 }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!--
@@ -10,18 +10,27 @@
     <defName>LL_PlantEcology</defName>
     <label>plant ecology</label>
     <!-- Forest layers: biome x layer multipliers on vanilla's commonality (vanilla's forests are sparse). Shares renormalise. -->
+    <!-- Growing season (P21): a shrub entry with seasonMin runs from seasonMin on a short-season tile to scale on a long
+         mild one (season factor from the share of the year in 6-42 C: 0 at 0.4, 1 at 0.7; RimWorld's seasons swing more than real ones). Boreal keeps 1.3 whatever the
+         season: thin, acid soil keeps it sparse. -->
     <stratumScales>
-      <li><biome>TemperateForest</biome><stratum>Canopy</stratum><scale>2.0</scale></li>
-      <li><biome>TemperateForest</biome><stratum>Shrub</stratum><scale>1.4</scale></li>
+      <li><biome>TemperateForest</biome><stratum>Canopy</stratum><scale>2.5</scale></li>
+      <li><biome>TemperateForest</biome><stratum>Shrub</stratum><scale>3.5</scale><seasonMin>1.3</seasonMin></li>
       <li><biome>TemperateForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
       <li><biome>BorealForest</biome><stratum>Canopy</stratum><scale>2.2</scale></li>
       <li><biome>BorealForest</biome><stratum>Shrub</stratum><scale>1.3</scale></li>
       <li><biome>BorealForest</biome><stratum>Ground</stratum><scale>0.7</scale></li>
-      <li><biome>TropicalRainforest</biome><stratum>Canopy</stratum><scale>2.2</scale></li>
-      <li><biome>TropicalRainforest</biome><stratum>Shrub</stratum><scale>1.4</scale></li>
+      <li><biome>TropicalRainforest</biome><stratum>Canopy</stratum><scale>2.7</scale></li>
+      <li><biome>TropicalRainforest</biome><stratum>Shrub</stratum><scale>3.3</scale><seasonMin>1.3</seasonMin></li>
       <li><biome>TemperateSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
       <li><biome>TropicalSwamp</biome><stratum>Canopy</stratum><scale>1.5</scale></li>
     </stratumScales>
+    <!-- Self-thinning (Docs/FLORA-REVIEW.md, #22): same-layer plants within about sigma cells suppress newcomers of that
+         layer by exp(-strength x crowding / dominance); grass-scale ground plants do not compete. -->
+    <thinning>
+      <li><stratum>Canopy</stratum><sigma>1.6</sigma><strength>0.7</strength></li>
+      <li><stratum>Shrub</stratum><sigma>1.1</sigma><strength>0.5</strength></li>
+    </thinning>
     <!-- Species with fitness under this (times strength) are not candidates on a cell. -->
     <minFitness>0.08</minFitness>
     <!-- Choice weight ~ fitness^this. -->
@@ -42,13 +51,52 @@
     <clusterGain2PerNeighbour>0.5</clusterGain2PerNeighbour>
     <!-- Canopy shadows fall toward the pole by this share of their radius. -->
     <shadowShift>0.5</shadowShift>
-    <!-- A spawn attempt is accepted with a chance from this floor (hopeless ground) to 1 (the best ground). -->
+    <!-- Multiplies every canopy plant's shadeCast. 0.6 (owner 2026-10-26: forests too bare): the understory fills in
+         under trees; at 1 deep shade covered about 60% of forest land. -->
+    <shadeCastScale>0.6</shadeCastScale>
+    <!-- Succession on the stand age mosaic (P22, tools/Docs/DISTURBANCE-MOSAIC.md): canopy establishes with maturity
+         1 - exp(-age / tau), tau = canopyClosureYears (x 0.6 for the fastest pioneers); other species x (1 + pioneerBoost x
+         (1 - maturity) x pace). successionSpeed: succession years per game year (owner: about 10). -->
+    <canopyClosureYears>30</canopyClosureYears>
+    <pioneerBoost>3</pioneerBoost>
+    <successionSpeed>10</successionSpeed>
+    <!-- Carrying capacity (P15), replacing vanilla's even cap: the share of cells with a plant within occupancyRadius
+         targets biome plant density x fertility x densityScale x Lerp(capacityFloor, 1, (capacity / the map's 80th
+         percentile) ^ densityContrast) / the map's mean of that share: each map keeps its vanilla total unless scaled. -->
+    <densityContrast>2</densityContrast>
     <capacityFloor>0.2</capacityFloor>
-    <!-- Capacity ratio ^ this before the floor: shaded and poor ground thins faster. -->
-    <capacityExponent>2</capacityExponent>
+    <occupancyRadius>4</occupancyRadius>
+    <densityScales>
+      <li><biome>TemperateForest</biome><scale>1.3</scale></li>
+      <li><biome>TropicalRainforest</biome><scale>1.3</scale></li>
+    </densityScales>
     <!-- Growth rate multiplier from 0 (zero fitness) to 1 (full fitness). -->
     <vitalityMin>0.5</vitalityMin>
     <vitalityMax>1.2</vitalityMax>
+    <!-- Habitat inputs (Docs/HABITAT-XML.md): sun-facing slopes dry faster (water = moisture - sunDrying x (sun - 0.7));
+         soil shallower than a species' rooting depth limits it by (soil / rootingDepth) ^ rootRoomExponent. -->
+    <sunDrying>0.15</sunDrying>
+    <!-- Dispersal kernels by seed vector (P13, Docs/PLANT-TRAITS.md 4.2), relative to a species' base clump: sigmaScale =
+         how far offspring land, nucleationScale = how often a new clump starts away from the species' own kind,
+         clumpScale = how strongly a clump draws newcomers (after the clusterMaxRatio cap). Water carries seeds downstream
+         (a stretched kernel centred one sigma downhill). The species' seed axis adds 0.8-1.2 x sigma and 0.6-1.4 x
+         nucleation (many small seeds travel further). -->
+    <dispersalKernels>
+      <li><vector>Gravity</vector><sigmaScale>0.7</sigmaScale><nucleationScale>0.6</nucleationScale><clumpScale>1.2</clumpScale></li>
+      <li><vector>Animal</vector><sigmaScale>1.0</sigmaScale><nucleationScale>1.0</nucleationScale><clumpScale>1.0</clumpScale></li>
+      <li><vector>Wind</vector><sigmaScale>1.5</sigmaScale><nucleationScale>2.0</nucleationScale><clumpScale>0.6</clumpScale></li>
+      <li><vector>Water</vector><sigmaScale>1.0</sigmaScale><nucleationScale>1.0</nucleationScale><clumpScale>1.0</clumpScale><downstream>true</downstream></li>
+      <li><vector>Clonal</vector><sigmaScale>0.6</sigmaScale><nucleationScale>0.3</nucleationScale><clumpScale>2.0</clumpScale></li>
+    </dispersalKernels>
+    <rootRoomExponent>0.3</rootRoomExponent>
+    <!-- Establishment: exponent on the cluster pull in a cell's acceptance chance (1 = the likely recruit decides, 0 =
+         commonality alone). Measured 2026-10-25: 1 added nothing to the forest-edge shrub lead and cost swamps 6% of
+         their plants, so 0 until shade mortality exists (Docs/HABITAT-XML.md, diagnostic). -->
+    <establishmentPull>0</establishmentPull>
+    <!-- Thicket drag (P18): cost = this x stem density of the 3x3 (sum of the plants' thicket weights / 9), at least
+         vanilla's. A thick bush is about 20x slower than open soil (owner): 20 x 13 ticks per move = 260, so 250 at weight
+         1. Owner playtest 2026-10-26: bushes 0.85 (closed 212), brambles 1.4 (closed 350); a lone bush keeps vanilla's 30. -->
+    <thicketDragMax>250</thicketDragMax>
   </LivingLandscapes.Flora.PlantEcologyDef>
 
 </Defs>

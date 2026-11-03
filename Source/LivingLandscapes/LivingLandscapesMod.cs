@@ -59,6 +59,12 @@ public class LivingLandscapesMod : Mod
         }
         listing.Gap();
 
+        string delay = Settings.fireRainDelayHours >= LivingLandscapesSettings.FireRainNever ? "LL_FireRainNever".Translate().ToString()
+            : Settings.fireRainDelayHours < 0.5f ? "LL_FireRainVanilla".Translate().ToString() : "LL_FireRainHours".Translate(Settings.fireRainDelayHours.ToString("0")).ToString();
+        listing.Label("LL_FireRainDelay".Translate(delay), tooltip: "LL_FireRainDelayTip".Translate());
+        Settings.fireRainDelayHours = UnityEngine.Mathf.Round(listing.Slider(Settings.fireRainDelayHours, 0f, LivingLandscapesSettings.FireRainNever));
+        listing.Gap();
+
         listing.CheckboxLabeled("LL_GameplaySiting".Translate(), ref Settings.gameplaySiting, "LL_GameplaySitingTip".Translate());
         listing.Gap();
 

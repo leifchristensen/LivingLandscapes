@@ -37,6 +37,14 @@ public class LivingLandscapesSettings : ModSettings
     public bool slopeMovement = true;
 
     /// <summary>Overrides of the generation tuning, as text by the value's path (<see cref="Tuning"/>); empty keeps XML's values.</summary>
+    /// <summary>
+    /// In-game hours a large fire burns before vanilla's fire response (weather changes sooner, rain 15x likelier) starts.
+    /// 0 = vanilla; <see cref="FireRainNever"/> or more = never.
+    /// </summary>
+    public float fireRainDelayHours;
+
+    public const float FireRainNever = 49f;
+
     public Dictionary<string, string> tuning = new();
 
     public override void ExposeData()
@@ -48,6 +56,7 @@ public class LivingLandscapesSettings : ModSettings
         Scribe_Values.Look(ref habitatStrength, "habitatStrength", 1f);
         Scribe_Values.Look(ref gameplaySiting, "gameplaySiting", true);
         Scribe_Values.Look(ref slopeMovement, "slopeMovement", true);
+        Scribe_Values.Look(ref fireRainDelayHours, "fireRainDelayHours", 0f);
         Scribe_Collections.Look(ref tuning, "tuning", LookMode.Value, LookMode.Value);
         tuning ??= new Dictionary<string, string>();
     }
