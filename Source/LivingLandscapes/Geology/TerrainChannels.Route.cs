@@ -71,8 +71,12 @@ public static partial class TerrainChannels
             int second = -1;
             if (p.tolerantRouting && discharge[c] * 0.5f >= threshold)
                 second = TolerantWay(filled, c, r, momentum[c], discharge[c] * scale, filled[c] - baseLevel[c], sizeX, sizeZ, p, out share);
+            // A rejected split gives its share back to the main way, so no water is lost.
             if (second >= 0 && discharge[c] * share < threshold)
+            {
                 second = -1;
+                share = 0f;
+            }
             if (second < 0 && discharge[c] * 0.5f >= threshold)
             {
                 float factor = spread != null && spread[c] > 0f ? spread[c] : mapSpread;
@@ -81,9 +85,13 @@ public static partial class TerrainChannels
                 {
                     float e = p.spreadExponent / Mathf.Max(factor, 0.1f);
                     float a = Mathf.Pow(main, e), b = Mathf.Pow(other, e);
-                    share = b / (a + b);
+                    // Both powers underflow to 0 on near-flat filled ground with a strong exponent: no split then.
+                    share = a + b > 0f ? b / (a + b) : 0f;
                     if (discharge[c] * share < threshold)
+                    {
                         second = -1;
+                        share = 0f;
+                    }
                 }
             }
             if (second >= 0)
