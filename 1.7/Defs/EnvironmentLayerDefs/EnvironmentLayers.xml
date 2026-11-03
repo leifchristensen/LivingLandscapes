@@ -173,13 +173,14 @@
     <modExtensions>
       <li Class="LivingLandscapes.Geology.TerraceExtension">
         <stagesAcrossRelief>12</stagesAcrossRelief>
-        <minStageHeight>2</minStageHeight>
+        <minStageHeight>6</minStageHeight>
         <treadRise>0.2</treadRise>
-        <stepSpacing>24</stepSpacing>
         <knobMaxCells>150</knobMaxCells>
-        <gentleSlope>0.9</gentleSlope>
-        <cliffSlope>1.0</cliffSlope>
+        <gentleSlope>0</gentleSlope>
+        <cliffSlope>0.5</cliffSlope>
         <steepnessSmoothing>2</steepnessSmoothing>
+        <scarpTraceSteepness>0.25</scarpTraceSteepness>
+        <scarpMinLength>12</scarpMinLength>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
