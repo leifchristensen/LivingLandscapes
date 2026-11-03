@@ -107,6 +107,14 @@
         <cover>Marsh</cover>
       </li>
       <li>
+        <label>marshy soil</label>
+        <conditions>
+          <li><field>LL_Wetness</field><min>0.6</min></li>
+          <li><field>Climate</field><min>0.5</min></li>
+        </conditions>
+        <cover>MarshySoil</cover>
+      </li>
+      <li>
         <label>mud</label>
         <conditions>
           <li><field>LL_Wetness</field><min>0.8</min></li>
