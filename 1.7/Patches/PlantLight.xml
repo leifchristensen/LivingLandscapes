@@ -1,0 +1,1868 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!-- Light needs for growth (P12, one light map): vanilla's growMinGlow / growOptimalGlow read the canopy-dimmed ground
+       glow, so a wild plant's growth follows the light it was placed by. Derived from its habitat light curve
+       (PlantHabitats.xml) by tools: growMinGlow = max(0, optimum - 2 tolerance), growOptimalGlow = optimum. Tune here. -->
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.03</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant</xpath>
+          <value><growMinGlow>0.03</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.97</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Grass"]/plant</xpath>
+          <value><growOptimalGlow>0.97</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.03</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant</xpath>
+          <value><growMinGlow>0.03</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.97</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_GrayGrass"]/plant</xpath>
+          <value><growOptimalGlow>0.97</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowGrass"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.11</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant</xpath>
+          <value><growMinGlow>0.11</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.99</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TallGrass"]/plant</xpath>
+          <value><growOptimalGlow>0.99</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_YellowTallGrass"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.36</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Moss"]/plant</xpath>
+          <value><growOptimalGlow>0.36</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Dandelion"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Astragalus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Fireweed"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.64</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles"]/plant</xpath>
+          <value><growOptimalGlow>0.64</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant</xpath>
+          <value><growMinGlow>0.06</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.64</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Brambles_Leafless"]/plant</xpath>
+          <value><growOptimalGlow>0.64</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.57</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Chokevine"]/plant</xpath>
+          <value><growOptimalGlow>0.57</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.77</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_ShrubLow"]/plant</xpath>
+          <value><growOptimalGlow>0.77</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.90</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Thornvine"]/plant</xpath>
+          <value><growOptimalGlow>0.90</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.09</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant</xpath>
+          <value><growMinGlow>0.09</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.81</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush"]/plant</xpath>
+          <value><growOptimalGlow>0.81</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.09</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant</xpath>
+          <value><growMinGlow>0.09</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.81</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bush_Leafless"]/plant</xpath>
+          <value><growOptimalGlow>0.81</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry"]/plant</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Berry_Leafless"]/plant</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.63</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_HealrootWild"]/plant</xpath>
+          <value><growOptimalGlow>0.63</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.96</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Ripthorn"]/plant</xpath>
+          <value><growOptimalGlow>0.96</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.89</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Reeds"]/plant</xpath>
+          <value><growOptimalGlow>0.89</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.89</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Bulrush"]/plant</xpath>
+          <value><growOptimalGlow>0.89</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.43</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Alocasia"]/plant</xpath>
+          <value><growOptimalGlow>0.43</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.43</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Clivia"]/plant</xpath>
+          <value><growOptimalGlow>0.43</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Agave"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_PincushionCactus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_PebbleCactus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_SaguaroCactus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant</xpath>
+          <value><growMinGlow>0.18</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_MagmaCactus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeOak"]/plant</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePoplar"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBirch"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePine"]/plant</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeGrayPine"]/plant</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeMaple"]/plant</xpath>
+          <value><growOptimalGlow>0.91</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.99</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeWillow"]/plant</xpath>
+          <value><growOptimalGlow>0.99</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCypress"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.77</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_Witchwood"]/plant</xpath>
+          <value><growOptimalGlow>0.77</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeSnagroot"]/plant</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeTeak"]/plant</xpath>
+          <value><growOptimalGlow>0.94</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeCecropia"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreePalm"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_RatPalm"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>0.90</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeBamboo"]/plant</xpath>
+          <value><growOptimalGlow>0.90</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant</xpath>
+          <value><growMinGlow>0.12</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="Plant_TreeDrago"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_AppleTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_CherryTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PeachTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PlumTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_PearTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_BananaTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_OrangeTree"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_BearBerryBush"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant</xpath>
+          <value><growMinGlow>0.14</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Opuntia"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_AloeVera"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_BunnyEarsCactus"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_Echeveria"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_FairyWashboard"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_JadePlant"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PeyotePlant"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_PincushionPlant"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant</xpath>
+    <match Class="PatchOperationSequence">
+      <operations>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant/growMinGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant/growMinGlow</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant</xpath>
+          <value><growMinGlow>0.00</growMinGlow></value>
+        </nomatch>
+      </li>
+      <li Class="PatchOperationConditional">
+        <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant/growOptimalGlow</xpath>
+        <match Class="PatchOperationReplace">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant/growOptimalGlow</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </match>
+        <nomatch Class="PatchOperationAdd">
+          <xpath>/Defs/ThingDef[defName="VCE_Plant_SnakePlant"]/plant</xpath>
+          <value><growOptimalGlow>1.00</growOptimalGlow></value>
+        </nomatch>
+      </li>
+      </operations>
+    </match>
+  </Operation>
+
+</Patch>

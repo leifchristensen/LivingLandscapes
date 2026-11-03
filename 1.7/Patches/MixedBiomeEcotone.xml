@@ -10,6 +10,8 @@
         <li Class="LivingLandscapes.Gameplay.EcotoneExtension">
           <halfWidth>40</halfWidth>
           <patchScale>10</patchScale>
+          <!-- Majority filter: a cell takes the other biome when this many of its 8 neighbours hold it (0 = off). -->
+          <majorityNeighbours>7</majorityNeighbours>
         </li>
       </value>
     </match>
