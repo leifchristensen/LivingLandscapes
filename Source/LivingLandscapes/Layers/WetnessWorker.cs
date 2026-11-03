@@ -34,6 +34,12 @@ public class WetnessExtension : DefModExtension
     /// </summary>
     public float wetnessIndexWeight = 0.5f;
 
+    /// <summary>
+    /// Slopes (height per cell) over which a lake's or river's water table stops spreading up its bank: it saturates the
+    /// shore fully below the first, and not at all from the second, where the bank drains.
+    /// </summary>
+    public FloatRange pondingSlope = new FloatRange(0.1f, 0.3f);
+
 
     /// <summary>
     /// Tile rainfall (mm) treated as fully wet. Drier tiles sharpen wetness: only the strongest drainage lines stay
@@ -113,11 +119,11 @@ public class WetnessWorker : EnvironmentLayerWorker
                                * (rivers?.Regime?.floodplainScale ?? 1f);
             float groundwater = Mathf.Exp(-aboveDrainage / floodScale);
             // Both predict how near the water table comes (P23): water gathering on the slope, or a drainage line close
-            // below. Where water stands on that line (a lake or river) the water table is known there, its surface, and
-            // saturates the ground on its own; a dry line's is only an estimate, weighed with the index.
-            float topographic = lineWater[i]
-                ? Mathf.Max(indexWet, groundwater)
-                : p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
+            // below, and are weighed together. Where water stands on that line (a lake or river) its surface is the water
+            // table, which saturates a gentle shore on its own; a steep bank drains.
+            float topographic = p.wetnessIndexWeight * indexWet + (1f - p.wetnessIndexWeight) * groundwater;
+            if (lineWater[i])
+                topographic = Mathf.Max(topographic, groundwater * Mathf.InverseLerp(p.pondingSlope.max, p.pondingSlope.min, slope[i]));
             wetness[i] = Mathf.Pow(Mathf.Clamp01(topographic), exponent);
         }
 
