@@ -17,8 +17,7 @@ public static class Patch_GenTemperature_TryGetTemperatureForCell
     {
         if (!__result || map == null)
             return;
-        Room room = c.GetRoom(map);
-        if (room == null || !room.UsesOutdoorTemperature)
+        if (!MapComponent_LocalClimate.AppliesTo(c.GetRoom(map)))
             return;
         tempResult += MapComponent_LocalClimate.OffsetAt(map, c);
     }
