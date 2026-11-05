@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Floor seepage (P23 extended, #149): the water balance of a closed hollow,
+      A_lake = runoff x rain x catchment / (evaporation - rain + S),
+    had no loss but evaporation, so in a wet climate every closed hollow filled to its rim and spilled. S is the
+    EFFECTIVE seepage through the wetted floor in mm/yr: what a lake bed actually lets through once its own fines have
+    sealed it (colmation). It is NOT the saturated conductivity of the material - clean sand conducts metres a day,
+    but a sand-floored pond holds water for years because its bed seals; real seepage losses from reservoirs and
+    ponds on sand and gravel run a few hundred to a few thousand mm/yr, and about nil on clay (the owner's review of
+    the round 2 design fixed the original K_sat reasoning, which was off by 1000). A floor stands a hollow below its
+    spill level whenever evaporation - rain + S > 0; with S = 0 the balance is exactly the old one.
+
+    Floor class per tile (FloorSeepageRules.ClassOf): river alluvium sorted by LL_GrainSize; else deep soil; else the
+    rock beneath (carbonate -> karst, open joints -> jointed rock, else hardpan). The cap S_eff = S x clamp01(1 -
+    HAND/handDry) uses LL_HeightAboveDrainage (~ how far the water table lies below the floor): ground with a deep
+    water table is unsaturated and passes almost nothing, which is also what keeps deserts unchanged.
+
+    Scale check: evaporation = max(150, 400 + 60 x temp) mm/yr (SurfaceWaterExtension), so a wet climate's rain
+    surplus over evaporation is ~1000-1300 mm/yr: sand, gravel and karst floors beat it (hollows stand low or dry),
+    clay, silt and jointed rock do not (ponds and full hollows) - as in real humid regions, where karst and outwash
+    plains have no surface hollows and clay lowlands are full of them.
+  -->
+  <LivingLandscapes.Geology.FloorSeepageDef>
+    <defName>LL_FloorSeepage</defName>
+    <label>floor seepage</label>
+
+    <!-- clay/hardpan: a sealed bed or massive unfractured rock, an aquitard; observed losses are well under
+         10 mm/yr, and 0 keeps a clay-floored hollow filling to its rim exactly as today. -->
+    <seepageClayMmPerYear>0</seepageClayMmPerYear>
+    <!-- silt: fine alluvium and deep weathered soil colmate tight; pond losses through silt beds run tens of
+         mm/yr, not enough to beat a wet climate. -->
+    <seepageSiltMmPerYear>20</seepageSiltMmPerYear>
+    <!-- jointed rock: open joints (RockStrata Site.joint) carry water, but occupy a few percent of the bed area,
+         so averaged over the floor a few hundred mm/yr. -->
+    <seepageJointedRockMmPerYear>600</seepageJointedRockMmPerYear>
+    <!-- sand: unsealed sand would drain metres a year; a colmated sand lake bed loses a few hundred to a few
+         thousand mm/yr (reservoir seepage losses on sand). -->
+    <seepageSandMmPerYear>1500</seepageSandMmPerYear>
+    <!-- gravel: flow through gravel flushes the fines out instead of sealing, so gravel beds stay open at the
+         high end of the few-thousand range. -->
+    <seepageGravelMmPerYear>8000</seepageGravelMmPerYear>
+    <!-- karst: conduits dissolved in carbonate rock swallow sinkhole ponds whole - one that drains in hours to
+         days is tens of metres a year spread over the floor. -->
+    <seepageKarstMmPerYear>20000</seepageKarstMmPerYear>
+
+    <!-- LL_GrainSize classes (overlay labels, Sediment.xml): under 0.25 fine (silt floor), to 0.7 sand, over it gravel. -->
+    <grainSilt>0.25</grainSilt>
+    <grainGravel>0.7</grainGravel>
+    <!-- soil this deep (m, LL_SoilDepth; the overlay tops out near 2.4) is weathered ground, not bedrock: a silt floor. -->
+    <soilSiltDepth>1</soilSiltDepth>
+    <!-- RockStrata Site.joint at or above this counts as an open joint under the hollow. -->
+    <jointOpen>0.5</jointOpen>
+    <!-- HAND (m) at which the floor stands dry. The HAND overlay saturates at 30 m (EnvironmentLayers.xml); a
+         vadose zone 25 m thick holds its water against gravity, so nothing seeps on through. -->
+    <handDry>25</handDry>
+
+    <!-- carbonate rocks whose ground weathers to karst: limestone, and marble where the tile carries it. -->
+    <karstRockDefNames>
+      <li>Limestone</li>
+      <li>Marble</li>
+    </karstRockDefNames>
+  </LivingLandscapes.Geology.FloorSeepageDef>
+
+</Defs>
