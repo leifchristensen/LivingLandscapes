@@ -494,6 +494,7 @@ public static class PlantBenchmark
         Log.Message($"[LivingLandscapes] Plant succession: a {block}x{block} woodland block at ({bestX}, {bestZ}) held {before}; burnt (stand age 0), succession {Flora.PlantEcologyDef.Current.successionSpeed:0.#} years per game year.");
 
         // "-ll-time-scale=10": the mod's clock runs that many times faster (as the dev toggle does).
+        int scale = GameComponent_LivingTime.Scale;
         if (GenCommandLine.TryGetCommandLineArg("ll-time-scale", out string scaleArg) && int.TryParse(scaleArg, out int timeScale))
             GameComponent_LivingTime.Scale = timeScale;
         bool fast = DebugSettings.fastEcology;
@@ -533,6 +534,7 @@ public static class PlantBenchmark
             }
         }
         DebugSettings.fastEcology = fast;
+        GameComponent_LivingTime.Scale = scale;
         SpawnerTrace.Watch = null;
     }
 
@@ -567,6 +569,7 @@ public static class PlantBenchmark
             for (int call = 0; call < days * GenDate.TicksPerDay / 2000; call++)
             {
                 TicksGameOf(Find.TickManager) += 2000;
+                GameComponent_LivingTime.Advance(2000);
                 map.skyManager.SkyManagerUpdate();
                 // A plant's tick can destroy another listed plant (thinning, spreading): skip those.
                 foreach (Plant p in Fungi())
