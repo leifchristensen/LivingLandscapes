@@ -100,7 +100,9 @@ public static class PlantSeeder
             return false;
         float fitness = ecology.Establishment(def, map.cellIndices.CellToIndex(c));
         // Fitness is a product of several curves, so even good ground rarely scores near 1: accept relative to a reference.
-        if (fitness < tuning.minFitness)
+        // The ecology strength setting softens the cutoff here as it does for the wild plant spawner, so map generation and
+        // regrowth use the same gate.
+        if (fitness < tuning.minFitness * MapComponent_Ecology.Strength)
             return false;
         // A clonal shoot is fed by its patch and is part of the same plant: no seedling draw, no thinning.
         if (integrated)
