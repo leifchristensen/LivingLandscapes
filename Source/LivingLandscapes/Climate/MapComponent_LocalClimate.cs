@@ -144,6 +144,13 @@ public class MapComponent_LocalClimate : MapComponent
     private static Map cachedMap;
     private static MapComponent_LocalClimate cachedClimate;
 
+    /// <summary>
+    /// Whether a cell's local offset applies: its room takes the outdoor temperature (vanilla's UsesOutdoorTemperature:
+    /// touches the map edge, or a quarter or more of it unroofed). The one rule for gameplay and the readout (#159); cells
+    /// with no room (inside rock, walls) get none.
+    /// </summary>
+    public static bool AppliesTo(Room room) => room != null && room.UsesOutdoorTemperature;
+
     /// <summary>The offset of a cell on a map, with the component cached (vanilla asks for cell temperatures often).</summary>
     public static float OffsetAt(Map map, IntVec3 c)
     {
