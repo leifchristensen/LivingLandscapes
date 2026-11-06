@@ -35,13 +35,13 @@
       <icon>UI/LivingLandscapes/Overlays/Topology</icon>
       <banded>true</banded>
       <relativeColors>true</relativeColors>
-      <!-- Colour bands are a fixed 15 m on absolute multiples of 15, so their edges are the thick contour lines (#190).
+      <!-- Colour bands are a fixed 25 m on absolute multiples of 25, so their edges are the thick contour lines (#190).
            The ramp below is sampled as a 7-colour palette; maps with more bands interpolate between those. -->
-      <bandInterval>15</bandInterval>
-      <!-- Thin contour line every 5 m on every map, thick (index, labelled) every 3rd = every 15 m. Fixed rather than by
+      <bandInterval>25</bandInterval>
+      <!-- Thin contour line every 5 m on every map, thick (index, labelled) every 5th = every 25 m. Fixed rather than by
            relief class (#89 table) at the owner's request: line density then shows steepness identically everywhere. -->
       <contourInterval>5</contourInterval>
-      <indexEvery>3</indexEvery>
+      <indexEvery>5</indexEvery>
       <labelFormat>0.#</labelFormat>
       <colors>
         <li><value>0</value><color>(0.30, 0.58, 0.32)</color></li>

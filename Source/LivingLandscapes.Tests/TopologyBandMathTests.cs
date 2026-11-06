@@ -3,46 +3,45 @@ using Xunit;
 
 namespace LivingLandscapes.Tests;
 
-/// <summary>#190: topology colour bands are a fixed 15 m on absolute multiples of 15, with the 7-colour palette stretched for taller maps.</summary>
+/// <summary>#190: topology colour bands are a fixed 25 m on absolute multiples of 25, with the 7-colour palette stretched for taller maps.</summary>
 public class TopologyBandMathTests
 {
-    private const float Step = 15f;
+    private const float Step = 25f;
 
     [Theory]
     [InlineData(0f, 1)]
     [InlineData(10f, 1)]
-    [InlineData(15f, 1)]
-    [InlineData(16f, 2)]
-    [InlineData(36f, 3)]
-    [InlineData(90f, 6)]
-    [InlineData(102f, 7)]
-    [InlineData(105f, 7)]
-    [InlineData(156f, 11)]
+    [InlineData(25f, 1)]
+    [InlineData(26f, 2)]
+    [InlineData(60f, 3)]
+    [InlineData(150f, 6)]
+    [InlineData(160f, 7)]
+    [InlineData(175f, 7)]
+    [InlineData(260f, 11)]
     public void BandCountFromAlignedMinimum(float relief, int expected)
     {
-        // Minimum on a band edge, so relief maps straight to ceil(relief / 15).
+        // Minimum on a band edge, so relief maps straight to ceil(relief / 25).
         Assert.Equal(expected, TopologyBandMath.BandCount(300f, 300f + relief, Step));
     }
 
     [Fact]
     public void BandsSitOnAbsoluteMultiples()
     {
-        Assert.Equal(90f, TopologyBandMath.Origin(100f, Step));
-        Assert.Equal(100f, TopologyBandMath.Origin(100f, 5f));
-        // 100..112 straddles the 105 edge of a 15 m grid? No: 90..105 and 105..120, so two bands.
-        Assert.Equal(2, TopologyBandMath.BandCount(100f, 112f, Step));
-        // 106..112 sits inside one band.
-        Assert.Equal(1, TopologyBandMath.BandCount(106f, 112f, Step));
+        Assert.Equal(100f, TopologyBandMath.Origin(110f, Step));
+        Assert.Equal(110f, TopologyBandMath.Origin(110f, 5f));
+        // 110..130 crosses the 125 edge: two bands. 110..120 stays inside one.
+        Assert.Equal(2, TopologyBandMath.BandCount(110f, 130f, Step));
+        Assert.Equal(1, TopologyBandMath.BandCount(110f, 120f, Step));
     }
 
     [Fact]
     public void BandIndexCountsFromOriginAndTopEdgeStaysInTopBand()
     {
-        float origin = TopologyBandMath.Origin(100f, Step);
-        Assert.Equal(0, TopologyBandMath.BandIndex(100f, origin, Step, 2));
-        Assert.Equal(0, TopologyBandMath.BandIndex(104.9f, origin, Step, 2));
-        Assert.Equal(1, TopologyBandMath.BandIndex(105f, origin, Step, 2));
-        Assert.Equal(1, TopologyBandMath.BandIndex(120f, origin, Step, 2));
+        float origin = TopologyBandMath.Origin(110f, Step);
+        Assert.Equal(0, TopologyBandMath.BandIndex(110f, origin, Step, 2));
+        Assert.Equal(0, TopologyBandMath.BandIndex(124.9f, origin, Step, 2));
+        Assert.Equal(1, TopologyBandMath.BandIndex(125f, origin, Step, 2));
+        Assert.Equal(1, TopologyBandMath.BandIndex(150f, origin, Step, 2));
     }
 
     [Fact]
@@ -56,7 +55,7 @@ public class TopologyBandMathTests
     [Fact]
     public void SevenBandsUseFullPalette()
     {
-        int count = TopologyBandMath.BandCount(0f, 102f, Step);
+        int count = TopologyBandMath.BandCount(0f, 160f, Step);
         Assert.Equal(7, count);
         Assert.Equal(0f, TopologyBandMath.PalettePosition(0, count));
         Assert.Equal(6f, TopologyBandMath.PalettePosition(count - 1, count));
@@ -65,7 +64,7 @@ public class TopologyBandMathTests
     [Fact]
     public void ElevenBandsSpanPaletteWithInterpolatedIntermediates()
     {
-        int count = TopologyBandMath.BandCount(0f, 156f, Step);
+        int count = TopologyBandMath.BandCount(0f, 260f, Step);
         Assert.Equal(11, count);
         Assert.Equal(0f, TopologyBandMath.PalettePosition(0, count));
         Assert.Equal(6f, TopologyBandMath.PalettePosition(count - 1, count), 4);

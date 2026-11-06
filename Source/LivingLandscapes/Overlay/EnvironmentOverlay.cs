@@ -229,7 +229,7 @@ public class EnvironmentOverlay
                 continue;
             Widgets.DrawBoxSolid(new Rect(x + 6f, y + 3f, 24f, row - 6f), style.bandColors[b]);
             float lo = style.bandMin + b * style.bandInterval;
-            string label = lo.ToString(style.labelFormat) + " - " + (lo + style.bandInterval * step).ToString(style.labelFormat);
+            string label = lo.ToString(style.labelFormat);
             Widgets.Label(new Rect(x + 38f, y, width - 44f, row), label);
             y += row;
         }
