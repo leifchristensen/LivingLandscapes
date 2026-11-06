@@ -922,6 +922,7 @@
           <rootingDepth>1.0</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.45</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>
@@ -940,6 +941,7 @@
           <rootingDepth>1.0</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.4</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>
@@ -958,6 +960,7 @@
           <rootingDepth>1.2</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.35</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>
@@ -976,6 +979,7 @@
           <rootingDepth>0.9</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.4</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>
@@ -994,6 +998,7 @@
           <rootingDepth>1.0</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.4</shadeCast>
+          <shadeRadius>1.8</shadeRadius>
         </li>
       </value>
     </match>
@@ -1012,6 +1017,7 @@
           <rootingDepth>0.6</rootingDepth>
           <dispersal>Clonal</dispersal>
           <shadeCast>0.5</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>
@@ -1030,6 +1036,7 @@
           <rootingDepth>1.0</rootingDepth>
           <dispersal>Animal</dispersal>
           <shadeCast>0.45</shadeCast>
+          <shadeRadius>2.2</shadeRadius>
         </li>
       </value>
     </match>

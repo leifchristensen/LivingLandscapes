@@ -453,7 +453,7 @@ public class MapComponent_Ecology : MapComponent
         if (shadeKernels.TryGetValue((def, step), out var cached))
             return cached;
         // A sapling's crown blocks a share of light in proportion to its size.
-        float radius = ShadeWorker.ShadeRadius(def, habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale * step / 4f;
+        float radius = ShadeWorker.ShadeRadius(habitat), strength = habitat.shadeCast * PlantEcologyDef.Current.shadeCastScale * step / 4f;
         // Light reaches the ground through the gaps in the canopy: shade adds as -ln(transmittance), so it can be removed.
         Kernel kernel = Build(Mathf.CeilToInt(radius * 2f), d2 => -Mathf.Log(1f - Mathf.Min(strength * Mathf.Exp(-d2 / (2f * radius * radius)), 0.95f)));
         Vector2 shift = ShadeWorker.ShadowShift(latitude, radius) * (PlantEcologyDef.Current.shadowShift / 0.5f);
