@@ -31,9 +31,16 @@ public class SurfaceWaterExtension : DefModExtension
     /// </summary>
     public float? runoffShare;
 
-    /// <summary>Hollows shallower (metres) or smaller (cells) than this hold no lake; they stay damp ground.</summary>
+    /// <summary>Depth (metres) the water must stand above a hollow's floor for the hollow to hold a lake (<see cref="HoldsLake"/>).</summary>
     public float minLakeDepth = 0.25f;
-    public int minLakeCells = 12;
+
+    /// <summary>
+    /// The one lake rule (#180): a hollow holds a lake where its water stands at least <see cref="minLakeDepth"/> above its
+    /// floor; shallower water is damp ground. Its size does not matter. With the balance level it decides the lake layer
+    /// and the drainage line's standing water; with the spill level (the most the hollow can hold), whether a channel
+    /// crossing the hollow leaves it to the lake model.
+    /// </summary>
+    public bool HoldsLake(float floor, float level) => level - floor >= minLakeDepth;
 }
 
 /// <summary>
@@ -122,14 +129,9 @@ public static class SurfaceWaterModel
         foreach (List<int> hollow in hollows.Values)
         {
             float spill = filled[hollow[0]];
-            float catchment = 0f, deepest = 0f;
+            float catchment = 0f;
             foreach (int c in hollow)
-            {
                 catchment = Mathf.Max(catchment, Mathf.Pow(10f, drainage[c]));
-                deepest = Mathf.Max(deepest, spill - landform[c]);
-            }
-            if (deepest < p.minLakeDepth || hollow.Count < p.minLakeCells)
-                continue;
 
             // Lake area at balance: runoff in = net evaporation and floor seepage out; at least the water table where the
             // floor lies below it (the drainage's hollow balance, #149). Without it, the map-wide share.
@@ -137,7 +139,7 @@ public static class SurfaceWaterModel
             float level = hollowLevel != null && !float.IsNaN(hollowLevel[hollow[0]])
                 ? Mathf.Min(spill, hollowLevel[hollow[0]])
                 : WaterBalance.LakeLevel(hollow, landform, spill, catchment, lakeShare);
-            if (level - landform[hollow[0]] < p.minLakeDepth)
+            if (!p.HoldsLake(landform[hollow[0]], level))
                 continue;
             lakes++;
             foreach (int c in hollow)

@@ -81,7 +81,7 @@ public static class TerrainInvariants
                 fed++;
             if (h.Level >= h.Spill - 1e-3f)
                 full[h.FloorClass]++;
-            else if (h.Level - h.Floor < lake.minLakeDepth)
+            else if (!lake.HoldsLake(h.Floor, h.Level))
                 dry[h.FloorClass]++;
             else
                 part[h.FloorClass]++;

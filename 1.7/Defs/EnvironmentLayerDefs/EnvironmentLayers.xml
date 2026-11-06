@@ -455,8 +455,9 @@
         <evaporationAtZero>400</evaporationAtZero>
         <evaporationPerDegree>60</evaporationPerDegree>
         <minEvaporation>150</minEvaporation>
+        <!-- The one lake rule (#180): a hollow holds a lake where its water stands at least this deep (m) above its
+             floor, whatever its size; shallower water is damp ground. -->
         <minLakeDepth>0.25</minLakeDepth>
-        <minLakeCells>12</minLakeCells>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

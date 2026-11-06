@@ -108,9 +108,11 @@ public static class Invariants
 
             Vector2 mouth = plan.Main[plan.Main.Count - 1];
             int mouthIndex = RiverGrid.Index(mouth, map.Size.x, map.Size.z);
-            // The coast counts with its beach: a stream ending on the sand runs on across it into the sea.
+            // The coast counts with its beach: a stream ending on the sand runs on across it into the sea. A closed basin
+            // that keeps its water (P23) is a base level too, though its pond may be too shallow to be a lake (#180).
             bool atBase = plan.Parent >= 0 || !Inside(map, mouth) || NearEdge(map, mouth, plan.NominalWidth)
-                          || map.terrainGrid.TerrainAt(mouthIndex).IsWater || (coast != null && coast[mouthIndex]);
+                          || map.terrainGrid.TerrainAt(mouthIndex).IsWater || (coast != null && coast[mouthIndex])
+                          || (rivers.Sink != null && rivers.Sink[mouthIndex]);
             if (atBase)
                 ended++;
             else
@@ -121,7 +123,7 @@ public static class Invariants
         summary.AppendLine($"channels: {rivers.Channels.Count}, sinuosity {(straight > 1f ? length / straight : 1f):F2}, widths " +
                            string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
-                           "end in another channel, at the map edge or in standing water" + (stranded.Length > 0 ? $"; ending on land:{stranded}" : ""));
+                           "end in another channel, at the map edge, in standing water or in a closed basin" + (stranded.Length > 0 ? $"; ending on land:{stranded}" : ""));
     }
 
     /// <summary>
