@@ -24,7 +24,11 @@ public class ThroughflowTests
     public void RisesWithDrainageArea() => Assert.True(T(2.5f, 0.1f, 0f) > T(2f, 0.1f, 0f));
 
     [Fact]
-    public void FallsWithHeightAboveDrainage() => Assert.True(T(3f, 0.1f, 0f) > T(3f, 0.1f, 2f));
+    public void FallsWithHeightAboveDrainage()
+    {
+        Assert.True(T(2f, 0.1f, 0f) > T(2f, 0.1f, 2f));
+        Assert.Equal(T(3f, 0.1f, 0f), T(3f, 0.1f, 2f), 4);  // a cell carrying the full flow is itself on a line
+    }
 
     [Fact]
     public void StaysInUnitRange()

@@ -15,7 +15,7 @@ namespace LivingLandscapes.Geology;
 ///   T = C(A) * M(slope) * R(h)
 ///   C = clamp01((log10 A - a0) / (a1 - a0))      convergence: how much water the cell carries
 ///   M = clamp01(gradient / gMoving)               moving water: no gradient, no throughflow (that is stagnation)
-///   R = exp(-h / H)                               reach: height above the drainage line (LL_HeightAboveDrainage) the flow keeps up
+///   R = exp(-h (1 - C) / H)                       reach: height above the drainage line (LL_HeightAboveDrainage) the flow keeps up; a cell that carries the flow is on a line
 /// </summary>
 public static class Throughflow
 {
@@ -24,7 +24,9 @@ public static class Throughflow
     {
         float convergence = Clamp01((drainageAreaLog10 - areaMin) / Math.Max(areaFull - areaMin, 1e-4f));
         float moving = Moving(gradient, movingGradient);
-        float reach = (float)Math.Exp(-Math.Max(0f, heightAboveDrainage) / Math.Max(reachHeight, 1e-4f));
+        // A cell carrying the flow is itself on a drainage line (its own height above it is zero), even where the layer's
+        // nearest mapped line is farther: height counts only for the share of the flow it does not carry.
+        float reach = (float)Math.Exp(-Math.Max(0f, heightAboveDrainage) * (1f - convergence) / Math.Max(reachHeight, 1e-4f));
         return convergence * moving * reach;
     }
 
