@@ -154,7 +154,8 @@ public static partial class TerrainChannels
     /// noise, each cell taking the channel cell that gives it the deepest water. Depth falls from the centre to the
     /// bank; the bed is lowered to the water surface less that depth (ground is only ever lowered). Where the filled
     /// surface lies deeper above the ground than the channel's own depth the channel crosses a hollow: the lake model
-    /// fills it.
+    /// fills it where the hollow can hold a lake (<see cref="Layers.SurfaceWaterExtension.HoldsLake"/> at its spill level,
+    /// #180); a hollow too shallow for one keeps the channel painted through it, so the water does not stop at its rim.
     /// </summary>
     private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, bool[] moving, float[] bankAmplitude, Vector2[] direction,
         int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
@@ -170,11 +171,22 @@ public static partial class TerrainChannels
             ownerT[i] = float.MaxValue;
         }
         int inHollows = 0;
+        // Each hollow's floor (the lowest ground in its connected filled area), to ask whether it can hold a lake.
+        var lake = Environment.EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<Layers.SurfaceWaterExtension>() ?? new Layers.SurfaceWaterExtension();
+        int hollowCount = GridMath.LabelRegions(i => filled[i] - height[i] > 1e-4f, sizeX, sizeZ, out int[] hollowOf);
+        var hollowFloor = new float[hollowCount];
+        for (int k = 0; k < hollowCount; k++)
+            hollowFloor[k] = float.MaxValue;
+        for (int i = 0; i < n; i++)
+        {
+            if (hollowOf[i] >= 0)
+                hollowFloor[hollowOf[i]] = Mathf.Min(hollowFloor[hollowOf[i]], height[i]);
+        }
         var bank = new Perlin(1.0 / p.bankNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var shoalNoise = new Perlin(1.0 / p.shoalWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         foreach (int c in cells)
         {
-            if (filled[c] - height[c] > depth[c])
+            if (filled[c] - height[c] > depth[c] && hollowOf[c] >= 0 && lake.HoldsLake(hollowFloor[hollowOf[c]], filled[c]))
             {
                 inHollows++;
                 continue;

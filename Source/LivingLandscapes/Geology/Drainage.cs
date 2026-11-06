@@ -269,8 +269,9 @@ public class Drainage
             if (depth < 0f && !float.IsNaN(FedShare))
                 level = Mathf.Max(level, Mathf.Min(waterTable, WaterBalance.LakeLevel(cells, Ground, spill, catchment, FedShare)));
             waterLevel[key] = level;
-            bool deepAndLarge = spill - floor >= lake.minLakeDepth && cells.Count >= lake.minLakeCells;
-            holdsLake[key] = deepAndLarge && level - floor >= lake.minLakeDepth;
+            // The one lake rule (#180): deep enough to hold a lake when full, and holding one at its balance level.
+            bool deepAndLarge = lake.HoldsLake(floor, spill);
+            holdsLake[key] = lake.HoldsLake(floor, level);
             foreach (int c in cells)
                 HollowLevel[c] = level;
             if (deepAndLarge)
