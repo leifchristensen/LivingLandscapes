@@ -35,6 +35,9 @@
       <icon>UI/LivingLandscapes/Overlays/Topology</icon>
       <banded>true</banded>
       <relativeColors>true</relativeColors>
+      <!-- Fixed 5 m bands counted up from the map's lowest point (#190): band count and colour read as real relief.
+           The ramp below is sampled as a 7-colour palette; maps with more bands interpolate between those. -->
+      <bandInterval>5</bandInterval>
       <!-- Contour interval by relief class, as map series fix it (#89): line density then shows real steepness.
            Class reliefs: Flat 4 m, SmallHills 20, LargeHills 70, Mountainous 180, Impassable 300 (+ mutators). -->
       <contourIntervals>

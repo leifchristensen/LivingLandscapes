@@ -42,6 +42,18 @@ public class OverlayProperties
     /// <summary>Fill each band between contours with one flat colour instead of a smooth gradient.</summary>
     public bool banded;
 
+    /// <summary>
+    /// Fixed band height in layer units (#190); 0 keeps bands tied to <see cref="contourInterval"/>. When set, a banded
+    /// layer fills one flat colour per band of this height counted up from the map's minimum, with colours taken from
+    /// the 7-colour palette sampled off the ramp (more bands interpolate between them). Independent of the contour
+    /// lines, which keep their own relief-class interval (#89).
+    /// </summary>
+    public float bandInterval;
+
+    /// <summary>Resolved per map: lowest value and the colour of each band when <see cref="bandInterval"/> is set.</summary>
+    public float bandMin;
+    public Color[] bandColors;
+
     /// <summary>Contours are only traced up to this value (e.g. to skip the "no water" plateau).</summary>
     public float contourMax = float.MaxValue;
 
@@ -104,9 +116,11 @@ public class OverlayProperties
     /// </summary>
     public OverlayProperties ResolveFor(float[] values, float min, float max)
     {
-        if (!relativeColors && contourIntervals.Count == 0)
+        if (!relativeColors && contourIntervals.Count == 0 && bandInterval <= 0f)
             return this;
         var resolved = (OverlayProperties)MemberwiseClone();
+        if (bandInterval > 0f)
+            resolved.ResolveBands(min, max);
         if (relativeColors)
         {
             resolved.colors = new List<ColorStop>();
@@ -122,6 +136,28 @@ public class OverlayProperties
                 resolved.indexEvery = 1;
         }
         return resolved;
+    }
+
+    /// <summary>Band colours for a map: the ramp sampled at 7 evenly spaced fractions, interpolated for more bands.
+    /// Runs on the unresolved ramp, so relative stops are still fractions here.</summary>
+    private void ResolveBands(float min, float max)
+    {
+        int count = TopologyBandMath.BandCount(min, max, bandInterval);
+        var palette = new Color[TopologyBandMath.PaletteSize];
+        for (int k = 0; k < palette.Length; k++)
+        {
+            float t = k / (palette.Length - 1f);
+            palette[k] = Evaluate(relativeColors ? t : Mathf.Lerp(min, max, t));
+        }
+        bandMin = min;
+        bandColors = new Color[count];
+        for (int b = 0; b < count; b++)
+        {
+            float pos = TopologyBandMath.PalettePosition(b, count);
+            int lo = Mathf.Min((int)pos, palette.Length - 1);
+            int hi = Mathf.Min(lo + 1, palette.Length - 1);
+            bandColors[b] = Color.Lerp(palette[lo], palette[hi], pos - lo);
+        }
     }
 
     private float IntervalFor(float relief)
@@ -154,7 +190,9 @@ public class OverlayProperties
             yield return "overlay has no colors.";
         if (contourInterval < 0f)
             yield return "overlay contourInterval is negative.";
-        if (banded && contourInterval <= 0f && contourIntervals.Count == 0)
+        if (bandInterval < 0f)
+            yield return "overlay bandInterval is negative.";
+        if (banded && contourInterval <= 0f && contourIntervals.Count == 0 && bandInterval <= 0f)
             yield return "overlay is banded but has no contourInterval or contourIntervals.";
         foreach (ContourClass c in contourIntervals)
         {
@@ -170,6 +208,8 @@ public class OverlayProperties
     /// <summary>Fill colour for a value, flattened to its band when <see cref="banded"/> is set.</summary>
     public Color FillColor(float value)
     {
+        if (bandColors != null)
+            return bandColors[TopologyBandMath.BandIndex(value, bandMin, bandInterval, bandColors.Length)];
         if (banded)
             value = (Mathf.Floor(value / contourInterval) + 0.5f) * contourInterval;
         return Evaluate(value);
