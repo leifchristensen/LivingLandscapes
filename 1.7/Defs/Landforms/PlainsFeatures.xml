@@ -56,13 +56,15 @@
     </landform>
   </LivingLandscapes.Geology.PlainsFeatureDef>
 
-  <!-- Escarpment: the land steps up to a higher plain held up by a hard bed; the step faces downhill. -->
+  <!-- Escarpment: the land steps up to a higher plain held up by a hard bed; the step faces downhill, so it stands only
+       where the region slopes (by rougher ground, the sea or a river), not on a plain among plains. -->
   <LivingLandscapes.Geology.PlainsFeatureDef>
     <defName>LL_Escarpment</defName>
     <label>escarpment</label>
     <!-- Flat land: fewer, lower, smaller. -->
     <byHilliness><li><hilliness>Flat</hilliness><extraRelief>3~7</extraRelief></li></byHilliness>
     <hilliness><li>Flat</li><li>SmallHills</li></hilliness>
+    <needsSlope>true</needsSlope>
     <weight>1</weight>
     <extraRelief>8~20</extraRelief>
     <offset>-0.2~0.2</offset>

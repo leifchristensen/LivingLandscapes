@@ -28,8 +28,21 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>Distance between neighbouring world tile centres, used for the regional slope.</summary>
     public float tileSpacingMetres = 30000f;
 
-    /// <summary>Typical spacing of ridges and valleys.</summary>
+    /// <summary>
+    /// Share of a neighbour's fall a map inherits when both tiles have the same hilliness (<see cref="RegionalSlopeMath"/>).
+    /// 0: a plain among plains (hills among hills) takes no regional slope; its own valleys and rises shape it.
+    /// </summary>
+    public float uniformSlopeShare = 0f;
+
+    /// <summary>Typical spacing of ridges and valleys on hilly and mountainous land.</summary>
     public float landformWavelength = 300f;
+
+    /// <summary>
+    /// The main swell's spacing on flat land and on small hills (metres). Compressed to map scale like the relief: a plain
+    /// holds two or three gentle rises and lows, so no half of the map drains while the other collects its water.
+    /// </summary>
+    public float landformWavelengthFlat = 125f;
+    public float landformWavelengthSmallHills = 200f;
 
     /// <summary>
     /// A second, shorter landform scale: spurs, knolls and side hollows on the hillsides between the main ridges and
@@ -114,6 +127,17 @@ public class GeologyGenerationExtension : DefModExtension
     public float microRelief = 0.3f;
     public float microWavelength = 6f;
 
+    /// <summary>Spacing (metres) of the main ridges and valleys for a hilliness.</summary>
+    public float LandformWavelengthFor(Hilliness hilliness)
+    {
+        switch (hilliness)
+        {
+            case Hilliness.Flat: return landformWavelengthFlat;
+            case Hilliness.SmallHills: return landformWavelengthSmallHills;
+            default: return landformWavelength;
+        }
+    }
+
     public float ReliefFor(Hilliness hilliness)
     {
         switch (hilliness)
@@ -154,7 +178,7 @@ public static class LandscapeGenerator
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
         out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
     {
-        world = WorldContext.For(map, p.tileSpacingMetres);
+        world = WorldContext.For(map, p.tileSpacingMetres, p);
         water = WaterRegimes.Select(map, world);
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
@@ -380,7 +404,7 @@ public static class LandscapeGenerator
         out float[] erodibility, Landforms landforms, System.Func<int, int, Vector2> mapFraction)
     {
         erodibility = new float[gx * gz];
-        double frequency = metresPerModelCell / p.landformWavelength;
+        double frequency = metresPerModelCell / p.LandformWavelengthFor(world.Hilliness);
         var swells = new Perlin(frequency, 2.0, 0.5, 4, Rand.Int, QualityMode.High);
         var ridges = new RidgedMultifractal(frequency, 2.0, 4, Rand.Int, QualityMode.High);
         var detail = new Perlin(metresPerModelCell / Mathf.Max(1f, p.detailWavelength), 2.0, 0.5, 3, Rand.Int, QualityMode.High);

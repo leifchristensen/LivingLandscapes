@@ -10,8 +10,10 @@ namespace LivingLandscapes.Climate;
 /// One temperature map (P23, #90, owner 2026-11-02): an outdoor cell's temperature is the map's outdoor temperature,
 /// which stays the mean, plus a local offset from three parts, each a grid computed once from saved layers (not saved):
 /// height (lapse rate, always), slope to the sun (by day) and cold air pooling in hollows (on clear, calm nights).
-/// Vanilla's cell temperature reads it (<see cref="Patches.Patch_GenTemperature_TryGetTemperatureForCell"/>), so pawns,
-/// plant growth, sowing and everything else that asks a cell for its temperature see the same value.
+/// Vanilla's air temperature of a cell reads it (<see cref="Patches.Patch_GenTemperature_TryGetDirectAirTemperatureForCell"/>),
+/// so pawns, plant growth, sowing, a room's heat exchange through its walls and everything else that asks a cell for its
+/// temperature see the same value; a room's exchange through its roof sees the mean offset of its cells
+/// (<see cref="Patches.Patch_RoomTempTracker_TempDiffFromOutdoorsAdjusted"/>, #159).
 /// </summary>
 public class MapComponent_LocalClimate : MapComponent
 {
@@ -31,6 +33,46 @@ public class MapComponent_LocalClimate : MapComponent
             return 0f;
         UpdateFactors();
         return height[index] + day * sun[index] + night * pool[index];
+    }
+
+    // A room's mean parts (height, sun, pool) over its cells, kept while its cell count stays the same; rooms of a
+    // finished map are collected with it.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Room, RoomParts> roomParts = new();
+
+    private sealed class RoomParts
+    {
+        public int cellCount;
+        public float height, sun, pool;
+    }
+
+    /// <summary>
+    /// The offset (K) of the outdoor air over a room now: the mean of its cells' parts with the current day and night
+    /// factors. What the room exchanges heat with through its roof (#159).
+    /// </summary>
+    public float RoomOffset(Room room)
+    {
+        if (room == null || (height == null && !TryBuild()))
+            return 0f;
+        UpdateFactors();
+        int count = room.CellCount;
+        if (count <= 0)
+            return 0f;
+        if (!roomParts.TryGetValue(room, out RoomParts parts) || parts.cellCount != count)
+        {
+            parts = new RoomParts { cellCount = count };
+            foreach (IntVec3 c in room.Cells)
+            {
+                int i = map.cellIndices.CellToIndex(c);
+                parts.height += height[i];
+                parts.sun += sun[i];
+                parts.pool += pool[i];
+            }
+            parts.height /= count;
+            parts.sun /= count;
+            parts.pool /= count;
+            roomParts.AddOrUpdate(room, parts);
+        }
+        return parts.height + day * parts.sun + night * parts.pool;
     }
 
     /// <summary>
@@ -144,6 +186,14 @@ public class MapComponent_LocalClimate : MapComponent
     private static Map cachedMap;
     private static MapComponent_LocalClimate cachedClimate;
 
+    /// <summary>
+    /// Whether a cell's local offset applies to its air: its room takes the outdoor temperature (vanilla's
+    /// UsesOutdoorTemperature: touches the map edge, or a quarter or more of it unroofed). A room that keeps its own
+    /// temperature gets the offset through its heat exchange instead (walls, roof); a cell with no room (inside rock, a
+    /// wall) takes vanilla's mean of the air around it (#159).
+    /// </summary>
+    public static bool AppliesTo(Room room) => room != null && room.UsesOutdoorTemperature;
+
     /// <summary>The offset of a cell on a map, with the component cached (vanilla asks for cell temperatures often).</summary>
     public static float OffsetAt(Map map, IntVec3 c)
     {
@@ -153,5 +203,19 @@ public class MapComponent_LocalClimate : MapComponent
             cachedClimate = map.GetComponent<MapComponent_LocalClimate>();
         }
         return cachedClimate == null ? 0f : cachedClimate.OffsetAt(map.cellIndices.CellToIndex(c));
+    }
+
+    /// <summary>The offset of the outdoor air over a room (<see cref="RoomOffset(Room)"/>), with the component cached.</summary>
+    public static float RoomOffsetOf(Room room)
+    {
+        Map map = room?.Map;
+        if (map == null)
+            return 0f;
+        if (map != cachedMap)
+        {
+            cachedMap = map;
+            cachedClimate = map.GetComponent<MapComponent_LocalClimate>();
+        }
+        return cachedClimate == null ? 0f : cachedClimate.RoomOffset(room);
     }
 }

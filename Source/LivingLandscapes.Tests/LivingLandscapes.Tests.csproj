@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Compile Include="..\LivingLandscapes\Geology\GridMath.cs" Link="Linked\GridMath.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\RegionalSlopeMath.cs" Link="Linked\RegionalSlopeMath.cs" />
   </ItemGroup>
 
   <ItemGroup>

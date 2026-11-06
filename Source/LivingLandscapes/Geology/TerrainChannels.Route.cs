@@ -19,8 +19,9 @@ public static partial class TerrainChannels
     /// first (both receivers of a cell lie lower, so its donors are done). Water follows steepest descent, but where
     /// the ground also falls away steeply a second way (at least 90 degrees apart) it divides as multiple-flow routing
     /// does: the second way takes slope2^e / (slope1^e + slope2^e), with e the spreading exponent divided by the
-    /// cell's spread nudge. A division is kept only where the second share is itself a channel; otherwise all water
-    /// stays on the main way, so splits form only where a lot of water meets ground falling away two ways.
+    /// cell's spread nudge. A division is kept only where both ways stay channels (each share at least the threshold);
+    /// otherwise all water stays on the main way, so splits form only where a lot of water meets ground falling away two
+    /// ways, and no branch of a channel ends on land short of its base level (P1).
     /// <paramref name="secondaryShare"/> is the share of a cell's water that takes its second way, so what else the water
     /// carries (its sediment load) divides the same way (#118).
     /// </summary>
@@ -71,8 +72,9 @@ public static partial class TerrainChannels
             int second = -1;
             if (p.tolerantRouting && discharge[c] * 0.5f >= threshold)
                 second = TolerantWay(filled, c, r, momentum[c], discharge[c] * scale, filled[c] - baseLevel[c], sizeX, sizeZ, p, out share);
-            // A rejected split gives its share back to the main way, so no water is lost.
-            if (second >= 0 && discharge[c] * share < threshold)
+            // A rejected split gives its share back to the main way, so no water is lost. Both ways must stay channels: a
+            // remainder below the threshold would leave the main way's channel ending on land.
+            if (second >= 0 && !BothChannels(discharge[c], share, threshold))
             {
                 second = -1;
                 share = 0f;
@@ -87,7 +89,7 @@ public static partial class TerrainChannels
                     float a = Mathf.Pow(main, e), b = Mathf.Pow(other, e);
                     // Both powers underflow to 0 on near-flat filled ground with a strong exponent: no split then.
                     share = a + b > 0f ? b / (a + b) : 0f;
-                    if (discharge[c] * share < threshold)
+                    if (!BothChannels(discharge[c], share, threshold))
                     {
                         second = -1;
                         share = 0f;
@@ -113,6 +115,10 @@ public static partial class TerrainChannels
         }
         return discharge;
     }
+
+    /// <summary>Whether dividing <paramref name="q"/> by <paramref name="share"/> leaves both ways at least a channel's discharge.</summary>
+    private static bool BothChannels(float q, float share, float threshold) =>
+        q * share >= threshold && q * (1f - share) >= threshold;
 
     private static Vector2 Step(int from, int to, int sizeX) => new Vector2(to % sizeX - from % sizeX, to / sizeX - from / sizeX).normalized;
 

@@ -7,9 +7,10 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// One temperature map (P23, #90): vanilla's readout above the date shows the map's outdoor temperature for every
-/// outdoor cell under the mouse. It shows the cell's own temperature instead, with its local offset from height, slope
-/// and cold-air pooling, the value pawns and plants on that cell feel. Rooms keep vanilla's readout.
+/// One temperature map (P23, #90, #159): vanilla's readout above the date shows the room's (or the map's outdoor)
+/// temperature for the cell under the mouse. It shows vanilla's own temperature of that cell instead
+/// (<see cref="GenTemperature.TryGetTemperatureForCell"/>, with the local offset where the air is outdoor), the value pawns
+/// and plants on that cell feel, under vanilla's label. A fogged cell keeps vanilla's readout.
 /// </summary>
 [HarmonyPatch(typeof(GlobalControls), "TemperatureString")]
 public static class Patch_GlobalControls_TemperatureString
@@ -25,13 +26,14 @@ public static class Patch_GlobalControls_TemperatureString
         IntVec3 c = UI.MouseCell();
         if (map == null || !c.InBounds(map) || c.Fogged(map))
             return;
-        Room room = c.GetRoom(map);
-        if (room != null && !room.UsesOutdoorTemperature)
+        // Vanilla's text is its label ("Outdoors", "Indoors (unroofed) (5)"), a space, then the temperature.
+        int space = __result.LastIndexOf(' ');
+        if (space <= 0)
             return;
-        string label = "Outdoors".Translate().CapitalizeFirst();
-        if (!__result.StartsWith(label))
+        string label = __result.Substring(0, space);
+        // What gameplay gives this cell, from vanilla's own lookup (with Patch_GenTemperature_TryGetDirectAirTemperatureForCell).
+        if (!GenTemperature.TryGetTemperatureForCell(c, map, out float temperature))
             return;
-        float temperature = map.mapTemperature.OutdoorTemp + MapComponent_LocalClimate.OffsetAt(map, c);
         int degrees = Mathf.RoundToInt(GenTemperature.CelsiusTo(temperature, Prefs.TemperatureMode));
         if (degrees != cachedDegrees || label != cachedLabel || cachedMode != Prefs.TemperatureMode)
         {
