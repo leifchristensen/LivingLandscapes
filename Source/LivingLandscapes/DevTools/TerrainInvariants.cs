@@ -55,5 +55,45 @@ public static class TerrainInvariants
         int regions = GridMath.LabelRegions(i => hollow[i], sizeX, sizeZ, out _);
         summary.AppendLine($"terrain hollows: {(land > 0 ? hollowCells * 100f / land : 0f):F2}% of {land} land cells in {regions} closed hollows " +
                            $"(fill > {HollowDepth} m, no water, not rock), deepest {deepest:F2} m");
+        ClosedHollowBalance(map, summary);
+    }
+
+    /// <summary>
+    /// The water balance of the map's closed hollows (P23 extended, #149): how many stand full to their spill level, part
+    /// full or dry, by floor class, and how many lie below the water table (fed from below). From the drainage's hollow
+    /// balance (<see cref="Drainage.Hollows"/>): hollows deep and large enough to hold a lake.
+    /// </summary>
+    private static void ClosedHollowBalance(Map map, StringBuilder summary)
+    {
+        Drainage drainage = map.GetComponent<Environment.MapComponent_Environment>()?.PlannedDrainage;
+        if (drainage?.Hollows == null)
+            return;
+        var lake = Environment.EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<Layers.SurfaceWaterExtension>() ?? new Layers.SurfaceWaterExtension();
+        FloorSeepageRules rules = FloorSeepageDef.Current.Rules;
+        int classes = rules.ClassNames.Length;
+        var full = new int[classes];
+        var part = new int[classes];
+        var dry = new int[classes];
+        int fed = 0;
+        foreach (Drainage.HollowRecord h in drainage.Hollows)
+        {
+            if (h.WaterTableDepth < 0f)
+                fed++;
+            if (h.Level >= h.Spill - 1e-3f)
+                full[h.FloorClass]++;
+            else if (h.Level - h.Floor < lake.minLakeDepth)
+                dry[h.FloorClass]++;
+            else
+                part[h.FloorClass]++;
+        }
+        var byFloor = new StringBuilder();
+        for (int k = 0; k < classes; k++)
+        {
+            if (full[k] + part[k] + dry[k] > 0)
+                byFloor.Append($" {rules.ClassNames[k]} {full[k] + part[k] + dry[k]} ({full[k]}/{part[k]}/{dry[k]});");
+        }
+        int sum(int[] v) { int t = 0; foreach (int x in v) t += x; return t; }
+        summary.AppendLine($"closed hollows (P23 seepage): {drainage.Hollows.Count} closed; {sum(full)} full, {sum(part)} part-full, {sum(dry)} dry; " +
+                           $"{fed} below the water table; by floor (full/part/dry):" + (byFloor.Length > 0 ? byFloor.ToString() : " none"));
     }
 }
