@@ -82,6 +82,21 @@
           </value>
         </li>
 
+        <!--
+          Bay and Cove: the sea comes from the coast noise (Coastline: the erosion model's base level, P1), so the mutator
+          adds no uplift or hardness of its own. The extension only says the geology models the coast, so vanilla's bay and cove
+          elevation rewrite (zero ground where its own noise is low) stands aside instead of flattening the modelled shore (#153).
+        -->
+        <li Class="PatchOperationAddModExtension">
+          <xpath>Defs/TileMutatorDef[defName="Bay" or defName="Cove"]</xpath>
+          <value>
+            <li Class="LivingLandscapes.Geology.LandformExtension">
+              <upliftInside>0</upliftInside>
+              <upliftOutside>0</upliftOutside>
+            </li>
+          </value>
+        </li>
+
       </operations>
     </match>
   </Operation>

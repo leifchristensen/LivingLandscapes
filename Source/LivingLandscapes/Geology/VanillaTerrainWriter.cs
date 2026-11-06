@@ -35,6 +35,17 @@ public static class VanillaTerrainWriter
             if (environment.TryGetGrid(layer, out Environment.EnvironmentGrid grid))
                 fields.Add(layer.defName, grid.ToArray());
         }
+        // Stagnation: wetness where the water does not move (#187); the marsh and mud rules read this, not wetness.
+        if (environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Wetness, out var wetGrid)
+            && environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Slope, out var slopeGrid))
+        {
+            var moving = Environment.EnvironmentLayerDefOf.LL_Wetness.GetModExtension<GroundWriterExtension>() ?? new GroundWriterExtension();
+            float[] wet = wetGrid.ToArray(), slope = slopeGrid.ToArray();
+            var stagnation = new float[wet.Length];
+            for (int i = 0; i < stagnation.Length; i++)
+                stagnation[i] = Throughflow.Stagnation(wet[i], slope[i] / cellSize, moving.throughflowMovingGradient);
+            fields.Add("Stagnation", stagnation);
+        }
         float[] soil = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SoilDepth, out var soilGrid) ? soilGrid.ToArray() : null;
         float[] landform = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Landform, out var landformGrid) ? landformGrid.ToArray() : null;
         float[] water = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SurfaceWater, out var waterGrid) ? waterGrid.ToArray() : null;
