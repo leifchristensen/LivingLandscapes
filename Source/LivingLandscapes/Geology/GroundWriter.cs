@@ -16,6 +16,22 @@ public class GroundWriterExtension : DefModExtension
     public float fertilitySoilDepth = 0.35f;
     public float fertilityNoise = 0.1f;
 
+    /// <summary>
+    /// Weight of throughflow enrichment (<see cref="Throughflow"/>, #187) in the fertility score and the rich-soil patches: soil
+    /// along drainage lines is darker and richer, uphill of where surface water forms. 0: off.
+    /// </summary>
+    public float fertilityThroughflow = 0.25f;
+
+    /// <summary>Drainage area (log10 cells) where throughflow starts, and where a cell carries it in full.</summary>
+    public float throughflowAreaMin = 1.5f;
+    public float throughflowAreaFull = 3f;
+
+    /// <summary>Gradient (rise over run) at which the water is fully moving; below it saturation tends to stagnate.</summary>
+    public float throughflowMovingGradient = 0.05f;
+
+    /// <summary>Height above the drainage line (metres) over which throughflow falls to 1/e.</summary>
+    public float throughflowReachHeight = 1.5f;
+
     /// <summary>Soil depth (metres) counted as fully deep for the fertility score.</summary>
     public float deepSoil = 2f;
 }
@@ -34,8 +50,20 @@ public static class GroundWriter
     private static readonly AccessTools.FieldRef<TerrainPatchMaker, Map> PatchMap =
         AccessTools.FieldRefAccess<TerrainPatchMaker, Map>("currentlyInitializedForMap");
 
+    /// <summary>Throughflow enrichment per cell from the drainage layers, or null when a layer is missing.</summary>
+    public static float[] ThroughflowOf(float[] drainageArea, float[] slope, float[] heightAboveDrainage, float cellSize, GroundWriterExtension p)
+    {
+        if (drainageArea == null || slope == null || heightAboveDrainage == null)
+            return null;
+        var t = new float[drainageArea.Length];
+        for (int i = 0; i < t.Length; i++)
+            t[i] = Throughflow.Of(drainageArea[i], slope[i] / cellSize, heightAboveDrainage[i],
+                p.throughflowAreaMin, p.throughflowAreaFull, p.throughflowMovingGradient, p.throughflowReachHeight);
+        return t;
+    }
+
     /// <summary>Rewrites the fertility grid and the biome's wet patch makers. Call after the elevation grid is written.</summary>
-    public static void Write(Map map, float[] wetness, float[] soilDepth, GroundWriterExtension p)
+    public static void Write(Map map, float[] wetness, float[] soilDepth, GroundWriterExtension p, float[] throughflow = null)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = wetness.Length;
         var noise = new Perlin(0.05, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
@@ -50,6 +78,7 @@ public static class GroundWriter
             vanilla[i] = fertility[c];
             float deep = Mathf.Clamp01(soilDepth[i] / Mathf.Max(0.01f, p.deepSoil));
             score[i] = p.fertilityWetness * wetness[i] + p.fertilitySoilDepth * deep
+                       + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i])
                        + p.fertilityNoise * (0.5f + 0.5f * (float)noise.GetValue(c.x, 0.0, c.z));
         }
         float[] ranked = RankMap(score, vanilla);
@@ -71,7 +100,7 @@ public static class GroundWriter
             {
                 IntVec3 c = map.cellIndices.IndexToCell(i);
                 reference[i] = (float)own.GetValue(c.x, 0.0, c.z);
-                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityNoise * reference[i];
+                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i]) + p.fertilityNoise * reference[i];
             }
             PatchNoise(maker) = new GridNoise(RankMap(wet, reference), sizeX, sizeZ);
             PatchMap(maker) = map;
