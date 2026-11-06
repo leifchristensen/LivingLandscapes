@@ -41,6 +41,12 @@ public class PlainsFeatureDef : Def
     /// <summary>The tile must have a world river (bluffs along its valley).</summary>
     public bool needsRiver;
 
+    /// <summary>
+    /// The region must slope (<see cref="WorldContext.Downhill"/>): a feature that faces the slope, such as an escarpment
+    /// at the edge of higher ground. A plain among plains has no slope, so it gets none.
+    /// </summary>
+    public bool needsSlope;
+
     /// <summary>Relative chance among the features whose conditions hold.</summary>
     public float weight = 1f;
 
@@ -66,6 +72,8 @@ public class PlainsFeatureDef : Def
         if (!hilliness.Contains(world.Hilliness))
             return false;
         if (needsRiver && !world.HasRiver)
+            return false;
+        if (needsSlope && world.Downhill == Vector2.zero)
             return false;
         return rockTypes.Count == 0 || rocks.Any(r => rockTypes.Contains(r.defName));
     }

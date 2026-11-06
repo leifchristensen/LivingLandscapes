@@ -18,6 +18,7 @@
     <Compile Include="..\LivingLandscapes\Geology\GridMath.cs" Link="Linked\GridMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterBalanceMath.cs" Link="Linked\WaterBalanceMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\FloorSeepageRules.cs" Link="Linked\FloorSeepageRules.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\RegionalSlopeMath.cs" Link="Linked\RegionalSlopeMath.cs" />
   </ItemGroup>
 
   <ItemGroup>

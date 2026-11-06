@@ -168,7 +168,7 @@
       <discharge>2</discharge>
       <depth>0.6</depth>
     </nudges>
-    <order>21</order>
+    <order>18</order>
     <mutators><li>DryGround</li></mutators>
     <sourceShare>0.04~0.06</sourceShare>
     <floodplainScale>0.5</floodplainScale>

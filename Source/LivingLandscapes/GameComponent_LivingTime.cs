@@ -51,6 +51,11 @@ public class GameComponent_LivingTime : GameComponent
         clock.ticks += (double)gameTicks * Scale;
     }
 
+    // Scale is static, so it would outlive the game it was set in: a new or loaded game starts at 1, as documented.
+    public override void StartedNewGame() => Scale = 1;
+
+    public override void LoadedGame() => Scale = 1;
+
     public override void GameComponentTick()
     {
         EnsureStarted();
