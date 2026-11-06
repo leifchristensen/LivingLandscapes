@@ -37,7 +37,7 @@ public class LandformWorker : EnvironmentLayerWorker
         if (StageFor(map) == GenerationStage.Elevation)
         {
             float[] generated = LandscapeGenerator.Generate(map, generation, out WorldContext world, out WaterRegimeDef water, out var channels,
-                out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage);
+                out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage, out ErosionFields erosion);
             // Channels from the landform's own drainage, sized by discharge and carved to a never-rising water surface
             // (Docs/WATER-AUDIT.md). The river system isn't on the map yet, so its regime's climate offset is added here.
             float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
@@ -70,6 +70,7 @@ public class LandformWorker : EnvironmentLayerWorker
                 environment.PlannedSinks = rivers.Sink;
                 environment.PlannedRockStrength = rockStrength;
                 environment.PlannedRockStage = rockStage;
+                environment.PlannedErosion = erosion;
                 environment.PlannedRock = rock;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +

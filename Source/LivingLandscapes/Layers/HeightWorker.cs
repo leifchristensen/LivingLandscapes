@@ -1,3 +1,4 @@
+using UnityEngine;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Geology;
 using Verse;
@@ -23,7 +24,15 @@ public class HeightWorker : EnvironmentLayerWorker
         var p = def.GetModExtension<TerraceExtension>() ?? new TerraceExtension();
         float cellSize = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).cellSize;
         // The one terrace plan of the map, from the full-precision landform; the cliffs are placed from it too.
-        TerracePlan plan = Terraces.Plan(landform, context.SizeX, context.SizeZ, cellSize, p, context.Environment.PlannedRockStage,
+        float[] stageLayer = context.Get(EnvironmentLayerDefOf.LL_RockStage);
+        int[] rockStage = null;
+        if (stageLayer != null)
+        {
+            rockStage = new int[stageLayer.Length];
+            for (int i = 0; i < rockStage.Length; i++)
+                rockStage[i] = Mathf.RoundToInt(stageLayer[i]);
+        }
+        TerracePlan plan = Terraces.Plan(landform, context.SizeX, context.SizeZ, cellSize, p, rockStage,
             context.Get(EnvironmentLayerDefOf.LL_Slope));
         context.Environment.PlannedTerraces = plan;
         return Terraces.Apply(landform, plan, p);

@@ -36,6 +36,9 @@ public class MapComponent_Environment : MapComponent
     /// </summary>
     public float[] PlannedRockStrength { get; set; }
 
+    /// <summary>Erodibility and deposition the erosion model computed (hand-off to the LL_Erodibility and LL_Deposition workers). Not saved.</summary>
+    public Geology.ErosionFields PlannedErosion { get; set; }
+
     /// <summary>
     /// Sea stacks (issue #60): resistant rock near the shore that waves left standing above the sea. The coast mutator leaves
     /// it land; it is bare rock, not deep soil.

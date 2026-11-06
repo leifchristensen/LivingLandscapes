@@ -176,7 +176,7 @@ public static class LandscapeGenerator
     public static PlainsFeatureDef PlainsFeature;
 
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
-        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
+        out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage, out ErosionFields erosion)
     {
         world = WorldContext.For(map, p.tileSpacingMetres, p);
         water = WaterRegimes.Select(map, world);
@@ -268,7 +268,7 @@ public static class LandscapeGenerator
             };
         }
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out float[] baseLevel, floor, observe, WaterBalance.LakeShare(map, out _));
+            out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, floor, observe, WaterBalance.LakeShare(map, out _));
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -332,6 +332,9 @@ public static class LandscapeGenerator
         rockStrength = new float[sizeX * sizeZ];
         rock = new ThingDef[sizeX * sizeZ];
         rockStage = new int[sizeX * sizeZ];
+        erosion = new ErosionFields { Erodibility = new float[sizeX * sizeZ], Deposition = new float[sizeX * sizeZ] };
+        // Model height units to metres, as the landform below: (value - min) / (max - min) * relief.
+        float metresPerModelHeight = relief / Mathf.Max(max - min, 1e-6f);
         var resistant = new float[sizeX * sizeZ];
         for (int z = 0; z < sizeZ; z++)
         {
@@ -343,6 +346,10 @@ public static class LandscapeGenerator
                 rockStrength[z * sizeX + x] = strata.Strength(site, bedHeight);
                 rock[z * sizeX + x] = strata.RockAt(site, bedHeight);
                 rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
+                // Erodibility K the model used: the landform's factor times the exposed bed's (P2). Deposition: what the rivers laid down and kept.
+                float modelX = originX + x / mapCellsPerModelCell, modelZ = originZ + z / mapCellsPerModelCell;
+                erosion.Erodibility[z * sizeX + x] = Bilinear(erodibility, gx, gz, modelX, modelZ) * strata.Erodibility(site, bedHeight);
+                erosion.Deposition[z * sizeX + x] = Bilinear(deposited, gx, gz, modelX, modelZ) * metresPerModelHeight;
                 resistant[z * sizeX + x] = site.hard;
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
@@ -642,7 +649,7 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, System.Action<float[], float[]> baseLevels, float[] inflow, float[] seaDepth,
         float relief, int gx, int gz, GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, float[] initialFloor = null,
+        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, out float[] depositedOut, float[] initialFloor = null,
         System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity)
     {
         int n = gx * gz;
@@ -676,6 +683,8 @@ public static class LandscapeGenerator
         // Sediment: the load each cell passes on.
         var eroded = new float[n];
         var load = new float[n];
+        // Deposit still standing at each cell (model height units): added by Deposit, worn off again when the cell incises. Only read out.
+        var deposited = new float[n];
 
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
@@ -790,9 +799,11 @@ public static class LandscapeGenerator
                 float before = h[c];
                 h[c] = (h[c] + f * h[r]) / (1f + f);
                 eroded[c] = Mathf.Max(0f, before - h[c]);
+                // Cutting into a cell removes its deposit first.
+                deposited[c] = Mathf.Max(0f, deposited[c] - eroded[c]);
             }
             if (p.deposition > 0f)
-                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, p);
+                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, deposited, p);
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
@@ -806,6 +817,7 @@ public static class LandscapeGenerator
         receiverOut = receiver;
         areaOut = area;
         baseLevelOut = baseLevel;
+        depositedOut = deposited;
         modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
     }
@@ -817,7 +829,7 @@ public static class LandscapeGenerator
     /// settles there, up to the lake's level.
     /// </summary>
     private static void Deposit(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area, int[] stack, int count,
-        bool[] outlet, bool[] sink, float[] baseLevel, GeologyGenerationExtension p)
+        bool[] outlet, bool[] sink, float[] baseLevel, float[] deposited, GeologyGenerationExtension p)
     {
         int n = h.Length;
         Array.Clear(load, 0, n);
@@ -843,10 +855,15 @@ public static class LandscapeGenerator
             {
                 float keep = Mathf.Min(load[c], p.deposition * load[c] / Mathf.Max(area[c], 1f));
                 h[c] += keep;
+                deposited[c] += keep;
                 load[r] += load[c] - keep;
             }
             else if (sink[c])
+            {
+                float before = h[c];
                 h[c] = Mathf.Min(h[c] + load[c], baseLevel[c]);
+                deposited[c] += Mathf.Max(0f, h[c] - before);
+            }
         }
     }
 

@@ -175,6 +175,7 @@
     <unit>m</unit>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_RockStage</li>
       <li>LL_Slope</li>
     </dependsOn>
     <modExtensions>
@@ -201,6 +202,68 @@
     <dependsOn>
       <li>LL_Landform</li>
     </dependsOn>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_RockStage</defName>
+    <label>rock stage</label>
+    <description>Hard beds below each cell's surface: the count of resistant rock beds the ground has been cut down through. The terrace stages follow it. Only with geological terrain on.</description>
+    <workerClass>LivingLandscapes.Layers.RockStageWorker</workerClass>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <toggle>false</toggle>
+      <labelFormat>0</labelFormat>
+      <fillOpacity>0.6</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.85, 0.85, 0.9, 0.1)</color></li>
+        <li><value>2</value><color>(0.6, 0.55, 0.7, 0.5)</color></li>
+        <li><value>6</value><color>(0.3, 0.2, 0.45, 0.85)</color></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Erodibility</defName>
+    <label>erodibility</label>
+    <description>How readily the ground wears under flowing water (K in the stream-power law): the landform's factor times the exposed rock bed's. 1 is average rock, higher is weak rock that cuts fast. Only with geological terrain on.</description>
+    <workerClass>LivingLandscapes.Layers.ErodibilityWorker</workerClass>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <toggle>false</toggle>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.6</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.25, 0.25, 0.3, 0.8)</color><label>hard rock</label></li>
+        <li><value>1</value><color>(0.8, 0.75, 0.6, 0.4)</color><label>average</label></li>
+        <li><value>3</value><color>(0.85, 0.45, 0.2, 0.85)</color><label>weak rock</label></li>
+      </colors>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_Deposition</defName>
+    <label>deposition</label>
+    <description>Metres of deposit the erosion model's rivers left standing in the landform, regionally: where the load slows and drops. The model-scale cousin of alluvium, which is the thin channel-scale layer laid on top of it; the two are not the same material and are not summed.</description>
+    <workerClass>LivingLandscapes.Layers.DepositionWorker</workerClass>
+    <precision>UShort</precision>
+    <unit>m</unit>
+    <dependsOn>
+      <li>LL_Landform</li>
+    </dependsOn>
+    <overlay>
+      <toggle>false</toggle>
+      <labelFormat>0.0</labelFormat>
+      <fillOpacity>0.75</fillOpacity>
+      <colors>
+        <li><value>0</value><color>(0.9, 0.8, 0.5, 0)</color></li>
+        <li><value>1</value><color>(0.9, 0.8, 0.5, 0.4)</color></li>
+        <li><value>10</value><color>(0.55, 0.35, 0.15, 0.95)</color></li>
+      </colors>
+    </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
 
   <LivingLandscapes.Environment.EnvironmentLayerDef>
