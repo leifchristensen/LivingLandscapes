@@ -22,6 +22,12 @@ public class GroundWriterExtension : DefModExtension
     /// </summary>
     public float fertilityThroughflow = 0.7f;
 
+    /// <summary>
+    /// Rich soil covers this many times the biome's vanilla share of the map. Throughflow spreads rich soil out of patches
+    /// into lines, which would leave fewer contiguous rich zones to plant crops in; the larger share makes up for it (#187).
+    /// </summary>
+    public float richSoilScale = 1.3f;
+
     /// <summary>Drainage area (log10 cells) where throughflow starts, and where a cell carries it in full.</summary>
     public float throughflowAreaMin = 1f;
     public float throughflowAreaFull = 2.5f;
@@ -81,7 +87,10 @@ public static class GroundWriter
                        + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i])
                        + p.fertilityNoise * (0.5f + 0.5f * (float)noise.GetValue(c.x, 0.0, c.z));
         }
-        float[] ranked = RankMap(score, vanilla);
+        // The biome's richest soil class begins at its last fertility threshold; it covers richSoilScale times its vanilla share.
+        List<TerrainThreshold> soils = map.Biome.terrainsByFertility;
+        float richFrom = soils.NullOrEmpty() ? float.PositiveInfinity : soils[soils.Count - 1].min;
+        float[] ranked = RankMath.Map(score, vanilla, p.richSoilScale, richFrom);
         for (int i = 0; i < n; i++)
             fertility[map.cellIndices.IndexToCell(i)] = ranked[i];
 
@@ -102,7 +111,7 @@ public static class GroundWriter
                 reference[i] = (float)own.GetValue(c.x, 0.0, c.z);
                 wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i]) + p.fertilityNoise * reference[i];
             }
-            PatchNoise(maker) = new GridNoise(RankMap(wet, reference), sizeX, sizeZ);
+            PatchNoise(maker) = new GridNoise(RankMath.Map(wet, reference), sizeX, sizeZ);
             PatchMap(maker) = map;
             wetMakers++;
         }
@@ -123,22 +132,6 @@ public static class GroundWriter
                 return true;
         }
         return false;
-    }
-
-    /// <summary>Gives each cell the reference value of the same rank its score has: highest score, highest value.</summary>
-    private static float[] RankMap(float[] score, float[] reference)
-    {
-        int n = score.Length;
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        Array.Sort(order, (a, b) => score[a].CompareTo(score[b]));
-        var sorted = (float[])reference.Clone();
-        Array.Sort(sorted);
-        var result = new float[n];
-        for (int k = 0; k < n; k++)
-            result[order[k]] = sorted[k];
-        return result;
     }
 
     /// <summary>A precomputed per-cell value served as noise.</summary>

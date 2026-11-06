@@ -425,6 +425,7 @@
         <deepSoil>2</deepSoil>
         <!-- Throughflow enrichment (#187, Geology/Throughflow.cs): moving water in saturated subsoil along drainage lines. -->
         <fertilityThroughflow>0.7</fertilityThroughflow>
+        <richSoilScale>1.3</richSoilScale>
         <throughflowAreaMin>1</throughflowAreaMin>
         <throughflowAreaFull>2.5</throughflowAreaFull>
         <throughflowMovingGradient>0.03</throughflowMovingGradient>
