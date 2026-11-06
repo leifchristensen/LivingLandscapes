@@ -12,15 +12,22 @@ public static class TopologyBandMath
     /// <summary>Colours in the base palette; maps with this many bands or fewer use it as is.</summary>
     public const int PaletteSize = 7;
 
-    /// <summary>Bands needed to cover min..max: ceil(relief / interval), at least 1 (a flat map is one band).</summary>
+    /// <summary>Lowest band edge: the multiple of the interval at or below the map minimum, so band edges are the same
+    /// heights on every map and coincide with the thick (index) contour lines.</summary>
+    public static float Origin(float min, float interval)
+    {
+        return interval <= 0f ? min : (float)Math.Floor(min / interval) * interval;
+    }
+
+    /// <summary>Bands needed to cover min..max: ceil((max - origin) / interval), at least 1 (a flat map is one band).</summary>
     public static int BandCount(float min, float max, float interval)
     {
         if (interval <= 0f || max <= min)
             return 1;
-        return Math.Max(1, (int)Math.Ceiling((max - min) / interval - 1e-4));
+        return Math.Max(1, (int)Math.Ceiling((max - Origin(min, interval)) / interval - 1e-4));
     }
 
-    /// <summary>Band a value falls in, 0 = lowest. The top edge belongs to the top band.</summary>
+    /// <summary>Band a value falls in, 0 = lowest. <paramref name="min"/> is the band origin. The top edge belongs to the top band.</summary>
     public static int BandIndex(float value, float min, float interval, int count)
     {
         if (interval <= 0f)

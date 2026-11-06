@@ -44,7 +44,7 @@ public class OverlayProperties
 
     /// <summary>
     /// Fixed band height in layer units (#190); 0 keeps bands tied to <see cref="contourInterval"/>. When set, a banded
-    /// layer fills one flat colour per band of this height counted up from the map's minimum, with colours taken from
+    /// layer fills one flat colour per band of this height on absolute multiples of the interval, with colours taken from
     /// the 7-colour palette sampled off the ramp (more bands interpolate between them). Independent of the contour
     /// lines, which keep their own relief-class interval (#89).
     /// </summary>
@@ -149,7 +149,7 @@ public class OverlayProperties
             float t = k / (palette.Length - 1f);
             palette[k] = Evaluate(relativeColors ? t : Mathf.Lerp(min, max, t));
         }
-        bandMin = min;
+        bandMin = TopologyBandMath.Origin(min, bandInterval);
         bandColors = new Color[count];
         for (int b = 0; b < count; b++)
         {
