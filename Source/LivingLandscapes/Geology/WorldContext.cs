@@ -102,6 +102,7 @@ public class WorldContext
         {
             context.SeaDirection = sea.normalized;
             downhill += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
+            fall += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
         }
         if (downhill.sqrMagnitude > 1e-6f)
         {
@@ -138,15 +139,21 @@ public class WorldContext
             context.RiverFlow = context.RiverInflows.Count > 0
                 ? (context.RiverExit - context.RiverInflows[0].From).normalized
                 : context.RiverExit;
+            // A world river is the drainage the region's fall belongs to, so its map keeps the whole fall to the neighbours,
+            // unweighted by relief contrast: a plain river still runs down the world's slope.
+            if (fall.sqrMagnitude > 1e-6f)
+            {
+                context.Downhill = fall.normalized;
+                context.RegionalGradient = fall.magnitude / Mathf.Max(1, neighbours.Count) / tileSpacingMetres;
+            }
             // A river runs down the regional slope: the tile elevations of the neighbours are coarse and can point anywhere, so where the
             // world gives a river the map slopes the way the river flows. (Otherwise water entering would have to climb to its exit.)
             if (context.RiverFlow.sqrMagnitude > 1e-6f && Vector2.Dot(context.Downhill, context.RiverFlow.normalized) < RiverAgreement)
             {
                 context.Downhill = context.RiverFlow.normalized;
+                if (context.RegionalGradient <= 0f)
+                    context.RegionalGradient = 0.0005f;
             }
-            // A world river is the drainage the region's fall belongs to, so its map keeps the whole fall to the
-            // neighbours (unweighted by relief contrast) along the river's course: a plain river still runs downhill.
-            context.RegionalGradient = Mathf.Max(context.RegionalGradient, fall.magnitude / Mathf.Max(1, neighbours.Count) / tileSpacingMetres, 0.0005f);
             Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
             context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
             Rand.PopState();
