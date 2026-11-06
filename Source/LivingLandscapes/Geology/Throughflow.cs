@@ -23,10 +23,19 @@ public static class Throughflow
         float areaMin, float areaFull, float movingGradient, float reachHeight)
     {
         float convergence = Clamp01((drainageAreaLog10 - areaMin) / Math.Max(areaFull - areaMin, 1e-4f));
-        float moving = Clamp01(gradient / Math.Max(movingGradient, 1e-4f));
+        float moving = Moving(gradient, movingGradient);
         float reach = (float)Math.Exp(-Math.Max(0f, heightAboveDrainage) / Math.Max(reachHeight, 1e-4f));
         return convergence * moving * reach;
     }
+
+    /// <summary>M: 0 on level ground, 1 once the gradient reaches <paramref name="movingGradient"/>.</summary>
+    public static float Moving(float gradient, float movingGradient) => Clamp01(gradient / Math.Max(movingGradient, 1e-4f));
+
+    /// <summary>
+    /// Stagnant saturation = wetness x (1 - M): wet ground the water does not move through (gleying, peat, marsh and mud).
+    /// Wet ground on a grade is flowing water, which enriches instead (<see cref="Of"/>).
+    /// </summary>
+    public static float Stagnation(float wetness, float gradient, float movingGradient) => wetness * (1f - Moving(gradient, movingGradient));
 
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }
