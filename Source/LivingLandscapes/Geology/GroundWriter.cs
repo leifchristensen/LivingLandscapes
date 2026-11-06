@@ -35,6 +35,15 @@ public class GroundWriterExtension : DefModExtension
     /// <summary>Gradient (rise over run) at which the water is fully moving; below it saturation tends to stagnate.</summary>
     public float throughflowMovingGradient = 0.03f;
 
+    /// <summary>
+    /// Thin, branching lines: throughflow is weighted by how far a cell's drainage area stands above its surroundings
+    /// (<see cref="Throughflow.Profile"/>): blur radius (cells), the log10 area excess that counts as the axis, and how much
+    /// the profile applies (0: lines as wide as the flow's spread; 1: only the axis).
+    /// </summary>
+    public float throughflowProfileSigma = 2f;
+    public float throughflowProfileRange = 0.3f;
+    public float throughflowThinning = 0.85f;
+
     /// <summary>Height above the drainage line (metres) over which throughflow falls to 1/e.</summary>
     public float throughflowReachHeight = 2.5f;
 
@@ -60,13 +69,14 @@ public static class GroundWriter
         AccessTools.FieldRefAccess<TerrainPatchMaker, Map>("currentlyInitializedForMap");
 
     /// <summary>Throughflow enrichment per cell from the drainage layers, or null when a layer is missing.</summary>
-    public static float[] ThroughflowOf(float[] drainageArea, float[] slope, float[] heightAboveDrainage, float cellSize, GroundWriterExtension p)
+    public static float[] ThroughflowOf(float[] drainageArea, float[] slope, float[] heightAboveDrainage, float cellSize, GroundWriterExtension p, int sizeX, int sizeZ)
     {
         if (drainageArea == null || slope == null || heightAboveDrainage == null)
             return null;
         var t = new float[drainageArea.Length];
+        float[] surrounding = GridMath.Blur(drainageArea, sizeX, sizeZ, p.throughflowProfileSigma);
         for (int i = 0; i < t.Length; i++)
-            t[i] = Throughflow.Of(drainageArea[i], slope[i] / cellSize, heightAboveDrainage[i],
+            t[i] = Throughflow.Profile(drainageArea[i], surrounding[i], p.throughflowProfileRange, p.throughflowThinning) * Throughflow.Of(drainageArea[i], slope[i] / cellSize, heightAboveDrainage[i],
                 p.throughflowAreaMin, p.throughflowAreaFull, p.throughflowMovingGradient, p.throughflowReachHeight);
         return t;
     }

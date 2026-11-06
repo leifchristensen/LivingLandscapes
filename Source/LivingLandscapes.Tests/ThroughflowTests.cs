@@ -46,4 +46,13 @@ public class ThroughflowTests
         Assert.Equal(0f, Throughflow.Stagnation(0.9f, 0.1f, 0.03f), 4);
         Assert.InRange(Throughflow.Stagnation(0.9f, 0.015f, 0.03f), 0.44f, 0.46f);
     }
+
+    [Fact]
+    public void ProfilePeaksOnTheAxisAndFadesOnTheFlanks()
+    {
+        Assert.Equal(1f, Throughflow.Profile(3f, 2.5f, 0.3f, 1f), 4);     // axis: well above its surroundings
+        Assert.Equal(0f, Throughflow.Profile(2.5f, 2.5f, 0.3f, 1f), 4);   // flank: level with them
+        Assert.Equal(1f, Throughflow.Profile(2.5f, 2.5f, 0.3f, 0f), 4);   // thinning 0 ignores the profile
+        Assert.Equal(0.15f, Throughflow.Profile(2.5f, 2.5f, 0.3f, 0.85f), 4);
+    }
 }

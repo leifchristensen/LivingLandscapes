@@ -45,7 +45,7 @@ public static class Patch_GenStep_ElevationFertility_Generate
             {
                 float[] Layer(EnvironmentLayerDef def) => environment.TryGetGrid(def, out EnvironmentGrid g) ? g.ToArray() : null;
                 float[] throughflow = GroundWriter.ThroughflowOf(Layer(EnvironmentLayerDefOf.LL_DrainageArea), Layer(EnvironmentLayerDefOf.LL_Slope),
-                    Layer(EnvironmentLayerDefOf.LL_HeightAboveDrainage), generation.cellSize, ground);
+                    Layer(EnvironmentLayerDefOf.LL_HeightAboveDrainage), generation.cellSize, ground, map.Size.x, map.Size.z);
                 GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground, throughflow, Layer(EnvironmentLayerDefOf.LL_SurfaceWater));
             }
             Gameplay.SettlementSiting.Plan(map, environment);
