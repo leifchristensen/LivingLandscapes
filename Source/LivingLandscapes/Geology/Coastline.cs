@@ -39,6 +39,18 @@ public class CoastlineExtension
     public float stackHardness = 0.6f;
     public float stackHeight = 6f;
 
+    /// <summary>
+    /// The coastal plain is as wide as the sea's shelf times this: one passive-margin feature (low coasts: wide shelf and wide plain;
+    /// steep coasts: narrow both). Uplift fades to zero toward the sea over it (<see cref="CoastMath.PlainUplift"/>).
+    /// </summary>
+    public float plainShelfRatio = 0.6f;
+
+    /// <summary>Lowest metres per cell the ground climbs from the sea across the coastal plain: a graded plain keeps a lowland river's slope.</summary>
+    public float plainGradient = 0.006f;
+
+    /// <summary>Width of the coastal plain in map cells.</summary>
+    public float PlainWidthFor(Hilliness hilliness) => plainShelfRatio * ShelfWidthFor(hilliness);
+
     public float ShelfWidthFor(Hilliness hilliness)
     {
         switch (hilliness)
@@ -60,28 +72,17 @@ public class CoastlineExtension
             ? shelfDepth * cellsOffshore / shelf
             : Mathf.Min(maxDepth, shelfDepth + slopeGradient * (cellsOffshore - shelf));
     }
-
-    /// <summary>
-    /// The beach is land, loose sand above the water: from the waterline it rises beachRise metres per cell to a berm beachBerm
-    /// metres above the sea. Water behind it (a stream, a lagoon) has to cross it to reach the sea.
-    /// </summary>
-    public float beachRise = 0.05f;
-    public float beachBerm = 0.2f;
-
-    /// <summary>How far inland the land is drawn down to the beach, in the coast noise's units (0.1 is a tenth of the map's width).</summary>
-    public float landFalloff = 0.22f;
-
-    /// <summary>Metres the coastal plain rises per cell inland: it slopes gently to the sea instead of lying dead level, so water on it still has somewhere to go.</summary>
-    public float plainSlope = 0.012f;
 }
 
 /// <summary>
 /// The sea as the lowest ground (Docs/GAMEPLAY-PLAN.md, issue #43). Vanilla's coast mutator paints ocean where its own coast
 /// noise falls below a threshold, long after the landform exists, so the geology had a sea that was no lower than the shore
-/// (and rivers and drainage ended at the map edge, not in the sea). Here the landform is shaped by the same noise: where the
-/// mutator will paint water the ground falls below the beach, deeper with distance from the shore, and inland ground is eased
-/// down to the beach level so every slope near the coast runs to the sea. Applies to every tile mutator that paints a
-/// coast with <c>TileMutatorWorker_Coast</c> (coast, bay, cove, peninsula...), reading its own noise and thresholds.
+/// (and rivers and drainage ended at the map edge, not in the sea). Here the erosion model takes the same noise as its sea
+/// (<see cref="TryOffshore"/>, the base level of P1), so the land beside the shore is graded to the water by the model itself and
+/// <see cref="Apply"/> writes only the sea floor (bathymetry, issue #77): where the mutator will paint water the ground falls
+/// below the sea level, deeper with distance from the shore. The beach band between the water and the sand limit is land of the
+/// model, so a river or creek crosses it to the sea. Applies to every tile mutator that paints a coast with
+/// <c>TileMutatorWorker_Coast</c> (coast, bay, cove, peninsula...), reading its own noise and thresholds.
 /// </summary>
 public static class Coastline
 {
@@ -120,6 +121,12 @@ public static class Coastline
         return CoastCells(map, beach: true);
     }
 
+    /// <summary>Cells the map's coast mutator paints as water (its coast noise below the water limit): the sea of the model; null without a coast.</summary>
+    public static bool[] WaterCells(Map map)
+    {
+        return CoastCells(map, beach: false);
+    }
+
     /// <summary>The beach: cells the coast mutator paints as sand, between its water and the land (loose sand); null without a coast.</summary>
     public static bool[] BeachCells(Map map)
     {
@@ -147,8 +154,9 @@ public static class Coastline
     }
 
     /// <summary>
-    /// How far offshore each point lies (0 at the shore, 1 at the coast noise's deepest), for any map coordinates, including
-    /// beyond the map's edges (the erosion model's region); negative on land. False on tiles without a coast.
+    /// How far offshore each point lies (0 at the waterline, 1 at the coast noise's deepest), for any map coordinates, including
+    /// beyond the map's edges (the erosion model's region); negative on land, the beach band (water limit to sand limit) included:
+    /// the sea is the water, and the beach is land the water has to cross. False on tiles without a coast.
     /// </summary>
     public static bool TryOffshore(Map map, out System.Func<float, float, float> offshore)
     {
@@ -156,7 +164,7 @@ public static class Coastline
         offshore = null;
         if (coast == null)
             return false;
-        float shore = SandLimit(coast);
+        float shore = WaterLimit(coast);
         offshore = (x, z) => (shore - NoiseAt(coast, new IntVec3(Mathf.RoundToInt(x), 0, Mathf.RoundToInt(z)))) / Mathf.Max(shore, 0.01f);
         return true;
     }
@@ -188,86 +196,69 @@ public static class Coastline
     }
 
     /// <summary>
-    /// Reshapes <paramref name="height"/> (metres above sea level) around the map's coast mutators; resistant rock near the
-    /// shore (<paramref name="resistant"/>, 0..1 per cell) stays as sea stacks. Returns the number of sea cells.
+    /// Writes the sea floor of the map's coast mutators into <paramref name="height"/> (metres): the shelf profile below
+    /// <paramref name="seaLevel"/>, the model's base level (see <see cref="CoastMath"/>). Land is not touched: the erosion model
+    /// grades it to that level. Resistant rock near the shore (<paramref name="resistant"/>, 0..1 per cell) stays standing in
+    /// the water as sea stacks (#60 moves them into the model). Returns the number of sea cells.
     /// </summary>
-    public static int Apply(Map map, float[] height, CoastlineExtension p, float[] resistant = null)
+    public static int Apply(Map map, float[] height, float seaLevel, CoastlineExtension p, float[] resistant = null)
     {
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
             return 0;
-        int sizeX = map.Size.x, n = height.Length;
-        float shore = SandLimit(coast);
-        float[] mapNoise = NoiseOver(map, coast);
-        var noise = new float[n];
-        var land = new System.Collections.Generic.List<float>();
-        for (int i = 0; i < n; i++)
-        {
-            noise[i] = mapNoise[i];
-            if (noise[i] >= shore)
-                land.Add(height[i]);
-        }
-        if (land.Count == 0)
-            return 0;
-        // The beach: the low end of the land (a coastal plain), so no inland ground has to run uphill to reach it.
-        land.Sort();
-        float beach = land[Mathf.Min(land.Count - 1, land.Count / 50)];
-        int sizeZ = n / sizeX;
-        // The water's edge: below it the sea floor, above it the beach (land: loose sand) up to the sand limit.
+        int sizeX = map.Size.x, n = height.Length, sizeZ = n / sizeX;
+        float[] noise = NoiseOver(map, coast);
         float waterline = WaterLimit(coast);
-        float[] fromLand = GridMath.DistanceTo(i => noise[i] >= waterline, sizeX, sizeZ);
-        float[] fromWater = GridMath.DistanceTo(i => noise[i] < waterline, sizeX, sizeZ);
+        var water = new bool[n];
+        bool any = false;
+        for (int i = 0; i < n; i++)
+            any |= water[i] = noise[i] < waterline;
+        if (!any)
+            return 0;
+        float[] fromLand = GridMath.DistanceTo(i => !water[i], sizeX, sizeZ);
         Hilliness hilliness = map.TileInfo.hilliness;
         bool[] stacks = null;
-        int sea = 0, stackCells = 0;
-        for (int i = 0; i < n; i++)
+        int stackCells = 0;
+        System.Func<int, bool> isStack = null;
+        if (resistant != null)
         {
-            if (noise[i] < shore && resistant != null && fromLand[i] <= p.stackReach && Core(resistant, i, sizeX, sizeZ, p.stackHardness))
+            // Waves cut the softer rock round a resistant body and leave it standing.
+            stacks = new bool[n];
+            for (int i = 0; i < n; i++)
             {
-                // Waves cut the softer rock round a resistant body and leave it standing.
-                stacks ??= new bool[n];
-                stacks[i] = true;
-                height[i] = beach + p.stackHeight * resistant[i];
-                stackCells++;
+                if (water[i] && fromLand[i] <= p.stackReach && Core(resistant, i, sizeX, sizeZ, p.stackHardness))
+                {
+                    stacks[i] = true;
+                    stackCells++;
+                }
             }
-            else if (noise[i] < waterline)
-            {
-                height[i] = beach - p.SeaDepth(fromLand[i], hilliness) - 0.3f;
-                sea++;
-            }
-            else if (noise[i] < shore)
-                height[i] = beach + Mathf.Min(p.beachRise * fromWater[i], p.beachBerm);
-            else
-            {
-                float inland = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(shore, shore + p.landFalloff, noise[i]));
-                float plain = beach + p.plainSlope * (noise[i] - shore) * sizeX;
-                height[i] = Mathf.Lerp(plain, height[i], inland);
-            }
+            if (stackCells == 0)
+                stacks = null;
+            isStack = i => stacks != null && stacks[i];
         }
-        // Delta setting (evaluation): land near the shore below the sea (incised valleys), and how much of it is low plain.
-        float[] toSea = GridMath.DistanceTo(i => noise[i] < shore, sizeX, sizeZ);
-        int near = 0, below = 0, low = 0;
+        int sea = CoastMath.ShapeSeaFloor(height, water, fromLand, seaLevel, cells => p.SeaDepth(cells, hilliness), isStack, resistant, p.stackHeight);
+        // Evaluation: how much land beside the sea the model left below its base level (should be none but micro-relief).
+        float[] toSea = GridMath.DistanceTo(i => water[i], sizeX, sizeZ);
+        int near = 0, below = 0;
         float deepest = 0f;
         for (int i = 0; i < n; i++)
         {
-            if (noise[i] < shore || toSea[i] > 30f)
+            if (water[i] || toSea[i] > 30f)
                 continue;
             near++;
-            if (height[i] < beach)
+            if (height[i] < seaLevel)
             {
                 below++;
-                deepest = Mathf.Max(deepest, beach - height[i]);
+                deepest = Mathf.Max(deepest, seaLevel - height[i]);
             }
-            if (height[i] < beach + 2f)
-                low++;
         }
-        Log.Message($"[LivingLandscapes] Coast setting: of {near} land cells within 30 of the shore, {below} lie below the beach (deepest {deepest:F1} m), " +
-                    $"{low} ({(float)low / Mathf.Max(1, near):P0}) within 2 m above it; shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}); {stackCells} cells of sea stacks.");
+        Log.Message($"[LivingLandscapes] Coast setting: of {near} land cells within 30 of the sea, {below} lie below its level (deepest {deepest:F2} m); " +
+                    $"shelf {p.ShelfWidthFor(hilliness):F0} cells wide ({hilliness}); {stackCells} cells of sea stacks.");
         var plan = map.GetComponent<Environment.MapComponent_Environment>();
         if (plan != null)
         {
             plan.PlannedStacks = stacks;
-            plan.PlannedSeaLevel = beach;
+            plan.PlannedSeaLevel = seaLevel;
             plan.PlannedShallowDepth = p.shallowWaterDepth;
         }
         return sea;

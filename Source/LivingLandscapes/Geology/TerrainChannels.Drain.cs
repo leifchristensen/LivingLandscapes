@@ -255,6 +255,9 @@ public static partial class TerrainChannels
         float DischargeFor(float width) => TerrainChannels.DischargeFor(width, worldRiverWidth, p);
         float creek = DischargeFor(4f);
         bool anyWorldRiver = courses != null && courses.Exists(c => c.VanillaWidth > 0f);
+        // A channel entering beside a world river drains the runoff of its area, but never carries more than the largest world
+        // river on the tile: the model's drainage area at an entry can include the water of the river it joins.
+        float largestWorldRiver = anyWorldRiver ? DischargeFor(courses.Max(c => c.VanillaWidth)) : 0f;
         bool worldEnters = false;
         // Which of the world's inflows a course already brings in: each world river enters once, with its own water.
         var entered = new bool[worldInflows?.Count ?? 0];
@@ -298,7 +301,7 @@ public static partial class TerrainChannels
                 }
             }
             else
-                inflow[cell] += anyWorldRiver && riverEnters ? course.EntryArea * runoff : Mathf.Min(course.EntryArea * runoff, creek);
+                inflow[cell] += Mathf.Min(course.EntryArea * runoff, anyWorldRiver && riverEnters ? largestWorldRiver : creek);
         }
         if (anyWorldRiver && riverEnters && worldInflows != null && worldInflows.Count > 0)
         {
