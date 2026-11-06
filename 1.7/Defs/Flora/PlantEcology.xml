@@ -65,6 +65,7 @@
     <!-- Multiplies every canopy plant's shadeCast. 0.6 (owner 2026-10-26: forests too bare): the understory fills in
          under trees; at 1 deep shade covered about 60% of forest land. -->
     <shadeCastScale>0.6</shadeCastScale>
+    <visualShadeScale>0.7</visualShadeScale>
     <!-- Succession on the stand age mosaic (P22, tools/Docs/DISTURBANCE-MOSAIC.md): canopy establishes with maturity
          1 - exp(-age / tau), tau = canopyClosureYears (x 0.6 for the fastest pioneers); other species x (1 + pioneerBoost x
          (1 - maturity) x pace). successionSpeed: succession years per game year (owner: about 10). -->
