@@ -34,4 +34,12 @@ public class ThroughflowTests
                 foreach (float h in new[] { -1f, 0f, 5f })
                     Assert.InRange(T(a, g, h), 0f, 1f);
     }
+
+    [Fact]
+    public void StagnationIsWetnessOnLevelGroundAndNoneOnAGrade()
+    {
+        Assert.Equal(0.9f, Throughflow.Stagnation(0.9f, 0f, 0.03f), 4);
+        Assert.Equal(0f, Throughflow.Stagnation(0.9f, 0.1f, 0.03f), 4);
+        Assert.InRange(Throughflow.Stagnation(0.9f, 0.015f, 0.03f), 0.44f, 0.46f);
+    }
 }

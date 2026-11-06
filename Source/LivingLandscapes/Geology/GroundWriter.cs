@@ -20,7 +20,7 @@ public class GroundWriterExtension : DefModExtension
     /// Weight of throughflow enrichment (<see cref="Throughflow"/>, #187) in the fertility score and the rich-soil patches: soil
     /// along drainage lines is darker and richer, uphill of where surface water forms. 0: off.
     /// </summary>
-    public float fertilityThroughflow = 0.7f;
+    public float fertilityThroughflow = 1.4f;
 
     /// <summary>
     /// Rich soil covers this many times the biome's vanilla share of the map. Throughflow spreads rich soil out of patches
@@ -29,7 +29,7 @@ public class GroundWriterExtension : DefModExtension
     public float richSoilScale = 1.3f;
 
     /// <summary>Drainage area (log10 cells) where throughflow starts, and where a cell carries it in full.</summary>
-    public float throughflowAreaMin = 1f;
+    public float throughflowAreaMin = 0.5f;
     public float throughflowAreaFull = 2.5f;
 
     /// <summary>Gradient (rise over run) at which the water is fully moving; below it saturation tends to stagnate.</summary>
