@@ -12,6 +12,7 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_SoilDepth;
     public static EnvironmentLayerDef LL_DrainageArea;
     public static EnvironmentLayerDef LL_SpillDepth;
+    public static EnvironmentLayerDef LL_HeightAboveDrainage;
     public static EnvironmentLayerDef LL_Slope;
     public static EnvironmentLayerDef LL_Aspect;
     public static EnvironmentLayerDef LL_Wetness;

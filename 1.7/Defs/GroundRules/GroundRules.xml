@@ -3,7 +3,7 @@
 
   <!--
     Ground rules (soil and surface rule S3): every cell takes the first rule whose conditions all hold
-    (min inclusive, max exclusive). Fields: any environment layer by defName, plus RockDepth and RockDistance (metres
+    (min inclusive, max exclusive). Fields: any environment layer by defName, plus Stagnation (LL_Wetness x (1 - moving), #187: wet ground the water does not move through; flowing wet ground is enriched soil, not marsh), RockDepth and RockDistance (metres
     into / to bare rock), WaterDistance (cells to surface water), Hollow (metres below a closed hollow's spill level), HollowCells (size of that hollow)
     Climate (0..1 from tile rainfall) and Marshland (0..1 from the map's water regime: a wetland's damp ground is marsh). elevation is the value written into vanilla's elevation grid
     (> 0.798 overhead mountain, > 0.728 thin roof, > 0.70 rock wall, 0.61-0.70 rough stone, 0.55-0.61 gravel,
@@ -85,7 +85,7 @@
       <li>
         <label>marsh</label>
         <conditions>
-          <li><field>LL_Wetness</field><min>0.88</min></li>
+          <li><field>Stagnation</field><min>0.88</min></li>
           <li><field>Climate</field><min>0.5</min></li>
         </conditions>
         <cover>Marsh</cover>
@@ -94,7 +94,7 @@
         <label>wetland marsh</label>
         <conditions>
           <li><field>Marshland</field><min>0.5</min></li>
-          <li><field>LL_Wetness</field><min>0.45</min></li>
+          <li><field>Stagnation</field><min>0.45</min></li>
         </conditions>
         <cover>Marsh</cover>
       </li>
@@ -109,7 +109,7 @@
       <li>
         <label>marshy soil</label>
         <conditions>
-          <li><field>LL_Wetness</field><min>0.6</min></li>
+          <li><field>Stagnation</field><min>0.6</min></li>
           <li><field>Climate</field><min>0.5</min></li>
         </conditions>
         <cover>MarshySoil</cover>
@@ -117,7 +117,7 @@
       <li>
         <label>mud</label>
         <conditions>
-          <li><field>LL_Wetness</field><min>0.8</min></li>
+          <li><field>Stagnation</field><min>0.8</min></li>
         </conditions>
         <cover>Mud</cover>
       </li>
@@ -125,7 +125,7 @@
         <label>shore mud</label>
         <conditions>
           <li><field>WaterDistance</field><max>1.5</max></li>
-          <li><field>LL_Wetness</field><min>0.6</min></li>
+          <li><field>Stagnation</field><min>0.6</min></li>
         </conditions>
         <cover>Mud</cover>
       </li>
