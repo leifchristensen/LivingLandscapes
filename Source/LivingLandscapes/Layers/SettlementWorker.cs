@@ -64,7 +64,7 @@ public class SettlementWorker : EnvironmentLayerWorker
         fields.Add("Farmland", Blur(farmland, sizeX, sizeZ, p.farmlandSigma));
         fields.Add("Hazard", Blur(hazard, sizeX, sizeZ, p.hazardSigma));
         fields.Add("Refuge", Ring(barrier, sizeX, sizeZ, Mathf.RoundToInt(p.refugeInner), Mathf.RoundToInt(p.refugeOuter)));
-        fields.Add("WaterDistance", GridMath.DistanceTo(i => GroundCovers.IsWater(cover[i]), sizeX, sizeZ, 999f));
+        fields.Add("WaterDistance", WaterDefinition.DistanceByCover(cover, sizeX, sizeZ));
         fields.Add("RockDistance", GridMath.DistanceTo(i => rock[i], sizeX, sizeZ, 999f));
 
         foreach (SettlementTerm term in p.terms)
