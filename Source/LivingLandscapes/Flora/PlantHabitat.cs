@@ -118,7 +118,7 @@ public class PlantHabitat : DefModExtension
     /// <summary>Share of light this plant blocks beneath it, 0..1. Feeds LL_Shade for the strata placed after it.</summary>
     public float shadeCast;
 
-    /// <summary>Radius in cells over which the shade spreads. 0 takes it from the plant's size.</summary>
+    /// <summary>Radius in cells over which the shade spreads, from the plant's real crown. 0 takes the stratum's typical crown (<see cref="ShadeRadiusRules"/>), never the drawn size.</summary>
     public float shadeRadius;
 
     /// <summary>

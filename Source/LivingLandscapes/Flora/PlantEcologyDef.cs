@@ -236,6 +236,12 @@ public class PlantEcologyDef : Def
     public float shadeCastScale = 0.6f;
 
     /// <summary>
+    /// Drawing only: the share of the canopy's sky cover the lighting overlay shows (owner 2026-11-06: the dark under
+    /// crowns looked too heavy). Ground light, which plants and gameplay read, is unchanged.
+    /// </summary>
+    public float visualShadeScale = 0.7f;
+
+    /// <summary>
     /// Two-stream ground light (P12): the share of a clear noon's light at the ground that comes straight from the sun;
     /// the rest is diffuse skylight from the whole sky (0.15-0.25 under a clear sky) and light scattered by leaves. The
     /// direct share passes the crowns on the sun's path, the diffuse share the canopy over <see cref="skyViewRadius"/>.
