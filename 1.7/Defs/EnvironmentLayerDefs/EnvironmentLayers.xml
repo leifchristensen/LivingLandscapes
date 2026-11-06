@@ -35,15 +35,12 @@
       <icon>UI/LivingLandscapes/Overlays/Topology</icon>
       <banded>true</banded>
       <relativeColors>true</relativeColors>
-      <!-- Contour interval by relief class, as map series fix it (#89): line density then shows real steepness.
-           Class reliefs: Flat 4 m, SmallHills 20, LargeHills 70, Mountainous 180, Impassable 300 (+ mutators). -->
-      <contourIntervals>
-        <li><reliefUpTo>10</reliefUpTo><interval>1</interval></li>
-        <li><reliefUpTo>40</reliefUpTo><interval>2</interval></li>
-        <li><reliefUpTo>120</reliefUpTo><interval>5</interval></li>
-        <li><reliefUpTo>250</reliefUpTo><interval>10</interval></li>
-        <li><reliefUpTo>99999</reliefUpTo><interval>20</interval></li>
-      </contourIntervals>
+      <!-- Colour bands are a fixed 25 m on absolute multiples of 25, so their edges are the thick contour lines (#190).
+           The ramp below is sampled as a 7-colour palette; maps with more bands interpolate between those. -->
+      <bandInterval>25</bandInterval>
+      <!-- Thin contour line every 5 m on every map, thick (index, labelled) every 5th = every 25 m. Fixed rather than by
+           relief class (#89 table) at the owner's request: line density then shows steepness identically everywhere. -->
+      <contourInterval>5</contourInterval>
       <indexEvery>5</indexEvery>
       <labelFormat>0.#</labelFormat>
       <colors>
@@ -423,6 +420,16 @@
         <fertilitySoilDepth>0.35</fertilitySoilDepth>
         <fertilityNoise>0.1</fertilityNoise>
         <deepSoil>2</deepSoil>
+        <!-- Throughflow enrichment (#187, Geology/Throughflow.cs): moving water in saturated subsoil along drainage lines. -->
+        <fertilityThroughflow>1.4</fertilityThroughflow>
+        <richSoilScale>1.5</richSoilScale>
+        <throughflowAreaMin>0.5</throughflowAreaMin>
+        <throughflowAreaFull>2.5</throughflowAreaFull>
+        <throughflowMovingGradient>0.03</throughflowMovingGradient>
+        <throughflowReachHeight>2.5</throughflowReachHeight>
+        <throughflowProfileSigma>2</throughflowProfileSigma>
+        <throughflowProfileRange>0.3</throughflowProfileRange>
+        <throughflowThinning>0.85</throughflowThinning>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

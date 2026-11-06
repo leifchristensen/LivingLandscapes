@@ -16,6 +16,37 @@ public class GroundWriterExtension : DefModExtension
     public float fertilitySoilDepth = 0.35f;
     public float fertilityNoise = 0.1f;
 
+    /// <summary>
+    /// Weight of throughflow enrichment (<see cref="Throughflow"/>, #187) in the fertility score and the rich-soil patches: soil
+    /// along drainage lines is darker and richer, uphill of where surface water forms. 0: off.
+    /// </summary>
+    public float fertilityThroughflow = 1.4f;
+
+    /// <summary>
+    /// Rich soil covers this many times the biome's vanilla share of the map. Throughflow spreads rich soil out of patches
+    /// into lines, which would leave fewer contiguous rich zones to plant crops in; the larger share makes up for it (#187).
+    /// </summary>
+    public float richSoilScale = 1.5f;
+
+    /// <summary>Drainage area (log10 cells) where throughflow starts, and where a cell carries it in full.</summary>
+    public float throughflowAreaMin = 0.5f;
+    public float throughflowAreaFull = 2.5f;
+
+    /// <summary>Gradient (rise over run) at which the water is fully moving; below it saturation tends to stagnate.</summary>
+    public float throughflowMovingGradient = 0.03f;
+
+    /// <summary>
+    /// Thin, branching lines: throughflow is weighted by how far a cell's drainage area stands above its surroundings
+    /// (<see cref="Throughflow.Profile"/>): blur radius (cells), the log10 area excess that counts as the axis, and how much
+    /// the profile applies (0: lines as wide as the flow's spread; 1: only the axis).
+    /// </summary>
+    public float throughflowProfileSigma = 2f;
+    public float throughflowProfileRange = 0.3f;
+    public float throughflowThinning = 0.85f;
+
+    /// <summary>Height above the drainage line (metres) over which throughflow falls to 1/e.</summary>
+    public float throughflowReachHeight = 2.5f;
+
     /// <summary>Soil depth (metres) counted as fully deep for the fertility score.</summary>
     public float deepSoil = 2f;
 }
@@ -29,13 +60,29 @@ public class GroundWriterExtension : DefModExtension
 /// </summary>
 public static class GroundWriter
 {
+    /// <summary>Elevation below which ground is soil (the ground rules write 0.3 for it; rock and gravel start at 0.55).</summary>
+    private const float SoilElevation = 0.55f;
+
     private static readonly AccessTools.FieldRef<TerrainPatchMaker, ModuleBase> PatchNoise =
         AccessTools.FieldRefAccess<TerrainPatchMaker, ModuleBase>("noise");
     private static readonly AccessTools.FieldRef<TerrainPatchMaker, Map> PatchMap =
         AccessTools.FieldRefAccess<TerrainPatchMaker, Map>("currentlyInitializedForMap");
 
+    /// <summary>Throughflow enrichment per cell from the drainage layers, or null when a layer is missing.</summary>
+    public static float[] ThroughflowOf(float[] drainageArea, float[] slope, float[] heightAboveDrainage, float cellSize, GroundWriterExtension p, int sizeX, int sizeZ)
+    {
+        if (drainageArea == null || slope == null || heightAboveDrainage == null)
+            return null;
+        var t = new float[drainageArea.Length];
+        float[] surrounding = GridMath.Blur(drainageArea, sizeX, sizeZ, p.throughflowProfileSigma);
+        for (int i = 0; i < t.Length; i++)
+            t[i] = Throughflow.Profile(drainageArea[i], surrounding[i], p.throughflowProfileRange, p.throughflowThinning) * Throughflow.Of(drainageArea[i], slope[i] / cellSize, heightAboveDrainage[i],
+                p.throughflowAreaMin, p.throughflowAreaFull, p.throughflowMovingGradient, p.throughflowReachHeight);
+        return t;
+    }
+
     /// <summary>Rewrites the fertility grid and the biome's wet patch makers. Call after the elevation grid is written.</summary>
-    public static void Write(Map map, float[] wetness, float[] soilDepth, GroundWriterExtension p)
+    public static void Write(Map map, float[] wetness, float[] soilDepth, GroundWriterExtension p, float[] throughflow = null, float[] surfaceWater = null)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = wetness.Length;
         var noise = new Perlin(0.05, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
@@ -50,9 +97,38 @@ public static class GroundWriter
             vanilla[i] = fertility[c];
             float deep = Mathf.Clamp01(soilDepth[i] / Mathf.Max(0.01f, p.deepSoil));
             score[i] = p.fertilityWetness * wetness[i] + p.fertilitySoilDepth * deep
+                       + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i])
                        + p.fertilityNoise * (0.5f + 0.5f * (float)noise.GetValue(c.x, 0.0, c.z));
         }
-        float[] ranked = RankMap(score, vanilla);
+        // The biome's richest soil class begins at its last fertility threshold; it covers richSoilScale times its vanilla share.
+        List<TerrainThreshold> soils = map.Biome.terrainsByFertility;
+        float richFrom = soils.NullOrEmpty() ? float.PositiveInfinity : soils[soils.Count - 1].min;
+        // Only ground that stays soil takes part: water, rock and gravel keep their cells out of the ranking, or they would use
+        // up the rich soil share (the wettest cells are the ones that become lakes) and leave the drainage lines none.
+        MapGenFloatGrid elevation0 = MapGenerator.Elevation;
+        var land = new List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            if (elevation0[map.cellIndices.IndexToCell(i)] < SoilElevation && (surfaceWater == null || surfaceWater[i] <= 0f))
+                land.Add(i);
+        }
+        var landScore = new float[land.Count];
+        var landVanilla = new float[land.Count];
+        for (int k = 0; k < land.Count; k++)
+        {
+            landScore[k] = score[land[k]];
+            landVanilla[k] = vanilla[land[k]];
+        }
+        float[] landRanked = RankMath.Map(landScore, landVanilla, p.richSoilScale, richFrom);
+        var ranked = (float[])vanilla.Clone();
+        int richBefore = 0, richAfter = 0;
+        for (int k = 0; k < land.Count; k++)
+        {
+            ranked[land[k]] = landRanked[k];
+            richBefore += landVanilla[k] >= richFrom ? 1 : 0;
+            richAfter += landRanked[k] >= richFrom ? 1 : 0;
+        }
+        Log.Message($"[LivingLandscapes] Rich soil (fertility from {richFrom:0.00}): {richBefore * 100f / Mathf.Max(1, land.Count):0.0}% of {land.Count} soil cells in vanilla, {richAfter * 100f / Mathf.Max(1, land.Count):0.0}% here.");
         for (int i = 0; i < n; i++)
             fertility[map.cellIndices.IndexToCell(i)] = ranked[i];
 
@@ -71,9 +147,9 @@ public static class GroundWriter
             {
                 IntVec3 c = map.cellIndices.IndexToCell(i);
                 reference[i] = (float)own.GetValue(c.x, 0.0, c.z);
-                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityNoise * reference[i];
+                wet[i] = elevation[c] >= 0.61f ? -1f : wetness[i] + p.fertilityThroughflow * (throughflow == null ? 0f : throughflow[i]) + p.fertilityNoise * reference[i];
             }
-            PatchNoise(maker) = new GridNoise(RankMap(wet, reference), sizeX, sizeZ);
+            PatchNoise(maker) = new GridNoise(RankMath.Map(wet, reference), sizeX, sizeZ);
             PatchMap(maker) = map;
             wetMakers++;
         }
@@ -94,22 +170,6 @@ public static class GroundWriter
                 return true;
         }
         return false;
-    }
-
-    /// <summary>Gives each cell the reference value of the same rank its score has: highest score, highest value.</summary>
-    private static float[] RankMap(float[] score, float[] reference)
-    {
-        int n = score.Length;
-        var order = new int[n];
-        for (int i = 0; i < n; i++)
-            order[i] = i;
-        Array.Sort(order, (a, b) => score[a].CompareTo(score[b]));
-        var sorted = (float[])reference.Clone();
-        Array.Sort(sorted);
-        var result = new float[n];
-        for (int k = 0; k < n; k++)
-            result[order[k]] = sorted[k];
-        return result;
     }
 
     /// <summary>A precomputed per-cell value served as noise.</summary>

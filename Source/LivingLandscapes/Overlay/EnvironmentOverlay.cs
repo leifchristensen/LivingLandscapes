@@ -174,7 +174,7 @@ public class EnvironmentOverlay
     {
         const float Row = 20f;
         const float Width = 170f;
-        int rows = active.Sum(r => r.style.colors.Count + 1);
+        int rows = active.Sum(r => LegendRows(r.style) + 1);
         var rect = new Rect(UI.screenWidth - Width - 10f, 50f, Width, Row * rows + 4f * active.Count + 6f);
         Widgets.DrawBoxSolid(rect, new Color(0f, 0f, 0f, 0.6f));
 
@@ -186,17 +186,54 @@ public class EnvironmentOverlay
             string unit = render.layer.unit.NullOrEmpty() ? "" : $" ({render.layer.unit})";
             Widgets.Label(new Rect(rect.x + 6f, y, Width - 12f, Row), render.layer.LabelCap + unit);
             y += Row;
-            List<ColorStop> colors = render.style.colors;
-            for (int i = colors.Count - 1; i >= 0; i--)
+            if (render.style.bandColors != null)
             {
-                Widgets.DrawBoxSolid(new Rect(rect.x + 6f, y + 3f, 24f, Row - 6f), colors[i].color);
-                string label = colors[i].label.NullOrEmpty() ? colors[i].value.ToString(render.style.labelFormat) : colors[i].label.CapitalizeFirst();
-                Widgets.Label(new Rect(rect.x + 38f, y, Width - 44f, Row), label);
-                y += Row;
+                y = DrawBandLegend(render.style, rect.x, y, Width, Row);
+            }
+            else
+            {
+                List<ColorStop> colors = render.style.colors;
+                for (int i = colors.Count - 1; i >= 0; i--)
+                {
+                    Widgets.DrawBoxSolid(new Rect(rect.x + 6f, y + 3f, 24f, Row - 6f), colors[i].color);
+                    string label = colors[i].label.NullOrEmpty() ? colors[i].value.ToString(render.style.labelFormat) : colors[i].label.CapitalizeFirst();
+                    Widgets.Label(new Rect(rect.x + 38f, y, Width - 44f, Row), label);
+                    y += Row;
+                }
             }
             y += 4f;
         }
         Text.Anchor = TextAnchor.UpperLeft;
+    }
+
+    /// <summary>Longest band legend; taller maps list every n-th band so the legend stays on screen.</summary>
+    private const int MaxLegendBands = 14;
+
+    private static int LegendRows(OverlayProperties style)
+    {
+        if (style.bandColors == null)
+            return style.colors.Count;
+        return (style.bandColors.Length + BandLegendStep(style) - 1) / BandLegendStep(style);
+    }
+
+    private static int BandLegendStep(OverlayProperties style) =>
+        (style.bandColors.Length + MaxLegendBands - 1) / MaxLegendBands;
+
+    /// <summary>One row per drawn band, highest first, labelled with the band's height range (every n-th when there are many).</summary>
+    private static float DrawBandLegend(OverlayProperties style, float x, float y, float width, float row)
+    {
+        int step = BandLegendStep(style);
+        for (int b = style.bandColors.Length - 1; b >= 0; b--)
+        {
+            if (b % step != 0)
+                continue;
+            Widgets.DrawBoxSolid(new Rect(x + 6f, y + 3f, 24f, row - 6f), style.bandColors[b]);
+            float lo = style.bandMin + b * style.bandInterval;
+            string label = lo.ToString(style.labelFormat);
+            Widgets.Label(new Rect(x + 38f, y, width - 44f, row), label);
+            y += row;
+        }
+        return y;
     }
 
     /// <summary>What one active layer draws: an optional cell fill plus line meshes (contours or arrows).</summary>
