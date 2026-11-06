@@ -47,6 +47,9 @@ public class Drainage
     /// </summary>
     public System.Func<float, float> ShareFor;
 
+    /// <summary>The share of a hollow fed by groundwater, limited by its catchment's recharge (<see cref="WaterBalance.FedLakeShare"/>).</summary>
+    public float FedShare = float.NaN;
+
     /// <summary>
     /// Effective seepage of each cell's floor (S, mm/yr, before the water-table cap; <see cref="FloorSeepageGrid"/>) and its
     /// floor class (<see cref="FloorSeepageRules"/>). Null until the floor layers exist: hollows then seep nothing.
@@ -190,7 +193,7 @@ public class Drainage
         var line = new float[n];
         var visited = new bool[n];
         lineArea = new float[n];
-        lineWater = new bool[n];
+        bool[] water = lineWater = new bool[n];
         foreach (int c in order)
         {
             if (region[c] >= 0 && !waterLevel.ContainsKey((region[c], Spill[c])))
@@ -223,18 +226,23 @@ public class Drainage
         lines = (channelArea, riverLevel, line, lineArea, lineWater);
         return line;
 
-        // A hollow's water (P23 extended, #149), once the drainage below its outlet is known. The water table under the
-        // hollow stands at the drainage line its outlet spills into; a sink is the low point its groundwater flows to, so
-        // the water table stands at its floor. A floor below the water table is fed from below: water stands at least up to
-        // the water table, rain or not, and nothing seeps away. A floor above it loses its seepage S x cap(depth) on top of
-        // evaporation, and holds water only by the balance of what its catchment brings in.
+        // A hollow's water (P23 extended, #149), once the drainage below its outlet is known. Where water stands on the
+        // drainage line its outlet spills into (a river, a lake), that water is the water table there: a gaining stream.
+        // A dry line (a wash, a seep) is no water table: in dry ground it lies deeper than the floor seeps to, so the floor
+        // drains at its full S and nothing feeds it from below. A sink is the low point its groundwater flows to: the water
+        // table stands at its floor. A floor below the water table is fed from below: water stands at least up to the water
+        // table, nothing seeps away, and the groundwater that flows in is what its catchment's recharge supplies (water is
+        // conserved: in a dry climate there is none, and the runoff balance alone sets the level). A floor above it loses
+        // its seepage S x cap(depth) on top of evaporation, and holds water only by the balance of what its catchment
+        // brings in.
         void BalanceHollow((int, float) key)
         {
             List<int> cells = hollowCells[key];
             cells.Sort((a, b) => Ground[a].CompareTo(Ground[b]));
             float spill = key.Item2, floor = Ground[cells[0]];
             int r = outlet[key];
-            float waterTable = r < 0 ? floor : Mathf.Min(spill, visited[r] ? line[r] : Ground[r]);
+            bool gaining = r >= 0 && visited[r] && water[r];
+            float waterTable = r < 0 ? floor : gaining ? Mathf.Min(spill, line[r]) : float.NegativeInfinity;
             float depth = floor - waterTable;
             FloorSeepageRules rules = FloorSeepageDef.Current.Rules;
             float seepage = 0f;
@@ -255,9 +263,11 @@ public class Drainage
                 }
             }
             float share = ShareFor != null && seepage > 0f ? ShareFor(seepage) : LakeShare;
-            float level = WaterBalance.LakeLevel(cells, Ground, spill, Mathf.Pow(10f, hollowArea[key]), share);
-            if (depth < 0f)
-                level = Mathf.Max(level, waterTable);
+            float catchment = Mathf.Pow(10f, hollowArea[key]);
+            float level = WaterBalance.LakeLevel(cells, Ground, spill, catchment, share);
+            // Groundwater raises the water only up to the water table, and only as far as recharge pays for.
+            if (depth < 0f && !float.IsNaN(FedShare))
+                level = Mathf.Max(level, Mathf.Min(waterTable, WaterBalance.LakeLevel(cells, Ground, spill, catchment, FedShare)));
             waterLevel[key] = level;
             bool deepAndLarge = spill - floor >= lake.minLakeDepth && cells.Count >= lake.minLakeCells;
             holdsLake[key] = deepAndLarge && level - floor >= lake.minLakeDepth;
@@ -286,6 +296,7 @@ public class Drainage
         drainage.LakeShare = WaterBalance.LakeShare(context.Map, out _);
         Map map = context.Map;
         drainage.ShareFor = seepage => WaterBalance.LakeShare(map, out _, seepage);
+        drainage.FedShare = WaterBalance.FedLakeShare(map);
         context.Environment.PlannedDrainage = drainage;
         return drainage;
     }

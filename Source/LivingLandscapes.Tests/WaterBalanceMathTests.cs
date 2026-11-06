@@ -150,4 +150,22 @@ public class WaterBalanceMathTests
                         $"negative share at rain {rain}, evap {evaporation}, S {seepage}: {share}");
                 }
     }
+
+    [Fact]
+    public void FedLake_NeverTakesMoreThanRechargeSupplies()
+    {
+        // groundwater is conserved: in a dry climate there is no recharge, so a fed hollow holds what runoff alone gives
+        foreach (float[] dry in new[] { new[] { 150f, 1500f }, new[] { 320f, 1300f }, new[] { 600f, 1200f } })
+            Assert.Equal(WaterBalanceMath.LakeShare(0.3f, dry[0], dry[1], 0f), WaterBalanceMath.FedLakeShare(0.3f, dry[0], dry[1]), 4);
+        Assert.Equal(0f, WaterBalanceMath.Recharge(0.3f, 300f, 1300f));
+    }
+
+    [Fact]
+    public void FedLake_IsNeverSmallerThanTheRunoffBalance_AndFillsWhereRainBeatsEvaporation()
+    {
+        foreach (float[] climate in new[] { new[] { 150f, 1500f }, new[] { 900f, 1000f }, new[] { 2200f, 700f } })
+            Assert.True(WaterBalanceMath.FedLakeShare(0.4f, climate[0], climate[1]) >= WaterBalanceMath.LakeShare(0.4f, climate[0], climate[1], 0f) - 1e-6f);
+        Assert.True(float.IsPositiveInfinity(WaterBalanceMath.FedLakeShare(0.4f, 2200f, 700f)));
+        Assert.Equal((1f - 0.4f) * 1500f, WaterBalanceMath.Recharge(0.4f, 2200f, 700f), 3);
+    }
 }

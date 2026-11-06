@@ -40,6 +40,21 @@ public static class WaterBalance
     }
 
     /// <summary>
+    /// The share of a hollow fed from below by groundwater, limited to its catchment's recharge
+    /// (<see cref="WaterBalanceMath.FedLakeShare"/>, #149).
+    /// </summary>
+    public static float FedLakeShare(Map map)
+    {
+        var p = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
+        float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
+        var channels = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).terrainChannels;
+        float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
+        float rainfall = map.TileInfo?.rainfall ?? 0f;
+        float evaporation = p.Evaporation(map.TileInfo?.temperature ?? 10f);
+        return WaterBalanceMath.FedLakeShare(runoff, rainfall, evaporation);
+    }
+
+    /// <summary>
     /// The level a hollow's water stands at: the ground of the cell where the lake reaches its balance area
     /// (<paramref name="catchment"/> x <paramref name="lakeShare"/>, in the same cells as the hollow), or the spill level
     /// when the hollow fills before then. <paramref name="cells"/> are the hollow's cells, sorted low to high.

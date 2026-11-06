@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace LivingLandscapes.Geology;
 
 /// <summary>
@@ -23,5 +25,26 @@ public static class WaterBalanceMath
     {
         float netLoss = evaporation - rain + seepage;
         return netLoss <= 0f ? float.PositiveInfinity : runoff * rain / netLoss;
+    }
+
+    /// <summary>
+    /// Recharge (mm/yr): the rain that soaks into the ground and reaches the water table, the share that does not run off
+    /// of what evaporation leaves, (1 - runoff) x max(0, rain - evaporation). The groundwater a catchment holds comes from
+    /// nothing else.
+    /// </summary>
+    public static float Recharge(float runoff, float rain, float evaporation) =>
+        (1f - runoff) * Mathf.Max(0f, rain - evaporation);
+
+    /// <summary>
+    /// Lake share of a hollow whose floor lies below the water table (#149): groundwater flows in, but only what the
+    /// catchment's recharge supplies, so water is conserved; the groundwater the lake takes is that recharge, which then
+    /// reaches nothing else. A_lake = (runoff x rain + recharge) x catchment / (evaporation - rain), no floor seepage
+    /// (the floor is fed, not drained). Where rain does not beat evaporation there is no recharge and the share is the
+    /// runoff balance alone: groundwater cannot keep a lake in a dry climate.
+    /// </summary>
+    public static float FedLakeShare(float runoff, float rain, float evaporation)
+    {
+        float netLoss = evaporation - rain;
+        return netLoss <= 0f ? float.PositiveInfinity : (runoff * rain + Recharge(runoff, rain, evaporation)) / netLoss;
     }
 }
