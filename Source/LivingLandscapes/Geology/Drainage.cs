@@ -326,8 +326,8 @@ public class Drainage
         foreach (RiverPlan channel in rivers.Channels)
         {
             int entry = channel.Main.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < context.SizeX && v.y < context.SizeZ);
-            if (entry >= 0 && channel.EntryArea > 0f)
-                inflow[RiverGrid.Index(channel.Main[entry], context.SizeX, context.SizeZ)] += channel.EntryArea;
+            if (entry >= 0 && channel.EntryArea + channel.SourceArea > 0f)
+                inflow[RiverGrid.Index(channel.Main[entry], context.SizeX, context.SizeZ)] += channel.EntryArea + channel.SourceArea;
         }
         return inflow;
     }

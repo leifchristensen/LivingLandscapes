@@ -20,6 +20,9 @@ public class RiverPlan
     /// <summary>Drainage area (map cells) the channel brings in from beyond the map; 0 if it starts inside.</summary>
     public float EntryArea;
 
+    /// <summary>Drainage area (map cells) the channel's own sources supply inside the map (the springs a headwater river rises from).</summary>
+    public float SourceArea;
+
     public bool WorldRiver;
 
     /// <summary>Vanilla's width for a world river along this channel (0 for the map's own channels).</summary>

@@ -58,7 +58,7 @@ public static partial class TerrainChannels
                 }
             }
         }
-        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen);
+        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
         // Closed basins keep their water (P23, #99), as in the erosion model: a hollow whose lake fits below its spill level
@@ -80,10 +80,10 @@ public static partial class TerrainChannels
     /// <summary>
     /// The map's base levels (P1, <see cref="Outlets"/>): the sea's water (ground below the sea's surface) at sea level; the
     /// map's edge open at its own ground where the erosion model's water flows on out of the map (<paramref name="edgeOpen"/>;
-    /// every edge without it) and at the world river's exit, closed elsewhere; every land area keeps an outlet.
+    /// every edge without it), except where water enters (<paramref name="inflow"/>), and at the world river's exit, closed elsewhere; every land area keeps an outlet.
     /// </summary>
     private static float[] MapBaseLevels(float[] height, float[] ground, int sizeX, int sizeZ, List<(ChannelCourse course, bool toMouth)> courses,
-        bool[] sea, float seaLevel, bool[] edgeOpen)
+        bool[] sea, float seaLevel, bool[] edgeOpen, float[] inflow)
     {
         int n = sizeX * sizeZ;
         var baseLevel = new float[n];
@@ -94,7 +94,9 @@ public static partial class TerrainChannels
             if (SeaWater(i))
                 baseLevel[i] = float.IsNaN(seaLevel) ? ground[i] : seaLevel;
             else
-                baseLevel[i] = Outlets.IsEdge(i, sizeX, sizeZ) && (edgeOpen?[i] ?? true) ? ground[i] : float.NaN;
+                // An edge cell water enters by is an entry, not an exit (#165): a world river the erosion model did not bring in
+                // is placed on the edge facing its neighbour, and an outlet there would take it straight off the map again.
+                baseLevel[i] = Outlets.IsEdge(i, sizeX, sizeZ) && (edgeOpen?[i] ?? true) && !(inflow[i] > 0f) ? ground[i] : float.NaN;
         }
         // The world river leaves where its course reaches the edge, whatever the model's coarser drainage says there.
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
