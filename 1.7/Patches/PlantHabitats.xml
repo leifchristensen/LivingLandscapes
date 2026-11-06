@@ -1016,8 +1016,8 @@
           <light><optimum>1.00</optimum><tolerance>0.50</tolerance><saturating>true</saturating></light>
           <rootingDepth>0.6</rootingDepth>
           <dispersal>Clonal</dispersal>
-          <shadeCast>0.5</shadeCast>
-          <shadeRadius>2.2</shadeRadius>
+          <shadeCast>0.35</shadeCast>
+          <shadeRadius>1.6</shadeRadius>
         </li>
       </value>
     </match>
