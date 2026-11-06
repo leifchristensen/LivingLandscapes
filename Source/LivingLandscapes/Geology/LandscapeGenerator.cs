@@ -228,6 +228,14 @@ public static class LandscapeGenerator
             seaDepth = new float[gx * gz];
             for (int i = 0; i < seaDepth.Length; i++)
                 seaDepth[i] = seaCell[i] ? Mathf.Max(0.01f, p.coast.SeaDepth(fromLand[i] * mapCellsPerModelCell, world.Hilliness)) : 0f;
+            // Ground beside base level is graded (P1): the uplift fades to nothing toward the sea over the coastal plain.
+            float plainWidth = p.coast.PlainWidthFor(world.Hilliness);
+            float[] fromSeaModel = GridMath.DistanceTo(i => seaCell[i], gx, gz);
+            for (int i = 0; i < uplift.Length; i++)
+            {
+                if (!seaCell[i])
+                    uplift[i] *= CoastMath.PlainUplift(fromSeaModel[i] * mapCellsPerModelCell, plainWidth);
+            }
         }
         var mapWindow = new Rect(originX, originZ, sizeX / mapCellsPerModelCell, sizeZ / mapCellsPerModelCell);
         RiverEnds(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out List<float> entryFlows,
@@ -333,6 +341,13 @@ public static class LandscapeGenerator
         rock = new ThingDef[sizeX * sizeZ];
         rockStage = new int[sizeX * sizeZ];
         var resistant = new float[sizeX * sizeZ];
+        // The sea is the model's base level (P1), one height for the whole coast. Beside it the regional slope rises from the
+        // sea (CoastMath.RegionalRise) instead of tilting along a plane, which would put part of the shore above the sea and part below.
+        bool[] seaWater = Coastline.WaterCells(map);
+        float[] fromSea = null;
+        if (seaWater != null && seaWater.Any(w => w))
+            fromSea = GridMath.DistanceTo(i => seaWater[i], sizeX, sizeZ);
+        float seaLevel = CoastMath.ModelToMetres(0f, min, max, world.Elevation, level, relief);
         for (int z = 0; z < sizeZ; z++)
         {
             for (int x = 0; x < sizeX; x++)
@@ -346,7 +361,10 @@ public static class LandscapeGenerator
                 resistant[z * sizeX + x] = site.hard;
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
-                float tilt = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient * tiltScale;
+                float tilt = fromSea != null
+                    ? CoastMath.RegionalRise(world.RegionalGradient, p.cellSize, fromSea[z * sizeX + x], tiltScale,
+                        p.coast.PlainWidthFor(world.Hilliness), p.coast.plainGradient)
+                    : -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) * p.cellSize * world.RegionalGradient * tiltScale;
                 float rough = (float)micro.GetValue(x, 0.0, z) * p.microRelief;
                 smooth[z * sizeX + x] = world.Elevation + (rel - level) * relief + tilt;
                 result[z * sizeX + x] = smooth[z * sizeX + x] + rough;
@@ -359,9 +377,9 @@ public static class LandscapeGenerator
         int bodies = resistant.Count(v => v >= 0.5f);
         if (bodies > 0)
             Log.Message($"[LivingLandscapes] Resistant rock bodies (plugs, dikes) cover {(float)bodies / resistant.Length:P1} of {map}.");
-        int sea = Coastline.Apply(map, result, p.coast, resistant);
+        int sea = Coastline.Apply(map, result, seaLevel, p.coast, resistant);
         if (sea > 0)
-            Log.Message($"[LivingLandscapes] Coastline on {map}: {sea} sea cells set below the beach, land eased down to it.");
+            Log.Message($"[LivingLandscapes] Coastline on {map}: {sea} sea cells set below the sea level ({seaLevel:F2} m, the model's base level); the land is the model's own.");
         return result;
     }
 
