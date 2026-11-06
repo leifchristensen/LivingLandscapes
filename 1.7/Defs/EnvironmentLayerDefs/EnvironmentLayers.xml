@@ -119,6 +119,8 @@
              relief. The sea and a world river keep their pull. -->
         <uniformSlopeShare>0</uniformSlopeShare>
         <landformWavelength>300</landformWavelength>
+        <landformWavelengthFlat>125</landformWavelengthFlat>
+        <landformWavelengthSmallHills>200</landformWavelengthSmallHills>
         <detailWavelength>100</detailWavelength>
         <detailUplift>0.3</detailUplift>
         <ridgedness>0.2</ridgedness>
