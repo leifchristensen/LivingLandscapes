@@ -232,7 +232,8 @@ public static class Patch_Root_Play_SetupForQuickTestPlay
                 tile.RemoveMutator(existing);
             tile.AddMutator(def);
         }
-        if (coast)
+        // A coast mutator already on the tile (Bay or Cove forced with -ll-mutators, say) stays: it is a coast too.
+        if (coast && !tile.Mutators.Any(m => m.Worker is TileMutatorWorker_Coast))
             Set("Coast");
         if (riverLinks == 0)
             return;
