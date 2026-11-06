@@ -47,8 +47,12 @@ public static partial class TerrainChannels
                 parents.Add(-1);
             }
             int k = planOf[c];
-            // Water entering from beyond the map, as the drainage area that would bring it (for drainage and wetness).
-            plans[k].EntryArea += inflow[c] / runoff;
+            // Water entering from beyond the map, as the drainage area that would bring it (for drainage and wetness). Water that
+            // rises inside the map (the springs of a headwater river) is not an entry: it is the channel's own source.
+            if (RiverEntryRules.IsEdgeCell(c, sizeX, n / sizeX))
+                plans[k].EntryArea += inflow[c] / runoff;
+            else
+                plans[k].SourceArea += inflow[c] / runoff;
             plans[k].Main.Add(Centre(c));
             plans[k].MainWidth.Add(Mathf.Max(1f, Mathf.Round(width[c])));
             plans[k].NominalWidth = width[c];

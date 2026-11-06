@@ -165,30 +165,25 @@ public static class Invariants
         List<RiverPlan> channels = rivers.Channels;
         int entering = 0, joined = 0;
         var lost = new StringBuilder();
+        var parent = new int[channels.Count];
+        var isWorldRiver = new bool[channels.Count];
+        var endsInside = new bool[channels.Count];
+        for (int k = 0; k < channels.Count; k++)
+        {
+            parent[k] = channels[k].Parent;
+            isWorldRiver[k] = channels[k].WorldRiver;
+            endsInside[k] = channels[k].Main.Count > 0 && Inside(map, channels[k].Main[channels[k].Main.Count - 1]);
+        }
         for (int k = 0; k < channels.Count; k++)
         {
             if (!(channels[k].VanillaWidth > 0f && channels[k].EntryArea > 0f))
                 continue;
             entering++;
-            int index = k;
-            bool joins = false;
-            // The step limit guards against a Parent loop.
-            for (int step = 0; step <= channels.Count; step++)
-            {
-                RiverPlan c = channels[index];
-                if (c.WorldRiver)
-                {
-                    joins = true;
-                    break;
-                }
-                if (c.Parent < 0 || c.Main.Count == 0 || !Inside(map, c.Main[c.Main.Count - 1]))
-                    break;
-                index = c.Parent;
-            }
+            bool joins = RiverEntryRules.Joins(k, parent, isWorldRiver, endsInside);
             if (joins)
                 joined++;
             else
-                lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0});");
+                lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0}, from {PointOf(channels[k].Main, true)} to {PointOf(channels[k].Main, false)}, via {Chain(channels, k)});");
         }
         int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count;
         int expected = Mathf.Max(worldInflows, entering);
@@ -201,6 +196,22 @@ public static class Invariants
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>
         v.x < distance || v.y < distance || v.x > map.Size.x - distance || v.y > map.Size.z - distance;
+
+    /// <summary>The Parent links from a channel, each with its last point, for the log of a channel that does not join.</summary>
+    private static string Chain(List<RiverPlan> channels, int k)
+    {
+        var chain = new StringBuilder();
+        for (int step = 0; step < channels.Count && k >= 0; step++)
+        {
+            chain.Append($"{k}{(channels[k].WorldRiver ? "=world" : "")} ends {PointOf(channels[k].Main, false)}");
+            k = channels[k].Parent;
+            chain.Append(k >= 0 ? " > " : ", leaves the map");
+        }
+        return chain.ToString();
+    }
+
+    private static string PointOf(List<Vector2> line, bool first) =>
+        line.Count == 0 ? "none" : $"({line[first ? 0 : line.Count - 1].x:F0}, {line[first ? 0 : line.Count - 1].y:F0})";
 
     private static bool Inside(Map map, Vector2 v) => v.x >= 0f && v.y >= 0f && v.x < map.Size.x && v.y < map.Size.z;
 
