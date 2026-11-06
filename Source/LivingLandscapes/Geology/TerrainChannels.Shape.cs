@@ -59,7 +59,7 @@ public static partial class TerrainChannels
         // Slope over a few cells downstream (single D8 steps across filled flats are nearly zero).
         var slope = new float[cells.Count];
         for (int k = 0; k < cells.Count; k++)
-            slope[k] = Sediment.Slope(cells[k], receiver, filled, sizeX);
+            slope[k] = Hydraulics.ReachSlope(cells[k], receiver, filled, sizeX);
         var sorted = (float[])slope.Clone();
         System.Array.Sort(sorted);
         float reference = Mathf.Max(sorted[sorted.Length / 2], 1e-4f);
@@ -130,26 +130,5 @@ public static partial class TerrainChannels
             }
         }
         return floor;
-    }
-
-    /// <summary>Downstream direction of each channel cell, averaged over a few steps up and down the channel.</summary>
-    private static Vector2[] Directions(List<int> cells, int[] receiver, int[] main, int sizeX, int steps)
-    {
-        var direction = new Vector2[receiver.Length];
-        Vector2 At(int c) => new Vector2(c % sizeX, c / sizeX);
-        foreach (int c in cells)
-        {
-            int down = c, up = c;
-            for (int s = 0; s < steps; s++)
-            {
-                if (receiver[down] >= 0)
-                    down = receiver[down];
-                if (main[up] >= 0)
-                    up = main[up];
-            }
-            Vector2 v = At(down) - At(up);
-            direction[c] = v == Vector2.zero ? Vector2.zero : v.normalized;
-        }
-        return direction;
     }
 }

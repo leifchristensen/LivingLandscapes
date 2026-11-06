@@ -128,7 +128,7 @@ public static class Confluences
                 int next = receiver[k];
                 if (next < 0)
                     break;
-                d += (next % sizeX != k % sizeX && next / sizeX != k / sizeX) ? 1.414f : 1f;
+                d += Hydraulics.StepLength(k, next, sizeX);
             }
         }
         return zones;
