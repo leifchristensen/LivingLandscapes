@@ -121,8 +121,9 @@ public class PlantEcologyDef : Def
     /// <summary>Growing season (P21): a shrub's thicket weight x Lerp(this, 1, season): short-season shrubs are low and easy to cross.</summary>
     public float shortSeasonStature = 0.5f;
 
-    private static int seasonMap = -1;
-    private static float seasonCached;
+    // Per map object, not map ID: IDs restart at 0 in every game, and a static field outlives the game (#157). The weak
+    // table lets a map of a finished game be collected.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Map, System.Runtime.CompilerServices.StrongBox<float>> seasonOfMap = new();
 
     /// <summary>
     /// Growing season factor 0..1 of a map's tile (P21): g = share of the year whose average temperature is in the growing
@@ -134,12 +135,12 @@ public class PlantEcologyDef : Def
     {
         if (map == null || !map.Tile.Valid)
             return 1f;
-        if (seasonMap == map.uniqueID)
-            return seasonCached;
+        if (seasonOfMap.TryGetValue(map, out var cached))
+            return cached.Value;
         int twelfths = GenTemperature.TwelfthsInAverageTemperatureRange(map.Tile, growingTemperature.min, growingTemperature.max)?.Count ?? 12;
-        seasonMap = map.uniqueID;
-        seasonCached = Mathf.Clamp01((twelfths / 12f - seasonShare.min) / Mathf.Max(seasonShare.max - seasonShare.min, 0.01f));
-        return seasonCached;
+        float season = Mathf.Clamp01((twelfths / 12f - seasonShare.min) / Mathf.Max(seasonShare.max - seasonShare.min, 0.01f));
+        seasonOfMap.AddOrUpdate(map, new System.Runtime.CompilerServices.StrongBox<float>(season));
+        return season;
     }
 
     /// <summary>

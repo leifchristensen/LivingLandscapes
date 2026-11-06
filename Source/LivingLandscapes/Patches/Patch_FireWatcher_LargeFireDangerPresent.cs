@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using LivingLandscapes.Settings;
 using RimWorld;
@@ -16,24 +16,27 @@ public static class Patch_FireWatcher_LargeFireDangerPresent
 {
     private static readonly AccessTools.FieldRef<FireWatcher, Map> MapOf = AccessTools.FieldRefAccess<FireWatcher, Map>("map");
 
-    // When large fire danger began, per map.
-    private static readonly Dictionary<int, int> began = new Dictionary<int, int>();
+    // When large fire danger began, per map object: map IDs restart in every game, so an entry left by a fire burning when
+    // the player quit would otherwise carry into the next game (#157). The weak table lets old maps be collected.
+    private static readonly ConditionalWeakTable<Map, StrongBox<int>> began = new ConditionalWeakTable<Map, StrongBox<int>>();
 
     public static void Postfix(FireWatcher __instance, ref bool __result)
     {
         float delay = LivingLandscapesMod.Settings?.fireRainDelayHours ?? 0f;
-        int id = MapOf(__instance)?.uniqueID ?? -1;
+        Map map = MapOf(__instance);
+        if (map == null)
+            return;
         if (!__result)
         {
-            began.Remove(id);
+            began.Remove(map);
             return;
         }
         if (delay < 0.5f)
             return;
         int now = Find.TickManager.TicksGame;
-        if (!began.TryGetValue(id, out int start))
-            began[id] = start = now;
-        if (delay >= LivingLandscapesSettings.FireRainNever || now - start < delay * GenDate.TicksPerHour)
+        if (!began.TryGetValue(map, out StrongBox<int> start))
+            began.Add(map, start = new StrongBox<int>(now));
+        if (delay >= LivingLandscapesSettings.FireRainNever || now - start.Value < delay * GenDate.TicksPerHour)
             __result = false;
     }
 }
