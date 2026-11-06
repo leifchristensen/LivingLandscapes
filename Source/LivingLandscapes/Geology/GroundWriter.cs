@@ -20,17 +20,17 @@ public class GroundWriterExtension : DefModExtension
     /// Weight of throughflow enrichment (<see cref="Throughflow"/>, #187) in the fertility score and the rich-soil patches: soil
     /// along drainage lines is darker and richer, uphill of where surface water forms. 0: off.
     /// </summary>
-    public float fertilityThroughflow = 0.25f;
+    public float fertilityThroughflow = 0.7f;
 
     /// <summary>Drainage area (log10 cells) where throughflow starts, and where a cell carries it in full.</summary>
-    public float throughflowAreaMin = 1.5f;
-    public float throughflowAreaFull = 3f;
+    public float throughflowAreaMin = 1f;
+    public float throughflowAreaFull = 2.5f;
 
     /// <summary>Gradient (rise over run) at which the water is fully moving; below it saturation tends to stagnate.</summary>
-    public float throughflowMovingGradient = 0.05f;
+    public float throughflowMovingGradient = 0.03f;
 
     /// <summary>Height above the drainage line (metres) over which throughflow falls to 1/e.</summary>
-    public float throughflowReachHeight = 1.5f;
+    public float throughflowReachHeight = 2.5f;
 
     /// <summary>Soil depth (metres) counted as fully deep for the fertility score.</summary>
     public float deepSoil = 2f;

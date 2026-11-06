@@ -424,11 +424,11 @@
         <fertilityNoise>0.1</fertilityNoise>
         <deepSoil>2</deepSoil>
         <!-- Throughflow enrichment (#187, Geology/Throughflow.cs): moving water in saturated subsoil along drainage lines. -->
-        <fertilityThroughflow>0.25</fertilityThroughflow>
-        <throughflowAreaMin>1.5</throughflowAreaMin>
-        <throughflowAreaFull>3</throughflowAreaFull>
-        <throughflowMovingGradient>0.05</throughflowMovingGradient>
-        <throughflowReachHeight>1.5</throughflowReachHeight>
+        <fertilityThroughflow>0.7</fertilityThroughflow>
+        <throughflowAreaMin>1</throughflowAreaMin>
+        <throughflowAreaFull>2.5</throughflowAreaFull>
+        <throughflowMovingGradient>0.03</throughflowMovingGradient>
+        <throughflowReachHeight>2.5</throughflowReachHeight>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
