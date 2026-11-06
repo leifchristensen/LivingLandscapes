@@ -528,11 +528,18 @@
     </dependsOn>
     <overlay>
       <icon>UI/LivingLandscapes/Overlays/SunExposure</icon>
-      <labelFormat>0.0</labelFormat>
+      <labelFormat>0.00</labelFormat>
       <fillOpacity>0.6</fillOpacity>
       <colors>
+        <!-- Exposure works in ratios (#126): a stop at each halving below level ground (0.7), so every doubling of
+             exposure is an equal step in colour; 0.84 is the ratio midpoint between level ground and full sun. -->
         <li><value>0</value><color>(0.15, 0.15, 0.45, 0.85)</color><label>shaded slope</label></li>
+        <li><value>0.044</value><color>(0.32, 0.31, 0.48, 0.68)</color></li>
+        <li><value>0.0875</value><color>(0.49, 0.47, 0.51, 0.51)</color></li>
+        <li><value>0.175</value><color>(0.66, 0.63, 0.54, 0.34)</color></li>
+        <li><value>0.35</value><color>(0.83, 0.79, 0.57, 0.17)</color></li>
         <li><value>0.7</value><color>(1.0, 0.95, 0.6, 0)</color><label>level ground</label></li>
+        <li><value>0.84</value><color>(1.0, 0.85, 0.35, 0.43)</color></li>
         <li><value>1</value><color>(1.0, 0.75, 0.1, 0.85)</color><label>sunny slope</label></li>
       </colors>
     </overlay>
