@@ -28,6 +28,12 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>Distance between neighbouring world tile centres, used for the regional slope.</summary>
     public float tileSpacingMetres = 30000f;
 
+    /// <summary>
+    /// Share of a neighbour's fall a map inherits when both tiles have the same hilliness (<see cref="RegionalSlopeMath"/>).
+    /// 0: a plain among plains (hills among hills) takes no regional slope; its own valleys and rises shape it.
+    /// </summary>
+    public float uniformSlopeShare = 0f;
+
     /// <summary>Typical spacing of ridges and valleys.</summary>
     public float landformWavelength = 300f;
 
@@ -154,7 +160,7 @@ public static class LandscapeGenerator
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
         out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage)
     {
-        world = WorldContext.For(map, p.tileSpacingMetres);
+        world = WorldContext.For(map, p.tileSpacingMetres, p);
         water = WaterRegimes.Select(map, world);
         int sizeX = map.Size.x, sizeZ = map.Size.z;
         float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);

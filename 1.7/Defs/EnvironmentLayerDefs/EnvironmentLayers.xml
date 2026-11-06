@@ -113,6 +113,11 @@
         <reliefMountainous>180</reliefMountainous>
         <reliefImpassable>300</reliefImpassable>
         <tileSpacingMetres>30000</tileSpacingMetres>
+        <!-- Share of the fall to a neighbour of the same hilliness the map inherits as its regional slope. Each
+             neighbour's fall counts by the relief contrast of the two tiles (|r1 - r2| / max, from the relief values
+             above): a plain beside hills slopes off them, a plain among plains takes no tilt and drains by its own
+             relief. The sea and a world river keep their pull. -->
+        <uniformSlopeShare>0</uniformSlopeShare>
         <landformWavelength>300</landformWavelength>
         <detailWavelength>100</detailWavelength>
         <detailUplift>0.3</detailUplift>

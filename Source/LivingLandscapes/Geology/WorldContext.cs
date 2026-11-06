@@ -20,10 +20,13 @@ public class WorldContext
 
     public Hilliness Hilliness;
 
-    /// <summary>Direction the region slopes down towards (lower neighbours, the sea), or zero on level ground.</summary>
+    /// <summary>
+    /// Direction the region slopes down towards (lower neighbours of a different ruggedness, the sea, the river), or zero
+    /// where the tile is surrounded by ground like its own (<see cref="RegionalSlopeMath"/>).
+    /// </summary>
     public Vector2 Downhill;
 
-    /// <summary>Regional fall per metre towards <see cref="Downhill"/>, from neighbouring tile elevations.</summary>
+    /// <summary>Regional fall per metre towards <see cref="Downhill"/>, from neighbouring tile elevations weighted by relief contrast.</summary>
     public float RegionalGradient;
 
     /// <summary>Direction the sea lies in, or zero if no neighbouring tile is sea.</summary>
@@ -64,7 +67,9 @@ public class WorldContext
     /// <summary>The neighbours' slope is kept when it already runs this much (cosine) with the river; otherwise the river's direction replaces it.</summary>
     private const float RiverAgreement = 0.5f;
 
-    public static WorldContext For(Map map, float tileSpacingMetres)
+    /// <param name="p">The generation settings: each neighbour's fall counts by the relief contrast of the two tiles'
+    /// hilliness. Null counts every neighbour fully (callers that only need the river).</param>
+    public static WorldContext For(Map map, float tileSpacingMetres, GeologyGenerationExtension p = null)
     {
         Tile tile = map.TileInfo;
         var context = new WorldContext
@@ -78,13 +83,18 @@ public class WorldContext
         var neighbours = new List<PlanetTile>();
         Find.WorldGrid.GetTileNeighbors(here, neighbours);
 
-        Vector2 downhill = Vector2.zero, sea = Vector2.zero;
+        Vector2 downhill = Vector2.zero, sea = Vector2.zero, fall = Vector2.zero;
         foreach (PlanetTile n in neighbours)
         {
             Tile other = Find.WorldGrid[n];
             Vector2 dir = Heading(Find.WorldGrid.GetHeadingFromTo(here, n));
-            // Weight each neighbour by how much lower it is; higher neighbours push the other way.
-            downhill += dir * (tile.elevation - Mathf.Max(other.elevation, 0f));
+            // Weight each neighbour by how much lower it is; higher neighbours push the other way. The fall counts by the
+            // relief contrast of the two tiles: a foot slope between plain and hills is a landform the map shows, the tilt
+            // between two plain tiles' coarse means is not. A coast is always a boundary.
+            float weight = p == null || other.WaterCovered ? 1f
+                : RegionalSlopeMath.NeighbourWeight(p.ReliefFor(context.Hilliness), p.ReliefFor(other.hilliness), p.uniformSlopeShare);
+            downhill += dir * (tile.elevation - Mathf.Max(other.elevation, 0f)) * weight;
+            fall += dir * (tile.elevation - Mathf.Max(other.elevation, 0f));
             if (other.WaterCovered)
                 sea += dir;
         }
@@ -133,9 +143,10 @@ public class WorldContext
             if (context.RiverFlow.sqrMagnitude > 1e-6f && Vector2.Dot(context.Downhill, context.RiverFlow.normalized) < RiverAgreement)
             {
                 context.Downhill = context.RiverFlow.normalized;
-                if (context.RegionalGradient <= 0f)
-                    context.RegionalGradient = 0.0005f;
             }
+            // A world river is the drainage the region's fall belongs to, so its map keeps the whole fall to the
+            // neighbours (unweighted by relief contrast) along the river's course: a plain river still runs downhill.
+            context.RegionalGradient = Mathf.Max(context.RegionalGradient, fall.magnitude / Mathf.Max(1, neighbours.Count) / tileSpacingMetres, 0.0005f);
             Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
             context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
             Rand.PopState();
