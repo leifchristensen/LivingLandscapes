@@ -104,7 +104,7 @@ public class WetnessWorker : EnvironmentLayerWorker
 
         // The water table meets a river at its water surface, not its bed.
         RiverSystem rivers = context.Map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
-        float[] drainageHeight = Drainage.Of(context).LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out float[] lineArea, out bool[] lineWater);
+        float[] drainageHeight = Drainage.WithFloor(context).LineHeight(p.channelArea, rivers?.WaterLevel, rivers?.ChannelOf, out float[] lineArea, out bool[] lineWater);
 
         float exponent = Mathf.Lerp(p.aridSharpening, 1f, p.ClimateOf(context.Map));
         var wetness = new float[n];

@@ -7,7 +7,7 @@ namespace LivingLandscapes.Tests;
 /// <summary>
 /// Which floor under a closed hollow seeps how much (P23 extended, #149): the floor class of a tile from what lies
 /// under it, the water-table cap on that class's seepage, and the seepage the balance then uses,
-/// S_eff = S(class) x cap(HAND), fed to <see cref="WaterBalanceMath.LakeShare"/>.
+/// S_eff = S(class) x cap(water table depth below the floor), fed to <see cref="WaterBalanceMath.LakeShare"/>.
 /// Tested as properties of the rules, not snapshots: the values live in FloorSeepage.xml and get tuned, the ordering
 /// they must keep (a more permeable floor never holds a bigger lake; a dry floor seeps nothing) does not.
 /// </summary>
@@ -55,39 +55,39 @@ public class FloorSeepageRulesTests
     }
 
     [Fact]
-    public void Cap_IsFullAtTheFloor_ZeroOnceTheFloorStandsDry_AndNeverIncreasesWithDepth()
+    public void Cap_IsZeroAtTheWaterTable_FullOnceDisconnected_AndNeverFallsWithDepth()
     {
         FloorSeepageRules rules = Shipped();
 
-        Assert.Equal(1f, rules.Cap(0f));
-        Assert.Equal(1f, rules.Cap(-3f), 4);  // a water table above the floor is still a wetted floor
-        Assert.Equal(0f, rules.Cap(rules.handDry));
-        Assert.Equal(0f, rules.Cap(rules.handDry * 2f));
+        Assert.Equal(0f, rules.Cap(0f));
+        Assert.Equal(0f, rules.Cap(-3f), 4);  // a floor below the water table is fed by it, not drained
+        Assert.Equal(1f, rules.Cap(rules.disconnectDepth));
+        Assert.Equal(1f, rules.Cap(rules.disconnectDepth * 5f));
 
-        float previous = 1f;
-        for (float hand = 0f; hand <= rules.handDry * 1.5f; hand += 0.5f)
+        float previous = 0f;
+        for (float depth = 0f; depth <= rules.disconnectDepth * 3f; depth += 0.25f)
         {
-            float cap = rules.Cap(hand);
+            float cap = rules.Cap(depth);
             Assert.InRange(cap, 0f, 1f);
-            Assert.True(cap <= previous + 1e-6f, $"cap grows with depth at HAND {hand}: {previous} -> {cap}");
+            Assert.True(cap >= previous - 1e-6f, $"cap falls with depth at {depth} m: {previous} -> {cap}");
             previous = cap;
         }
     }
 
     [Fact]
-    public void SeepageEff_IsTheClassValueAtTheFloor_AndNothingOnADryFloor()
+    public void SeepageEff_IsTheClassValueWhenDisconnected_AndNothingAtTheWaterTable()
     {
         FloorSeepageRules rules = Shipped();
 
         for (int floorClass = 0; floorClass < rules.Seepage.Length; floorClass++)
         {
-            Assert.Equal(rules.Seepage[floorClass], rules.SeepageEff(floorClass, 0f), 4);
-            Assert.Equal(0f, rules.SeepageEff(floorClass, rules.handDry * 2f), 4);
+            Assert.Equal(rules.Seepage[floorClass], rules.SeepageEff(floorClass, rules.disconnectDepth * 2f), 4);
+            Assert.Equal(0f, rules.SeepageEff(floorClass, 0f), 4);
         }
     }
 
     [Fact]
-    public void SeepageEff_IsNeverLargerForALessPermeableFloor_NorDeeperWaterTable()
+    public void SeepageEff_IsNeverLargerForALessPermeableFloor()
     {
         FloorSeepageRules rules = Shipped();
 
@@ -99,7 +99,7 @@ public class FloorSeepageRulesTests
         foreach (float hand in new[] { 0f, 5f, 12.5f, 24f, 40f })
             for (int i = 1; i < rules.Seepage.Length; i++)
                 Assert.True(rules.SeepageEff(i, hand) >= rules.SeepageEff(i - 1, hand),
-                    $"class {i} seeps less than class {i - 1} at HAND {hand}");
+                    $"class {i} seeps less than class {i - 1} at water table depth {hand} m");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class FloorSeepageRulesTests
                     float share = WaterBalanceMath.LakeShare(runoff, climate[0], climate[1],
                         rules.SeepageEff(floorClass, hand));
                     Assert.True(share <= withoutSeepage || Math.Abs(share - withoutSeepage) < 1e-4f,
-                        $"{rules.ClassNames[floorClass]} at HAND {hand} gives a bigger lake than a sealed floor " +
+                        $"{rules.ClassNames[floorClass]} at water table depth {hand} m gives a bigger lake than a sealed floor " +
                         $"(rain {climate[0]}, evap {climate[1]}): {share} > {withoutSeepage}");
                 }
         }
@@ -128,25 +128,25 @@ public class FloorSeepageRulesTests
     [Fact]
     public void APermeableFloor_BetsAWetClimateDown_WhileAClayFloor_DoesNot()
     {
-        // the ordering #149 asks for, at the wet temperate case of the loop (rain 2200, evaporation ~700):
-        // gravel and karst stand their hollows below the rim, clay and silt keep them full to it.
+        // the ordering #149 asks for, at the wet temperate case of the loop (rain 2200, evaporation ~700), on floors
+        // disconnected from the water table: gravel and karst stand their hollows below the rim, clay and silt keep them
+        // full to it.
         FloorSeepageRules rules = Shipped();
-        float rain = 2200f, evaporation = 700f;
+        float rain = 2200f, evaporation = 700f, disconnected = rules.disconnectDepth * 2f;
 
         foreach (int floorClass in new[] { FloorSeepageRules.Gravel, FloorSeepageRules.Karst })
             Assert.False(float.IsPositiveInfinity(
-                    WaterBalanceMath.LakeShare(0.4f, rain, evaporation, rules.SeepageEff(floorClass, 0f))),
+                    WaterBalanceMath.LakeShare(0.4f, rain, evaporation, rules.SeepageEff(floorClass, disconnected))),
                 $"{rules.ClassNames[floorClass]} on a wet floor should drain the hollow below its rim");
 
         foreach (int floorClass in new[] { FloorSeepageRules.ClayHardpan, FloorSeepageRules.Silt })
             Assert.True(float.IsPositiveInfinity(
-                    WaterBalanceMath.LakeShare(0.4f, rain, evaporation, rules.SeepageEff(floorClass, 0f))),
+                    WaterBalanceMath.LakeShare(0.4f, rain, evaporation, rules.SeepageEff(floorClass, disconnected))),
                 $"{rules.ClassNames[floorClass]} should still hold a hollow full to its rim");
 
-        // the same gravel floor under a deep water table (a desert hollow) is unsaturated and holds as well as clay
+        // the same gravel floor at the water table (a deep hollow, a riverside lowland) is fed by groundwater and holds
         Assert.True(float.IsPositiveInfinity(
-                WaterBalanceMath.LakeShare(0.4f, rain, evaporation,
-                    rules.SeepageEff(FloorSeepageRules.Gravel, rules.handDry))),
-            "a floor above the water table must not drain anything - this is what keeps deserts unchanged");
+                WaterBalanceMath.LakeShare(0.4f, rain, evaporation, rules.SeepageEff(FloorSeepageRules.Gravel, 0f))),
+            "a floor at the water table must not drain anything");
     }
 }

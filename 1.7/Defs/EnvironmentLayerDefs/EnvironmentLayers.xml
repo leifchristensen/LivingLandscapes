@@ -319,6 +319,9 @@
     <workerClass>LivingLandscapes.Layers.HeightAboveDrainageWorker</workerClass>
     <dependsOn>
       <li>LL_Landform</li>
+      <li>LL_Alluvium</li>
+      <li>LL_GrainSize</li>
+      <li>LL_SoilDepth</li>
     </dependsOn>
     <unit>m</unit>
     <overlay>
@@ -393,6 +396,9 @@
     <dependsOn>
       <li>LL_Landform</li>
       <li>LL_DrainageArea</li>
+      <li>LL_Alluvium</li>
+      <li>LL_GrainSize</li>
+      <li>LL_SoilDepth</li>
     </dependsOn>
     <modExtensions>
       <li Class="LivingLandscapes.Layers.WetnessExtension">

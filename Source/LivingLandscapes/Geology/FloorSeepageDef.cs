@@ -26,8 +26,8 @@ public class FloorSeepageDef : Def
     public float soilSiltDepth = 1f;
     public float jointOpen = 0.5f;
 
-    /// <summary>HAND (m, height above drainage) at or above which the floor stands dry and seeps nothing.</summary>
-    public float handDry = 25f;
+    /// <summary>Depth of the water table below the floor (m) from which the bed is disconnected and seeps its full S.</summary>
+    public float disconnectDepth = 3f;
 
     /// <summary>Rock defNames whose ground weathers to karst (carbonate rock: limestone and its metamorphic marble).</summary>
     public List<string> karstRockDefNames = new List<string> { "Limestone", "Marble" };
@@ -46,7 +46,7 @@ public class FloorSeepageDef : Def
         grainGravel = grainGravel,
         soilSiltDepth = soilSiltDepth,
         jointOpen = jointOpen,
-        handDry = handDry,
+        disconnectDepth = disconnectDepth,
     };
 
     private static FloorSeepageDef current;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using LivingLandscapes.Environment;
 using LivingLandscapes.Layers;
 using UnityEngine;
@@ -39,6 +40,36 @@ public class Drainage
     /// outweighs evaporation and every hollow fills to its spill level.
     /// </summary>
     public float LakeShare = float.PositiveInfinity;
+
+    /// <summary>
+    /// The balance's lake share for a floor seeping this much (S, mm/yr; <see cref="WaterBalance.LakeShare(Map, out float, float)"/>).
+    /// Null: every hollow takes <see cref="LakeShare"/>.
+    /// </summary>
+    public System.Func<float, float> ShareFor;
+
+    /// <summary>
+    /// Effective seepage of each cell's floor (S, mm/yr, before the water-table cap; <see cref="FloorSeepageGrid"/>) and its
+    /// floor class (<see cref="FloorSeepageRules"/>). Null until the floor layers exist: hollows then seep nothing.
+    /// </summary>
+    public float[] FloorSeepage;
+    public int[] FloorClass;
+
+    /// <summary>
+    /// Where each hollow's water stands (height units; NaN outside hollows), from <see cref="LineHeight"/>: the water
+    /// balance with its floor's seepage, and at least the water table where the floor lies below it (#149). The lake layer
+    /// paints its lakes at these levels.
+    /// </summary>
+    public float[] HollowLevel;
+
+    /// <summary>One closed hollow's balance, for the test summary (#149).</summary>
+    public struct HollowRecord
+    {
+        public int Cells, FloorClass;
+        public float Floor, Spill, Level, Seepage, WaterTableDepth;
+    }
+
+    /// <summary>Every hollow <see cref="LineHeight"/> balanced, deep and large enough to hold a lake.</summary>
+    public List<HollowRecord> Hollows = new List<HollowRecord>();
 
     private int[] receiver;
     private (float channelArea, float[] riverLevel, float[] height, float[] area, bool[] water)? lines;
@@ -127,20 +158,29 @@ public class Drainage
                 hollowCells[key] = cells = new System.Collections.Generic.List<int>();
             cells.Add(i);
         }
-        // Each hollow's water stands where evaporation from its surface balances its catchment's runoff (P23).
-        // A lake stands in it only where the lake layer draws one: deep and large enough, and deep enough at its level.
+        // Each hollow's outlet: the cell its water leaves by (its receiver lies outside the hollow); none for a sink.
+        int[] next = Receiver;
+        var outlet = new System.Collections.Generic.Dictionary<(int, float), int>();
+        foreach (var hollow in hollowCells)
+        {
+            outlet[hollow.Key] = -1;
+            foreach (int c in hollow.Value)
+            {
+                int r = next[c];
+                if (r >= 0 && (region[r] != region[c] || Spill[r] != Spill[c]))
+                {
+                    outlet[hollow.Key] = r;
+                    break;
+                }
+            }
+        }
         var lake = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
         var waterLevel = new System.Collections.Generic.Dictionary<(int, float), float>();
         var holdsLake = new System.Collections.Generic.Dictionary<(int, float), bool>();
-        foreach (var hollow in hollowCells)
-        {
-            hollow.Value.Sort((a, b) => Ground[a].CompareTo(Ground[b]));
-            float floor = Ground[hollow.Value[0]];
-            float level = WaterBalance.LakeLevel(hollow.Value, Ground, hollow.Key.Item2, Mathf.Pow(10f, hollowArea[hollow.Key]), LakeShare);
-            waterLevel[hollow.Key] = level;
-            holdsLake[hollow.Key] = hollow.Key.Item2 - floor >= lake.minLakeDepth && hollow.Value.Count >= lake.minLakeCells
-                                    && level - floor >= lake.minLakeDepth;
-        }
+        HollowLevel = new float[n];
+        for (int i = 0; i < n; i++)
+            HollowLevel[i] = float.NaN;
+        Hollows = new List<HollowRecord>();
         // Receivers lie lower on the filled surface, so visiting low to high resolves each cell's receiver first.
         var order = new int[n];
         var keys = (float[])Filled.Clone();
@@ -148,11 +188,14 @@ public class Drainage
             order[i] = i;
         System.Array.Sort(keys, order);
         var line = new float[n];
+        var visited = new bool[n];
         lineArea = new float[n];
         lineWater = new bool[n];
-        int[] next = Receiver;
         foreach (int c in order)
         {
+            if (region[c] >= 0 && !waterLevel.ContainsKey((region[c], Spill[c])))
+                BalanceHollow((region[c], Spill[c]));
+            visited[c] = true;
             if (riverLevel != null && !float.IsNaN(riverLevel[c]))
             {
                 line[c] = riverLevel[c];
@@ -179,6 +222,51 @@ public class Drainage
         }
         lines = (channelArea, riverLevel, line, lineArea, lineWater);
         return line;
+
+        // A hollow's water (P23 extended, #149), once the drainage below its outlet is known. The water table under the
+        // hollow stands at the drainage line its outlet spills into; a sink is the low point its groundwater flows to, so
+        // the water table stands at its floor. A floor below the water table is fed from below: water stands at least up to
+        // the water table, rain or not, and nothing seeps away. A floor above it loses its seepage S x cap(depth) on top of
+        // evaporation, and holds water only by the balance of what its catchment brings in.
+        void BalanceHollow((int, float) key)
+        {
+            List<int> cells = hollowCells[key];
+            cells.Sort((a, b) => Ground[a].CompareTo(Ground[b]));
+            float spill = key.Item2, floor = Ground[cells[0]];
+            int r = outlet[key];
+            float waterTable = r < 0 ? floor : Mathf.Min(spill, visited[r] ? line[r] : Ground[r]);
+            float depth = floor - waterTable;
+            FloorSeepageRules rules = FloorSeepageDef.Current.Rules;
+            float seepage = 0f;
+            int floorClass = FloorSeepageRules.ClayHardpan;
+            if (FloorSeepage != null)
+            {
+                var votes = new int[rules.Seepage.Length];
+                foreach (int c in cells)
+                {
+                    seepage += FloorSeepage[c];
+                    votes[FloorClass[c]]++;
+                }
+                seepage = seepage / cells.Count * rules.Cap(depth);
+                for (int k = 1; k < votes.Length; k++)
+                {
+                    if (votes[k] > votes[floorClass])
+                        floorClass = k;
+                }
+            }
+            float share = ShareFor != null && seepage > 0f ? ShareFor(seepage) : LakeShare;
+            float level = WaterBalance.LakeLevel(cells, Ground, spill, Mathf.Pow(10f, hollowArea[key]), share);
+            if (depth < 0f)
+                level = Mathf.Max(level, waterTable);
+            waterLevel[key] = level;
+            bool deepAndLarge = spill - floor >= lake.minLakeDepth && cells.Count >= lake.minLakeCells;
+            holdsLake[key] = deepAndLarge && level - floor >= lake.minLakeDepth;
+            foreach (int c in cells)
+                HollowLevel[c] = level;
+            if (deepAndLarge)
+                Hollows.Add(new HollowRecord { Cells = cells.Count, FloorClass = floorClass, Floor = floor, Spill = spill, Level = level,
+                                               Seepage = seepage, WaterTableDepth = depth });
+        }
     }
 
     /// <summary>
@@ -196,7 +284,21 @@ public class Drainage
         drainage = Build((float[])landform.Clone(), context.Environment.PlannedBaseLevels, context.SizeX, context.SizeZ,
             RiverInflow(context, context.Environment.PlannedRivers), context.Environment.PlannedSinks);
         drainage.LakeShare = WaterBalance.LakeShare(context.Map, out _);
+        Map map = context.Map;
+        drainage.ShareFor = seepage => WaterBalance.LakeShare(map, out _, seepage);
         context.Environment.PlannedDrainage = drainage;
+        return drainage;
+    }
+
+    /// <summary>
+    /// <see cref="Of"/>, with each cell's floor seepage read from the floor layers (alluvium, grain size, soil, rock), for
+    /// the layers that balance the hollows (wetness, height above drainage, lakes). Those layers depend on the floor layers.
+    /// </summary>
+    public static Drainage WithFloor(EnvironmentContext context)
+    {
+        Drainage drainage = Of(context);
+        if (drainage != null && drainage.FloorSeepage == null)
+            FloorSeepageGrid.Fill(context, drainage);
         return drainage;
     }
 

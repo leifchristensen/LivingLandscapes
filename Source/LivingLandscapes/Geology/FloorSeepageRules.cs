@@ -4,12 +4,13 @@ namespace LivingLandscapes.Geology;
 /// Which floor class the ground under a closed hollow belongs to, how much its wetted floor seeps, and how far the
 /// water table below the floor caps that (P23 extended, #149). Feeds <see cref="WaterBalanceMath.LakeShare"/>:
 ///
-///   A_lake = runoff x rain x catchment / (evaporation - rain + S_eff),   S_eff = S(floor class) x cap(HAND)
+///   A_lake = runoff x rain x catchment / (evaporation - rain + S_eff),   S_eff = S(floor class) x cap(d)
 ///
 /// S is the effective seepage through the wetted floor in mm/yr - what a lake bed actually lets through once its own
 /// fines have sealed it (colmation), not the saturated conductivity of the material; FloorSeepageDef (XML) documents
-/// each value. The cap is what keeps deserts unchanged: ground whose water table lies deep below the floor
-/// (high HAND, height above drainage) is unsaturated and passes almost nothing.
+/// each value. The cap is the water table under the floor, d metres below it: a floor at or below the water table is a
+/// window on the groundwater (the lake and the ground share one level, so nothing drains away); once the water table lies
+/// disconnectDepth or more below the floor the bed is disconnected and drains under gravity at its full S.
 ///
 /// Pure arithmetic, no game types: the same rules serve the erosion model's basins and the map's hollows.
 /// </summary>
@@ -34,8 +35,8 @@ public class FloorSeepageRules
     /// <summary>Open joint (RockStrata Site.joint, 0..1) at or above which a rock floor counts as jointed.</summary>
     public float jointOpen = 0.5f;
 
-    /// <summary>HAND (m) at which the floor stands dry: unsaturated ground passes nothing (the desert guard).</summary>
-    public float handDry = 25f;
+    /// <summary>Depth of the water table below the floor (m) from which the bed is disconnected and seeps its full S.</summary>
+    public float disconnectDepth = 3f;
 
     /// <summary>
     /// The floor class of a tile, from what lies under it: river-laid alluvium sorted by grain size, else deep soil,
@@ -56,16 +57,17 @@ public class FloorSeepageRules
     public float SeepageOf(int floorClass) => Seepage[floorClass];
 
     /// <summary>
-    /// How far the water table below the floor (HAND, m) lets the floor seep: full at the floor, nothing once the
-    /// unsaturated zone is handDry thick - a vadose zone that thick holds its water against gravity.
+    /// How much of its S a floor loses, from the depth of the water table below it (m): nothing where the floor reaches
+    /// the water table (groundwater holds the lake up), rising to all of it once the water table lies disconnectDepth
+    /// below (the bed drains under gravity, so a deeper water table adds nothing more).
     /// </summary>
-    public float Cap(float hand)
+    public float Cap(float waterTableDepth)
     {
-        if (hand <= 0f) return 1f;
-        if (hand >= handDry) return 0f;
-        return 1f - hand / handDry;
+        if (waterTableDepth <= 0f) return 0f;
+        if (waterTableDepth >= disconnectDepth) return 1f;
+        return waterTableDepth / disconnectDepth;
     }
 
     /// <summary>The seepage the balance uses: the class's S, capped by how far the water table lies below the floor.</summary>
-    public float SeepageEff(int floorClass, float hand) => Seepage[floorClass] * Cap(hand);
+    public float SeepageEff(int floorClass, float waterTableDepth) => Seepage[floorClass] * Cap(waterTableDepth);
 }

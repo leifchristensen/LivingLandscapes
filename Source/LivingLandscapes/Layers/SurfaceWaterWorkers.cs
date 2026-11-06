@@ -52,7 +52,8 @@ public static class SurfaceWaterModel
         public float[] Flow;
     }
 
-    public static Result Compute(Map map, float[] landform, float[] drainage, SurfaceWaterExtension p, bool log = false, float[] spill = null)
+    public static Result Compute(Map map, float[] landform, float[] drainage, SurfaceWaterExtension p, bool log = false, float[] spill = null,
+        float[] hollowLevel = null)
     {
         int sizeX = map.Size.x, sizeZ = map.Size.z, n = landform.Length;
         float climate = (EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map);
@@ -71,7 +72,7 @@ public static class SurfaceWaterModel
             result.Flow[i] = rivers.Still != null && rivers.Still[i] ? 0f : 1f;
         }
 
-        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver, spill);
+        int lakes = Lakes(map, landform, drainage, sizeX, sizeZ, p, result, InRiver, spill, hollowLevel);
 
         if (!log)
             return result;
@@ -93,7 +94,7 @@ public static class SurfaceWaterModel
     /// Returns the number of lakes.
     /// </summary>
     private static int Lakes(Map map, float[] landform, float[] drainage, int sizeX, int sizeZ, SurfaceWaterExtension p, Result result,
-        System.Func<int, bool> inRiver, float[] spillLevel = null)
+        System.Func<int, bool> inRiver, float[] spillLevel = null, float[] hollowLevel = null)
     {
         var filled = (float[])(spillLevel ?? landform).Clone();
         // Water leaves at the map's base levels (#97); without them (Off mode) every edge drains.
@@ -130,9 +131,12 @@ public static class SurfaceWaterModel
             if (deepest < p.minLakeDepth || hollow.Count < p.minLakeCells)
                 continue;
 
-            // Lake area at balance: runoff in = net evaporation out. Wetter than evaporation: fills to the spill level.
+            // Lake area at balance: runoff in = net evaporation and floor seepage out; at least the water table where the
+            // floor lies below it (the drainage's hollow balance, #149). Without it, the map-wide share.
             hollow.Sort((a, b) => landform[a].CompareTo(landform[b]));
-            float level = WaterBalance.LakeLevel(hollow, landform, spill, catchment, lakeShare);
+            float level = hollowLevel != null && !float.IsNaN(hollowLevel[hollow[0]])
+                ? Mathf.Min(spill, hollowLevel[hollow[0]])
+                : WaterBalance.LakeLevel(hollow, landform, spill, catchment, lakeShare);
             if (level - landform[hollow[0]] < p.minLakeDepth)
                 continue;
             lakes++;
@@ -163,7 +167,8 @@ public class SurfaceWaterWorker : EnvironmentLayerWorker
         if (landform == null || drainage == null || !GeologicalTerrain.AppliesTo(context.Map))
             return null;
         var p = def.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
-        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, log: true, spill: Drainage.Of(context)?.Spill).Depth;
+        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, log: true, spill: Drainage.Of(context)?.Spill,
+            hollowLevel: Drainage.Of(context)?.HollowLevel).Depth;
     }
 }
 
@@ -179,6 +184,7 @@ public class WaterFlowWorker : EnvironmentLayerWorker
         if (landform == null || drainage == null || !GeologicalTerrain.AppliesTo(context.Map))
             return null;
         var p = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
-        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, spill: Drainage.Of(context)?.Spill).Flow;
+        return SurfaceWaterModel.Compute(context.Map, landform, drainage, p, spill: Drainage.Of(context)?.Spill,
+            hollowLevel: Drainage.Of(context)?.HollowLevel).Flow;
     }
 }

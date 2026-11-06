@@ -56,7 +56,7 @@ public class HeightAboveDrainageWorker : EnvironmentLayerWorker
 
     public override float[] Compute(EnvironmentContext context)
     {
-        Drainage drainage = Drainage.Of(context);
+        Drainage drainage = Drainage.WithFloor(context);
         if (drainage == null)
             return null;
         var p = EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension();
