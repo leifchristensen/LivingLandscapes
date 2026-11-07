@@ -27,7 +27,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
         float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
-        out bool[] world, out int[] secondary, out float[] secondaryShare, out int[] branchFrom, out int splits, out float[] water, out Vector2[] momentum, float loss = 0f, float scale = 1f, float[] lakeLoss = null)
+        out bool[] world, out int[] secondary, out float[] secondaryShare, out int[] branchFrom, out int splits, out float[] water, out Vector2[] momentum, float loss = 0f, float scale = 1f, float[] lakeLoss = null, float[] runoffAt = null)
     {
         int n = filled.Length;
         var order = new int[n];
@@ -42,7 +42,7 @@ public static partial class TerrainChannels
         branchFrom = new int[n];
         for (int i = 0; i < n; i++)
         {
-            discharge[i] = water[i] = runoff + inflow[i];
+            discharge[i] = water[i] = (runoffAt?[i] ?? runoff) + inflow[i];
             world[i] = worldSource[i];
             secondary[i] = branchFrom[i] = -1;
         }

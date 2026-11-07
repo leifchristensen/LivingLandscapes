@@ -59,10 +59,13 @@ public static partial class TerrainChannels
         float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
         float mapSpread = water?.nudges.spread ?? 1f;
         float loss = p.transmissionLoss * p.AbsorptionOf(biome);
+        // Where the rain runs off: the climate's mean, distributed by the ground (rock, slope; GroundRunoff, #216).
+        float[] runoffAt = GroundRunoff.Distribute(runoff, climate, p.AbsorptionOf(biome), rockStrength, GridMath.Slope(height, sizeX, sizeZ),
+            p.rockAbsorptionLoss, p.slopeAbsorptionHalf);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss,
             worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
-            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, out _));
+            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _));
         system.BaseLevel = outletLevel;
         system.YieldScale = yield;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
@@ -91,7 +94,7 @@ public static partial class TerrainChannels
         string ownWater = "";
         if (vanillaWidth <= 0f)
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
-                worldRiverWidth, worldFlow, loss, out ownWater);
+                worldRiverWidth, worldFlow, loss, runoffAt, out ownWater);
         float[] carried = null, seepCapacity = null;
         // Dev: -ll-feedback=share,passes overrides the feedback tuning for sweeps.
         if (GenCommandLine.TryGetCommandLineArg("ll-feedback", out string feedbackArg))
@@ -126,7 +129,7 @@ public static partial class TerrainChannels
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
-                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, out _, loss, dischargeScale, lakeLoss);
+                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, out _, loss, dischargeScale, lakeLoss, runoffAt);
 
             // Where channels start; the water regime nudges it (a denser or sparser network).
             cells = new List<int>();

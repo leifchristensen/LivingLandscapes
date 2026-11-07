@@ -21,6 +21,7 @@
     <Compile Include="..\LivingLandscapes\Geology\GroundCover.cs" Link="Linked\GroundCover.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterDefinition.cs" Link="Linked\WaterDefinition.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterBalanceMath.cs" Link="Linked\WaterBalanceMath.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\GroundRunoff.cs" Link="Linked\GroundRunoff.cs" />
     <Compile Include="..\LivingLandscapes\Geology\FloorSeepageRules.cs" Link="Linked\FloorSeepageRules.cs" />
     <Compile Include="..\LivingLandscapes\Geology\RegionalSlopeMath.cs" Link="Linked\RegionalSlopeMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\RiverEntryRules.cs" Link="Linked\RiverEntryRules.cs" />

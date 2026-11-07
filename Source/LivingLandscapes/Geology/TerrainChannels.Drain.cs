@@ -252,7 +252,7 @@ public static partial class TerrainChannels
     /// <see cref="TerrainChannelSettings.maxWidthWithoutWorldRiver"/> wide; never more than the map's own runoff gives.
     /// </summary>
     private static float OwnDischargeScale(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
-        float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, SimpleCurve worldRiverWidth, float worldFlow, float loss,
+        float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, SimpleCurve worldRiverWidth, float worldFlow, float loss, float[] runoffAt,
         out string summary)
     {
         float target = Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f);
@@ -270,7 +270,7 @@ public static partial class TerrainChannels
         for (int round = 0; round < 4; round++)
         {
             Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p,
-                out _, out _, out _, out _, out _, out float[] carried, out _, round == 0 ? 0f : loss, scale);
+                out _, out _, out _, out _, out _, out float[] carried, out _, round == 0 ? 0f : loss, scale, null, runoffAt);
             float largest = 1f;
             foreach (float q in carried)
                 largest = Mathf.Max(largest, q);
