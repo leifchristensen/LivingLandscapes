@@ -240,6 +240,18 @@ public static partial class TerrainChannels
     }
 
     /// <summary>
+    /// Where a course brings its water onto the map: the point where it crosses the map's edge (the segment from the last point
+    /// outside to the first point inside), or its first point when it starts inside (a spring, not an entry).
+    /// </summary>
+    private static Vector2 EntryPoint(List<Vector2> points, int first, int sizeX, int sizeZ)
+    {
+        if (first == 0)
+            return points[first];
+        RiverEntryRules.EdgeCrossing(points[first - 1].x, points[first - 1].y, points[first].x, points[first].y, sizeX, sizeZ, out float x, out float z);
+        return new Vector2(x, z);
+    }
+
+    /// <summary>
     /// Discharge entering the map: world rivers with the discharge that gives their vanilla width, the region's other
     /// channels with the runoff of the area they drain. On a tile the world gives no river, nothing entering is larger
     /// than a creek, as in vanilla. A world river that does not enter (headwater) rises at the river centre.
@@ -269,7 +281,10 @@ public static partial class TerrainChannels
             int first = course.Points.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ);
             if (first < 0)
                 continue;
-            int cell = RiverGrid.Index(course.Points[first], sizeX, sizeZ);
+            // Water from beyond the map enters where the course crosses the map's edge (boundary condition), on the edge cell: the
+            // erosion model's cells are coarser than the map's, so its first point inside can lie a cell or two in from the edge.
+            Vector2 entryPoint = EntryPoint(course.Points, first, sizeX, sizeZ);
+            int cell = RiverGrid.Index(entryPoint, sizeX, sizeZ);
             if (course.VanillaWidth > 0f)
             {
                 // At a headwater the world river does not come from beyond the map: it rises here.
@@ -278,9 +293,9 @@ public static partial class TerrainChannels
                 // The world says which sides the river comes from. An erosion course that starts elsewhere (beside the exit, say)
                 // would hand the river over on the wrong side, and it would leave again as soon as it entered.
                 if (worldInflows != null && worldInflows.Count > 0 && !worldInflows.Exists(f =>
-                        Vector2.Dot((course.Points[first] - riverCentre).normalized, f.From) >= p.entryAgreement))
+                        Vector2.Dot((entryPoint - riverCentre).normalized, f.From) >= p.entryAgreement))
                 {
-                    Log.Message($"[LivingLandscapes] World river course entering at ({course.Points[first].x:F0}, {course.Points[first].y:F0}) " +
+                    Log.Message($"[LivingLandscapes] World river course entering at ({entryPoint.x:F0}, {entryPoint.y:F0}) " +
                                 $"(world river {course.WorldRiver}) disagrees with the world's inflow sides " +
                                 $"[{string.Join(", ", worldInflows.Select(f => $"({f.From.x:F2}, {f.From.y:F2})"))}]; not used as an entry.");
                     continue;
@@ -290,7 +305,7 @@ public static partial class TerrainChannels
                 if (entered.Length > 0)
                 {
                     // The course brings in the inflow on the side it enters from.
-                    Vector2 side = (course.Points[first] - riverCentre).normalized;
+                    Vector2 side = (entryPoint - riverCentre).normalized;
                     int closest = 0;
                     for (int k = 1; k < entered.Length; k++)
                     {

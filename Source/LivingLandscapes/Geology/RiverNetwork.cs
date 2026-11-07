@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using Verse;
@@ -71,19 +72,19 @@ public static class RiverNetwork
         float threshold = sourceShare * sizeX * sizeZ / cellArea;
         bool IsChannel(int c) => area[c] >= threshold;
 
-        // Channel donors of each channel cell, then cells from small area to large (donors before receivers).
+        // Channel donors of each channel cell.
         var donors = new List<int>[n];
-        var cells = new List<int>();
         for (int c = 0; c < n; c++)
         {
             if (!IsChannel(c))
                 continue;
-            cells.Add(c);
             int r = receiver[c];
             if (r >= 0 && IsChannel(r))
                 (donors[r] ??= new List<int>()).Add(c);
         }
-        cells.Sort((a, b) => area[a].CompareTo(area[b]));
+        // Donors before receivers, from the drainage tree itself (RiverEntryRules.DonorsFirst): sorting by area would scramble a
+        // course where a world river's entry makes neighbouring cells' areas equal in a float.
+        List<int> cells = RiverEntryRules.DonorsFirst(receiver, IsChannel);
 
         var channelOf = new int[n];
         var order = new int[n];

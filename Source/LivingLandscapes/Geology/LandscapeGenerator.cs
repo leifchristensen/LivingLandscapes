@@ -493,7 +493,7 @@ public static class LandscapeGenerator
             }
             if (water == null || water.riverInflow)
             {
-                for (int i = 0; i < world.RiverInflows.Count && (i == 0 || (water?.allRiverLinks ?? false)); i++)
+                for (int i = 0; i < world.RiverInflows.Count; i++)
                 {
                     // The main river comes in at the region's edge and cuts its valley across it; the others meet it on this
                     // tile (where the world puts the confluence), so they come in where their side crosses the map's edge:

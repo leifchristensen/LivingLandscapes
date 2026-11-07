@@ -28,6 +28,7 @@ public static partial class TerrainChannels
         var plans = new List<RiverPlan>();
         var ends = new List<int>();
         var parents = new List<int>();
+        var peak = new List<float>();
         Vector2 Centre(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
         foreach (int c in cells)
         {
@@ -45,6 +46,7 @@ public static partial class TerrainChannels
                 plans.Add(plan);
                 ends.Add(c);
                 parents.Add(-1);
+                peak.Add(0f);
             }
             int k = planOf[c];
             // Water entering from beyond the map, as the drainage area that would bring it (for drainage and wetness). Water that
@@ -57,6 +59,7 @@ public static partial class TerrainChannels
             plans[k].MainWidth.Add(Mathf.Max(1f, Mathf.Round(width[c])));
             plans[k].NominalWidth = width[c];
             ends[k] = c;
+            peak[k] = Mathf.Max(peak[k], discharge[c]);
             if (world[c] && vanillaWidth > 0f)
                 plans[k].VanillaWidth = vanillaWidth;
             int r = receiver[c];
@@ -79,7 +82,7 @@ public static partial class TerrainChannels
         int worldRiver = -1;
         for (int k = 0; k < plans.Count; k++)
         {
-            if (parents[k] < 0 && plans[k].VanillaWidth > 0f && (worldRiver < 0 || discharge[ends[k]] > discharge[ends[worldRiver]]))
+            if (parents[k] < 0 && plans[k].VanillaWidth > 0f && (worldRiver < 0 || peak[k] > peak[worldRiver]))
                 worldRiver = k;
         }
         if (worldRiver >= 0)
