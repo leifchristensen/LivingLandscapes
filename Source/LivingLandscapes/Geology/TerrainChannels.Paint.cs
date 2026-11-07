@@ -103,11 +103,11 @@ public static partial class TerrainChannels
     /// hollow's spill level before it flows on: every cell connected to a spring and lying below the filled surface
     /// becomes still water at that level, part of the river that leaves it. Returns the number of lake cells.
     /// </summary>
-    private static int SpringLake(float[] natural, float[] filled, float[] inflow, bool[] worldSource, int sizeX, int sizeZ,
+    private static int SpringLake(float[] natural, Standing standing, float[] inflow, bool[] worldSource, int sizeX, int sizeZ,
         TerrainChannelSettings p, RiverSystem system)
     {
         int n = natural.Length;
-        bool InHollow(int i) => filled[i] - natural[i] > p.springLakeDepth;
+        bool InHollow(int i) => standing.InSpringHollow(i, natural[i]);
         var queue = new Queue<int>();
         var seen = new bool[n];
         int plan = -1;
@@ -132,7 +132,7 @@ public static partial class TerrainChannels
         while (queue.Count > 0)
         {
             int c = queue.Dequeue();
-            system.WaterLevel[c] = filled[c];
+            system.WaterLevel[c] = standing.LevelAt(c);
             system.Still[c] = true;
             system.Flow[c] = Vector2.zero;
             system.ChannelOf[c] = plan;
@@ -149,6 +149,20 @@ public static partial class TerrainChannels
         return count;
     }
 
+    /// <summary>Labels the connected areas where the filled surface lies above the ground (hollows) and finds each one's floor (its lowest ground).</summary>
+    private static void LabelHollows(float[] height, float[] filled, int sizeX, int sizeZ, out int[] hollowOf, out float[] hollowFloor)
+    {
+        int hollowCount = GridMath.LabelRegions(i => filled[i] - height[i] > 1e-4f, sizeX, sizeZ, out hollowOf);
+        hollowFloor = new float[hollowCount];
+        for (int k = 0; k < hollowCount; k++)
+            hollowFloor[k] = float.MaxValue;
+        for (int i = 0; i < height.Length; i++)
+        {
+            if (hollowOf[i] >= 0)
+                hollowFloor[hollowOf[i]] = Mathf.Min(hollowFloor[hollowOf[i]], height[i]);
+        }
+    }
+
     /// <summary>
     /// Lays the water around each channel's centre line: a disc of the channel's width, its edge roughened by bank
     /// noise, each cell taking the channel cell that gives it the deepest water. Depth falls from the centre to the
@@ -157,7 +171,7 @@ public static partial class TerrainChannels
     /// fills it where the hollow can hold a lake (<see cref="Layers.SurfaceWaterExtension.HoldsLake"/> at its spill level,
     /// #180); a hollow too shallow for one keeps the channel painted through it, so the water does not stop at its rim.
     /// </summary>
-    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, bool[] moving, float[] bankAmplitude, Vector2[] direction,
+    private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, float[] depthBeforeScour, Standing standing, bool[] moving, float[] bankAmplitude, Vector2[] direction,
         int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
     {
         int n = height.Length;
@@ -173,21 +187,14 @@ public static partial class TerrainChannels
         int inHollows = 0;
         // Each hollow's floor (the lowest ground in its connected filled area), to ask whether it can hold a lake.
         var lake = Environment.EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<Layers.SurfaceWaterExtension>() ?? new Layers.SurfaceWaterExtension();
-        int hollowCount = GridMath.LabelRegions(i => filled[i] - height[i] > 1e-4f, sizeX, sizeZ, out int[] hollowOf);
-        var hollowFloor = new float[hollowCount];
-        for (int k = 0; k < hollowCount; k++)
-            hollowFloor[k] = float.MaxValue;
-        for (int i = 0; i < n; i++)
-        {
-            if (hollowOf[i] >= 0)
-                hollowFloor[hollowOf[i]] = Mathf.Min(hollowFloor[hollowOf[i]], height[i]);
-        }
+        LabelHollows(height, filled, sizeX, sizeZ, out int[] hollowOf, out float[] hollowFloor);
         var bank = new Perlin(1.0 / p.bankNoiseWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         var shoalNoise = new Perlin(1.0 / p.shoalWavelength, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
         foreach (int c in cells)
         {
-            if (filled[c] - height[c] > depth[c] && hollowOf[c] >= 0 && lake.HoldsLake(hollowFloor[hollowOf[c]], filled[c]))
+            if (hollowOf[c] >= 0 && standing.HandedToLake(c, height[c], depthBeforeScour[c], lake.HoldsLake(hollowFloor[hollowOf[c]], filled[c])))
             {
+                system.HandedToLake[c] = true;
                 inHollows++;
                 continue;
             }

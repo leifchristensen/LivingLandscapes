@@ -57,6 +57,12 @@ public class RiverSystem
     /// </summary>
     public bool[] Seep;
 
+    /// <summary>Cells the channel stage left to the lake model (a hollow that can hold a lake, <see cref="Standing"/>).</summary>
+    public bool[] HandedToLake;
+
+    /// <summary>Cells the sediment budget treated as base level (<see cref="Standing"/>, outlets, source lakes).</summary>
+    public bool[] CountedStanding;
+
     /// <summary>Cells of closed basins that keep their water (P23, #99): outlets at the lake's level, a dry basin's floor.</summary>
     public bool[] Sink;
 

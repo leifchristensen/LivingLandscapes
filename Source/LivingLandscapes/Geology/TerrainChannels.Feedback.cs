@@ -35,6 +35,9 @@ public static partial class TerrainChannels
         int n = height.Length;
         raisedVolume = 0f;
         // Base level as the water stands now: the sea and the network's outlets.
+        // Deferred (HYDRO-UNIFICATION D5, #186): standing lakes and hollows are not base level here yet. Treating them so makes the
+        // deposits fill lakes during routing (s7 invariant 2 fails: shallow water outside a depression) before the final pass can
+        // re-evaluate Standing on the raised bed. It lands with the accommodation step (ledger, S4).
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
             baseLevel[i] = isOutlet(i);
