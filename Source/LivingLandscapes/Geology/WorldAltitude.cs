@@ -45,6 +45,14 @@ public static class WorldAltitude
         return info == null ? 0f : def.CoolingAt(info.elevation) - def.CoolingAt(At(tile));
     }
 
+    /// <summary>
+    /// The tile's annual mean temperature for code that reads it directly (the stored value is vanilla's, with the cooling
+    /// of vanilla's elevation baked in): <see cref="Tile.temperature"/> plus <see cref="TemperatureOffset"/>. Vanilla's own
+    /// readers get the offset through <c>Patch_GenTemperature_OffsetFromSeasonCycle</c>. Under Realistic Planets 2 the offset is 0.
+    /// </summary>
+    public static float TemperatureAt(PlanetTile tile, Tile info)
+        => info == null ? 10f : info.temperature + (tile.Valid ? TemperatureOffset(tile) : 0f);
+
     /// <summary>The model's height for every surface tile, worked out once per world (null if it cannot be).</summary>
     public static float[] Field()
     {

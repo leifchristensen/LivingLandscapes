@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+  <!-- The world map's topology overlay (#201): one more draw layer on the surface, shown by its button beside the world map's own. -->
+  <Operation Class="PatchOperationAdd">
+    <xpath>/Defs/PlanetLayerDef[defName="Surface"]/worldDrawLayers</xpath>
+    <value>
+      <li>LivingLandscapes.Overlay.WorldDrawLayer_Topology</li>
+    </value>
+  </Operation>
+
+</Patch>

@@ -38,6 +38,15 @@ public class WorldAltitudeDef : Def
     public float CoolingAt(float altitude)
         => altitude <= coolingStartAltitude ? 0f : maxCooling * System.Math.Min(1f, (altitude - coolingStartAltitude) / (coolingFullAltitude - coolingStartAltitude));
 
+    /// <summary>World map topology overlay: height of one colour band, metres.</summary>
+    public float topologyBand = 250f;
+
+    /// <summary>... altitude at the top of the colour ramp, metres.</summary>
+    public float topologyTop = 4500f;
+
+    /// <summary>... opacity of the fill over the world's terrain.</summary>
+    public float topologyOpacity = 0.6f;
+
     public List<HillinessAltitude> hilliness = new List<HillinessAltitude>();
 
     public class HillinessAltitude
