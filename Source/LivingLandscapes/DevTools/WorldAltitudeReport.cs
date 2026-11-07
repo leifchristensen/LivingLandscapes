@@ -106,6 +106,17 @@ public static class WorldAltitudeReport
             text.AppendLine($"  world river links over land: {links}, running uphill {uphill} ({(links > 0 ? uphill * 100f / links : 0f):F0}%), by more than 100 m {uphillFar}, mean climb {(uphill > 0 ? climb / uphill : 0f):F0} m");
         }
 
+        // Temperature by biome: vanilla's stored value against ours (with the altitude's cooling instead of vanilla's).
+        text.AppendLine("[temperature by biome] (stored = vanilla's baked value, ours = stored + offset)");
+        foreach (var group in Enumerable.Range(0, n).Where(i => !sea[i]).GroupBy(i => Find.WorldGrid[i].PrimaryBiome).OrderByDescending(g => g.Count()))
+        {
+            var stored = group.Select(i => Find.WorldGrid[i].temperature).ToList();
+            var ours = group.Select(i => WorldAltitude.TemperatureAt(new PlanetTile(i, layer), Find.WorldGrid[i])).ToList();
+            var altitude = group.Select(i => model[i]).ToList();
+            var elevation = group.Select(i => vanilla[i]).ToList();
+            text.AppendLine($"  {group.Key.defName}: n {group.Count()}; stored {Describe(stored)}; ours {Describe(ours)}; altitude {Describe(altitude)}; vanilla elevation {Describe(elevation)}");
+        }
+
         Directory.CreateDirectory(LayerImageExporter.Folder);
         File.WriteAllText(Path.Combine(LayerImageExporter.Folder, "world-altitude.txt"), text.ToString());
         foreach (string line in text.ToString().Split('\n'))

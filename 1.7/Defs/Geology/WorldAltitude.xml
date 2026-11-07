@@ -12,20 +12,42 @@
          range against the creep that wears it into its surroundings. A lone mountain tile therefore stands lower than
          the middle of a wide range, and hills grade away from a range as neighbouring tiles average.
       c  the continent's slow uplift (continentalUplift, m per tile squared): a plain rises c r^2 / 2 at r tiles from
-         the sea (2 gives about 400 m at 20 tiles, 1600 m at 40 tiles: the high plains of Colorado).
+         the sea (before the plain levels off).
+      Flat land holds a small stiffness toward sea level: rivers cut the plain down as fast as the continent lifts it, so
+         a plain levels off at about c / k (10 / 0.03 = 330 m) within about 14 tiles of the coast or a range, instead of climbing
+         for ever on a big continent (the Congo basin and the Great Plains stand at a few hundred metres to 1500 m).
     Tiles are about 30 km apart, so these are regional means, not peaks.
   -->
   <LivingLandscapes.Geology.WorldAltitudeDef>
     <defName>LL_WorldAltitude</defName>
-    <continentalUplift>1</continentalUplift>
+    <continentalUplift>10</continentalUplift>
     <riverFall>1</riverFall>
     <!-- Temperature follows altitude: vanilla cools a tile by 0 to 40 C between 250 and 5000 m of ITS elevation (about 8.4 K
          per km, steeper than the real 6.5) and bakes that into Tile.temperature. With our altitude in place of its
          elevation, the tile gets back vanilla's cooling and loses that of ours (WorldAltitude.TemperatureOffset), so high
          tiles are cold and sparse and low plains warm, in vanilla's own curve and biome balance. -->
     <temperatureFollowsAltitude>true</temperatureFollowsAltitude>
+    <!-- Annual mean temperature each vanilla biome keeps (C), from the spread vanilla itself gives it across worlds. A tile
+         that our altitude would cool or warm past its biome's range is held at the range's edge (tropical rainforests
+         exist from sea level to ~1000 m, the Congo basin at 400 m; above that the real biome would be a montane one). -->
+    <biomeTemperatures>
+      <li><biome>TropicalRainforest</biome><min>16</min><max>30</max></li>
+      <li><biome>TropicalSwamp</biome><min>16</min><max>27</max></li>
+      <li><biome>Glowforest</biome><min>15</min><max>26</max></li>
+      <li><biome>TemperateForest</biome><min>1</min><max>24</max></li>
+      <li><biome>TemperateSwamp</biome><min>1</min><max>24</max></li>
+      <li><biome>BorealForest</biome><min>-8</min><max>10</max></li>
+      <li><biome>ColdBog</biome><min>-8</min><max>2</max></li>
+      <li><biome>Tundra</biome><min>-20</min><max>2</max></li>
+      <li><biome>GlacialPlain</biome><min>-12</min><max>12</max></li>
+      <li><biome>IceSheet</biome><min>-40</min><max>-17</max></li>
+      <li><biome>AridShrubland</biome><min>14</min><max>31</max></li>
+      <li><biome>Grasslands</biome><min>10</min><max>31</max></li>
+      <li><biome>Desert</biome><min>-5</min><max>34</max></li>
+      <li><biome>ExtremeDesert</biome><min>14</min><max>34</max></li>
+    </biomeTemperatures>
     <hilliness>
-      <li><hilliness>Flat</hilliness><height>0</height><stiffness>0</stiffness></li>
+      <li><hilliness>Flat</hilliness><height>0</height><stiffness>0.03</stiffness></li>
       <li><hilliness>SmallHills</hilliness><height>300</height><stiffness>0.12</stiffness></li>
       <li><hilliness>LargeHills</hilliness><height>800</height><stiffness>0.25</stiffness></li>
       <li><hilliness>Mountainous</hilliness><height>3000</height><stiffness>0.5</stiffness></li>

@@ -31,10 +31,14 @@ public static class WorldAltitude
         return field != null && tile.tileId < field.Length ? field[tile.tileId] : info.elevation;
     }
 
+    /// <summary>The altitude to show for a tile (the world tile tab): ours, or the tile's own elevation where the model is off.</summary>
+    public static float ShownElevation(Tile info)
+        => info != null && info.tile.Valid ? At(info.tile) : info?.elevation ?? 0f;
+
     /// <summary>
     /// Degrees to add to the tile's temperature so it follows our altitude: vanilla baked the cooling of its own elevation
     /// in, so take that out and put the cooling of ours in (same curve, <see cref="WorldAltitudeDef.CoolingAt"/>).
-    /// Zero where the model is off.
+    /// Kept within the biome's temperature range (<see cref="WorldAltitudeDef.biomeTemperatures"/>). Zero where the model is off.
     /// </summary>
     public static float TemperatureOffset(PlanetTile tile)
     {
@@ -42,7 +46,16 @@ public static class WorldAltitude
         if (!Active || !def.temperatureFollowsAltitude || tile.Layer != Find.WorldGrid.Surface)
             return 0f;
         Tile info = Find.WorldGrid[tile];
-        return info == null ? 0f : def.CoolingAt(info.elevation) - def.CoolingAt(At(tile));
+        if (info == null)
+            return 0f;
+        float offset = def.CoolingAt(info.elevation) - def.CoolingAt(At(tile));
+        WorldAltitudeDef.BiomeTemperature range = def.biomeTemperatures.Find(b => b.biome == info.PrimaryBiome);
+        if (range == null)
+            return offset;
+        // Toward the biome's range, no further than needed; vanilla's own value, even outside the range, is the limit.
+        float stored = info.temperature;
+        float low = System.Math.Min(range.min, stored), high = System.Math.Max(range.max, stored);
+        return UnityEngine.Mathf.Clamp(stored + offset, low, high) - stored;
     }
 
     /// <summary>

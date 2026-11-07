@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimWorld;
 using RimWorld.Planet;
 using Verse;
 
@@ -46,6 +47,22 @@ public class WorldAltitudeDef : Def
 
     /// <summary>... opacity of the fill over the world's terrain.</summary>
     public float topologyOpacity = 0.6f;
+
+    /// <summary>
+    /// The annual mean temperature each biome keeps, degrees Celsius. Vanilla picked a tile's biome from its own climate
+    /// (with the cooling of vanilla's elevation); our altitude can differ from that elevation by a kilometre or more, and a
+    /// tile whose climate drifts out of its biome's range reads wrongly (a rainforest at 5 C). The tile's temperature
+    /// moves toward the range only as far as needed; one already outside it (vanilla's own) is left as vanilla made it.
+    /// Biomes without an entry (modded ones) follow the altitude freely.
+    /// </summary>
+    public List<BiomeTemperature> biomeTemperatures = new List<BiomeTemperature>();
+
+    public class BiomeTemperature
+    {
+        public BiomeDef biome;
+        public float min;
+        public float max;
+    }
 
     public List<HillinessAltitude> hilliness = new List<HillinessAltitude>();
 
