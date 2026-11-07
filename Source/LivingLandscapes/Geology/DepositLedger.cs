@@ -5,7 +5,7 @@ namespace LivingLandscapes.Geology;
 
 /// <summary>
 /// Where the volume of one <see cref="Sediment.Spread"/> went, in metres times cells (thickness times one cell's area), so it
-/// can be added up: <c>Offered = Laid + Clipped + Unplaced</c> (HYDRO-UNIFICATION P28, section 10 point 4).
+/// can be added up: <c>Offered = Laid + Clipped + Unplaced + Washload</c> (HYDRO-UNIFICATION P28, section 10 point 4).
 /// </summary>
 public struct LayTotals
 {
@@ -20,6 +20,9 @@ public struct LayTotals
 
     /// <summary>Volume of deposits that had no ground to settle on (all of it above its own level); booked here, not lost silently.</summary>
     public float Unplaced;
+
+    /// <summary>Volume of the fines that settle beyond the jet's reach and leave the map (S3c, P28); part of <c>Offered</c>, not laid.</summary>
+    public float Washload;
 }
 
 /// <summary>

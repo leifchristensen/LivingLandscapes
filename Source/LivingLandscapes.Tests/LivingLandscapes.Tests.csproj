@@ -31,6 +31,7 @@
     <Compile Include="..\LivingLandscapes\Geology\ConfluenceZones.cs" Link="Linked\ConfluenceZones.cs" />
     <Compile Include="..\LivingLandscapes\Geology\Confluences.cs" Link="Linked\Confluences.cs" />
     <Compile Include="..\LivingLandscapes\Geology\Sediment.cs" Link="Linked\Sediment.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\Sediment.Grains.cs" Link="Linked\Sediment.Grains.cs" />
     <Compile Include="..\LivingLandscapes\Geology\DepositLedger.cs" Link="Linked\DepositLedger.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WatershedMath.cs" Link="Linked\WatershedMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WorldAltitudeMath.cs" Link="Linked\WorldAltitudeMath.cs" />

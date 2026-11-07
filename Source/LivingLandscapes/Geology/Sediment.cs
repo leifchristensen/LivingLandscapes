@@ -72,6 +72,63 @@ public class SedimentSettings
 
     /// <summary>Main river network for the log's branch count: channels carrying at least this share of the world river's water.</summary>
     public float mainRiverShare = 0.12f;
+
+    /// <summary>
+    /// Grain loads (HYDRO-UNIFICATION S3a, #186): the load is carried as one number per grain class (<see cref="grains"/>) instead of
+    /// one lumped load with a mean grain. Capacity is shared among the classes the water is fast enough to carry. Off: the old scalar
+    /// load.
+    /// </summary>
+    public bool grainClasses = false;
+
+    /// <summary>
+    /// The settling-length law (S3b, P27): each class relaxes toward its capacity over its own settling length
+    /// ell = <see cref="settlingCompression"/> x u d / w_s (the distance the water travels while the grain falls the depth), instead of
+    /// the common <see cref="settleShare"/>. Gravel drops in a short length, sand in a middle one, fines far downstream and far from
+    /// the channel. Needs <see cref="grainClasses"/>.
+    /// </summary>
+    public bool settlingLength = false;
+
+    /// <summary>
+    /// Jet, entry and washload (S3c): in still water each class settles over its own jet length, the part of a class that would settle
+    /// beyond <see cref="jetMaxReach"/> cells leaves the map as washload (reported), and a river entering the map arrives with the mix
+    /// of classes it is fast enough to carry. Needs <see cref="grainClasses"/>.
+    /// </summary>
+    public bool jetClasses = false;
+
+    /// <summary>
+    /// The grain table, coarsest first (the middle row is the reference grain: sand). <c>index</c> is the grain size the layers report
+    /// for a pure class (inside the ground-rule bands 0.5 and 0.33), <c>fallSpeed</c> the fall velocity relative to sand, and
+    /// <c>criticalSpeed</c> the flow speed (m/s) at which the class starts to move (Hjulstrom/Shields).
+    /// </summary>
+    public System.Collections.Generic.List<GrainClass> grains = new System.Collections.Generic.List<GrainClass>
+    {
+        new GrainClass { name = "gravel", index = 0.8f, fallSpeed = 4f, criticalSpeed = 0.9f },
+        new GrainClass { name = "sand", index = 0.42f, fallSpeed = 1f, criticalSpeed = 0.4f },
+        new GrainClass { name = "fines", index = 0.15f, fallSpeed = 0.25f, criticalSpeed = 0.1f },
+    };
+
+    /// <summary>
+    /// Cells of settling length per unit of u d / w_s (m^2/s over relative fall speed): 1 / settleShare, so sand in water with u d = 1
+    /// settles 4% of its excess per cell as before. Clamped to [<see cref="ellMin"/>, <see cref="ellMax"/>] cells.
+    /// </summary>
+    public float settlingCompression = 24.5f;
+    public float ellMin = 1f;
+    public float ellMax = 400f;
+
+    /// <summary>How sharply a class switches on around its critical speed (logistic steepness); a smooth weight, not a step.</summary>
+    public float competenceSharpness = 6f;
+
+    /// <summary>The farthest a jet carries a class (cells); what would settle beyond is washload.</summary>
+    public float jetMaxReach = 60f;
+}
+
+/// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>
+public class GrainClass
+{
+    public string name;
+    public float index;
+    public float fallSpeed;
+    public float criticalSpeed;
 }
 
 /// <summary>
@@ -96,8 +153,14 @@ public static partial class Sediment
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
         out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, out float exits, float[] gouged = null,
-        bool[] sand = null, ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
+        bool[] sand = null, ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null, GrainLoads grains = null)
     {
+        if (grains != null)
+        {
+            DepositsByClass(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p, out deposit, out depositGrain,
+                out total, out atBase, out eroded, out exits, gouged, sand, zones, secondary, secondaryShare, grains);
+            return;
+        }
         int n = filled.Length;
         var load = new float[n];
         var walked = new bool[n];
@@ -172,12 +235,14 @@ public static partial class Sediment
     /// <summary>
     /// Lays a deposit where a river enters still water as its jet carries it: exp(-x / L) along the axis, a Gaussian of half-width
     /// w / 2 + jetSpreadRate x across it, on ground no higher than <paramref name="level"/>; coarse near the mouth, finer out.
-    /// Returns false when there was no such ground (the amount was not laid).
+    /// Returns false when there was no such ground (the amount was not laid). With <paramref name="classGrain"/> of 0 or more (S3c)
+    /// the deposit is one grain class: it settles over <paramref name="settleLength"/> cells (a negative one is the common length of
+    /// <c>jetSettleWidths</c> widths) and keeps that grain index, not the old fining along the axis.
     /// </summary>
     private static bool Jet(int c, Vector2 axis, float amount, float grain, float w, float level, float[] natural, int sizeX, int sizeZ, SedimentSettings p,
-        float[] alluvium, float[] grainSum, List<(int cell, float weight, float d)> weights)
+        float[] alluvium, float[] grainSum, List<(int cell, float weight, float d)> weights, float classGrain = -1f, float settleLength = -1f, float reachCells = -1f)
     {
-        float settle = p.jetSettleWidths * w, reach = settle * p.jetReachLengths;
+        float settle = settleLength > 0f ? settleLength : p.jetSettleWidths * w, reach = reachCells > 0f ? reachCells : settle * p.jetReachLengths;
         var across = new Vector2(-axis.y, axis.x);
         int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
         weights.Clear();
@@ -210,7 +275,76 @@ public static partial class Sediment
         {
             float thickness = amount * weight / sum;
             alluvium[i] += thickness;
-            grainSum[i] += thickness * grain * Mathf.Exp(-along / settle);
+            grainSum[i] += thickness * (classGrain >= 0f ? classGrain : grain * Mathf.Exp(-along / settle));
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Lays one deposit of a channel cell over the floodplain: ground near its water, within reach, Gaussian, leaning to the inside
+    /// of a bend or the slow side of a junction. Grain fines with distance from the channel, or (<paramref name="classGrain"/> of 0
+    /// or more, S3b) is the grain index of one class whose lateral reach is <paramref name="lateral"/> times the common one: coarse
+    /// stays by the channel, fines are carried across the plain. Returns false when there was no ground to lay it on.
+    /// </summary>
+    private static bool Floodplain(int c, float amount, float grain, float width, Vector2[] flow, int[] receiver, ConfluenceZones zones, float[] filled,
+        float[] natural, int sizeX, int sizeZ, SedimentSettings p, float[] raw, float[] grainSum, List<(int cell, float weight, float d)> weights,
+        float classGrain = -1f, float lateral = 1f)
+    {
+        float w = Mathf.Max(width, 1f);
+        float reach = Mathf.Min(p.floodplainWidths * w * lateral, p.maxReach);
+        float sigma = Mathf.Max(reach * 0.5f, 1f);
+        float level = filled[c] + p.floodHeight;
+        // The inside of the bend: the side the flow turns toward over the next few cells, and how sharply.
+        Vector2 inner = Vector2.zero;
+        if (flow != null && flow[c] != Vector2.zero)
+        {
+            int ahead = c;
+            for (int s = 0; s < 3 && receiver[ahead] >= 0; s++)
+                ahead = receiver[ahead];
+            Vector2 f1 = flow[c], f2 = flow[ahead] != Vector2.zero ? flow[ahead] : f1;
+            float turn = f1.x * f2.y - f1.y * f2.x;
+            inner = new Vector2(-f1.y, f1.x) * turn;
+        }
+        // Below a junction the slow water lies along the tributary's bank: the deposit leans there instead (the stronger
+        // of the two, not both).
+        if (zones != null && zones.SlowShare[c] > 0f && zones.SlowShare[c] > inner.magnitude)
+            inner = zones.SlowSide[c] * zones.SlowShare[c];
+        int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
+        weights.Clear();
+        float sum = 0f;
+        for (int dz = -r; dz <= r; dz++)
+        {
+            for (int dx = -r; dx <= r; dx++)
+            {
+                int x = cx + dx, z = cz + dz;
+                if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                    continue;
+                float d = Mathf.Sqrt(dx * dx + dz * dz);
+                int i = z * sizeX + x;
+                if (d > reach || natural[i] > level)
+                    continue;
+                float lean = d > 0f ? Vector2.Dot(inner, new Vector2(dx, dz)) / d : 0f;
+                float weight = Mathf.Exp(-d * d / (2f * sigma * sigma)) * Mathf.Max(0.1f, 1f + p.bendBias * lean);
+                weights.Add((i, weight, d));
+                sum += weight;
+            }
+        }
+        if (sum <= 0f)
+            return false;
+        foreach ((int i, float weight, float d) in weights)
+        {
+            // The kernel is divided by its sum, so the deposit is laid in full on the ground that is there.
+            float thickness = amount * weight / sum;
+            raw[i] += thickness;
+            if (classGrain >= 0f)
+            {
+                grainSum[i] += thickness * classGrain;
+                continue;
+            }
+            int x = i % sizeX - cx, z = i / sizeX - cz;
+            float lean = d > 0f ? Mathf.Max(0f, Vector2.Dot(inner, new Vector2(x, z)) / d) : 0f;
+            float fining = Mathf.Max(p.finingWidths * w * (1f + p.bendBias * lean), 0.5f);
+            grainSum[i] += thickness * grain * Mathf.Exp(-d / fining);
         }
         return true;
     }
@@ -219,88 +353,88 @@ public static partial class Sediment
     /// Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with
     /// distance. Where the river meets still water (<paramref name="still"/>) its deposit spreads with its jet instead, along the
     /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream. The result is in
-    /// metres at the ledger's kappa (<see cref="DepositLedger"/>); the totals say where the volume went.
+    /// metres at the ledger's kappa (<see cref="DepositLedger"/>); the totals say where the volume went. With
+    /// <paramref name="grains"/> (S3) each grain class is laid with its own kernel and keeps its own grain index.
     /// </summary>
     public static LayTotals Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
         SedimentSettings p, DepositLedger ledger, out float[] alluvium, out float[] grainSize, float[] discharge = null, bool[] still = null,
-        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
+        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null, GrainLoads grains = null)
     {
         int n = filled.Length;
         // Budget units laid on the ground; the ledger converts them to metres (one kappa for the map).
         var raw = new float[n];
-        float offered = 0f, unplaced = 0f;
+        float offered = 0f, unplaced = 0f, washload = 0f;
         var grainSum = new float[n];
         var weights = new List<(int cell, float weight, float d)>();
+        bool byClass = grains != null && grains.Deposit != null;
         // The momentum each cell's water carries (cells are ordered highest first, so donors come before receivers).
         Vector2[] momentum = discharge != null && still != null ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
+        int classes = byClass ? grains.Count : 0;
         foreach (int c in cells)
         {
             if (deposit[c] <= 0f)
                 continue;
             offered += deposit[c];
-            if (momentum != null && still[c] && momentum[c] != Vector2.zero)
+            bool jet = momentum != null && still[c] && momentum[c] != Vector2.zero;
+            float w = Mathf.Max(width[c], 1f);
+            if (!byClass)
             {
-                if (!Jet(c, momentum[c].normalized, deposit[c], depositGrain[c], Mathf.Max(width[c], 1f), filled[c] + p.floodHeight, natural, sizeX, sizeZ, p,
-                        raw, grainSum, weights))
+                if (jet)
+                {
+                    if (!Jet(c, momentum[c].normalized, deposit[c], depositGrain[c], w, filled[c] + p.floodHeight, natural, sizeX, sizeZ, p, raw, grainSum, weights))
+                        unplaced += deposit[c];
+                }
+                else if (!Floodplain(c, deposit[c], depositGrain[c], width[c], flow, receiver, zones, filled, natural, sizeX, sizeZ, p, raw, grainSum, weights))
                     unplaced += deposit[c];
                 continue;
             }
-            float w = Mathf.Max(width[c], 1f);
-            float reach = Mathf.Min(p.floodplainWidths * w, p.maxReach);
-            float sigma = Mathf.Max(reach * 0.5f, 1f);
-            float level = filled[c] + p.floodHeight;
-            // The inside of the bend: the side the flow turns toward over the next few cells, and how sharply.
-            Vector2 inner = Vector2.zero;
-            if (flow != null && flow[c] != Vector2.zero)
-            {
-                int ahead = c;
-                for (int s = 0; s < 3 && receiver[ahead] >= 0; s++)
-                    ahead = receiver[ahead];
-                Vector2 f1 = flow[c], f2 = flow[ahead] != Vector2.zero ? flow[ahead] : f1;
-                float turn = f1.x * f2.y - f1.y * f2.x;
-                inner = new Vector2(-f1.y, f1.x) * turn;
-            }
-            // Below a junction the slow water lies along the tributary's bank: the deposit leans there instead (the stronger
-            // of the two, not both).
-            if (zones != null && zones.SlowShare[c] > 0f && zones.SlowShare[c] > inner.magnitude)
-                inner = zones.SlowSide[c] * zones.SlowShare[c];
-            int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
-            weights.Clear();
-            float sum = 0f;
-            for (int dz = -r; dz <= r; dz++)
-            {
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    int x = cx + dx, z = cz + dz;
-                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
-                        continue;
-                    float d = Mathf.Sqrt(dx * dx + dz * dz);
-                    int i = z * sizeX + x;
-                    if (d > reach || natural[i] > level)
-                        continue;
-                    float lean = d > 0f ? Vector2.Dot(inner, new Vector2(dx, dz)) / d : 0f;
-                    float weight = Mathf.Exp(-d * d / (2f * sigma * sigma)) * Mathf.Max(0.1f, 1f + p.bendBias * lean);
-                    weights.Add((i, weight, d));
-                    sum += weight;
-                }
-            }
-            if (sum <= 0f)
+            // By class: the cell's deposit (it may have been cut to none for a seep) divided as the classes dropped it.
+            float classTotal = 0f;
+            for (int k = 0; k < classes; k++)
+                classTotal += grains.Deposit[k][c];
+            if (classTotal <= 0f)
             {
                 unplaced += deposit[c];
                 continue;
             }
-            foreach ((int i, float weight, float d) in weights)
+            for (int k = 0; k < classes; k++)
             {
-                // The kernel is divided by its sum, so the deposit is laid in full on the ground that is there.
-                float thickness = deposit[c] * weight / sum;
-                raw[i] += thickness;
-                int x = i % sizeX - cx, z = i / sizeX - cz;
-                float lean = d > 0f ? Mathf.Max(0f, Vector2.Dot(inner, new Vector2(x, z)) / d) : 0f;
-                float fining = Mathf.Max(p.finingWidths * w * (1f + p.bendBias * lean), 0.5f);
-                grainSum[i] += thickness * depositGrain[c] * Mathf.Exp(-d / fining);
+                float amount = deposit[c] * grains.Deposit[k][c] / classTotal;
+                if (amount <= 0f)
+                    continue;
+                GrainClass g = p.grains[k];
+                if (jet)
+                {
+                    float settle = -1f, reach = -1f, laid = amount;
+                    if (p.jetClasses)
+                    {
+                        // The jet settles each class over its own length (sand = the old jet); what would settle beyond the reach leaves.
+                        settle = p.jetSettleWidths * w * grains.ReferenceFall / g.fallSpeed;
+                        float full = settle * p.jetReachLengths;
+                        reach = Mathf.Min(full, p.jetMaxReach);
+                        if (reach < full)
+                        {
+                            float leaves = amount * Mathf.Exp(-reach / settle);
+                            washload += leaves;
+                            laid = amount - leaves;
+                        }
+                    }
+                    if (!Jet(c, momentum[c].normalized, laid, depositGrain[c], w, filled[c] + p.floodHeight, natural, sizeX, sizeZ, p, raw, grainSum, weights,
+                            g.index, settle, reach))
+                        unplaced += laid;
+                }
+                else
+                {
+                    float lateral = p.settlingLength ? Mathf.Sqrt(grains.ReferenceFall / g.fallSpeed) : 1f;
+                    if (!Floodplain(c, amount, depositGrain[c], width[c], flow, receiver, zones, filled, natural, sizeX, sizeZ, p, raw, grainSum, weights, g.index, lateral))
+                        unplaced += amount;
+                }
             }
         }
         ledger.Lay(raw, grainSum, p, unplaced, offered, out alluvium, out grainSize, out LayTotals totals);
+        totals.Washload = washload * ledger.Kappa;
+        if (grains != null)
+            grains.Washload = washload;
         return totals;
     }
 }
