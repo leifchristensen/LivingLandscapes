@@ -774,6 +774,9 @@ public class MapComponent_Ecology : MapComponent
         return SiteGrid(def, habitat)[index] * habitat.light.Response(LightAt(index)) * ThermalGrid(def)[index];
     }
 
+    /// <summary>Fitness 0..1 of a species on a cell with the light at its best: the ground and warmth alone (dev metrics: tells a cell no species suits from one only shade rules out).</summary>
+    public float GroundFitness(ThingDef def, int index) => SiteGrid(def, PlantHabitat.For(def))[index] * ThermalGrid(def)[index];
+
     /// <summary>
     /// Succession (P22, P17): how a stand's age since its last fire or windthrow weighs a species' establishment on a
     /// cell. Canopy species establish with the stand's maturity m = 1 - exp(-age / tau), tau the canopy closure time,
