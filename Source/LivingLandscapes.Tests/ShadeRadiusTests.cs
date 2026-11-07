@@ -28,6 +28,15 @@ public class ShadeRadiusTests
         Assert.True(ShadeRadiusRules.CanopyDefault > ShadeRadiusRules.UnderstoryDefault);
     }
 
+    /// <summary>#193: a quick-growing "tree" (ReGrowth's dwarf palm, 6 days) is not canopy; vanilla trees (12 to 35 days) are.</summary>
+    [Theory]
+    [InlineData(true, 6f, false)]
+    [InlineData(true, 12f, true)]
+    [InlineData(true, 35f, true)]
+    [InlineData(false, 30f, false)]
+    public void OnlyLongGrowingTreesAreCanopy(bool isTree, float growDays, bool expected)
+        => Assert.Equal(expected, ShadeRadiusRules.IsCanopy(isTree, growDays));
+
     /// <summary>Every habitat that casts shade says how far: otherwise a fallback decides, and fallbacks are for mods we have not described.</summary>
     [Fact]
     public void EveryShadingHabitatInThePatchStatesItsRadius()

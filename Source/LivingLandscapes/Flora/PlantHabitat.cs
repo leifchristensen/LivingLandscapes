@@ -171,7 +171,7 @@ public class PlantHabitat : DefModExtension
     private static PlantHabitat Derive(ThingDef plant)
     {
         PlantProperties p = plant.plant;
-        bool tree = p != null && p.IsTree;
+        bool tree = p != null && ShadeRadiusRules.IsCanopy(p.IsTree, p.growDays);
         bool bush = !tree && p != null && p.visualSizeRange.max > 1.2f;
         return new PlantHabitat
         {

@@ -130,6 +130,21 @@ public static class PlantBenchmark
         Micro(map);
     }
 
+    /// <summary>Mean clear-noon light (1 in the open) on the cells a species' plants stand on and the ring around them: what a stand of it does to the ground (#193).</summary>
+    private static float MeanLightUnder(Map map, Flora.MapComponent_Ecology ecology, System.Collections.Generic.IEnumerable<Plant> group)
+    {
+        double sum = 0;
+        int n = 0;
+        foreach (Plant plant in group)
+            foreach (IntVec3 c in GenAdj.CellsOccupiedBy(plant).Concat(GenAdj.CellsAdjacent8Way(plant)))
+                if (c.InBounds(map))
+                {
+                    sum += ecology.LightAt(map.cellIndices.CellToIndex(c));
+                    n++;
+                }
+        return n == 0 ? 1f : (float)(sum / n);
+    }
+
     /// <summary>
     /// A picture of the vegetation, 4 pixels per cell: terrain tint, then each plant by stratum (grass light, shrubs
     /// mid green, trees dark with a hue per species, water plants blue); canopy shade darkens the ground.
@@ -278,7 +293,7 @@ public static class PlantBenchmark
                 dispersion = variance / mean;
             }
             Log.Message($"[LivingLandscapes] Plant census:   {def.defName,-24} {group.Count(),6}  share {share * 100f,5:F1}% (target {target * 100f,5:F1}%)  " +
-                        $"fitness {(ready ? fitness.ToString("0.00") : "  - ")} (suits {(ready ? (available * 100f).ToString("F0") : " -")}% of land)  clark-evans {(double.IsNaN(clark) ? "  - " : clark.ToString("0.00"))}  patchiness {(double.IsNaN(dispersion) ? "  - " : dispersion.ToString("0.0"))}  crowding {crowding:0.0}/{crowding2:0.0}");
+                        $"fitness {(ready ? fitness.ToString("0.00") : "  - ")} (suits {(ready ? (available * 100f).ToString("F0") : " -")}% of land)  clark-evans {(double.IsNaN(clark) ? "  - " : clark.ToString("0.00"))}  patchiness {(double.IsNaN(dispersion) ? "  - " : dispersion.ToString("0.0"))}  crowding {crowding:0.0}/{crowding2:0.0}  light {(ready ? (MeanLightUnder(map, ecology, group) * 100f).ToString("F0") : " -")}%");
         }
         System.IO.Directory.CreateDirectory(LayerImageExporter.Folder);
         ExportPlantMap(map, System.IO.Path.Combine(LayerImageExporter.Folder, "PlantMap.png"));
