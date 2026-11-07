@@ -122,7 +122,7 @@ public static class WorldAltitudeReport
         {
             var pt = new PlanetTile(id, layer);
             Tile t = Find.WorldGrid[pt];
-            text.AppendLine($"[tile {id}] biome {t.PrimaryBiome?.defName}, hilliness {t.hilliness}, vanilla elevation {t.elevation:F0} m, altitude {model[id]:F0} m, stored temperature {t.temperature:F1}, offset {WorldAltitude.TemperatureOffset(pt):F1}, ours {WorldAltitude.TemperatureAt(pt, t):F1}, model {(WorldAltitude.Active ? "on" : "off")}");
+            text.AppendLine($"[tile {id}] biome {t.PrimaryBiome?.defName}, hilliness {t.hilliness}, vanilla elevation {t.elevation:F0} m, altitude {model[id]:F0} m, stored temperature {t.temperature:F1}, offset {WorldAltitude.TemperatureOffset(pt):F1}, ours {WorldAltitude.TemperatureAt(pt, t):F1}, model {(WorldAltitude.Active ? "on" : "off")}; vanilla functions: season {GenTemperature.GetTemperatureFromSeasonAtTile(1800000, pt):F1}, annual {GenTemperature.GetTemperatureAtTile(pt):F1}, average label {GenTemperature.GetAverageTemperatureLabel(pt)}");
         }
 
         Directory.CreateDirectory(LayerImageExporter.Folder);
