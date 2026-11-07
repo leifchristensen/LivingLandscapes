@@ -144,4 +144,17 @@ public class WatershedMathTests
         Assert.Equal(2, order[10]);
         Assert.Equal(3, order[11]);
     }
+
+    [Fact]
+    public void DownstreamFirst_PutsEveryTileAfterTheOneItDrainsTo()
+    {
+        List<int> add = new List<int> { 1, 2, 3, 4, 5, 6 };
+        List<int> order = WatershedMath.DownstreamFirst(add, Down);
+        foreach (int i in add)
+        {
+            if (add.Contains(Down[i]))
+                Assert.True(order.IndexOf(Down[i]) < order.IndexOf(i), $"{i} before {Down[i]}");
+        }
+        Assert.Equal(add.OrderBy(x => x), order.OrderBy(x => x));
+    }
 }

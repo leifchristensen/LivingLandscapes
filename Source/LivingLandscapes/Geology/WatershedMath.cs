@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LivingLandscapes.Geology;
 
@@ -133,5 +134,32 @@ public static class WatershedMath
                 queue.Enqueue(d);
         }
         return order;
+    }
+
+    /// <summary>
+    /// The tiles of <paramref name="links"/> ordered so that each comes after the tile it drains to (when that is also in the list):
+    /// by the number of steps from the tile to the first tile outside the list, nearest first. Ties keep the input order.
+    /// </summary>
+    public static List<int> DownstreamFirst(List<int> links, int[] downstream)
+    {
+        var inList = new HashSet<int>(links);
+        var depth = new Dictionary<int, int>();
+        int Depth(int start)
+        {
+            var path = new List<int>();
+            int t = start;
+            while (inList.Contains(t) && !depth.ContainsKey(t) && path.Count <= links.Count)
+            {
+                path.Add(t);
+                t = downstream[t];
+            }
+            int d = depth.TryGetValue(t, out int known) ? known : 0;
+            for (int k = path.Count - 1; k >= 0; k--)
+                depth[path[k]] = ++d;
+            return depth[start];
+        }
+        foreach (int i in links)
+            Depth(i);
+        return links.Select((tile, order) => (tile, order)).OrderBy(x => depth[x.tile]).ThenBy(x => x.order).Select(x => x.tile).ToList();
     }
 }

@@ -107,7 +107,9 @@ public static class WorldWatershed
         List<int> add = WatershedMath.LinksToAdd(downstream, flow, water, onRiver, threshold,
             (a, b) => grid.GetRiverDef(new PlanetTile(a, layer), new PlanetTile(b, layer), visibleOnly: false) != null,
             endInBasins: !GenCommandLine.CommandLineArgPassed("ll-watershed-no-basins")); // chains that end in a closed basin are drawn (owner decision 2026-11-07); dev switch turns them off
-        foreach (int i in add)
+        // Downstream links first: OverlayRiver sets the upstream tile's river distance (which says which link of a tile is its
+        // downstream one) from the downstream tile's at that moment, so a chain must be drawn from its sink upstream.
+        foreach (int i in WatershedMath.DownstreamFirst(add, downstream))
         {
             RiverDef def = RiverFor(flow[i], density);
             if (def != null)
