@@ -64,8 +64,8 @@ public class WorldContext
     /// <summary>Direction the river flows (towards its downstream neighbour).</summary>
     public Vector2 RiverFlow;
 
-    /// <summary>The neighbours' slope is kept when it already runs this much (cosine) with the river; otherwise the river's direction replaces it.</summary>
-    private const float RiverAgreement = 0.5f;
+    /// <summary>Least fall per metre along a world river's map (the real fall can be a metre in tens of kilometres).</summary>
+    private const float MinRiverGradient = 0.0005f;
 
     /// <param name="p">The generation settings: each neighbour's fall counts by the relief contrast of the two tiles'
     /// hilliness. Null counts every neighbour fully (callers that only need the river).</param>
@@ -74,7 +74,7 @@ public class WorldContext
         Tile tile = map.TileInfo;
         var context = new WorldContext
         {
-            Elevation = tile.elevation,
+            Elevation = WorldAltitude.At(map.Tile),
             Hilliness = HillinessFor(tile),
             Flow = WorldFlow.At(map.Tile),
         };
@@ -83,7 +83,10 @@ public class WorldContext
         var neighbours = new List<PlanetTile>();
         Find.WorldGrid.GetTileNeighbors(here, neighbours);
 
-        Vector2 downhill = Vector2.zero, sea = Vector2.zero, fall = Vector2.zero;
+        // The altitude our code reads is the smooth field of WorldAltitude (vanilla's tile elevations jump by hundreds of
+        // metres between neighbours, #201), so the fall to a neighbour is the regional slope and not noise.
+        float hereHeight = context.Elevation;
+        Vector2 downhill = Vector2.zero, sea = Vector2.zero;
         foreach (PlanetTile n in neighbours)
         {
             Tile other = Find.WorldGrid[n];
@@ -93,16 +96,14 @@ public class WorldContext
             // between two plain tiles' coarse means is not. A coast is always a boundary.
             float weight = p == null || other.WaterCovered ? 1f
                 : RegionalSlopeMath.NeighbourWeight(p.ReliefFor(context.Hilliness), p.ReliefFor(other.hilliness), p.uniformSlopeShare);
-            downhill += dir * (tile.elevation - Mathf.Max(other.elevation, 0f)) * weight;
-            fall += dir * (tile.elevation - Mathf.Max(other.elevation, 0f));
+            downhill += dir * (hereHeight - Mathf.Max(WorldAltitude.At(n), 0f)) * weight;
             if (other.WaterCovered)
                 sea += dir;
         }
         if (sea.sqrMagnitude > 1e-6f)
         {
             context.SeaDirection = sea.normalized;
-            downhill += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
-            fall += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
+            downhill += context.SeaDirection * Mathf.Max(hereHeight, 1f) * neighbours.Count;
         }
         if (downhill.sqrMagnitude > 1e-6f)
         {
@@ -139,20 +140,19 @@ public class WorldContext
             context.RiverFlow = context.RiverInflows.Count > 0
                 ? (context.RiverExit - context.RiverInflows[0].From).normalized
                 : context.RiverExit;
-            // A world river is the drainage the region's fall belongs to, so its map keeps the whole fall to the neighbours,
-            // unweighted by relief contrast: a plain river still runs down the world's slope.
-            if (fall.sqrMagnitude > 1e-6f)
-            {
-                context.Downhill = fall.normalized;
-                context.RegionalGradient = fall.magnitude / Mathf.Max(1, neighbours.Count) / tileSpacingMetres;
-            }
-            // A river runs down the regional slope: the tile elevations of the neighbours are coarse and can point anywhere, so where the
-            // world gives a river the map slopes the way the river flows. (Otherwise water entering would have to climb to its exit.)
-            if (context.RiverFlow.sqrMagnitude > 1e-6f && Vector2.Dot(context.Downhill, context.RiverFlow.normalized) < RiverAgreement)
+            // A river's course is the world's to give: it enters where its upstream links lie and leaves toward its downstream
+            // one. The map therefore slopes the way the river flows (not the other way round, with the river following
+            // whatever slope the neighbours' elevations happen to give), and the fall is the river's own: from where it
+            // comes (the mean of its upstream tiles, or this tile at a headwater) to where it goes (the downstream tile,
+            // or the sea), over the tile centres between them. Water entering never has to climb to its exit.
+            if (context.RiverFlow.sqrMagnitude > 1e-6f)
             {
                 context.Downhill = context.RiverFlow.normalized;
-                if (context.RegionalGradient <= 0f)
-                    context.RegionalGradient = 0.0005f;
+                float upHeight = upstream.Count > 0 ? upstream.Average(rl => WorldAltitude.At(rl.neighbor)) : hereHeight;
+                bool toSea = toWater.Count > 0 ? Find.WorldGrid[downstream.neighbor].PrimaryBiome == BiomeDefOf.Ocean : mouth;
+                float downHeight = toSea ? 0f : Mathf.Max(WorldAltitude.At(downstream.neighbor), 0f);
+                float tiles = upstream.Count > 0 ? 2f : 1f;
+                context.RegionalGradient = Mathf.Max(MinRiverGradient, (upHeight - downHeight) / (tiles * tileSpacingMetres));
             }
             Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
             context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
