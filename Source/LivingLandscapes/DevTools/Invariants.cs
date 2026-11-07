@@ -235,7 +235,7 @@ public static class Invariants
             return;
         bool ok = (a.Narrowed == 0 || !a.WidthEnforced) && a.ScourOffCentre == 0;
         summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm{(a.WidthEnforced ? "" : " (not enforced: one hydraulics off)")} " +
-                           $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones, {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
+                           $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones ({a.Holes} with a scour hole of 1.5x depth or more), {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>

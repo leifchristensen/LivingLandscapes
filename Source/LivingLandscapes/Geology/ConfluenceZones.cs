@@ -48,6 +48,9 @@ public class JunctionAudit
     /// <summary>Junctions that shaped zones, those whose scour is not deepest at the junction, and those that laid no deposit in their zone.</summary>
     public int Zoned, ScourOffCentre, NoDeposit;
 
+    /// <summary>Junctions whose scour hole is at least half as deep again as the reach (scour factor 1.5 or more).</summary>
+    public int Holes;
+
     /// <summary>Deposit (budget units) laid in the junction zones (two joined widths below each junction) and on the whole network.</summary>
     public float DepositAtJoins, DepositTotal;
 }

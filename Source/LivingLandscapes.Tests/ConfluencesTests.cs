@@ -187,7 +187,7 @@ public class ConfluencesTests
     }
 
     [Fact]
-    public void WidthContinuity_HoldsTheWidestArmBelowAJoin_AndEasesBack_WithoutWideningElsewhere()
+    public void WidthContinuity_HoldsTheJoinedWidthBelowAJoin_AndEasesBack_WithoutWideningElsewhere()
     {
         var (cells, receiver, _, _, _, width) = Tee(6f);
         var moving = new bool[width.Length];
@@ -197,9 +197,10 @@ public class ConfluencesTests
             width[At(x, 5)] = x < 10 ? 4f : 1f;
         float[] before = (float[])width.Clone();
         Confluences.WidthContinuity(cells, receiver, width, moving, 0.04f);
-        Assert.Equal(4f, width[JoinCell]);
+        // The joined width is the root of the arms' squares (4 and the tributary's 2).
+        Assert.Equal(Mathf.Sqrt(4f * 4f + 2f * 2f), width[JoinCell], 3);
         for (int x = 11; x < SizeX; x++)
-            Assert.True(width[At(x, 5)] >= width[At(x - 1, 5)] - 0.17f && width[At(x, 5)] >= before[At(x, 5)]);
+            Assert.True(width[At(x, 5)] >= width[At(x - 1, 5)] - 0.2f && width[At(x, 5)] >= before[At(x, 5)]);
         // Upstream of the join nothing changed.
         for (int x = 0; x < 10; x++)
             Assert.Equal(before[At(x, 5)], width[At(x, 5)]);

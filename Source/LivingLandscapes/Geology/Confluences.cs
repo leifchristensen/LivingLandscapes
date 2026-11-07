@@ -16,6 +16,13 @@ public class ConfluenceSettings
     public float minShare = 0.05f;
     public float fullShare = 0.3f;
 
+    /// <summary>
+    /// The same bounds when the strength is read from the join push (f = share x sin theta, below the share itself): a push of
+    /// this share of the joined flow starts to shape the junction, one of fullPush shapes it fully. Stand-in R-number.
+    /// </summary>
+    public float minPush = 0.03f;
+    public float fullPush = 0.15f;
+
     /// <summary>The junction angle theta (degrees, between the two incoming flows) is clamped to this range: near 0 the channels merge side by side, near 180 they meet head on.</summary>
     public FloatRange angleRange = new FloatRange(15f, 165f);
 
@@ -84,7 +91,7 @@ public static class Confluences
                     continue;
                 f = Mathf.Min(push[r].magnitude / discharge[r], 1f);
                 theta = p.angleRange.ClampToRange(Mathf.Asin(Mathf.Clamp01(f / Mathf.Max(share, 1e-6f))) * Mathf.Rad2Deg);
-                strength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.minShare, p.fullShare, f));
+                strength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.minPush, p.fullPush, f));
             }
             else
             {
@@ -162,15 +169,19 @@ public static class Confluences
         }
         // Highest first: every donor of a cell has its final width (hold applied) before the cell is looked at.
         var widest = new float[n];
+        var sumSquares = new float[n];
         var hold = new float[n];
         var drop = new float[n];
         int widened = 0;
         foreach (int c in cells)
         {
-            if (donors[c] >= 2 && moving[c] && widest[c] > hold[c])
+            // Hydraulic geometry: width grows as the square root of the discharge, and the joined discharge is the arms' sum,
+            // so the joined width is the root of the sum of the arms' squares.
+            float joined = Mathf.Sqrt(sumSquares[c]);
+            if (donors[c] >= 2 && moving[c] && joined > hold[c])
             {
-                hold[c] = widest[c];
-                drop[c] = widest[c] * relax;
+                hold[c] = joined;
+                drop[c] = joined * relax;
             }
             if (hold[c] > width[c] && moving[c])
             {
@@ -181,6 +192,7 @@ public static class Confluences
             if (r < 0)
                 continue;
             widest[r] = Mathf.Max(widest[r], width[c]);
+            sumSquares[r] += width[c] * width[c];
             if (hold[c] - drop[c] > hold[r])
             {
                 hold[r] = hold[c] - drop[c];
@@ -263,6 +275,8 @@ public static class Confluences
             int r = zones.JunctionCells[j];
             float w3 = zones.JunctionWidths[j];
             audit.Zoned++;
+            if (zones.Scour[r] >= 1.5f)
+                audit.Holes++;
             bool crowded = Crowded(r, w3), deposited = false;
             float d = 0f;
             for (int k = r; k >= 0 && d <= 2f * w3; k = receiver[k])
