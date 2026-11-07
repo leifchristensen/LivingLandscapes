@@ -30,6 +30,7 @@
     <!-- Annual mean temperature each vanilla biome keeps (C), from the spread vanilla itself gives it across worlds. A tile
          that our altitude would cool or warm past its biome's range is held at the range's edge (tropical rainforests
          exist from sea level to ~1000 m, the Congo basin at 400 m; above that the real biome would be a montane one). -->
+    <maxBiomeAdjustment>10</maxBiomeAdjustment>
     <biomeTemperatures>
       <li><biome>TropicalRainforest</biome><min>16</min><max>30</max></li>
       <li><biome>TropicalSwamp</biome><min>16</min><max>27</max></li>

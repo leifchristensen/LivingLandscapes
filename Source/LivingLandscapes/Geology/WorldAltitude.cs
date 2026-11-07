@@ -52,10 +52,12 @@ public static class WorldAltitude
         WorldAltitudeDef.BiomeTemperature range = def.biomeTemperatures.Find(b => b.biome == info.PrimaryBiome);
         if (range == null)
             return offset;
-        // Toward the biome's range, no further than needed; vanilla's own value, even outside the range, is the limit.
+        // Toward the biome's range, no further than needed and by no more than maxBiomeAdjustment; vanilla's own value, even outside the range, is the limit.
         float stored = info.temperature;
         float low = System.Math.Min(range.min, stored), high = System.Math.Max(range.max, stored);
-        return UnityEngine.Mathf.Clamp(stored + offset, low, high) - stored;
+        float free = stored + offset;
+        float adjustment = UnityEngine.Mathf.Clamp(UnityEngine.Mathf.Clamp(free, low, high) - free, -def.maxBiomeAdjustment, def.maxBiomeAdjustment);
+        return offset + adjustment;
     }
 
     /// <summary>

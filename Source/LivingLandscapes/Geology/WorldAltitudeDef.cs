@@ -55,6 +55,9 @@ public class WorldAltitudeDef : Def
     /// moves toward the range only as far as needed; one already outside it (vanilla's own) is left as vanilla made it.
     /// Biomes without an entry (modded ones) follow the altitude freely.
     /// </summary>
+    /// <summary>The most the biome range may change a tile's temperature from what its altitude gives, degrees Celsius either way.</summary>
+    public float maxBiomeAdjustment = 10f;
+
     public List<BiomeTemperature> biomeTemperatures = new List<BiomeTemperature>();
 
     public class BiomeTemperature
