@@ -102,10 +102,15 @@ public static partial class TerrainChannels
         // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
         if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
             p.oneHydraulics = one;
-        partSlope = partJets = partMomentum = true;
+        partSlope = partJets = partMomentum = partJoin = true;
+        partSpread = false;
+        joinScale = GenCommandLine.TryGetCommandLineArg("ll-join", out string joinArg) && float.TryParse(joinArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float js) ? js : 1f;
+        stemChord = GenCommandLine.TryGetCommandLineArg("ll-stem", out string stemArg) && stemArg == "chord";
         if (GenCommandLine.TryGetCommandLineArg("ll-hyd", out string hydParts))
         {
             p.oneHydraulics = true;
+            partJoin = hydParts.Contains("join");
+            partSpread = hydParts.Contains("spread");
             partSlope = hydParts.Contains("slope");
             partJets = hydParts.Contains("jets");
             partMomentum = hydParts.Contains("momentum");
@@ -235,7 +240,7 @@ public static partial class TerrainChannels
         {
             if (!ledger.IsFixed)
                 Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
-                    discharge, baseLevel, zones, p.oneHydraulics && partMomentum ? secondary : null, p.oneHydraulics && partMomentum ? secondaryShare : null);
+                    discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null);
             if (ledger.IsFixed)
             {
                 var gougedUnits = new float[n];
@@ -254,7 +259,7 @@ public static partial class TerrainChannels
         }
         // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
-            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partMomentum ? secondary : null, p.oneHydraulics && partMomentum ? secondaryShare : null);
+            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null);
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();

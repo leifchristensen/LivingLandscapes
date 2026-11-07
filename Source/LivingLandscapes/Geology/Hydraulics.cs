@@ -120,6 +120,49 @@ public static class Hydraulics
     }
 
     /// <summary>
+    /// What the tributaries of each junction push sideways (S2b, join weight): the momentum every non-main arrival brings, less the
+    /// part along the main stem's own direction. A tributary of discharge Q_t joining at the angle theta to the main stem brings
+    /// Q_t cos(theta) along the stem, which adds to its momentum, and Q_t sin(theta) across it, which the stem cannot take
+    /// without being pushed: that lost cross component is what deflects the main stem here (and what slows the water so the
+    /// junction's load settles: step S5 reads the same vector). The result is that cross momentum summed over the tributaries
+    /// (discharge units, pointing to the tributary's side). <paramref name="mainDirection"/> receives the unit direction of the
+    /// main stem alone (tributaries ignored; <c>zero</c> where a cell has no main donor). <paramref name="total"/> is
+    /// <see cref="Momentum"/> of the same network. A cell's main stem is the donor <paramref name="main"/> names.
+    /// </summary>
+    public static Vector2[] JoinPush(List<int> cells, int[] receiver, int[] main, float[] discharge, int sizeX, int[] secondary, float[] secondaryShare,
+        Vector2[] total, out Vector2[] mainDirection)
+    {
+        var stem = new Vector2[receiver.Length];
+        var brought = new Vector2[receiver.Length];
+        void Arrive(int from, int to, float weight, bool isMain)
+        {
+            Vector2 step = Step(from, to, sizeX);
+            if (isMain)
+                stem[to] = ((stem[from] == Vector2.zero ? step : stem[from]) + step).normalized;
+            else
+                brought[to] += ((total[from] == Vector2.zero ? step : total[from].normalized) + step).normalized * weight;
+        }
+        foreach (int c in cells)
+        {
+            int r = receiver[c];
+            if (r < 0)
+                continue;
+            float share = secondary != null && secondaryShare != null && secondary[c] >= 0 ? secondaryShare[c] : 0f;
+            if (share > 0f)
+                Arrive(c, secondary[c], discharge[c] * share, false);
+            Arrive(c, r, discharge[c] * (1f - share), main[r] == c);
+        }
+        var push = new Vector2[receiver.Length];
+        for (int i = 0; i < push.Length; i++)
+        {
+            if (stem[i] != Vector2.zero && brought[i] != Vector2.zero)
+                push[i] = brought[i] - stem[i] * Vector2.Dot(brought[i], stem[i]);
+        }
+        mainDirection = stem;
+        return push;
+    }
+
+    /// <summary>
     /// The speed each channel cell runs at (S2b, one slope): Manning on the <see cref="ReachSlope"/> the shape and the sediment
     /// budget read, or the speed a donor carries in as a jet if that is faster. Every donor counts: a cell hands its speed on to
     /// its receiver and, at a split, to its <paramref name="secondary"/> way too, so below a confluence the jet of the faster

@@ -205,4 +205,29 @@ public class HydraulicsOneSlopeTests
         foreach (int c in cells)
             Assert.Equal(old[c], now[c]);
     }
+    [Fact]
+    public void JoinPush_IsTheTributarysCrossMomentum_AndZeroWhereNothingJoins()
+    {
+        var (cells, receiver, discharge, filled, _, _, join, tributary, mainDonor) = Join();
+        var main = new int[filled.Length];
+        for (int i = 0; i < main.Length; i++)
+            main[i] = -1;
+        for (int x = 1; x < 7; x++)
+            main[1 * JoinX + x] = 1 * JoinX + x - 1;
+        main[join] = mainDonor;
+        Vector2[] total = Hydraulics.Momentum(cells, receiver, discharge, JoinX);
+        Vector2[] push = Hydraulics.JoinPush(cells, receiver, main, discharge, JoinX, null, null, total, out Vector2[] stem);
+        // The main river runs east; the tributary (Q 1) arrives along the grid z, wholly across it.
+        Assert.Equal(1f, stem[join].x, 3);
+        Assert.Equal(0f, push[join].x, 3);
+        Assert.Equal(1f, push[join].y, 3);
+        foreach (int c in cells)
+        {
+            if (c != join)
+                Assert.Equal(Vector2.zero, push[c]);
+        }
+        Vector2[] again = Hydraulics.JoinPush(cells, receiver, main, discharge, JoinX, null, null, total, out _);
+        Assert.Equal(push, again);
+        Assert.True(tributary >= 0);
+    }
 }
