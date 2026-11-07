@@ -65,7 +65,10 @@ public static partial class TerrainChannels
 
     // Which parts of the one hydraulics are on (all three with terrainChannels.oneHydraulics); -ll-hyd=slope,jets,momentum picks
     // some alone, to isolate what a difference comes from (S2b A/B).
-    private static bool partSlope = true, partJets = true, partMomentum = true;
+    private static bool partSlope = true, partJets = true, partMomentum = true, partJoin = true, partSpread = false;
+    // Dev: -ll-join=<k> scales the tributaries' cross momentum (1 = as designed, 0 = the main stem alone).
+    private static float joinScale = 1f;
+    private static bool stemChord = false;
 
     /// <summary>Returns the number of cuts; lowers <paramref name="height"/> and <paramref name="filled"/> along them.</summary>
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
@@ -89,6 +92,10 @@ public static partial class TerrainChannels
         float[] allSpeeds = oneHydraulics ? Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths,
             main, p.momentumSteps, partSlope, partJets) : null;
         Vector2[] flow = oneHydraulics && partMomentum ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
+        // Join weight: the main stem's own direction, tilted by the cross momentum its tributaries bring as a share of the joined flow.
+        Vector2[] push = null, stem = null;
+        if (flow != null && partJoin)
+            push = Hydraulics.JoinPush(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, flow, out stem);
         int turned = 0, over = 0, deflected = 0;
         cutNoStart = cutTooCostly = 0;
         float strongest = 0f, fastest = 0f;
@@ -104,7 +111,16 @@ public static partial class TerrainChannels
                 speed = allSpeeds[c];
                 if (flow != null)
                 {
-                    momentum = flow[c].normalized;
+                    Vector2 own = Vector2.zero;
+                    if (push != null)
+                    {
+                        // The main stem's direction: the chord of its last momentumSteps cells (as before S2b), else its own momentum.
+                        Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out int chordUp, out _);
+                        own = stemChord && chordUp != c ? (At(c) - At(chordUp)).normalized : stem[c];
+                    }
+                    momentum = own != Vector2.zero
+                        ? (own + push[c] * joinScale / Mathf.Max(discharge[c], 1e-6f)).normalized
+                        : flow[c].normalized;
                     if (!moving[c] || r < 0 || momentum == Vector2.zero)
                         continue;
                 }

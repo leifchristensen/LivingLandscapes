@@ -60,7 +60,7 @@ public static partial class TerrainChannels
                 deposit[c] = 0f;
         }
         Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
-            out _, discharge, baseLevel, zones, p.oneHydraulics && partMomentum ? secondary : null, p.oneHydraulics && partMomentum ? secondaryShare : null);
+            out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null);
         float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
         Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
         int raised = 0;
