@@ -128,63 +128,34 @@ public static class WorldWaterReport
         text.AppendLine($"  world rivers: {linkTotal} links over {riverTiles} tiles ({riverTiles * 100f / Math.Max(land, 1):F1}% of land), by def {string.Join(", ", rivers.Select(p => $"{p.Key} {p.Value}"))}; river mouths into water {mouthLinks}, sources (end tiles) {sources}, confluence tiles (3+ links) {confluences}.");
 
         // Flow against the spawn thresholds, and what the coast flood reaches.
-        float[] flow = WorldFlow.Compute(layer, out List<PlanetTile> coastal, out List<PlanetTile>[] tree);
+        float[] flow = WorldFlow.Drainage(layer, out int[] downstream);
         if (flow == null)
         {
             text.AppendLine("  no coastal sea tiles: vanilla lays no rivers.");
         }
         else
         {
-            var reached = new bool[n];
-            var stack = new Stack<int>();
+            // A land tile is reached by the coast flood when it has a downstream tile; its root is the sea tile at the end.
             var catchment = new Dictionary<int, int>();
-            foreach (PlanetTile root in coastal)
-            {
-                int count = 0;
-                stack.Push(root.tileId);
-                reached[root.tileId] = true;
-                while (stack.Count > 0)
-                {
-                    int t = stack.Pop();
-                    count++;
-                    if (tree[t] == null)
-                        continue;
-                    foreach (PlanetTile child in tree[t])
-                    {
-                        if (!reached[child.tileId])
-                        {
-                            reached[child.tileId] = true;
-                            stack.Push(child.tileId);
-                        }
-                    }
-                }
-                catchment[root.tileId] = count;
-            }
-            int unreached = Enumerable.Range(0, n).Count(i => !Water(i) && !reached[i]);
-            text.AppendLine($"  coast flood: {coastal.Count} coastal sea tiles; land never reached by the flood {unreached} of {land}.");
-            var landFlow = Enumerable.Range(0, n).Where(i => !Water(i) && reached[i]).Select(i => flow[i]).OrderByDescending(f => f).ToList();
-            text.AppendLine($"  land flow: max {(landFlow.Count > 0 ? landFlow[0] : 0f):F0}; tiles at or above 20000 {landFlow.Count(f => f >= 20000)}, 50000 {landFlow.Count(f => f >= 50000)}, 100000 (river spawn) {landFlow.Count(f => f >= 100000)}, 500000 {landFlow.Count(f => f >= 500000)}.");
-            // Catchment per coast tile: how many coasts could ever make a river.
-            var big = catchment.OrderByDescending(p => p.Value).Take(10).Select(p => $"{p.Value}").ToList();
-            text.AppendLine($"  catchment tiles per coastal sea tile: largest {string.Join(",", big)}.");
-            // Evaporation: rain gathered against flow kept at the mouth.
-            float rain = 0f, kept = 0f;
-            foreach (PlanetTile root in coastal)
-            {
-                var neighbourList = new List<PlanetTile>();
-                Find.WorldGrid.GetTileNeighbors(root, neighbourList);
-                foreach (PlanetTile nb in neighbourList)
-                {
-                    if (!Water(nb.tileId))
-                        kept += flow[nb.tileId];
-                }
-            }
+            int unreached = 0;
             for (int i = 0; i < n; i++)
             {
-                if (!Water(i) && reached[i])
-                    rain += Find.WorldGrid[i].rainfall;
+                if (Water(i))
+                    continue;
+                if (downstream[i] < 0)
+                {
+                    unreached++;
+                    continue;
+                }
+                int root = i;
+                while (downstream[root] >= 0)
+                    root = downstream[root];
+                catchment[root] = catchment.TryGetValue(root, out int c) ? c + 1 : 1;
             }
-            text.AppendLine($"  rainfall summed over reached land {rain:F0}; flow arriving at the coast {kept:F0} ({(rain > 0 ? kept * 100f / rain : 0f):F0}% survives evaporation).");
+            text.AppendLine($"  coast flood: {catchment.Count} coastal sea tiles with a catchment; land never reached by the flood {unreached} of {land}.");
+            var landFlow = Enumerable.Range(0, n).Where(i => !Water(i) && downstream[i] >= 0).Select(i => flow[i]).OrderByDescending(f => f).ToList();
+            text.AppendLine($"  land flow: max {(landFlow.Count > 0 ? landFlow[0] : 0f):F0}; tiles at or above 20000 {landFlow.Count(f => f >= 20000)}, 50000 {landFlow.Count(f => f >= 50000)}, 100000 (river spawn) {landFlow.Count(f => f >= 100000)}, 500000 {landFlow.Count(f => f >= 500000)}.");
+            text.AppendLine($"  catchment tiles per coastal sea tile: largest {string.Join(",", catchment.Values.OrderByDescending(v => v).Take(10))}.");
         }
 
         // Evenly spaced settleable-looking land tiles with and without a world river, to replay as tile maps (-ll-tile).
