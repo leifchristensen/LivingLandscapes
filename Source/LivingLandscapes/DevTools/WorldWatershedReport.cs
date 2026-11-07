@@ -85,6 +85,25 @@ public static class WorldWatershedReport
             foreach (SurfaceTile.RiverLink l in s.Rivers)
                 linkSet.Add((Math.Min(i, l.neighbor.tileId), Math.Max(i, l.neighbor.tileId)));
         }
+        // The world as it is now (after the watershed rule, if it ran): river tiles, confluences (3+ links), sources, Strahler orders.
+        {
+            var degree = new Dictionary<int, int>();
+            foreach ((int a, int c) in linkSet)
+            {
+                degree[a] = degree.GetValueOrDefault(a) + 1;
+                degree[c] = degree.GetValueOrDefault(c) + 1;
+            }
+            var inForest = new bool[n];
+            foreach (int t in degree.Keys)
+                inForest[t] = !Water(t);
+            int[] orders = WatershedMathOrders(next, inForest);
+            var hist = new int[8];
+            for (int i = 0; i < n; i++)
+                if (orders[i] > 0)
+                    hist[Math.Min(7, orders[i])]++;
+            int tiles = degree.Keys.Count(t => !Water(t));
+            text.AppendLine($"  ACTUAL world rivers: {linkSet.Count} links, {tiles} river tiles ({tiles * 100f / land:F1}% of land), confluences {degree.Count(p => !Water(p.Key) && p.Value >= 3)}, sources {degree.Count(p => !Water(p.Key) && p.Value == 1)}, Strahler order histogram 1..7+ (by drainage direction): {string.Join(",", hist.Skip(1))}.");
+        }
         int agree = linkSet.Count(p => next[p.Item1] == p.Item2 || next[p.Item2] == p.Item1);
         text.AppendLine($"  RP2 world rivers: {linkSet.Count} links; {agree} follow the drainage direction ({agree * 100f / Math.Max(1, linkSet.Count):F0}%).");
 
@@ -94,6 +113,36 @@ public static class WorldWatershedReport
         int noOutlet = Enumerable.Range(0, n).Count(i => !Water(i) && next[i] < 0);
         text.AppendLine($"  land tiles with no drainage direction (closed basin bottoms) {noOutlet}; land tiles whose chain ends on land: counted below per threshold.");
 
+        // Where do the chains of tiles at or above the threshold end? (candidates by terminal: sea/lake, river, closed basin bottom, below T, cycle)
+        {
+            float[] env = LivingLandscapes.Geology.WatershedMath.NonDecreasing(next, flow);
+            float T = 50000f / Math.Max(density, 0.01f);
+            var ends = new Dictionary<string, int>();
+            for (int i = 0; i < n; i++)
+            {
+                if (Water(i) || i >= flow.Length || env[i] < T || next[i] < 0 && false)
+                    continue;
+                int t = i, steps = 0;
+                string end;
+                while (true)
+                {
+                    if (steps++ > n) { end = "cycle"; break; }
+                    int d = next[t];
+                    if (d < 0) { end = "closed basin bottom"; break; }
+                    if (Water(d)) { end = "sea or lake"; break; }
+                    if (env[d] < T) { end = "below threshold"; break; }
+                    t = d;
+                }
+                ends[end] = ends.GetValueOrDefault(end) + 1;
+            }
+            // The terminal tiles themselves: what are the closed basin bottoms?
+            var terminals = Enumerable.Range(0, n).Where(i => !Water(i) && i < flow.Length && env[i] >= T && next[i] < 0).ToList();
+            int nearWater = terminals.Count(i => neighbours[i].Any(Water)), nearLake = terminals.Count(i => neighbours[i].Any(Lake));
+            int hasDir = terminals.Count(i => i < dir.Length && dir[i] >= 0), hasSpill = terminals.Count(i => spill != null && i < spill.Length && spill[i] >= 0);
+            var upstreamOfTerminal = terminals.OrderByDescending(i => env[i]).Take(8).Select(i => $"{i}:{Find.WorldGrid[i].PrimaryBiome.defName}/{Find.WorldGrid[i].rainfall:F0}mm/{Find.WorldGrid[i].elevation:F0}m/F{env[i]:F0}");
+            text.AppendLine($"  terminal tiles {terminals.Count}: next to water {nearWater}, next to a lake {nearLake}, with a flow direction {hasDir}, with a spill direction {hasSpill}; biggest: {string.Join(" ", upstreamOfTerminal)}");
+            text.AppendLine($"  tiles with flow >= {T:F0} by where their chain ends: {string.Join(", ", ends.Select(p => $"{p.Key} {p.Value}"))}.");
+        }
         // Supplementary rule at several thresholds: tile with flow >= T joins the tile it drains to.
         foreach (float absT in new[] { 5000f, 10000f, 20000f, 50000f, 100000f })
         {
@@ -139,6 +188,8 @@ public static class WorldWatershedReport
         }
         Write(text);
     }
+
+    private static int[] WatershedMathOrders(int[] next, bool[] inForest) => LivingLandscapes.Geology.WatershedMath.StrahlerOrders(next, inForest);
 
     private static void Write(StringBuilder text)
     {

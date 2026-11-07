@@ -32,6 +32,7 @@ Options → Mod options → Living Landscapes:
 | Habitat strength | 100% | How strongly the plant ecology applies (0% is vanilla). |
 | Gameplay siting | On | Start spot, ore and discoveries follow the terrain. Off: vanilla's random placement. |
 | Slope movement | On | Pawns walk more slowly uphill than across or downhill, and plan routes over gentle ground. |
+| World rivers: tributaries | With Realistic Planets 2 | When a world is made, every tile whose runoff reaches half of the river threshold becomes a river joining the one it drains to (Realistic Planets 2's rivers are sparse; it scales the threshold by its river density). Off, or Always (also vanilla's rivers). Saved worlds keep their rivers. |
 | Scattered ruins and ancient debris | Off | Vanilla's ruins and debris, off while the terrain is in development. |
 
 ## Plays nicely with

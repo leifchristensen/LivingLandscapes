@@ -66,6 +66,11 @@ public class LivingLandscapesMod : Mod
         listing.CheckboxLabeled("LL_SlopeMovement".Translate(), ref Settings.slopeMovement, "LL_SlopeMovementTip".Translate());
         listing.Gap();
 
+        if (listing.ButtonTextLabeled("LL_WatershedRivers".Translate(), ("LL_WatershedRivers_" + Settings.watershedRivers).Translate()))
+            Settings.watershedRivers = (WatershedMode)(((int)Settings.watershedRivers + 1) % 3);
+        listing.Label("LL_WatershedRiversTip".Translate());
+        listing.Gap();
+
         string supported = string.Join(", ", TerrainGenerationMods.ActiveSupported());
         listing.Label("LL_SupportedTerrainMods".Translate(supported.Length == 0 ? "LL_None".Translate().ToString() : supported));
 

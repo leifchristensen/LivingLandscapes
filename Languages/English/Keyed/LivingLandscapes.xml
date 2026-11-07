@@ -39,4 +39,9 @@ Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleT
   <LL_TuningReset>Reset</LL_TuningReset>
   <LL_SlopeMovementTip>Pawns walk more slowly uphill than on level ground or downhill, by the steepness of the ground, and plan routes over gentle ground, passes and steps. Applies to maps made with Living Landscapes.</LL_SlopeMovementTip>
 
+  <LL_WatershedRivers>World rivers: tributaries</LL_WatershedRivers>
+  <LL_WatershedRivers_Off>Off</LL_WatershedRivers_Off>
+  <LL_WatershedRivers_WithRealisticPlanets2>With Realistic Planets 2</LL_WatershedRivers_WithRealisticPlanets2>
+  <LL_WatershedRivers_Always>Always</LL_WatershedRivers_Always>
+  <LL_WatershedRiversTip>When a new world is made, every tile whose accumulated rainfall runoff reaches half of the river threshold becomes a river joining the one it drains to, so Realistic Planets 2's sparse rivers gain tributaries (scaled by its river density). "Always" also adds the tributaries vanilla leaves out. Saved worlds keep their rivers.</LL_WatershedRiversTip>
 </LanguageData>

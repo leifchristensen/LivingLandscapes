@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using LivingLandscapes.Compatibility;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
@@ -59,7 +60,9 @@ public static class WorldFlow
             cachedFlow = null;
             try
             {
-                cachedFlow = Compute(layer);
+                // Under Realistic Planets 2 the world's rivers come from its own flow field: use that one, so a tile's channel
+                // is sized by the same discharge that drew the world river (#219).
+                cachedFlow = (layer == Find.WorldGrid.Surface ? RealisticPlanets2Rivers.Flow() : null) ?? Compute(layer, out _);
             }
             catch (Exception e)
             {
@@ -69,10 +72,17 @@ public static class WorldFlow
         }
     }
 
-    private static float[] Compute(PlanetLayer layer)
+    /// <summary>
+    /// Vanilla's flow per tile and the tile each tile drains to (the parent in its downhill tree; -1 for sea tiles and tiles the
+    /// coast flood does not reach). Worked out again on every call; for world generation (the watershed rule, #219).
+    /// </summary>
+    public static float[] Drainage(PlanetLayer layer, out int[] downstream) => Compute(layer, out downstream);
+
+    private static float[] Compute(PlanetLayer layer, out int[] downstream)
     {
         var step = new WorldGenStep_Rivers();
         var coastal = (List<PlanetTile>)AccessTools.Method(typeof(WorldGenStep_Rivers), "GetCoastalWaterTiles").Invoke(step, new object[] { layer });
+        downstream = null;
         if (coastal.NullOrEmpty())
             return null;
         var implied = AccessTools.MethodDelegate<Func<Tile, float>>(AccessTools.Method(typeof(WorldGenStep_Rivers), "GetImpliedElevation"));
@@ -97,6 +107,15 @@ public static class WorldFlow
         var flow = new float[tree.Length];
         foreach (PlanetTile root in coastal)
             accumulate.Invoke(step, new object[] { flow, tree, root });
+        downstream = new int[tree.Length];
+        Array.Fill(downstream, -1);
+        for (int parent = 0; parent < tree.Length; parent++)
+        {
+            if (tree[parent] == null)
+                continue;
+            foreach (PlanetTile child in tree[parent])
+                downstream[child.tileId] = parent;
+        }
         return flow;
     }
 }
