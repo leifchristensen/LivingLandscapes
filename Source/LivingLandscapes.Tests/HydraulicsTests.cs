@@ -12,10 +12,10 @@ namespace LivingLandscapes.Tests;
 /// </summary>
 public class HydraulicsTests
 {
-    private const int SizeX = 24, SizeZ = 20;
+    internal const int SizeX = 24, SizeZ = 20;
 
     /// <summary>A tilted, bumpy surface drained by steepest descent: a tree with joins and the occasional diagonal step.</summary>
-    private static (List<int> cells, int[] receiver, int[] main, float[] discharge, float[] filled, float[] depth, float[] width) Network()
+    internal static (List<int> cells, int[] receiver, int[] main, float[] discharge, float[] filled, float[] depth, float[] width) Network()
     {
         int n = SizeX * SizeZ;
         var h = new float[n];
@@ -106,7 +106,7 @@ public class HydraulicsTests
     }
 
     // The old momentum inside Sediment.Spread.
-    private static Vector2[] LegacyMomentum(List<int> cells, int[] receiver, float[] discharge, int sizeX, int n)
+    internal static Vector2[] LegacyMomentum(List<int> cells, int[] receiver, float[] discharge, int sizeX, int n)
     {
         var momentum = new Vector2[n];
         foreach (int c in cells)
@@ -122,7 +122,7 @@ public class HydraulicsTests
     }
 
     // The old per-cell speeds inside Impact.
-    private static float[] LegacySpeeds(List<int> cells, int[] main, float[] filled, float[] depth, float[] width, int sizeX, int momentumSteps,
+    internal static float[] LegacySpeeds(List<int> cells, int[] main, float[] filled, float[] depth, float[] width, int sizeX, int momentumSteps,
         float manningN, float jetWidths)
     {
         Vector2 At(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
