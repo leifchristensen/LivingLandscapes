@@ -152,6 +152,12 @@ public class TerrainChannelSettings
     /// <summary>A headwater's springs pool where the filled surface lies more than this (metres) above the ground.</summary>
     public float springLakeDepth = 0.1f;
 
+    /// <summary>
+    /// Standing water (<see cref="Standing"/>) needs the level to lie more than the channel's depth plus this (metres) above the
+    /// bed: below it the water is the channel's own, above it a still body.
+    /// </summary>
+    public float standingTolerance = 0.05f;
+
     /// <summary>Ground more than this (metres) above a channel's water surface is not cut into the channel's width.</summary>
     public float maxBankCut = 0.3f;
 

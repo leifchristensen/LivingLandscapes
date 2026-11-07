@@ -23,6 +23,7 @@
     <Compile Include="..\LivingLandscapes\Geology\RegionalSlopeMath.cs" Link="Linked\RegionalSlopeMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\RiverEntryRules.cs" Link="Linked\RiverEntryRules.cs" />
     <Compile Include="..\LivingLandscapes\Geology\CoastMath.cs" Link="Linked\CoastMath.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\Standing.cs" Link="Linked\Standing.cs" />
     <Compile Include="..\LivingLandscapes\Flora\ShadeRadiusRules.cs" Link="Linked\ShadeRadiusRules.cs" />
     <Compile Include="..\LivingLandscapes\Overlay\TopologyBandMath.cs" Link="Linked\TopologyBandMath.cs" />
   </ItemGroup>

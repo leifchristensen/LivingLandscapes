@@ -65,6 +65,8 @@
           <transmissionLoss>6</transmissionLoss>
           <absorption>0.3</absorption>
           <seepCapacityWidth>2</seepCapacityWidth>
+          <!-- Standing water needs the level to lie this much (metres) deeper above the bed than the channel is deep. -->
+          <standingTolerance>0.05</standingTolerance>
           <biomeAbsorption>
             <li><biome>TemperateSwamp</biome><absorption>0</absorption></li>
             <li><biome>TropicalSwamp</biome><absorption>0</absorption></li>
