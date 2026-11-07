@@ -82,14 +82,17 @@ public static class Hydraulics
     /// exp(-distance / jetLength), jetLength being jetWidths x the channel width.
     /// </summary>
     public static float WithJet(float speed, float donorSpeed, float distance, float jetLength) =>
-        Mathf.Max(speed, donorSpeed * Mathf.Exp(-distance / jetLength));
+        Mathf.Max(speed, Jet(donorSpeed, distance, jetLength));
 
     /// <summary>
     /// The direction the water carries into each cell (P5): the discharge-weighted sum of the steps it took in, down the
     /// receivers (each step averaged with the momentum arriving at its cell, so it follows the flow's bends). Cells are
     /// ordered highest first, so donors come before their receivers; <c>Vector2.zero</c> where no water arrives.
+    /// With <paramref name="secondary"/> and <paramref name="secondaryShare"/> (the routing's splits) a split cell sends its
+    /// second way the share of its water that takes it, re-aimed along that way's own step, and the receiver the rest (S2b);
+    /// without them every cell sends all its water down its receiver (the form Spread used before S2b).
     /// </summary>
-    public static Vector2[] Momentum(List<int> cells, int[] receiver, float[] discharge, int sizeX)
+    public static Vector2[] Momentum(List<int> cells, int[] receiver, float[] discharge, int sizeX, int[] secondary = null, float[] secondaryShare = null)
     {
         var momentum = new Vector2[receiver.Length];
         foreach (int c in cells)
@@ -97,12 +100,56 @@ public static class Hydraulics
             int r = receiver[c];
             if (r < 0)
                 continue;
-            var step = new Vector2(r % sizeX - c % sizeX, r / sizeX - c / sizeX).normalized;
-            Vector2 carried = momentum[c] == Vector2.zero ? step : momentum[c].normalized;
-            momentum[r] += (carried + step).normalized * discharge[c];
+            float share = 0f;
+            if (secondary != null && secondaryShare != null && secondary[c] >= 0)
+            {
+                share = secondaryShare[c];
+                Carry(momentum, c, secondary[c], discharge[c] * share, sizeX);
+            }
+            Carry(momentum, c, r, discharge[c] * (1f - share), sizeX);
         }
         return momentum;
     }
+
+    /// <summary>Adds the momentum the water of <paramref name="from"/> carries into its neighbour <paramref name="to"/>: its step, averaged with what arrived at <paramref name="from"/>, times <paramref name="weight"/>.</summary>
+    private static void Carry(Vector2[] momentum, int from, int to, float weight, int sizeX)
+    {
+        Vector2 step = Step(from, to, sizeX);
+        Vector2 carried = momentum[from] == Vector2.zero ? step : momentum[from].normalized;
+        momentum[to] += (carried + step).normalized * weight;
+    }
+
+    /// <summary>
+    /// The speed each channel cell runs at (S2b, one slope): Manning on the <see cref="ReachSlope"/> the shape and the sediment
+    /// budget read, or the speed a donor carries in as a jet if that is faster. Every donor counts: a cell hands its speed on to
+    /// its receiver and, at a split, to its <paramref name="secondary"/> way too, so below a confluence the jet of the faster
+    /// tributary is kept, not only the main donor's. Cells are ordered highest first; the jet decays over
+    /// <paramref name="jetWidths"/> widths of the receiving cell's channel.
+    /// </summary>
+    public static float[] Speeds(List<int> cells, int[] receiver, int[] secondary, float[] filled, float[] depth, float[] width, int sizeX,
+        float manningN, float jetWidths)
+    {
+        var speeds = new float[filled.Length];
+        var jet = new float[filled.Length];
+        void Hand(int from, int to) =>
+            jet[to] = Mathf.Max(jet[to], Jet(speeds[from], StepLength(from, to, sizeX), jetWidths * Mathf.Max(width[to], 1f)));
+        foreach (int c in cells)
+        {
+            float speed = Mathf.Max(Speed(depth[c], ReachSlope(c, receiver, filled, sizeX), manningN), jet[c]);
+            speeds[c] = speed;
+            if (receiver[c] >= 0)
+                Hand(c, receiver[c]);
+            if (secondary != null && secondary[c] >= 0)
+                Hand(c, secondary[c]);
+        }
+        return speeds;
+    }
+
+    /// <summary>
+    /// The speed a jet leaves behind it (P5): <paramref name="speed"/> decayed by exp(-distance / jetLength). A cell runs at
+    /// least the strongest of its donors' (see <see cref="WithJet"/>).
+    /// </summary>
+    public static float Jet(float speed, float distance, float jetLength) => speed * Mathf.Exp(-distance / jetLength);
 
     /// <summary>Downstream direction of each channel cell, averaged over a few steps up and down the channel.</summary>
     public static Vector2[] Directions(List<int> cells, int[] receiver, int[] main, int sizeX, int steps)

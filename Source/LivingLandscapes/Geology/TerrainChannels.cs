@@ -99,6 +99,9 @@ public static partial class TerrainChannels
             if (parts.Length > 1)
                 p.feedback.passes = int.Parse(parts[1]);
         }
+        // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
+        if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
+            p.oneHydraulics = one;
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
@@ -145,8 +148,8 @@ public static partial class TerrainChannels
             // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
             if (pass < passes - 1 && p.impact.enabled)
             {
-                int cuts = Impact(cells, height, filled, receiver, main, width, depth, moving, rockStrength, sand, isOutlet, sizeX, sizeZ,
-                    p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
+                int cuts = Impact(cells, height, filled, receiver, main, secondary, secondaryShare, discharge, width, depth, moving, rockStrength, sand,
+                    isOutlet, sizeX, sizeZ, p.impact, p.oneHydraulics, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
@@ -224,7 +227,7 @@ public static partial class TerrainChannels
         {
             if (!ledger.IsFixed)
                 Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
-                    discharge, baseLevel, zones);
+                    discharge, baseLevel, zones, p.oneHydraulics ? secondary : null, p.oneHydraulics ? secondaryShare : null);
             if (ledger.IsFixed)
             {
                 var gougedUnits = new float[n];
@@ -243,7 +246,7 @@ public static partial class TerrainChannels
         }
         // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
-            deposited, atBase, eroded, discharge, baseLevel, zones);
+            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics ? secondary : null, p.oneHydraulics ? secondaryShare : null);
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();

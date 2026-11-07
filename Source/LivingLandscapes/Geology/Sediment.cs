@@ -223,7 +223,7 @@ public static partial class Sediment
     /// </summary>
     public static LayTotals Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
         SedimentSettings p, DepositLedger ledger, out float[] alluvium, out float[] grainSize, float[] discharge = null, bool[] still = null,
-        ConfluenceZones zones = null)
+        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
     {
         int n = filled.Length;
         // Budget units laid on the ground; the ledger converts them to metres (one kappa for the map).
@@ -232,7 +232,7 @@ public static partial class Sediment
         var grainSum = new float[n];
         var weights = new List<(int cell, float weight, float d)>();
         // The momentum each cell's water carries (cells are ordered highest first, so donors come before receivers).
-        Vector2[] momentum = discharge != null && still != null ? Hydraulics.Momentum(cells, receiver, discharge, sizeX) : null;
+        Vector2[] momentum = discharge != null && still != null ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
         foreach (int c in cells)
         {
             if (deposit[c] <= 0f)

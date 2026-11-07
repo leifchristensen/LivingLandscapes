@@ -12,10 +12,10 @@ public static partial class Sediment
     /// </summary>
     public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
         float[] natural, int sizeX, int sizeZ, SedimentSettings p, DepositLedger ledger, RiverSystem system, float total, float atBase, float eroded,
-        float[] discharge = null, bool[] still = null, ConfluenceZones zones = null)
+        float[] discharge = null, bool[] still = null, ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
     {
         LayTotals laid = Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, ledger,
-            out float[] alluvium, out float[] grainSize, discharge, still, zones);
+            out float[] alluvium, out float[] grainSize, discharge, still, zones, secondary, secondaryShare);
         system.Alluvium = alluvium;
         system.GrainSize = grainSize;
         system.Aggraded = ledger.Aggraded;

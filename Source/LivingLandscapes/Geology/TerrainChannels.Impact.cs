@@ -65,9 +65,14 @@ public static partial class TerrainChannels
 
     /// <summary>Returns the number of cuts; lowers <paramref name="height"/> and <paramref name="filled"/> along them.</summary>
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
-    private static int Impact(List<int> cells, float[] height, float[] filled, int[] receiver, int[] main, float[] width, float[] depth,
-        bool[] moving, float[] rockStrength, bool[] sand, System.Func<int, bool> isOutlet, int sizeX, int sizeZ, ImpactSettings p,
-        float bendRadiusWidths, float momentumCells, float[] gouged, out int cutCells)
+    /// <param name="oneHydraulics">
+    /// <see cref="TerrainChannelSettings.oneHydraulics"/>: the reach slope, every donor's jet and the incoming momentum from
+    /// <see cref="Hydraulics"/> (using <paramref name="secondary"/>, <paramref name="secondaryShare"/> and
+    /// <paramref name="discharge"/>); off, the old upstream slope along <paramref name="main"/>.
+    /// </param>
+    private static int Impact(List<int> cells, float[] height, float[] filled, int[] receiver, int[] main, int[] secondary, float[] secondaryShare,
+        float[] discharge, float[] width, float[] depth, bool[] moving, float[] rockStrength, bool[] sand, System.Func<int, bool> isOutlet,
+        int sizeX, int sizeZ, ImpactSettings p, bool oneHydraulics, float bendRadiusWidths, float momentumCells, float[] gouged, out int cutCells)
     {
         cutCells = 0;
         int cuts = 0;
@@ -76,6 +81,9 @@ public static partial class TerrainChannels
         var path = new List<int>();
         // Speed each channel cell runs at (Manning, or the speed carried in from upstream where that is faster), highest first.
         var speeds = new float[height.Length];
+        // One hydraulics: the speed of every cell (reach slope, the jets of all its donors) and the momentum of the incoming water.
+        float[] reachSpeeds = oneHydraulics ? Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths) : null;
+        Vector2[] flow = oneHydraulics ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
         int turned = 0, over = 0, deflected = 0;
         cutNoStart = cutTooCostly = 0;
         float strongest = 0f, fastest = 0f;
@@ -83,16 +91,30 @@ public static partial class TerrainChannels
         foreach (int c in cells)
         {
             int r = receiver[c];
-            // Speed of the water arriving: Manning on the reach upstream, or the speed carried in, decaying as a jet.
-            float slope = Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out int up, out _);
-            float speed = Hydraulics.Speed(depth[c], slope, p.manningN);
-            int donor = main[c];
-            if (donor >= 0)
-                speed = Hydraulics.WithJet(speed, speeds[donor], (At(c) - At(donor)).magnitude, p.jetWidths * Mathf.Max(width[c], 1f));
-            speeds[c] = speed;
-            if (!moving[c] || r < 0 || up == c)
-                continue;
-            Vector2 momentum = (At(c) - At(up)).normalized, onward = (At(r) - At(c)).normalized;
+            int up = c;
+            float speed;
+            Vector2 momentum;
+            if (oneHydraulics)
+            {
+                speed = reachSpeeds[c];
+                momentum = flow[c].normalized;
+                if (!moving[c] || r < 0 || momentum == Vector2.zero)
+                    continue;
+            }
+            else
+            {
+                // Speed of the water arriving: Manning on the reach upstream, or the speed carried in, decaying as a jet.
+                float slope = Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out up, out _);
+                speed = Hydraulics.Speed(depth[c], slope, p.manningN);
+                int donor = main[c];
+                if (donor >= 0)
+                    speed = Hydraulics.WithJet(speed, speeds[donor], (At(c) - At(donor)).magnitude, p.jetWidths * Mathf.Max(width[c], 1f));
+                speeds[c] = speed;
+                if (!moving[c] || r < 0 || up == c)
+                    continue;
+                momentum = (At(c) - At(up)).normalized;
+            }
+            Vector2 onward = (At(r) - At(c)).normalized;
             float turn = Vector2.Dot(momentum, onward);
             if (turn > cosMinTurn)
                 continue;

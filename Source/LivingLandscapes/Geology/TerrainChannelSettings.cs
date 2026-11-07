@@ -180,6 +180,17 @@ public class TerrainChannelSettings
     /// the water it drains to.
     /// </summary>
     public bool tolerantRouting = true;
+
+    /// <summary>
+    /// One hydraulics (HYDRO-UNIFICATION S2b, #186): Impact reads the same reach slope as the shape and the sediment budget (the
+    /// water's drop over the next <see cref="Hydraulics.TransportSteps"/> cells downstream), keeps a jet's speed from every donor
+    /// of a confluence (not only the main one), and takes the direction of the incoming flow from the momentum built over all
+    /// donors and splits (<see cref="Hydraulics.Momentum"/>), which Spread's jet reads too. Off: the old Impact (the slope over
+    /// <see cref="ImpactSettings.momentumSteps"/> cells upstream along the main donors, the main donor's jet speed and the
+    /// straight line to that upstream cell as the direction) and the old Spread momentum (no splits). Kept until the owner
+    /// accepts the A/B.
+    /// </summary>
+    public bool oneHydraulics = true;
     public float backwaterDepths = 1f;
     public float depthTolerance = 1f;
     public float bendRadiusWidths = 2.5f;
