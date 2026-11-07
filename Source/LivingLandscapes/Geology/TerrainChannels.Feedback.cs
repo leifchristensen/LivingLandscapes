@@ -51,7 +51,8 @@ public static partial class TerrainChannels
         var stillNow = new bool[n];
         for (int i = 0; i < n; i++)
             stillNow[i] = standing.Is(i, height[i], depth[i]);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillNow, sizeX, p.confluences);
+        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out Vector2[] stem);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillNow, sizeX, p.confluences, push, stem);
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out _, out _, out _, out _, sand: sand, zones: zones, secondary: secondary, secondaryShare: secondaryShare);
         foreach (int c in cells)

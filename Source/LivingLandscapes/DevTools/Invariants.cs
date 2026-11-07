@@ -41,6 +41,7 @@ public static class Invariants
         MovingWaterFlows(map, summary);
         StandingAgrees(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
+        JunctionsHold(map, summary);
         TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
     }
 
@@ -220,6 +221,21 @@ public static class Invariants
         string unplanned = entering < expected ? $"; {expected - entering} of the world's {expected} inflows never became a channel" : "";
         summary.AppendLine($"invariant 7 (world rivers join on the map): {(joined == expected ? "ok" : "FAIL")} | {joined} of {expected} entering world rivers join the exit river on the map " +
                            $"({entering} planned as channels)" + (lost.Length > 0 ? $"; not joining:{lost}" : "") + unplanned);
+    }
+
+    /// <summary>
+    /// Invariant 10 (CONFLUENCE-ZONES acceptance, #20, #220): the channel below a junction is not narrower than its widest arm; the
+    /// scour hole is deepest at the junction; every junction that shaped zones laid deposit in them. Silent when the map has no
+    /// junctions. The width check is the model's channel width (the painted channel also depends on bars, which the owner checks by eye).
+    /// </summary>
+    private static void JunctionsHold(Map map, StringBuilder summary)
+    {
+        JunctionAudit a = map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.Junctions;
+        if (a == null || a.Joins == 0)
+            return;
+        bool ok = (a.Narrowed == 0 || !a.WidthEnforced) && a.ScourOffCentre == 0;
+        summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm{(a.WidthEnforced ? "" : " (not enforced: one hydraulics off)")} " +
+                           $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones, {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>
