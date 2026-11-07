@@ -127,13 +127,13 @@ public static class Sediment
         {
             walked[c] = true;
             float q = discharge[c] * dischargeScale;
-            float slope = Slope(c, receiver, filled, sizeX);
+            float slope = Hydraulics.ReachSlope(c, receiver, filled, sizeX);
             bool still = baseLevel != null && baseLevel[c];
             float capacity = still ? 0f : p.capacityPerPower * q * slope;
             float rock = rockStrength != null ? rockStrength[c] : 0.5f;
             float supply = p.erosionPerPower * (1f - rock) * q * slope;
             if (inflow[c] > 0f && !still)
-                supply += p.entryGrade * p.capacityPerPower * inflow[c] * dischargeScale * MeanSlope(c, receiver, filled, baseLevel, sizeX);
+                supply += p.entryGrade * p.capacityPerPower * inflow[c] * dischargeScale * Hydraulics.ReachSlope(c, receiver, filled, sizeX, filled.Length, baseLevel);
             if (gouged != null)
                 supply += gouged[c];
             if (sand != null && sand[c] && !still)
@@ -226,37 +226,6 @@ public static class Sediment
         }
     }
 
-    /// <summary>Water drop per cell over the next few cells downstream (single steps across filled flats are nearly zero).</summary>
-    public static float Slope(int c, int[] receiver, float[] filled, int sizeX)
-    {
-        int d = c;
-        float run = 0f;
-        for (int s = 0; s < 5 && receiver[d] >= 0; s++)
-        {
-            int r = receiver[d];
-            run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
-            d = r;
-        }
-        return run > 0f ? Mathf.Max(0f, filled[c] - filled[d]) / run : 0f;
-    }
-
-    /// <summary>
-    /// The mean water slope (metres per cell) from <paramref name="c"/> down its receivers to base level or the map's edge: the
-    /// reach a river entering there runs down on the map, in the map's own vertical scale.
-    /// </summary>
-    private static float MeanSlope(int c, int[] receiver, float[] filled, bool[] baseLevel, int sizeX)
-    {
-        int d = c;
-        float run = 0f;
-        for (int s = 0; s < filled.Length && receiver[d] >= 0 && (baseLevel == null || !baseLevel[d]); s++)
-        {
-            int r = receiver[d];
-            run += (r % sizeX != d % sizeX && r / sizeX != d / sizeX) ? 1.414f : 1f;
-            d = r;
-        }
-        return run > 0f ? Mathf.Max(0f, filled[c] - filled[d]) / run : 0f;
-    }
-
     /// <summary>
     /// Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with
     /// distance. Where the river meets still water (<paramref name="still"/>) its deposit spreads with its jet instead, along the
@@ -271,20 +240,7 @@ public static class Sediment
         var grainSum = new float[n];
         var weights = new List<(int cell, float weight, float d)>();
         // The momentum each cell's water carries (cells are ordered highest first, so donors come before receivers).
-        Vector2[] momentum = null;
-        if (discharge != null && still != null)
-        {
-            momentum = new Vector2[n];
-            foreach (int c in cells)
-            {
-                int r = receiver[c];
-                if (r < 0)
-                    continue;
-                var step = new Vector2(r % sizeX - c % sizeX, r / sizeX - c / sizeX).normalized;
-                Vector2 carried = momentum[c] == Vector2.zero ? step : momentum[c].normalized;
-                momentum[r] += (carried + step).normalized * discharge[c];
-            }
-        }
+        Vector2[] momentum = discharge != null && still != null ? Hydraulics.Momentum(cells, receiver, discharge, sizeX) : null;
         foreach (int c in cells)
         {
             if (deposit[c] <= 0f)
