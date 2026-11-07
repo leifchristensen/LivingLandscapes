@@ -192,7 +192,7 @@ public static class Invariants
         if (rivers == null)
             return;
         List<RiverPlan> channels = rivers.Channels;
-        int entering = 0, joined = 0;
+        int entering = 0, joined = 0, grazing = 0;
         var lost = new StringBuilder();
         var parent = new int[channels.Count];
         var isWorldRiver = new bool[channels.Count];
@@ -207,14 +207,21 @@ public static class Invariants
         {
             if (!(channels[k].VanillaWidth > 0f && channels[k].EntryArea > 0f))
                 continue;
-            entering++;
             bool joins = RiverEntryRules.Joins(k, parent, isWorldRiver, endsInside);
+            // A river that enters and leaves again within a few cells of the same edge never crossed the map: the world river it
+            // would join runs on the neighbouring tile there, so it has nothing to join here.
+            if (!joins && StaysOnEdge(map, channels, k, EdgeBand))
+            {
+                grazing++;
+                continue;
+            }
+            entering++;
             if (joins)
                 joined++;
             else
                 lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0}, from {PointOf(channels[k].Main, true)} to {PointOf(channels[k].Main, false)}, via {Chain(channels, k)});");
         }
-        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count;
+        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count - LandscapeGenerator.InflowsAtSea - grazing;
         int expected = Mathf.Max(worldInflows, entering);
         if (expected < 2)
             return;
@@ -236,6 +243,23 @@ public static class Invariants
         bool ok = (a.Narrowed == 0 || !a.WidthEnforced) && a.ScourOffCentre == 0;
         summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm{(a.WidthEnforced ? "" : " (not enforced: one hydraulics off)")} " +
                            $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones ({a.Holes} with a scour hole of 1.5x depth or more), {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
+    }
+
+    /// <summary>Cells from the map edge within which a river that enters and leaves counts as running along the edge.</summary>
+    private const float EdgeBand = 4f;
+
+    /// <summary>True when every point of the channel and of the channels it runs into lies within <paramref name="band"/> of the map edge.</summary>
+    private static bool StaysOnEdge(Map map, List<RiverPlan> channels, int k, float band)
+    {
+        for (int step = 0; step < channels.Count && k >= 0; step++, k = channels[k].Parent)
+        {
+            foreach (Vector2 v in channels[k].Main)
+            {
+                if (Inside(map, v) && !NearEdge(map, v, band))
+                    return false;
+            }
+        }
+        return true;
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>
