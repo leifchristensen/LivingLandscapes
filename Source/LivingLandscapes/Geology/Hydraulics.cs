@@ -123,11 +123,13 @@ public static class Hydraulics
     /// The speed each channel cell runs at (S2b, one slope): Manning on the <see cref="ReachSlope"/> the shape and the sediment
     /// budget read, or the speed a donor carries in as a jet if that is faster. Every donor counts: a cell hands its speed on to
     /// its receiver and, at a split, to its <paramref name="secondary"/> way too, so below a confluence the jet of the faster
-    /// tributary is kept, not only the main donor's. Cells are ordered highest first; the jet decays over
+    /// tributary is kept, not only the main donor's. With <paramref name="reachSlope"/> false the slope is the old one upstream along
+    /// <paramref name="main"/> and with <paramref name="allDonors"/> false only the main donor's jet is kept (the pre-S2b Impact; the
+    /// parts exist to isolate which change drives a difference). Cells are ordered highest first; the jet decays over
     /// <paramref name="jetWidths"/> widths of the receiving cell's channel.
     /// </summary>
     public static float[] Speeds(List<int> cells, int[] receiver, int[] secondary, float[] filled, float[] depth, float[] width, int sizeX,
-        float manningN, float jetWidths)
+        float manningN, float jetWidths, int[] main = null, int momentumSteps = 8, bool reachSlope = true, bool allDonors = true)
     {
         var speeds = new float[filled.Length];
         var jet = new float[filled.Length];
@@ -135,8 +137,15 @@ public static class Hydraulics
             jet[to] = Mathf.Max(jet[to], Jet(speeds[from], StepLength(from, to, sizeX), jetWidths * Mathf.Max(width[to], 1f)));
         foreach (int c in cells)
         {
-            float speed = Mathf.Max(Speed(depth[c], ReachSlope(c, receiver, filled, sizeX), manningN), jet[c]);
+            float slope = reachSlope ? ReachSlope(c, receiver, filled, sizeX) : UpstreamSlope(c, main, filled, sizeX, momentumSteps, out _, out _);
+            float speed = Speed(depth[c], slope, manningN);
+            if (allDonors)
+                speed = Mathf.Max(speed, jet[c]);
+            else if (main[c] >= 0)
+                speed = WithJet(speed, speeds[main[c]], (new Vector2(c % sizeX, c / sizeX) - new Vector2(main[c] % sizeX, main[c] / sizeX)).magnitude, jetWidths * Mathf.Max(width[c], 1f));
             speeds[c] = speed;
+            if (!allDonors)
+                continue;
             if (receiver[c] >= 0)
                 Hand(c, receiver[c]);
             if (secondary != null && secondary[c] >= 0)

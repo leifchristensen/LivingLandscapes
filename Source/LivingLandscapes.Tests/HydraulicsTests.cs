@@ -122,7 +122,7 @@ public class HydraulicsTests
     }
 
     // The old per-cell speeds inside Impact.
-    private static float[] LegacySpeeds(List<int> cells, int[] main, float[] filled, float[] depth, float[] width, int sizeX, int momentumSteps,
+    internal static float[] LegacySpeeds(List<int> cells, int[] main, float[] filled, float[] depth, float[] width, int sizeX, int momentumSteps,
         float manningN, float jetWidths)
     {
         Vector2 At(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);

@@ -63,6 +63,10 @@ public static partial class TerrainChannels
 {
     private const float WaterDensity = 1000f;
 
+    // Which parts of the one hydraulics are on (all three with terrainChannels.oneHydraulics); -ll-hyd=slope,jets,momentum picks
+    // some alone, to isolate what a difference comes from (S2b A/B).
+    private static bool partSlope = true, partJets = true, partMomentum = true;
+
     /// <summary>Returns the number of cuts; lowers <paramref name="height"/> and <paramref name="filled"/> along them.</summary>
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
     /// <param name="oneHydraulics">
@@ -82,8 +86,9 @@ public static partial class TerrainChannels
         // Speed each channel cell runs at (Manning, or the speed carried in from upstream where that is faster), highest first.
         var speeds = new float[height.Length];
         // One hydraulics: the speed of every cell (reach slope, the jets of all its donors) and the momentum of the incoming water.
-        float[] reachSpeeds = oneHydraulics ? Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths) : null;
-        Vector2[] flow = oneHydraulics ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
+        float[] allSpeeds = oneHydraulics ? Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths,
+            main, p.momentumSteps, partSlope, partJets) : null;
+        Vector2[] flow = oneHydraulics && partMomentum ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
         int turned = 0, over = 0, deflected = 0;
         cutNoStart = cutTooCostly = 0;
         float strongest = 0f, fastest = 0f;
@@ -96,10 +101,20 @@ public static partial class TerrainChannels
             Vector2 momentum;
             if (oneHydraulics)
             {
-                speed = reachSpeeds[c];
-                momentum = flow[c].normalized;
-                if (!moving[c] || r < 0 || momentum == Vector2.zero)
-                    continue;
+                speed = allSpeeds[c];
+                if (flow != null)
+                {
+                    momentum = flow[c].normalized;
+                    if (!moving[c] || r < 0 || momentum == Vector2.zero)
+                        continue;
+                }
+                else
+                {
+                    Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out up, out _);
+                    if (!moving[c] || r < 0 || up == c)
+                        continue;
+                    momentum = (At(c) - At(up)).normalized;
+                }
             }
             else
             {

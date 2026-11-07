@@ -195,4 +195,14 @@ public class HydraulicsOneSlopeTests
         Vector2[] b = Hydraulics.Momentum(cells, receiver, discharge, HydraulicsTests.SizeX, secondary, share);
         Assert.Equal(a, b);
     }
+
+    [Fact]
+    public void Speeds_WithTheOldPartsSwitchedOn_EqualTheOldImpactSpeeds()
+    {
+        var (cells, receiver, main, _, filled, depth, width) = HydraulicsTests.Network();
+        float[] old = HydraulicsTests.LegacySpeeds(cells, main, filled, depth, width, HydraulicsTests.SizeX, 8, ManningN, JetWidths);
+        float[] now = Hydraulics.Speeds(cells, receiver, null, filled, depth, width, HydraulicsTests.SizeX, ManningN, JetWidths, main, 8, reachSlope: false, allDonors: false);
+        foreach (int c in cells)
+            Assert.Equal(old[c], now[c]);
+    }
 }
