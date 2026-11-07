@@ -22,6 +22,30 @@ public static class Hydraulics
     /// <summary>Cells downstream over which the transport slope is read (single D8 steps across filled flats are nearly zero).</summary>
     public const int TransportSteps = 5;
 
+    /// <summary>
+    /// A graded bed never rises downstream (invariant 1): deposits raise a reach together with the reach above it, so a deposit
+    /// cannot stand higher than the bed upstream and dam it into a lake (#217: the feedback passes raised the lower valley of a
+    /// world river above its upper reaches, drowning the river). Caps <paramref name="rises"/> in place: each way's receiver
+    /// (<paramref name="receiver"/> and <paramref name="secondary"/>, which may be null) rises at most to its donor's raised
+    /// surface. <paramref name="cells"/> must be ordered highest first, so every donor is final before its receiver is reached.
+    /// </summary>
+    public static void GradeRises(List<int> cells, int[] receiver, int[] secondary, float[] surface, float[] rises)
+    {
+        foreach (int c in cells)
+        {
+            float top = surface[c] + rises[c];
+            CapRise(receiver[c], top, surface, rises);
+            if (secondary != null)
+                CapRise(secondary[c], top, surface, rises);
+        }
+    }
+
+    private static void CapRise(int r, float top, float[] surface, float[] rises)
+    {
+        if (r >= 0 && surface[r] + rises[r] > top)
+            rises[r] = Mathf.Max(0f, top - surface[r]);
+    }
+
     /// <summary>Length of the step from <paramref name="from"/> to its neighbour <paramref name="to"/>, in cells (diagonals 1.414).</summary>
     public static float StepLength(int from, int to, int sizeX) =>
         (to % sizeX != from % sizeX && to / sizeX != from / sizeX) ? 1.414f : 1f;
