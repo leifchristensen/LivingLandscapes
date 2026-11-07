@@ -101,6 +101,9 @@ public static partial class TerrainChannels
         }
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
+        // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
+        // passes and the final layers lay the same deposit as the same thickness.
+        var ledger = new DepositLedger();
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -119,15 +122,7 @@ public static partial class TerrainChannels
             cells.Sort((x, y) => filled[y].CompareTo(filled[x]));
 
             // The main donor of each channel cell: the channel cell upstream whose steepest descent brings the most water.
-            main = new int[n];
-            for (int i = 0; i < n; i++)
-                main[i] = -1;
-            foreach (int c in cells)
-            {
-                int r = receiver[c];
-                if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
-                    main[r] = c;
-            }
+            main = MainDonors(cells, receiver, discharge, threshold, n);
 
             direction = Hydraulics.Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
             width = new float[n];
@@ -162,8 +157,8 @@ public static partial class TerrainChannels
             // The network's deposits raise the ground it will be routed over next (P7 feedback).
             if (pass >= 1 && pass < passes - 1 && p.feedback.passes > 0)
             {
-                int raised = Aggrade(cells, receiver, secondary, secondaryShare, discharge, dischargeScale, height, filled, inflow, rockStrength,
-                    moving, width, sand, isOutlet, sizeX, sizeZ, p, out float volume);
+                int raised = Aggrade(cells, receiver, secondary, secondaryShare, discharge, dischargeScale, threshold, height, filled, inflow, rockStrength,
+                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, out float volume);
                 if (raised > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
@@ -220,21 +215,23 @@ public static partial class TerrainChannels
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, sand: sand, zones: zones,
+            out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, out _, sand: sand, zones: zones,
             secondary: secondary, secondaryShare: secondaryShare);
-        // Ground the water's impact cut away joins its load (metres, in the budget's units: the budget is scaled to metres only
-        // when it is laid down, so its scale is read from a first pass).
+        // Ground the water's impact cut away joins its load. It is a volume in metres; the budget's units are metres divided by
+        // the ledger's kappa. Kappa is fixed by the feedback passes; without them (or without deposits there) a first Spread fixes it.
         float gougedTotal = gouged.Sum();
         if (gougedTotal > 0f)
         {
-            Sediment.Spread(cells, receiver, null, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, out _, out _,
-                out float metresPerUnit, discharge, baseLevel);
-            if (metresPerUnit > 0f)
+            if (!ledger.IsFixed)
+                Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
+                    discharge, baseLevel, zones);
+            if (ledger.IsFixed)
             {
+                var gougedUnits = new float[n];
                 for (int i = 0; i < n; i++)
-                    gouged[i] /= metresPerUnit;
+                    gougedUnits[i] = gouged[i] / ledger.Kappa;
                 Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-                    out deposit, out depositGrain, out deposited, out atBase, out eroded, gouged, sand, zones, secondary, secondaryShare);
+                    out deposit, out depositGrain, out deposited, out atBase, out eroded, out _, gougedUnits, sand, zones, secondary, secondaryShare);
             }
         }
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
@@ -244,9 +241,10 @@ public static partial class TerrainChannels
             if (!moving[c])
                 deposit[c] = 0f;
         }
-        int bars = Bars(height, cells, width, depth, moving, deposit, deposition, direction, sizeX, sizeZ, p, system, out int islands, zones);
-        string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, system,
+        // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
+        string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
             deposited, atBase, eroded, discharge, baseLevel, zones);
+        int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();
         foreach (int c in cells)
@@ -280,5 +278,20 @@ public static partial class TerrainChannels
                     $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {zones.Junctions} junctions (strongest {zones.Strongest:F2}); {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         return system;
+    }
+
+    /// <summary>The main donor of each channel cell: the channel cell upstream whose steepest descent brings the most water (-1 if none).</summary>
+    private static int[] MainDonors(List<int> cells, int[] receiver, float[] discharge, float threshold, int n)
+    {
+        var main = new int[n];
+        for (int i = 0; i < n; i++)
+            main[i] = -1;
+        foreach (int c in cells)
+        {
+            int r = receiver[c];
+            if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
+                main[r] = c;
+        }
+        return main;
     }
 }

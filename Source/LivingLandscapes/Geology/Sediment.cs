@@ -60,6 +60,13 @@ public class SedimentSettings
     public float typicalThickness = 1f;
     public float maxThickness = 3f;
 
+    /// <summary>
+    /// The ledger's kappa (metres per unit of the budget, see <see cref="DepositLedger"/>) is clamped to this range, so a map with
+    /// almost no deposit does not blow a trace up to <see cref="typicalThickness"/>.
+    /// </summary>
+    public float kappaMin = 1e-3f;
+    public float kappaMax = 1e3f;
+
     /// <summary>Thinner than this (metres, after scaling) counts as no alluvium.</summary>
     public float minThickness = 0.05f;
 
@@ -76,43 +83,20 @@ public class SedimentSettings
 /// grain size, from which ground, soil and plants can follow. Nothing here names a delta, a levee or a bank: they are where
 /// the budget puts sediment.
 /// </summary>
-public static class Sediment
+public static partial class Sediment
 {
-    /// <summary>
-    /// Spreads the deposits over the floodplain into the alluvium and grain size fields of <paramref name="system"/>; returns a
-    /// summary for the log.
-    /// </summary>
-    public static string Layers(List<int> cells, int[] receiver, float[] deposit, float[] depositGrain, float[] width, float[] filled,
-        float[] natural, int sizeX, int sizeZ, SedimentSettings p, RiverSystem system, float total, float atBase, float eroded,
-        float[] discharge = null, bool[] still = null, ConfluenceZones zones = null)
-    {
-        Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p, out float[] alluvium, out float[] grainSize, out _,
-            discharge, still, zones);
-        system.Alluvium = alluvium;
-        system.GrainSize = grainSize;
-        int covered = 0;
-        float thickest = 0f;
-        foreach (float a in alluvium)
-        {
-            if (a > 0.05f)
-                covered++;
-            thickest = Mathf.Max(thickest, a);
-        }
-        return $"sediment: {eroded:0} supplied, {total:0} deposited ({(total > 0f ? 100f * atBase / total : 0f):0}% at base level), " +
-               $"alluvium over {100f * covered / filled.Length:0.0}% of the map, thickest {thickest:0.00} m";
-    }
-
     /// <summary>
     /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
     /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
     /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
     /// flow takes up as much as it can carry. Where the water divides (<paramref name="secondary"/>), the load divides with it,
-    /// by the same share (#118).
+    /// by the same share (#118). Conservation (P28): <paramref name="eroded"/> (the supply) equals <paramref name="total"/> (deposited)
+    /// plus <paramref name="exits"/> (the load that leaves the network where a channel has no receiver), up to rounding.
     /// </summary>
     public static void Deposits(List<int> cells, int[] receiver, float[] discharge, float dischargeScale, float[] filled,
         float[] inflow, float[] rockStrength, bool[] baseLevel, int sizeX, SedimentSettings p,
-        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, float[] gouged = null, bool[] sand = null,
-        ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
+        out float[] deposit, out float[] depositGrain, out float total, out float atBase, out float eroded, out float exits, float[] gouged = null,
+        bool[] sand = null, ConfluenceZones zones = null, int[] secondary = null, float[] secondaryShare = null)
     {
         int n = filled.Length;
         var load = new float[n];
@@ -123,6 +107,7 @@ public static class Sediment
         total = 0f;
         atBase = 0f;
         eroded = 0f;
+        exits = 0f;
         foreach (int c in cells)
         {
             walked[c] = true;
@@ -179,14 +164,17 @@ public static class Sediment
                 load[r] += carried;
                 grainLoad[r] += carried * grain;
             }
+            else
+                exits += carried;
         }
     }
 
     /// <summary>
     /// Lays a deposit where a river enters still water as its jet carries it: exp(-x / L) along the axis, a Gaussian of half-width
     /// w / 2 + jetSpreadRate x across it, on ground no higher than <paramref name="level"/>; coarse near the mouth, finer out.
+    /// Returns false when there was no such ground (the amount was not laid).
     /// </summary>
-    private static void Jet(int c, Vector2 axis, float amount, float grain, float w, float level, float[] natural, int sizeX, int sizeZ, SedimentSettings p,
+    private static bool Jet(int c, Vector2 axis, float amount, float grain, float w, float level, float[] natural, int sizeX, int sizeZ, SedimentSettings p,
         float[] alluvium, float[] grainSum, List<(int cell, float weight, float d)> weights)
     {
         float settle = p.jetSettleWidths * w, reach = settle * p.jetReachLengths;
@@ -217,26 +205,30 @@ public static class Sediment
             }
         }
         if (sum <= 0f)
-            return;
+            return false;
         foreach ((int i, float weight, float along) in weights)
         {
             float thickness = amount * weight / sum;
             alluvium[i] += thickness;
             grainSum[i] += thickness * grain * Mathf.Exp(-along / settle);
         }
+        return true;
     }
 
     /// <summary>
     /// Spreads each channel cell's deposit over the floodplain: ground near its water, within reach, Gaussian; grain fines with
     /// distance. Where the river meets still water (<paramref name="still"/>) its deposit spreads with its jet instead, along the
-    /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream.
+    /// flow's direction (the discharge-weighted momentum carried down the network) and widening downstream. The result is in
+    /// metres at the ledger's kappa (<see cref="DepositLedger"/>); the totals say where the volume went.
     /// </summary>
-    public static void Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
-        SedimentSettings p, out float[] alluvium, out float[] grainSize, out float scale, float[] discharge = null, bool[] still = null,
+    public static LayTotals Spread(List<int> cells, int[] receiver, Vector2[] flow, float[] deposit, float[] depositGrain, float[] width, float[] filled, float[] natural, int sizeX, int sizeZ,
+        SedimentSettings p, DepositLedger ledger, out float[] alluvium, out float[] grainSize, float[] discharge = null, bool[] still = null,
         ConfluenceZones zones = null)
     {
         int n = filled.Length;
-        alluvium = new float[n];
+        // Budget units laid on the ground; the ledger converts them to metres (one kappa for the map).
+        var raw = new float[n];
+        float offered = 0f, unplaced = 0f;
         var grainSum = new float[n];
         var weights = new List<(int cell, float weight, float d)>();
         // The momentum each cell's water carries (cells are ordered highest first, so donors come before receivers).
@@ -245,10 +237,12 @@ public static class Sediment
         {
             if (deposit[c] <= 0f)
                 continue;
+            offered += deposit[c];
             if (momentum != null && still[c] && momentum[c] != Vector2.zero)
             {
-                Jet(c, momentum[c].normalized, deposit[c], depositGrain[c], Mathf.Max(width[c], 1f), filled[c] + p.floodHeight, natural, sizeX, sizeZ, p,
-                    alluvium, grainSum, weights);
+                if (!Jet(c, momentum[c].normalized, deposit[c], depositGrain[c], Mathf.Max(width[c], 1f), filled[c] + p.floodHeight, natural, sizeX, sizeZ, p,
+                        raw, grainSum, weights))
+                    unplaced += deposit[c];
                 continue;
             }
             float w = Mathf.Max(width[c], 1f);
@@ -291,36 +285,22 @@ public static class Sediment
                 }
             }
             if (sum <= 0f)
+            {
+                unplaced += deposit[c];
                 continue;
+            }
             foreach ((int i, float weight, float d) in weights)
             {
+                // The kernel is divided by its sum, so the deposit is laid in full on the ground that is there.
                 float thickness = deposit[c] * weight / sum;
-                alluvium[i] += thickness;
+                raw[i] += thickness;
                 int x = i % sizeX - cx, z = i / sizeX - cz;
                 float lean = d > 0f ? Mathf.Max(0f, Vector2.Dot(inner, new Vector2(x, z)) / d) : 0f;
                 float fining = Mathf.Max(p.finingWidths * w * (1f + p.bendBias * lean), 0.5f);
                 grainSum[i] += thickness * depositGrain[c] * Mathf.Exp(-d / fining);
             }
         }
-        var covered = new List<float>();
-        foreach (float a in alluvium)
-        {
-            if (a > 0f)
-                covered.Add(a);
-        }
-        scale = 0f;
-        if (covered.Count > 0)
-        {
-            covered.Sort();
-            scale = p.typicalThickness / Mathf.Max(covered[(int)(covered.Count * 0.9f)], 1e-6f);
-        }
-        grainSize = new float[n];
-        for (int i = 0; i < n; i++)
-        {
-            float thickness = Mathf.Min(alluvium[i] * scale, p.maxThickness);
-            if (thickness >= p.minThickness)
-                grainSize[i] = Mathf.Clamp01(grainSum[i] / alluvium[i]);
-            alluvium[i] = thickness >= p.minThickness ? thickness : 0f;
-        }
+        ledger.Lay(raw, grainSum, p, unplaced, offered, out alluvium, out grainSize, out LayTotals totals);
+        return totals;
     }
 }

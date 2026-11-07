@@ -75,6 +75,12 @@ public class RiverSystem
     /// <summary>Grain size of that alluvium, 0 clay and silt to 1 gravel (0 where there is none).</summary>
     public float[] GrainSize;
 
+    /// <summary>
+    /// Metres the feedback passes raised the ground with the channels' deposits (<see cref="DepositLedger.Aggraded"/>); that rise is
+    /// part of the landform already, so soil depth counts <see cref="Alluvium"/> only beyond it.
+    /// </summary>
+    public float[] Aggraded;
+
 
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }

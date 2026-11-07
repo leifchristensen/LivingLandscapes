@@ -15,6 +15,8 @@ public static class Mathf
     public static float Max(float a, float b) => Math.Max(a, b);
     public static int Min(int a, int b) => Math.Min(a, b);
     public static int Max(int a, int b) => Math.Max(a, b);
+    public static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+    public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
     public static float Clamp(float v, float min, float max) => v < min ? min : (v > max ? max : v);
     public static int Clamp(int v, int min, int max) => v < min ? min : (v > max ? max : v);
     public static float Sqrt(float v) => (float)Math.Sqrt(v);
@@ -36,6 +38,7 @@ public struct Vector2 : IEquatable<Vector2>
         this.y = y;
     }
 
+    public static float Dot(Vector2 a, Vector2 b) => a.x * b.x + a.y * b.y;
     public static Vector2 zero => new Vector2(0f, 0f);
     public float magnitude => (float)Math.Sqrt(x * x + y * y);
     public Vector2 normalized

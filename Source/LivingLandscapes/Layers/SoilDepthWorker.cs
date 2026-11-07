@@ -65,8 +65,11 @@ public class SoilDepthWorker : EnvironmentLayerWorker
         float[] alluvium = context.Get(EnvironmentLayerDefOf.LL_Alluvium);
         if (alluvium != null && StageFor(context.Map) == GenerationStage.Elevation)
         {
+            // The rise the feedback passes gave the ground is in the landform already (the soil model sees it as ground): count the
+            // alluvium only beyond it, not twice (HYDRO-UNIFICATION section 10 point 11).
+            float[] aggraded = context.Environment.PlannedRivers?.Aggraded;
             for (int i = 0; i < soil.Length; i++)
-                soil[i] += alluvium[i];
+                soil[i] += aggraded != null ? Mathf.Max(0f, alluvium[i] - aggraded[i]) : alluvium[i];
         }
         if (StageFor(context.Map) == GenerationStage.Plants)
         {
