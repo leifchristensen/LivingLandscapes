@@ -74,7 +74,7 @@ public class WorldContext
         Tile tile = map.TileInfo;
         var context = new WorldContext
         {
-            Elevation = tile.elevation,
+            Elevation = WorldAltitude.At(map.Tile),
             Hilliness = HillinessFor(tile),
             Flow = WorldFlow.At(map.Tile),
         };
@@ -83,6 +83,9 @@ public class WorldContext
         var neighbours = new List<PlanetTile>();
         Find.WorldGrid.GetTileNeighbors(here, neighbours);
 
+        // The altitude our code reads is the smooth field of WorldAltitude (vanilla's tile elevations jump by hundreds of
+        // metres between neighbours, #201), so the fall to a neighbour is the regional slope and not noise.
+        float hereHeight = context.Elevation;
         Vector2 downhill = Vector2.zero, sea = Vector2.zero, fall = Vector2.zero;
         foreach (PlanetTile n in neighbours)
         {
@@ -93,16 +96,17 @@ public class WorldContext
             // between two plain tiles' coarse means is not. A coast is always a boundary.
             float weight = p == null || other.WaterCovered ? 1f
                 : RegionalSlopeMath.NeighbourWeight(p.ReliefFor(context.Hilliness), p.ReliefFor(other.hilliness), p.uniformSlopeShare);
-            downhill += dir * (tile.elevation - Mathf.Max(other.elevation, 0f)) * weight;
-            fall += dir * (tile.elevation - Mathf.Max(other.elevation, 0f));
+            float drop = hereHeight - Mathf.Max(WorldAltitude.At(n), 0f);
+            downhill += dir * drop * weight;
+            fall += dir * drop;
             if (other.WaterCovered)
                 sea += dir;
         }
         if (sea.sqrMagnitude > 1e-6f)
         {
             context.SeaDirection = sea.normalized;
-            downhill += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
-            fall += context.SeaDirection * Mathf.Max(tile.elevation, 1f) * neighbours.Count;
+            downhill += context.SeaDirection * Mathf.Max(hereHeight, 1f) * neighbours.Count;
+            fall += context.SeaDirection * Mathf.Max(hereHeight, 1f) * neighbours.Count;
         }
         if (downhill.sqrMagnitude > 1e-6f)
         {
