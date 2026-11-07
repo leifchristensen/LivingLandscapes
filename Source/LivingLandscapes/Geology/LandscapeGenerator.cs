@@ -250,8 +250,9 @@ public static class LandscapeGenerator
         for (int k = 0; k < entries.Count; k++)
             inflow[entries[k].cell] += Mathf.Max(p.riverInflow * gx * gz, entryFlows[k] / rainfall * cellsPerTile);
 
+        float[] courseFlow = null;
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
-            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth) : null;
+            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow, out courseFlow) : null;
         System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
             (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
@@ -276,7 +277,7 @@ public static class LandscapeGenerator
             };
         }
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, floor, observe, WaterBalance.LakeShare(map, out _));
+            out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, floor, observe, WaterBalance.LakeShare(map, out _), courseFlow);
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -597,10 +598,11 @@ public static class LandscapeGenerator
     /// <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
     /// </summary>
     private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exit, float[] uplift, bool[] outlet,
-        int gx, int gz, float depth)
+        int gx, int gz, float depth, float[] inflow, out float[] courseFlow)
     {
         int n = gx * gz;
         var floor = new float[n];
+        courseFlow = new float[n];
         for (int i = 0; i < n; i++)
             floor[i] = float.NaN;
         Vector2 At(int c) => new Vector2(c % gx, c / gx);
@@ -636,6 +638,8 @@ public static class LandscapeGenerator
                     continue;
                 float f = top * (1f - (float)k / course.Count) - uplift[c];
                 floor[c] = float.IsNaN(floor[c]) ? f : Mathf.Min(floor[c], f);
+                // The river the course carries is the world river's own discharge (P3): its drainage area, wherever the ground lies.
+                courseFlow[c] += inflow[entry];
             }
         }
         return floor;
@@ -661,6 +665,9 @@ public static class LandscapeGenerator
     /// <summary>Iterations between updates of the rock erodibility as erosion exposes deeper beds.</summary>
     private const int StrataUpdateInterval = 10;
 
+    /// <summary>Most times an iteration re-routes after lifting sinks a world river ran into (each lift can send the river into the next).</summary>
+    private const int MaxFedPasses = 60;
+
     /// <summary>
     /// Uplift, stream-power incision and hillslope creep. Rock strength is read from the beds exposed at each cell's
     /// current height (scaled to the tile's relief), so cutting down through a hard bed into a soft one speeds up.
@@ -668,7 +675,7 @@ public static class LandscapeGenerator
     private static float[] Erode(float[] uplift, float[] erodibility, System.Action<float[], float[]> baseLevels, float[] inflow, float[] seaDepth,
         float relief, int gx, int gz, GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
         out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, out float[] depositedOut, float[] initialFloor = null,
-        System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity)
+        System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity, float[] courseFlow = null)
     {
         int n = gx * gz;
         // Base levels (P1, Outlets): water leaves a cell once its surface reaches them; NaN where it cannot leave.
@@ -691,6 +698,63 @@ public static class LandscapeGenerator
         // Explicit diffusion is stable only below 0.25 per step.
         float maxCreepFactor = 0.24f / Mathf.Max(1e-6f, p.hillslopeDiffusion);
 
+        int count = 0;
+        // Routing over the surface filled to the spill levels, and the drainage area it gathers (called again if a sink is lifted).
+        void Route()
+        {
+            Array.Copy(h, filled, n);
+            Outlets.Fill(filled, gx, gz, baseLevel, 1e-4f);
+            SteepestReceivers(filled, outlet, gx, gz, receiver, receiverDist);
+
+            // Order cells from base level upstream (breadth-first over the receiver tree).
+            Array.Clear(donorCount, 0, n);
+            for (int c = 0; c < n; c++)
+            {
+                if (receiver[c] >= 0)
+                    donorCount[receiver[c]]++;
+            }
+            donorStart[0] = 0;
+            for (int c = 0; c < n; c++)
+                donorStart[c + 1] = donorStart[c] + donorCount[c];
+            Array.Clear(donorCount, 0, n);
+            for (int c = 0; c < n; c++)
+            {
+                int r = receiver[c];
+                if (r >= 0)
+                    donors[donorStart[r] + donorCount[r]++] = c;
+            }
+            count = 0;
+            for (int c = 0; c < n; c++)
+            {
+                if (receiver[c] < 0)
+                    stack[count++] = c;
+            }
+            for (int head = 0; head < count; head++)
+            {
+                int c = stack[head];
+                for (int k = donorStart[c]; k < donorStart[c + 1]; k++)
+                    stack[count++] = donors[k];
+            }
+
+            // Drainage area, accumulated from the top of each tree down.
+            for (int i = 0; i < n; i++)
+                area[i] = 1f + inflow[i];
+            for (int k = count - 1; k >= 0; k--)
+            {
+                int c = stack[k];
+                if (receiver[c] >= 0)
+                    area[receiver[c]] += area[c];
+            }
+            // Uplift yields along a world river's course (P2 bound, #83): its drainage area there is the river's own discharge (P3),
+            // so K A^m is large enough that incision keeps pace with uplift, U <= K rockK A^m S_max, wherever the plains feature rises.
+            if (courseFlow != null)
+            {
+                for (int i = 0; i < n; i++)
+                    area[i] = Mathf.Max(area[i], courseFlow[i]);
+            }
+        }
+
+
         for (int i = 0; i < n; i++)
         {
             h[i] = seaDepth != null && seaDepth[i] > 0f ? 0f : uplift[i] * 0.01f;
@@ -703,7 +767,6 @@ public static class LandscapeGenerator
         var load = new float[n];
         // Deposit still standing at each cell (model height units): added by Deposit, worn off again when the cell incises. Only read out.
         var deposited = new float[n];
-
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
             if (iteration % StrataUpdateInterval == 0)
@@ -737,70 +800,21 @@ public static class LandscapeGenerator
                     h[i] = baseLevel[i];
             }
 
-            // Route over the surface filled to the spill levels so closed basins still drain (they fill with sediment).
-            Array.Copy(h, filled, n);
-            Outlets.Fill(filled, gx, gz, baseLevel, 1e-4f);
-            for (int c = 0; c < n; c++)
+            Route();
+            if (sinks > 0)
             {
-                receiver[c] = -1;
-                if (outlet[c])
-                    continue;
-                int cx = c % gx, cz = c / gx;
-                float best = 0f;
-                for (int d = 0; d < 8; d++)
+                // A catchment larger than the region itself holds water from beyond the map (P3): a world river runs into this
+                // hollow, which is therefore no closed basin (P23, #83). Lift it, so the river fills it and spills on.
+                for (int pass = 0; pass < MaxFedPasses; pass++)
                 {
-                    int nx = cx + DX[d], nz = cz + DZ[d];
-                    if (nx < 0 || nz < 0 || nx >= gx || nz >= gz)
-                        continue;
-                    int nb = nz * gx + nx;
-                    float slope = (filled[c] - filled[nb]) / Dist[d];
-                    if (slope > best)
-                    {
-                        best = slope;
-                        receiver[c] = nb;
-                        receiverDist[c] = Dist[d];
-                    }
+                    int lifted = FedBasinRules.LiftFedSinks(sink, baseLevel, area, n, gx, gz);
+                    if (lifted == 0)
+                        break;
+                    sinks -= lifted;
+                    for (int i = 0; i < n; i++)
+                        outlet[i] = !float.IsNaN(baseLevel[i]);
+                    Route();
                 }
-            }
-
-            // Order cells from base level upstream (breadth-first over the receiver tree).
-            Array.Clear(donorCount, 0, n);
-            for (int c = 0; c < n; c++)
-            {
-                if (receiver[c] >= 0)
-                    donorCount[receiver[c]]++;
-            }
-            donorStart[0] = 0;
-            for (int c = 0; c < n; c++)
-                donorStart[c + 1] = donorStart[c] + donorCount[c];
-            Array.Clear(donorCount, 0, n);
-            for (int c = 0; c < n; c++)
-            {
-                int r = receiver[c];
-                if (r >= 0)
-                    donors[donorStart[r] + donorCount[r]++] = c;
-            }
-            int count = 0;
-            for (int c = 0; c < n; c++)
-            {
-                if (receiver[c] < 0)
-                    stack[count++] = c;
-            }
-            for (int head = 0; head < count; head++)
-            {
-                int c = stack[head];
-                for (int k = donorStart[c]; k < donorStart[c + 1]; k++)
-                    stack[count++] = donors[k];
-            }
-
-            // Drainage area, accumulated from the top of each tree down.
-            for (int i = 0; i < n; i++)
-                area[i] = 1f + inflow[i];
-            for (int k = count - 1; k >= 0; k--)
-            {
-                int c = stack[k];
-                if (receiver[c] >= 0)
-                    area[receiver[c]] += area[c];
             }
 
             // Stream-power incision, implicit in the receiver's new height (unconditionally stable).
@@ -830,6 +844,10 @@ public static class LandscapeGenerator
             if (observe != null && (iteration == 0 || (iteration + 1) % quarter == 0 || iteration == p.erosionIterations - 1))
                 observe(iteration + 1, h, receiver, area, rockK);
         }
+        if (ErosionGridExport.Enabled)
+        {
+            ErosionGridExport.Write("Sink", sink.Select(b => b ? 1f : 0f).ToArray(), gx, gz);
+        }
         if (!float.IsInfinity(lakeShare))
             Log.Message($"[LivingLandscapes] Erosion model closed basins (#99): {sinks} keep their water (lake area {lakeShare:G3} x catchment).");
         receiverOut = receiver;
@@ -838,6 +856,33 @@ public static class LandscapeGenerator
         depositedOut = deposited;
         modelTop = Mathf.Max(1e-6f, h.Max());
         return h;
+    }
+
+    /// <summary>Each non-outlet cell's receiver: the neighbour down the steepest slope of <paramref name="filled"/> (-1 if none).</summary>
+    private static void SteepestReceivers(float[] filled, bool[] outlet, int gx, int gz, int[] receiver, float[] receiverDist)
+    {
+        for (int c = 0; c < receiver.Length; c++)
+        {
+            receiver[c] = -1;
+            if (outlet[c])
+                continue;
+            int cx = c % gx, cz = c / gx;
+            float best = 0f;
+            for (int d = 0; d < 8; d++)
+            {
+                int nx = cx + DX[d], nz = cz + DZ[d];
+                if (nx < 0 || nz < 0 || nx >= gx || nz >= gz)
+                    continue;
+                int nb = nz * gx + nx;
+                float slope = (filled[c] - filled[nb]) / Dist[d];
+                if (slope > best)
+                {
+                    best = slope;
+                    receiver[c] = nb;
+                    receiverDist[c] = Dist[d];
+                }
+            }
+        }
     }
 
     /// <summary>
