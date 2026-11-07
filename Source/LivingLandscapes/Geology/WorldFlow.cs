@@ -44,22 +44,29 @@ public static class WorldFlow
         return creek;
     }
 
+    // Map Preview generates previews on its own worker thread while the main thread may read the same world, so the
+    // first computation of a world's flow must not run twice at once (#204).
+    private static readonly object computeLock = new object();
+
     private static float[] FlowFor(PlanetLayer layer)
     {
-        if (cachedFlow != null && cachedWorld == Find.World && cachedLayer == layer.LayerID)
+        lock (computeLock)
+        {
+            if (cachedFlow != null && cachedWorld == Find.World && cachedLayer == layer.LayerID)
+                return cachedFlow;
+            cachedWorld = Find.World;
+            cachedLayer = layer.LayerID;
+            cachedFlow = null;
+            try
+            {
+                cachedFlow = Compute(layer);
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[LivingLandscapes] Could not work out the world's river flow ({e.Message}); tiles use their own rainfall.");
+            }
             return cachedFlow;
-        cachedWorld = Find.World;
-        cachedLayer = layer.LayerID;
-        cachedFlow = null;
-        try
-        {
-            cachedFlow = Compute(layer);
         }
-        catch (Exception e)
-        {
-            Log.Warning($"[LivingLandscapes] Could not work out the world's river flow ({e.Message}); tiles use their own rainfall.");
-        }
-        return cachedFlow;
     }
 
     private static float[] Compute(PlanetLayer layer)

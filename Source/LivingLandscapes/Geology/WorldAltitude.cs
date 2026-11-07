@@ -15,6 +15,7 @@ public static class WorldAltitude
 {
     private const string RealisticPlanets2 = "koth.realisticplanets2";
 
+    private static readonly object computeLock = new object();
     private static World cachedWorld;
     private static float[] cached;
 
@@ -71,19 +72,23 @@ public static class WorldAltitude
     /// <summary>The model's height for every surface tile, worked out once per world (null if it cannot be).</summary>
     public static float[] Field()
     {
-        if (cached != null && cachedWorld == Find.World)
+        // Map Preview reads this from its worker thread (#204): one computation at a time.
+        lock (computeLock)
+        {
+            if (cached != null && cachedWorld == Find.World)
+                return cached;
+            cachedWorld = Find.World;
+            cached = null;
+            try
+            {
+                cached = Compute(Find.WorldGrid.Surface, WorldAltitudeDef.Current);
+            }
+            catch (System.Exception e)
+            {
+                Log.Warning($"[LivingLandscapes] Could not work out the world's altitude ({e.Message}); tiles use vanilla's elevation.");
+            }
             return cached;
-        cachedWorld = Find.World;
-        cached = null;
-        try
-        {
-            cached = Compute(Find.WorldGrid.Surface, WorldAltitudeDef.Current);
         }
-        catch (System.Exception e)
-        {
-            Log.Warning($"[LivingLandscapes] Could not work out the world's altitude ({e.Message}); tiles use vanilla's elevation.");
-        }
-        return cached;
     }
 
     /// <summary>
