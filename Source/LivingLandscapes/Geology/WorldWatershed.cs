@@ -106,7 +106,7 @@ public static class WorldWatershed
         float threshold = WatershedMath.Threshold(baseThreshold, density);
         List<int> add = WatershedMath.LinksToAdd(downstream, flow, water, onRiver, threshold,
             (a, b) => grid.GetRiverDef(new PlanetTile(a, layer), new PlanetTile(b, layer), visibleOnly: false) != null,
-            endInBasins: GenCommandLine.CommandLineArgPassed("ll-watershed-basins")); // dev switch to measure the closed-basin option (owner decision 2026-11-07: off)
+            endInBasins: !GenCommandLine.CommandLineArgPassed("ll-watershed-no-basins")); // chains that end in a closed basin are drawn (owner decision 2026-11-07); dev switch turns them off
         foreach (int i in add)
         {
             RiverDef def = RiverFor(flow[i], density);
