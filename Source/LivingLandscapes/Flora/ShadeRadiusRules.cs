@@ -14,6 +14,16 @@ public static class ShadeRadiusRules
     /// <summary>Radius for plants below the canopy (they cast no shade unless their habitat says so).</summary>
     public const float UnderstoryDefault = 1f;
 
+    /// <summary>
+    /// Fewest days a tree takes to mature for it to be canopy. Time to maturity follows stature (a bigger plant has more
+    /// to build), and growDays is a vanilla field no visual mod rescales: vanilla trees take 12 to 35 days, a dwarf palm
+    /// 6 (#193). A "tree" faster than this is understory and casts no canopy shade.
+    /// </summary>
+    public const float CanopyMinGrowDays = 10f;
+
+    /// <summary>Whether a plant no habitat describes is canopy: a tree that takes long enough to grow to a real crown.</summary>
+    public static bool IsCanopy(bool isTree, float growDays) => isTree && growDays >= CanopyMinGrowDays;
+
     /// <summary>The habitat's radius when it states one, else the stratum's typical crown.</summary>
     public static float Radius(float habitatRadius, bool canopy)
         => habitatRadius > 0f ? habitatRadius : canopy ? CanopyDefault : UnderstoryDefault;
