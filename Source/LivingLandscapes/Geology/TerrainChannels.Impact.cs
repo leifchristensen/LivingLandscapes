@@ -83,20 +83,12 @@ public static partial class TerrainChannels
         foreach (int c in cells)
         {
             int r = receiver[c];
-            int up = c;
-            float run = 0f;
-            for (int s = 0; s < p.momentumSteps && main[up] >= 0; s++)
-            {
-                run += (At(main[up]) - At(up)).magnitude;
-                up = main[up];
-            }
             // Speed of the water arriving: Manning on the reach upstream, or the speed carried in, decaying as a jet.
-            float slope = Mathf.Max(0f, filled[up] - filled[c]) / Mathf.Max(run, 1f);
-            float d = Mathf.Max(depth[c], 0.01f);
-            float speed = Mathf.Min(Mathf.Pow(d, 2f / 3f) * Mathf.Sqrt(Mathf.Max(slope, 1e-6f)) / p.manningN, Mathf.Sqrt(9.81f * d));
+            float slope = Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out int up, out _);
+            float speed = Hydraulics.Speed(depth[c], slope, p.manningN);
             int donor = main[c];
             if (donor >= 0)
-                speed = Mathf.Max(speed, speeds[donor] * Mathf.Exp(-(At(c) - At(donor)).magnitude / (p.jetWidths * Mathf.Max(width[c], 1f))));
+                speed = Hydraulics.WithJet(speed, speeds[donor], (At(c) - At(donor)).magnitude, p.jetWidths * Mathf.Max(width[c], 1f));
             speeds[c] = speed;
             if (!moving[c] || r < 0 || up == c)
                 continue;
