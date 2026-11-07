@@ -44,7 +44,7 @@ public static partial class TerrainChannels
         // re-evaluate Standing on the raised bed. It lands with the accommodation step (ledger, S4).
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
-            baseLevel[i] = isOutlet(i);
+            baseLevel[i] = standing.IsSea(i) || (isOutlet(i) && !Outlets.IsEdge(i, sizeX, sizeZ));
         // The junction zones and the flow direction, from the receivers as they stand (Impact may have changed them this pass).
         int[] main = MainDonors(cells, receiver, discharge, threshold, n);
         Vector2[] direction = Hydraulics.Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
@@ -62,6 +62,7 @@ public static partial class TerrainChannels
         Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
             out _, discharge, baseLevel, zones, p.oneHydraulics && partMomentum ? secondary : null, p.oneHydraulics && partMomentum ? secondaryShare : null);
         float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
+        Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {
