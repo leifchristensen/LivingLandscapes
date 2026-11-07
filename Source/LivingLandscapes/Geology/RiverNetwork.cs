@@ -82,9 +82,13 @@ public static class RiverNetwork
             if (r >= 0 && IsChannel(r))
                 (donors[r] ??= new List<int>()).Add(c);
         }
-        // Donors before receivers, from the drainage tree itself (RiverEntryRules.DonorsFirst): sorting by area would scramble a
-        // course where a world river's entry makes neighbouring cells' areas equal in a float.
+        // Cells from small area to large (donors before receivers). Where a world river's entry makes neighbouring cells' areas
+        // equal in a float, the drainage tree itself (RiverEntryRules.DonorsFirst) breaks the tie.
         List<int> cells = RiverEntryRules.DonorsFirst(receiver, IsChannel);
+        var rank = new int[n];
+        for (int i = 0; i < cells.Count; i++)
+            rank[cells[i]] = i;
+        cells.Sort((a, b) => { int d = area[a].CompareTo(area[b]); return d != 0 ? d : rank[a].CompareTo(rank[b]); });
 
         var channelOf = new int[n];
         var order = new int[n];
