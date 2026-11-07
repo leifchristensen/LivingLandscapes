@@ -133,7 +133,7 @@ public static partial class Sediment
             // the slow side drops its excess and the fast side carries more.
             float a = zones != null && !still ? zones.SlowShare[c] : 0f;
             if (a > 0f)
-                dropped = (Mathf.Max(0f, a * available - a * capacity * zones.SlowCapacity)
+                dropped = (Mathf.Max(0f, a * available - a * capacity * (zones.SlowCapacityAt != null ? zones.SlowCapacityAt[c] : zones.SlowCapacity))
                            + Mathf.Max(0f, (1f - a) * available - capacity / (1f - a))) * p.settleShare;
             if (dropped > 0f)
             {

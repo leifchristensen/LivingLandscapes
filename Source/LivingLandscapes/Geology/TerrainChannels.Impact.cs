@@ -65,7 +65,21 @@ public static partial class TerrainChannels
 
     // Which parts of the one hydraulics are on (all three with terrainChannels.oneHydraulics); -ll-hyd=slope,jets,momentum picks
     // some alone, to isolate what a difference comes from (S2b A/B).
-    private static bool partSlope = true, partJets = true, partMomentum = true, partJoin = true, partSpread = false;
+    private static bool partSlope = true, partJets = true, partMomentum = true, partJoin = true, partJunction = true, partSpread = false;
+
+    /// <summary>
+    /// The junction momentum S5's zones read (<see cref="Hydraulics.JoinPush"/>): the same push that tilts the stem in Impact, found
+    /// from the network as it stands. Null with the one hydraulics off, so the zones keep the old field angle.
+    /// </summary>
+    private static void JunctionMomentum(List<int> cells, int[] receiver, int[] main, float[] discharge, int sizeX, int[] secondary, float[] secondaryShare,
+        TerrainChannelSettings p, out Vector2[] push, out Vector2[] stem)
+    {
+        push = stem = null;
+        if (!p.oneHydraulics || !partJunction)
+            return;
+        Vector2[] flow = Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare);
+        push = Hydraulics.JoinPush(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, flow, out stem);
+    }
     // Dev: -ll-join=<k> scales the tributaries' cross momentum (1 = as designed, 0 = the main stem alone).
     private static float joinScale = 1f;
     private static bool stemChord = false;

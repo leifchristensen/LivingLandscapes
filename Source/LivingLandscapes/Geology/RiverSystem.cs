@@ -81,6 +81,9 @@ public class RiverSystem
     /// </summary>
     public float[] Aggraded;
 
+    /// <summary>The junction invariant's findings on the final network (invariant 10).</summary>
+    public JunctionAudit Junctions;
+
 
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }

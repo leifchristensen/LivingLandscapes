@@ -25,6 +25,17 @@ public static class Mathf
     public static float Cos(float v) => (float)Math.Cos(v);
     public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
     public static int CeilToInt(float v) => (int)Math.Ceiling(v);
+    public const float Deg2Rad = (float)(Math.PI / 180.0);
+    public const float Rad2Deg = (float)(180.0 / Math.PI);
+    public static float Sin(float v) => (float)Math.Sin(v);
+    public static float Asin(float v) => (float)Math.Asin(v);
+    public static float InverseLerp(float a, float b, float v) => a != b ? Clamp01((v - a) / (b - a)) : 0f;
+    public static float SmoothStep(float from, float to, float t)
+    {
+        t = Clamp01(t);
+        t = -2f * t * t * t + 3f * t * t;
+        return to * t + from * (1f - t);
+    }
 }
 
 /// <summary>The subset of UnityEngine.Vector2 the linked source files use (same semantics as Unity's).</summary>
@@ -40,6 +51,12 @@ public struct Vector2 : IEquatable<Vector2>
 
     public static float Dot(Vector2 a, Vector2 b) => a.x * b.x + a.y * b.y;
     public static Vector2 zero => new Vector2(0f, 0f);
+    public static Vector2 operator -(Vector2 a) => new Vector2(-a.x, -a.y);
+    public static float Angle(Vector2 a, Vector2 b)
+    {
+        float denominator = a.magnitude * b.magnitude;
+        return denominator < 1E-15f ? 0f : (float)(Math.Acos(Mathf.Clamp(Vector2.Dot(a, b) / denominator, -1f, 1f)) * 180.0 / Math.PI);
+    }
     public float magnitude => (float)Math.Sqrt(x * x + y * y);
     public Vector2 normalized
     {
