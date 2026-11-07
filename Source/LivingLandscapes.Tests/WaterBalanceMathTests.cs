@@ -168,4 +168,56 @@ public class WaterBalanceMathTests
         Assert.True(float.IsPositiveInfinity(WaterBalanceMath.FedLakeShare(0.4f, 2200f, 700f)));
         Assert.Equal((1f - 0.4f) * 1500f, WaterBalanceMath.Recharge(0.4f, 2200f, 700f), 3);
     }
+
+    [Fact]
+    public void LakeLoss_IsWhatTheLakeSurfaceEvaporates_InTheUnitsOfCatchmentRunoff()
+    {
+        // A lake of A cells loses A x (evaporation - rain + S) mm a year; a catchment cell brings runoff x rain mm. The loss in catchment
+        // cells is A x (evaporation - rain + S) / (runoff x rain) = A / share; a catchment cell carries runoff units of water, so the loss in water units is A x runoff / share.
+        foreach (float[] c in new[] { new[] { 300f, 1200f, 0f }, new[] { 700f, 1500f, 20f }, new[] { 1000f, 1800f, 600f } })
+        {
+            float runoff = 0.4f, rain = c[0], evaporation = c[1], seepage = c[2], cells = 120f;
+            float share = WaterBalanceMath.LakeShare(runoff, rain, evaporation, seepage);
+            float expected = cells * (evaporation - rain + seepage) / rain;
+            Assert.Equal(expected, WaterBalanceMath.LakeLoss(cells, runoff, share), 2);
+        }
+    }
+
+    [Fact]
+    public void LakeLoss_HandsOnTheRest_AndConservesWater()
+    {
+        float share = WaterBalanceMath.LakeShare(0.4f, 600f, 1400f, 0f);
+        float loss = WaterBalanceMath.LakeLoss(50f, 0.4f, share);
+        float inflow = 1000f;
+        float passed = WaterBalanceMath.PassedOn(inflow, loss);
+        Assert.Equal(inflow, passed + loss, 3);                            // nothing is created or destroyed
+        Assert.Equal(0f, WaterBalanceMath.PassedOn(10f, loss), 6);        // a lake larger than its inflow keeps it all
+        Assert.True(WaterBalanceMath.PassedOn(inflow, loss) < inflow);
+    }
+
+    [Fact]
+    public void LakeLoss_IsNothingWhereRainBeatsEvaporation_AndEverythingWithoutRunoff()
+    {
+        Assert.Equal(0f, WaterBalanceMath.LakeLoss(500f, 0.4f, float.PositiveInfinity));
+        Assert.True(float.IsPositiveInfinity(WaterBalanceMath.LakeLoss(500f, 0.4f, 0f)));
+    }
+
+    [Fact]
+    public void LakeLoss_IsSetByEvaporationAlone_NotByTheRunoffThatFillsIt()
+    {
+        // The same lake takes the same water whatever runoff brings it; more runoff only makes the lake larger (a larger share).
+        float small = WaterBalanceMath.LakeShare(0.1f, 600f, 1400f, 0f), big = WaterBalanceMath.LakeShare(0.8f, 600f, 1400f, 0f);
+        Assert.True(WaterBalanceMath.LakeLoss(80f, 0.1f, small) == WaterBalanceMath.LakeLoss(80f, 0.8f, big));   // loss is set by evaporation alone
+        Assert.True(small < big);
+    }
+
+    [Fact]
+    public void WorldFlowYield_ScalesLakesAndNothingElseInTheShare()
+    {
+        // The tile's yield scales the runoff in both the lake share and the fed share (recharge is not scaled), and 1 changes nothing.
+        Assert.Equal(WaterBalanceMath.LakeShare(0.5f, 800f, 1400f, 0f), WaterBalanceMath.LakeShare(0.5f * 1f, 800f, 1400f, 0f));
+        Assert.Equal(0.1f * WaterBalanceMath.LakeShare(0.5f, 800f, 1400f, 0f), WaterBalanceMath.LakeShare(0.5f * 0.1f, 800f, 1400f, 0f), 5);
+        Assert.Equal(WaterBalanceMath.FedLakeShare(0.5f, 800f, 1400f), WaterBalanceMath.FedLakeShare(0.5f, 800f, 1400f, 1f), 6);
+        Assert.True(WaterBalanceMath.FedLakeShare(0.5f, 1300f, 1400f, 0.1f) < WaterBalanceMath.FedLakeShare(0.5f, 1300f, 1400f, 1f));
+    }
 }

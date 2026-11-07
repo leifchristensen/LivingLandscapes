@@ -23,9 +23,10 @@ public static partial class TerrainChannels
     /// </summary>
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
-        out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel,
+        out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
-        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null)
+        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
+        System.Func<float[], int[], float[], bool[], float> yieldScale = null)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -61,6 +62,10 @@ public static partial class TerrainChannels
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+        // The tile's one water budget (#216): where the world gives the tile no river, only the share of the map's own runoff
+        // its world flow lets through reaches its channels, and the same share is what its lakes gather.
+        yield = vanillaWidth <= 0f && yieldScale != null ? yieldScale(filled, receiver, inflow, worldSource) : 1f;
+        lakeShare *= yield;
         // Closed basins keep their water (P23, #99), as in the erosion model: a hollow whose lake fits below its spill level
         // is an outlet at the lake's level, so no channel leaves it.
         if (!float.IsInfinity(lakeShare))
@@ -75,6 +80,41 @@ public static partial class TerrainChannels
                 receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
             }
         }
+        lakeLoss = LakeLosses(ground, baseLevel, receiver, sizeX, sizeZ, runoff, lakeShare);
+    }
+
+    /// <summary>
+    /// What each full lake keeps of the water passing through it (#134): at the cell its hollow spills by, the lake's surface
+    /// (the hollow's cells) times what evaporation and seepage take per cell of lake, in the water units a cell of catchment
+    /// carries (<see cref="WaterBalanceMath.LakeLoss"/>). Nothing where rain beats evaporation (infinite share).
+    /// </summary>
+    private static float[] LakeLosses(float[] ground, float[] baseLevel, int[] receiver, int sizeX, int sizeZ, float runoff, float lakeShare)
+    {
+        int n = ground.Length;
+        var loss = new float[n];
+        if (float.IsPositiveInfinity(lakeShare))
+            return loss;
+        var filled = (float[])ground.Clone();
+        var spill = new float[n];
+        Outlets.Fill(filled, sizeX, sizeZ, baseLevel, 0f, spill);
+        GridMath.LabelRegions(i => float.IsNaN(baseLevel[i]) && spill[i] > ground[i], sizeX, sizeZ, out int[] region);
+        var cells = new Dictionary<(int, float), int>();
+        for (int i = 0; i < n; i++)
+        {
+            if (region[i] >= 0)
+            {
+                var key = (region[i], spill[i]);
+                cells[key] = cells.TryGetValue(key, out int c) ? c + 1 : 1;
+            }
+        }
+        for (int i = 0; i < n; i++)
+        {
+            int r = receiver[i];
+            if (region[i] < 0 || r < 0 || (region[r] == region[i] && spill[r] == spill[i]))
+                continue;
+            loss[i] += WaterBalanceMath.LakeLoss(cells[(region[i], spill[i])], runoff, lakeShare);
+        }
+        return loss;
     }
 
     /// <summary>
@@ -181,7 +221,7 @@ public static partial class TerrainChannels
     public static Vector2 NearestOnWorldRiver(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 point,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
     {
-        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _, out _);
+        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _, out _, out _, out _);
         Vector2 best = point;
         float bestDistance = float.MaxValue;
         for (int i = 0; i < worldSource.Length; i++)

@@ -66,6 +66,9 @@ public class RiverSystem
     /// <summary>Cells of closed basins that keep their water (P23, #99): outlets at the lake's level, a dry basin's floor.</summary>
     public bool[] Sink;
 
+    /// <summary>The tile's yield scale, the share of the map's own runoff its world flow lets through (#216, <see cref="Environment.MapComponent_Environment.PlannedYieldScale"/>).</summary>
+    public float YieldScale = 1f;
+
     /// <summary>How close each seep comes to running water, 0..1 (its width as a share of moving water's); 0 elsewhere.</summary>
     public float[] SeepWater;
 

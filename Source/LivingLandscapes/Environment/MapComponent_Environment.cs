@@ -54,6 +54,14 @@ public class MapComponent_Environment : MapComponent
     /// <summary>Cells of closed basins among <see cref="PlannedBaseLevels"/> (P23, #99). Not saved.</summary>
     public bool[] PlannedSinks { get; set; }
 
+    /// <summary>
+    /// How much of the map's own runoff the tile's world flow lets through (0..1; 1 where the world gives the tile a river or
+    /// no flow figure): the one water budget of the tile (#216). Streams are scaled by it (TerrainChannels), and the lake
+    /// balance reads it too (<see cref="Geology.WaterBalance"/>), so a catchment is not full runoff to its lakes and a trickle
+    /// to its creeks. Not saved.
+    /// </summary>
+    public float PlannedYieldScale { get; set; } = 1f;
+
     /// <summary>Where the final landform's water goes (<see cref="Geology.Drainage.Of"/>, #98), shared by every layer that routes it. Not saved.</summary>
     public Geology.Drainage PlannedDrainage { get; set; }
 

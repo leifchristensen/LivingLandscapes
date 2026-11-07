@@ -42,9 +42,26 @@ public static class WaterBalanceMath
     /// (the floor is fed, not drained). Where rain does not beat evaporation there is no recharge and the share is the
     /// runoff balance alone: groundwater cannot keep a lake in a dry climate.
     /// </summary>
-    public static float FedLakeShare(float runoff, float rain, float evaporation)
+    public static float FedLakeShare(float runoff, float rain, float evaporation, float yield = 1f)
     {
         float netLoss = evaporation - rain;
-        return netLoss <= 0f ? float.PositiveInfinity : (runoff * rain + Recharge(runoff, rain, evaporation)) / netLoss;
+        return netLoss <= 0f ? float.PositiveInfinity : (yield * runoff * rain + Recharge(runoff, rain, evaporation)) / netLoss;
     }
+
+    /// <summary>
+    /// What a full lake takes from the water passing through it (#134, P23): its surface evaporates (evaporation - rain + S) mm
+    /// a year, which the catchment's runoff must pay for, so a lake of <paramref name="lakeCells"/> cells keeps
+    /// lakeCells x (evaporation - rain + S) / rain of full-rain cells, which is lakeCells x runoff / share in the units a cell
+    /// of catchment carries (runoff each). No loss where the share is infinite (rain beats evaporation: the lake takes
+    /// nothing net); everything where it is zero (no runoff to pay with).
+    /// </summary>
+    public static float LakeLoss(float lakeCells, float runoff, float share)
+    {
+        if (float.IsPositiveInfinity(share))
+            return 0f;
+        return share <= 0f ? float.PositiveInfinity : lakeCells * runoff / share;
+    }
+
+    /// <summary>The water a lake hands on over its rim: what came in less what it keeps, never below nothing (#134).</summary>
+    public static float PassedOn(float inflow, float lakeLoss) => Mathf.Max(0f, inflow - lakeLoss);
 }

@@ -56,10 +56,15 @@ public static partial class TerrainChannels
         // Stage 1, drainage and inflow (TerrainChannels.Drain.cs).
         // Only what the ground cannot absorb runs off (a trickle is kept so drainage still orders the cells).
         float runoff = Mathf.Max(p.RunoffOf(climate, biome), 0.01f);
+        float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
+        float mapSpread = water?.nudges.spread ?? 1f;
+        float loss = p.transmissionLoss * p.AbsorptionOf(biome);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, worldInflows, sea, riverMouth, seaLevel,
-            edgeOpen, lakeShare, system.Sink);
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss,
+            worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
+            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, out _));
         system.BaseLevel = outletLevel;
+        system.YieldScale = yield;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
         // The one test for standing water (Standing.cs, #156): the filled surface is the level here (the spill estimate).
         var standing = new Standing(filled, sea, p.minDepth, p.standingTolerance, p.springLakeDepth);
@@ -68,8 +73,6 @@ public static partial class TerrainChannels
         // nudges, silts up basins a world river runs into and carves meanders; the passes after it let water divide where the
         // nudges spread it, strike the ground it turns against (Impact) and raise the ground with its deposits (Feedback);
         // the last routes and shapes the final network.
-        float threshold = p.channelDischarge * (water?.nudges.discharge ?? 1f);
-        float mapSpread = water?.nudges.spread ?? 1f;
         float[] spread = null, discharge = null, width = null, depth = null, bankAmplitude = null;
         int[] secondary = null, main = null, branchFrom = null;
         float[] secondaryShare = null;
@@ -86,7 +89,6 @@ public static partial class TerrainChannels
         // On a tile the world gives no river, the map's own discharge is scaled to the tile's world flow (below a creek),
         // keeping every channel's share, so streams still visibly add up where they join.
         string ownWater = "";
-        float loss = p.transmissionLoss * p.AbsorptionOf(biome);
         if (vanillaWidth <= 0f)
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
                 worldRiverWidth, worldFlow, loss, out ownWater);
@@ -124,7 +126,7 @@ public static partial class TerrainChannels
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
-                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, out _, loss, dischargeScale);
+                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, out _, loss, dischargeScale, lakeLoss);
 
             // Where channels start; the water regime nudges it (a denser or sparser network).
             cells = new List<int>();

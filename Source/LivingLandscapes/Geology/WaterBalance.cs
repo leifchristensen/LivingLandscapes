@@ -36,7 +36,8 @@ public static class WaterBalance
         float rainfall = map.TileInfo?.rainfall ?? 0f;
         float temperature = WorldAltitude.TemperatureAt(map.Tile, map.TileInfo);
         float evaporation = p.Evaporation(temperature);
-        return WaterBalanceMath.LakeShare(runoff, rainfall, evaporation, seepage);
+        // The tile's one water budget (#216): the runoff its world flow lets through is what its lakes gather too.
+        return WaterBalanceMath.LakeShare(runoff * YieldScale(map), rainfall, evaporation, seepage);
     }
 
     /// <summary>
@@ -51,8 +52,11 @@ public static class WaterBalance
         float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
         float rainfall = map.TileInfo?.rainfall ?? 0f;
         float evaporation = p.Evaporation(WorldAltitude.TemperatureAt(map.Tile, map.TileInfo));
-        return WaterBalanceMath.FedLakeShare(runoff, rainfall, evaporation);
+        return WaterBalanceMath.FedLakeShare(runoff, rainfall, evaporation, YieldScale(map));
     }
+
+    /// <summary>The share of the map's own runoff the tile's world flow lets through (1 until the channels have set it, #216).</summary>
+    public static float YieldScale(Map map) => map.GetComponent<MapComponent_Environment>()?.PlannedYieldScale ?? 1f;
 
     /// <summary>
     /// The level a hollow's water stands at: the ground of the cell where the lake reaches its balance area
