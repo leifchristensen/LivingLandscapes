@@ -187,6 +187,17 @@ public static class WorldWaterReport
             text.AppendLine($"  rainfall summed over reached land {rain:F0}; flow arriving at the coast {kept:F0} ({(rain > 0 ? kept * 100f / rain : 0f):F0}% survives evaporation).");
         }
 
+        // Evenly spaced settleable-looking land tiles with and without a world river, to replay as tile maps (-ll-tile).
+        foreach (bool withRiver in new[] { true, false })
+        {
+            var candidates = Enumerable.Range(0, n).Where(i => !Water(i) && riverTile[i] == withRiver && Find.WorldGrid[i].hilliness != Hilliness.Impassable
+                                                               && !neighbours[i].Any(Water)).ToList();
+            int stride = Math.Max(1, candidates.Count / 8);
+            text.AppendLine($"  sample tiles {(withRiver ? "with" : "without")} a world river: " + string.Join("; ",
+                Enumerable.Range(0, 8).Select(k => k * stride).Where(k => k < candidates.Count).Select(k => candidates[k])
+                    .Select(i => $"{i} {Find.WorldGrid[i].PrimaryBiome.defName} {Find.WorldGrid[i].hilliness} {Find.WorldGrid[i].rainfall:F0}mm")));
+        }
+
         Directory.CreateDirectory(LayerImageExporter.Folder);
         File.WriteAllText(Path.Combine(LayerImageExporter.Folder, "world-water.txt"), text.ToString());
         foreach (string line in text.ToString().Split('\n'))
