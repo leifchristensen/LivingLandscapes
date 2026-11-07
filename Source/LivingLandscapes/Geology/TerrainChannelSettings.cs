@@ -34,6 +34,14 @@ public class TerrainChannelSettings
     public float seepCapacityWidth = 2f;
 
     /// <summary>
+    /// Where the rain runs off (<see cref="GroundRunoff"/>, #216): the share of its infiltration capacity the hardest rock loses
+    /// (soil takes water in, hard rock sheds it), and the slope (height per cell) at which infiltration halves (water on steep
+    /// ground has little time to soak in). The climate still decides how much runs off; these only decide where.
+    /// </summary>
+    public float rockAbsorptionLoss = 0.6f;
+    public float slopeAbsorptionHalf = 0.6f;
+
+    /// <summary>
     /// How the seep's capacity changes with slope: capacity x (median slope / slope)^exponent, within the range. Gentle
     /// valley floors hold wide marshes and need much more water before a channel forms; steep hollows channel sooner
     /// (source area falls with gradient, about A ~ S^-2 in the field data).
