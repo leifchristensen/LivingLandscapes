@@ -16,8 +16,17 @@ public static class Patch_PlaySettings_DoPlaySettingsGlobalControls
 {
     public static void Postfix(WidgetRow row, bool worldView)
     {
-        if (worldView || row == null)
+        if (row == null)
             return;
+        if (worldView)
+        {
+            // The world map's topology overlay: the altitude our code reads, in the same bands and colours as a map's.
+            bool shown = WorldDrawLayer_Topology.Enabled;
+            row.ToggleableIcon(ref shown, OverlayTextures.IconFor(EnvironmentLayerDefOf.LL_Landform), "LL_WorldTopologyTip".Translate());
+            if (shown != WorldDrawLayer_Topology.Enabled)
+                WorldDrawLayer_Topology.Toggle();
+            return;
+        }
         EnvironmentOverlay overlay = Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.Overlay;
         if (overlay == null)
             return;

@@ -34,6 +34,8 @@ public static class TestRun
         LongEventHandler.ExecuteWhenFinished(() =>
         {
             Log.Message("[LivingLandscapes] Test run: exporting and benchmarking.");
+            if (GenCommandLine.CommandLineArgPassed("ll-world-report"))
+                WorldAltitudeReport.Run();
             if (GenCommandLine.CommandLineArgPassed("ll-export"))
                 LayerImageExporter.ExportAll(map);
             Log.Message("[LivingLandscapes] Test run: export done.");
