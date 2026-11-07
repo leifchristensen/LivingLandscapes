@@ -3,6 +3,17 @@ using Verse;
 
 namespace LivingLandscapes.Settings;
 
+/// <summary>When the world watershed rule adds tributaries to a new world's rivers.</summary>
+public enum WatershedMode
+{
+    /// <summary>Never: the world's rivers are whatever vanilla or Realistic Planets 2 draw.</summary>
+    Off,
+    /// <summary>Supplement Realistic Planets 2's sparse rivers; vanilla's own rivers stay as they are (default).</summary>
+    WithRealisticPlanets2,
+    /// <summary>Also supplement vanilla's rivers (only the tributaries vanilla leaves undrawn).</summary>
+    Always,
+}
+
 /// <summary>Player options, saved by RimWorld in the mod's config file.</summary>
 public class LivingLandscapesSettings : ModSettings
 {
@@ -39,6 +50,12 @@ public class LivingLandscapesSettings : ModSettings
 
     public const float FireRainNever = 49f;
 
+    /// <summary>
+    /// World rivers: extra tributaries wherever a tile's accumulated flow reaches the channel threshold (Docs/WORLD-WATERSHED.md, #219).
+    /// Applies when a world is made; saved worlds keep their rivers.
+    /// </summary>
+    public WatershedMode watershedRivers = WatershedMode.WithRealisticPlanets2;
+
     public Dictionary<string, string> tuning = new();
 
     public override void ExposeData()
@@ -50,6 +67,7 @@ public class LivingLandscapesSettings : ModSettings
         Scribe_Values.Look(ref gameplaySiting, "gameplaySiting", true);
         Scribe_Values.Look(ref slopeMovement, "slopeMovement", true);
         Scribe_Values.Look(ref fireRainDelayHours, "fireRainDelayHours", 0f);
+        Scribe_Values.Look(ref watershedRivers, "watershedRivers", WatershedMode.WithRealisticPlanets2);
         Scribe_Collections.Look(ref tuning, "tuning", LookMode.Value, LookMode.Value);
         tuning ??= new Dictionary<string, string>();
     }
