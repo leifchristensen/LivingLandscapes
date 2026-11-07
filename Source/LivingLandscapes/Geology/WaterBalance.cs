@@ -34,7 +34,7 @@ public static class WaterBalance
         var channels = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).terrainChannels;
         float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
         float rainfall = map.TileInfo?.rainfall ?? 0f;
-        float temperature = map.TileInfo?.temperature ?? 10f;
+        float temperature = WorldAltitude.TemperatureAt(map.Tile, map.TileInfo);
         float evaporation = p.Evaporation(temperature);
         return WaterBalanceMath.LakeShare(runoff, rainfall, evaporation, seepage);
     }
@@ -50,7 +50,7 @@ public static class WaterBalance
         var channels = (EnvironmentLayerDefOf.LL_Landform.GetModExtension<GeologyGenerationExtension>() ?? new GeologyGenerationExtension()).terrainChannels;
         float runoff = p.runoffShare ?? channels.RunoffOf(climate, map.Biome?.defName);
         float rainfall = map.TileInfo?.rainfall ?? 0f;
-        float evaporation = p.Evaporation(map.TileInfo?.temperature ?? 10f);
+        float evaporation = p.Evaporation(WorldAltitude.TemperatureAt(map.Tile, map.TileInfo));
         return WaterBalanceMath.FedLakeShare(runoff, rainfall, evaporation);
     }
 

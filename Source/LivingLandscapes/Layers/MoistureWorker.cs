@@ -1,4 +1,5 @@
 using LivingLandscapes.Environment;
+using LivingLandscapes.Geology;
 using UnityEngine;
 using Verse;
 
@@ -55,6 +56,6 @@ public class MoistureWorker : EnvironmentLayerWorker
     public static float AridityIndex(Map map)
     {
         var surface = EnvironmentLayerDefOf.LL_SurfaceWater.GetModExtension<SurfaceWaterExtension>() ?? new SurfaceWaterExtension();
-        return (map.TileInfo?.rainfall ?? 0f) / surface.Evaporation(map.TileInfo?.temperature ?? 10f);
+        return (map.TileInfo?.rainfall ?? 0f) / surface.Evaporation(WorldAltitude.TemperatureAt(map.Tile, map.TileInfo));
     }
 }
