@@ -27,7 +27,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static float[] Route(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
         float[] spread, float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p,
-        out bool[] world, out int[] secondary, out float[] secondaryShare, out int[] branchFrom, out int splits, out float[] water, float loss = 0f, float scale = 1f)
+        out bool[] world, out int[] secondary, out float[] secondaryShare, out int[] branchFrom, out int splits, out float[] water, out Vector2[] momentum, float loss = 0f, float scale = 1f)
     {
         int n = filled.Length;
         var order = new int[n];
@@ -48,7 +48,7 @@ public static partial class TerrainChannels
         }
         splits = 0;
         // The incoming flow's direction at each cell (P5 momentum): the discharge-weighted sum of the steps water took into it.
-        var momentum = new Vector2[n];
+        momentum = new Vector2[n];
         // The level of the water each cell drains to (its outlet's), lowest cells first.
         var baseLevel = new float[n];
         for (int k = n - 1; k >= 0; k--)
@@ -100,7 +100,7 @@ public static partial class TerrainChannels
             {
                 discharge[second] += discharge[c] * share;
                 water[second] += water[c] * share;
-                momentum[second] += Step(c, second, sizeX) * (discharge[c] * share);
+                momentum[second] += Hydraulics.Step(c, second, sizeX) * (discharge[c] * share);
                 world[second] |= world[c];
                 secondary[c] = second;
                 secondaryShare[c] = share;
@@ -110,7 +110,7 @@ public static partial class TerrainChannels
             }
             discharge[r] += discharge[c] * (1f - share);
             water[r] += water[c] * (1f - share);
-            momentum[r] += Step(c, r, sizeX) * (discharge[c] * (1f - share));
+            momentum[r] += Hydraulics.Step(c, r, sizeX) * (discharge[c] * (1f - share));
             world[r] |= world[c];
         }
         return discharge;
@@ -119,8 +119,6 @@ public static partial class TerrainChannels
     /// <summary>Whether dividing <paramref name="q"/> by <paramref name="share"/> leaves both ways at least a channel's discharge.</summary>
     private static bool BothChannels(float q, float share, float threshold) =>
         q * share >= threshold && q * (1f - share) >= threshold;
-
-    private static Vector2 Step(int from, int to, int sizeX) => new Vector2(to % sizeX - from % sizeX, to / sizeX - from / sizeX).normalized;
 
     /// <summary>
     /// The best other way a river can take besides the steepest (<see cref="TerrainChannelSettings.tolerantRouting"/>), within the
@@ -138,7 +136,7 @@ public static partial class TerrainChannels
             return -1;
         float width = Mathf.Max(p.minWidth, p.widthPerSqrtDischarge * Mathf.Sqrt(Mathf.Max(q, 0f)));
         float tolerance = p.depthTolerance * depth;
-        Vector2 heading = momentum == Vector2.zero ? Step(c, primary, sizeX) : momentum.normalized;
+        Vector2 heading = momentum == Vector2.zero ? Hydraulics.Step(c, primary, sizeX) : momentum.normalized;
         float cone = Mathf.Cos(Mathf.Min(Mathf.PI * 0.75f, Mathf.PI / 4f + p.momentumCells / (p.bendRadiusWidths * width)));
         int cx = c % sizeX, cz = c / sizeX;
         float Conveyance(int j, float run)
@@ -147,7 +145,7 @@ public static partial class TerrainChannels
             float slope = (h[c] - h[j]) / run;
             return over > 0f && slope > 0f ? Mathf.Pow(over, 5f / 3f) * Mathf.Sqrt(slope) : 0f;
         }
-        float mainK = Conveyance(primary, Step(c, primary, sizeX) == Vector2.zero ? 1f : new Vector2(primary % sizeX - cx, primary / sizeX - cz).magnitude);
+        float mainK = Conveyance(primary, Hydraulics.Step(c, primary, sizeX) == Vector2.zero ? 1f : new Vector2(primary % sizeX - cx, primary / sizeX - cz).magnitude);
         int best = -1;
         float bestK = 0f;
         for (int dz = -1; dz <= 1; dz++)

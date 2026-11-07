@@ -104,7 +104,7 @@ public static partial class TerrainChannels
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
-                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, loss, dischargeScale);
+                out world, out secondary, out secondaryShare, out branchFrom, out splits, out carried, out _, loss, dischargeScale);
 
             // Where channels start; the water regime nudges it (a denser or sparser network).
             cells = new List<int>();
@@ -129,7 +129,7 @@ public static partial class TerrainChannels
                     main[r] = c;
             }
 
-            direction = Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
+            direction = Hydraulics.Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
             width = new float[n];
             depth = new float[n];
             spread = new float[n];
