@@ -60,8 +60,10 @@ nunit-*.xml
 .vs/
 *.user
 
-# Debug symbols stay local; the DLL in 1.7/Assemblies is committed so the mod works from a clone
+# Build output stays local: the DLL and symbols are built from source (tools/play.ps1 builds before it plays; a release
+# build is attached to a GitHub release / uploaded to the Workshop from the built folder)
 1.7/Assemblies/*.pdb
+1.7/Assemblies/LivingLandscapes.dll
 
 # Local dev helper scripts (machine-specific paths)
 tools/
