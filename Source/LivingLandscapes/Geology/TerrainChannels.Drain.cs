@@ -30,7 +30,7 @@ public static partial class TerrainChannels
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
         inflow = Inflow(courses, sizeX, sizeZ, riverCentre, sourceRadius, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
-            out worldSource, out vanillaWidth, worldInflows);
+            out worldSource, out vanillaWidth, worldInflows, sea);
         float[] toSea = sea != null ? GridMath.DistanceTo(i => sea[i], sizeX, sizeZ) : null;
         var laidCourses = new List<(ChannelCourse course, bool toMouth)>();
         // Flats keep a little micro-relief, so water wanders across them instead of running straight or at 45 degrees;
@@ -258,7 +258,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static float[] Inflow(List<ChannelCourse> courses, int sizeX, int sizeZ, Vector2 riverCentre, float sourceRadius, float runoff,
         bool riverEnters, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out bool[] worldSource, out float vanillaWidth,
-        List<WorldContext.RiverInflow> worldInflows = null)
+        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null)
     {
         int n = sizeX * sizeZ;
         var inflow = new float[n];
@@ -300,8 +300,15 @@ public static partial class TerrainChannels
                                 $"[{string.Join(", ", worldInflows.Select(f => $"({f.From.x:F2}, {f.From.y:F2})"))}]; not used as an entry.");
                     continue;
                 }
-                inflow[cell] += DischargeFor(course.VanillaWidth);
-                worldSource[cell] = worldEnters = true;
+                // A world river that meets the sea on entering has reached its base level: nothing to bring over land.
+                bool atSea = sea != null && sea[cell];
+                if (atSea)
+                    LandscapeGenerator.InflowsAtSea++;
+                else
+                {
+                    inflow[cell] += DischargeFor(course.VanillaWidth);
+                    worldSource[cell] = worldEnters = true;
+                }
                 if (entered.Length > 0)
                 {
                     // The course brings in the inflow on the side it enters from.
@@ -330,6 +337,11 @@ public static partial class TerrainChannels
                 WorldContext.RiverInflow from = worldInflows[k];
                 Vector2 edge = WaterTerrainNudges.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
                 int cell = RiverGrid.Index(edge, sizeX, sizeZ);
+                if (sea != null && sea[cell])
+                {
+                    LandscapeGenerator.InflowsAtSea++;
+                    continue;
+                }
                 inflow[cell] += DischargeFor(from.Width);
                 worldSource[cell] = worldEnters = true;
             }

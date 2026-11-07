@@ -213,7 +213,7 @@ public static class Invariants
             else
                 lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0}, from {PointOf(channels[k].Main, true)} to {PointOf(channels[k].Main, false)}, via {Chain(channels, k)});");
         }
-        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count;
+        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count - LandscapeGenerator.InflowsAtSea;
         int expected = Mathf.Max(worldInflows, entering);
         if (expected < 2)
             return;

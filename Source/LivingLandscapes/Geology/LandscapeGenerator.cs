@@ -465,12 +465,16 @@ public static class LandscapeGenerator
     /// meets the sea) and where world rivers enter (with vanilla's width): the main river, plus every other river link
     /// if the water regime asks for them (a confluence); none if the regime has the river rise on the map (headwater).
     /// </summary>
+    /// <summary>World inflows of the last <see cref="Generate"/> whose entry lay in the sea, so they never enter the land (#183).</summary>
+    public static int InflowsAtSea { get; internal set; }
+
     private static void RiverEnds(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
         out List<(int cell, float width)> entries, out List<float> entryFlows, out int riverExit, float[] seaDepth = null, Rect? mapWindow = null)
     {
         entryFlows = new List<float>();
         entries = new List<(int, float)>();
         riverExit = -1;
+        InflowsAtSea = 0;
         if (world.HasRiver)
         {
             riverExit = EdgeCellToward(world.RiverExit, gx, gz, riverCentre);
@@ -501,6 +505,12 @@ public static class LandscapeGenerator
                     int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre, i > 0 ? mapWindow : null);
                     if (entry == riverExit)
                         continue;
+                    // A river that meets the sea where it would enter has already reached its base level: nothing to route over land.
+                    if (seaDepth != null && seaDepth[entry] > 0f)
+                    {
+                        InflowsAtSea++;
+                        continue;
+                    }
                     entries.Add((entry, world.RiverInflows[i].Width));
                     entryFlows.Add(world.RiverInflows[i].Flow);
                 }
