@@ -190,7 +190,7 @@ public class TerrainChannelSettings
     /// straight line to that upstream cell as the direction) and the old Spread momentum (no splits). Kept until the owner
     /// accepts the A/B.
     /// </summary>
-    public bool oneHydraulics = true;
+    public bool oneHydraulics = false;
     public float backwaterDepths = 1f;
     public float depthTolerance = 1f;
     public float bendRadiusWidths = 2.5f;
