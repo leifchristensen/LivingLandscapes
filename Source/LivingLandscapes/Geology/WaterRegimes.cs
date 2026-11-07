@@ -182,7 +182,7 @@ public static class WaterRegimes
         var fields = new Dictionary<string, float>
         {
             ["Rainfall"] = map.TileInfo?.rainfall ?? 0f,
-            ["Temperature"] = map.TileInfo?.temperature ?? 10f,
+            ["Temperature"] = WorldAltitude.TemperatureAt(map.Tile, map.TileInfo),
             ["Hilliness"] = (float)world.Hilliness,
             ["Elevation"] = world.Elevation,
             ["River"] = RiverCourse.WidthOnMap(map.TileInfo),

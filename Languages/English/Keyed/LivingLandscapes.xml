@@ -4,6 +4,8 @@
   <LL_SettingsCategory>Living Landscapes</LL_SettingsCategory>
   <LL_None>none</LL_None>
   <LL_CliffDrop>Drop: {0} m</LL_CliffDrop>
+  <LL_WorldTopologyTip>Living Landscapes topology: the altitude of each world tile in bands, as the mod reads it for slopes, rivers and temperature.
+Click to show or hide.</LL_WorldTopologyTip>
   <LL_OverlayToggleTip>Living Landscapes overlay: {0}.
 {1}
 Click to show or hide; several overlays can be shown at once.</LL_OverlayToggleTip>
