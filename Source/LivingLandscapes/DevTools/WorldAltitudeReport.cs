@@ -117,6 +117,14 @@ public static class WorldAltitudeReport
             text.AppendLine($"  {group.Key.defName}: n {group.Count()}; stored {Describe(stored)}; ours {Describe(ours)}; altitude {Describe(altitude)}; vanilla elevation {Describe(elevation)}");
         }
 
+        // The tile the run starts on (-ll-tile), in detail.
+        if (GenCommandLine.TryGetCommandLineArg("ll-tile", out string tileText) && int.TryParse(tileText.Split(',')[0], out int id) && id >= 0 && id < n)
+        {
+            var pt = new PlanetTile(id, layer);
+            Tile t = Find.WorldGrid[pt];
+            text.AppendLine($"[tile {id}] biome {t.PrimaryBiome?.defName}, hilliness {t.hilliness}, vanilla elevation {t.elevation:F0} m, altitude {model[id]:F0} m, stored temperature {t.temperature:F1}, offset {WorldAltitude.TemperatureOffset(pt):F1}, ours {WorldAltitude.TemperatureAt(pt, t):F1}, model {(WorldAltitude.Active ? "on" : "off")}");
+        }
+
         Directory.CreateDirectory(LayerImageExporter.Folder);
         File.WriteAllText(Path.Combine(LayerImageExporter.Folder, "world-altitude.txt"), text.ToString());
         foreach (string line in text.ToString().Split('\n'))
