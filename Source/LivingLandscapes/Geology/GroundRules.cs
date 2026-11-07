@@ -5,34 +5,6 @@ using Verse;
 
 namespace LivingLandscapes.Geology;
 
-/// <summary>Ground that the geology places itself, instead of leaving the choice to vanilla's fertility and noise.</summary>
-public enum GroundCover
-{
-    /// <summary>Vanilla chooses: rock or gravel from the elevation value, soil types from fertility.</summary>
-    None,
-    ShallowWater,
-    DeepWater,
-    ShallowMovingWater,
-    DeepMovingWater,
-    Marsh,
-    Mud,
-
-    /// <summary>The biome's gravel (river bars of coarse alluvium).</summary>
-    Gravel,
-
-    /// <summary>The biome's lake beach sand (sandy banks and levees).</summary>
-    Sand,
-
-    /// <summary>The biome's most fertile soil (fine alluvium of floodplains).</summary>
-    RichSoil,
-
-    /// <summary>Marshy soil: damp ground between a marsh and dry soil, where the water table lies just below the surface.</summary>
-    MarshySoil,
-
-    /// <summary>A playa: the dry, barren floor of a desert hollow that only floods after rare storms (dry lake bed; sand without Odyssey).</summary>
-    Playa,
-}
-
 /// <summary>
 /// One test of a rule: a field's value lies in [min, max). Shared by every rule table: ground rules (fields per cell,
 /// see <see cref="GroundFields"/>), water regimes (fields per tile) and channel regimes (fields per reach).
@@ -182,8 +154,10 @@ public class GroundFields
 /// <summary>Turns planned ground cover into the biome's own terrain, and recognises vanilla's wet ground.</summary>
 public static class GroundCovers
 {
-    public static bool IsWater(GroundCover cover) =>
-        cover == GroundCover.ShallowWater || cover == GroundCover.DeepWater || cover == GroundCover.ShallowMovingWater || cover == GroundCover.DeepMovingWater;
+    public static bool IsWater(GroundCover cover) => WaterDefinition.IsCover(cover);
+
+    /// <summary>Placed terrain that is water: still or moving water, rivers included (the same water as <see cref="WaterDefinition"/>).</summary>
+    public static bool IsWaterTerrain(TerrainDef terrain) => terrain != null && (terrain.IsWater || terrain.IsRiver);
 
     /// <summary>Water, marsh or mud: wet ground (sediment covers like gravel and sand are dry).</summary>
     public static bool IsWetCover(GroundCover cover) => IsWater(cover) || cover == GroundCover.Marsh || cover == GroundCover.Mud;

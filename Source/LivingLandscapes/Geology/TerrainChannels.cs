@@ -44,6 +44,7 @@ public static partial class TerrainChannels
             Regime = water, WaterLevel = new float[n], Flow = new Vector2[n], ChannelOf = new int[n], Still = new bool[n],
             Seep = new bool[n],
             Sink = new bool[n],
+            HandedToLake = new bool[n],
             SeepWater = new float[n],
         };
         for (int i = 0; i < n; i++)
@@ -60,6 +61,8 @@ public static partial class TerrainChannels
             edgeOpen, lakeShare, system.Sink);
         system.BaseLevel = outletLevel;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
+        // The one test for standing water (Standing.cs, #156): the filled surface is the level here (the spill estimate).
+        var standing = new Standing(filled, sea, p.minDepth, p.standingTolerance, p.springLakeDepth);
 
         // Passes of stages 2 and 3 (Route, Shape). Pass 0 routes along steepest descent, reads each channel cell's regime
         // nudges, silts up basins a world river runs into and carves meanders; the passes after it let water divide where the
@@ -190,15 +193,17 @@ public static partial class TerrainChannels
         // with the sediment budget (Sediment) in between.
         // Junctions (Confluences, #20): where a tributary joins, the flow slows on its side and the scour hole deepens the bed.
         // Junctions in still water (the sea, lakes) have none.
+        // Standing water uses the depth BEFORE this scour, here and everywhere after (a bed effect never moves the decision).
+        var depthBeforeScour = (float[])depth.Clone();
         var stillBefore = new bool[n];
         for (int i = 0; i < n; i++)
-            stillBefore[i] = (sea != null && sea[i]) || filled[i] - height[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
+            stillBefore[i] = standing.Is(i, height[i], depthBeforeScour[i]);
         ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
         var natural = (float[])height.Clone();
-        int inHollows = Paint(height, filled, cells, width, depth, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
+        int inHollows = Paint(height, filled, cells, width, depth, depthBeforeScour, standing, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         // How close each seep comes to running: its water as a share of what the seep can hold.
         foreach (int c in cells)
         {
@@ -206,11 +211,12 @@ public static partial class TerrainChannels
                 system.SeepWater[c] = Mathf.Clamp01(carried[c] * dischargeScale / Mathf.Max(seepCapacity[c], 1e-6f));
         }
         system.Channels = plans;
-        int springLake = SpringLake(natural, filled, inflow, worldSource, sizeX, sizeZ, p, system);
+        int springLake = SpringLake(natural, standing, inflow, worldSource, sizeX, sizeZ, p, system);
         // Base level: the sea, lakes and hollows the water stands in. Rivers drop their load there.
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
-            baseLevel[i] = (sea != null && sea[i]) || system.Still[i] || filled[i] - natural[i] > Mathf.Max(depth[i], p.minDepth) + 0.05f;
+            baseLevel[i] = system.Still[i] || standing.Is(i, natural[i], depthBeforeScour[i]);
+        system.CountedStanding = baseLevel;
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,

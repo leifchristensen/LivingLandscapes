@@ -39,6 +39,7 @@ public static class Invariants
         RiverDownhill(map, surface, summary);
         EntryRiversJoin(map, summary);
         MovingWaterFlows(map, summary);
+        StandingAgrees(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
         TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
     }
@@ -124,6 +125,33 @@ public static class Invariants
                            string.Join(" ", rivers.Channels.ConvertAll(c => c.NominalWidth.ToString("F0"))));
         summary.AppendLine($"invariant 5 (channels end at a base level): {(ended == rivers.Channels.Count ? "ok" : "FAIL")} | {ended} of {rivers.Channels.Count} channels " +
                            "end in another channel, at the map edge, in standing water or in a closed basin" + (stranded.Length > 0 ? $"; ending on land:{stranded}" : ""));
+    }
+
+    /// <summary>
+    /// Invariant 8: no cell is handed to the lake model yet counted as flowing water (#156). The channel stage leaves a cell to
+    /// the lake model only where <see cref="Geology.Standing"/> holds, and the sediment budget treats every standing cell as
+    /// a base level; the two must agree, or a channel, a lake and a marsh disagree about the same cell.
+    /// </summary>
+    private static void StandingAgrees(Map map, StringBuilder summary)
+    {
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers?.HandedToLake == null || rivers.CountedStanding == null)
+            return;
+        int handed = 0, flowing = 0, first = -1;
+        for (int i = 0; i < rivers.HandedToLake.Length; i++)
+        {
+            if (!rivers.HandedToLake[i])
+                continue;
+            handed++;
+            if (!rivers.CountedStanding[i])
+            {
+                flowing++;
+                if (first < 0)
+                    first = i;
+            }
+        }
+        summary.AppendLine($"invariant 8 (one standing-water test): {(flowing == 0 ? "ok" : "FAIL")} | {handed} cells left to the lake model, " +
+                           $"{flowing} of them counted as flowing water{(first >= 0 ? $" (first at {first % map.Size.x},{first / map.Size.x})" : "")}");
     }
 
     /// <summary>

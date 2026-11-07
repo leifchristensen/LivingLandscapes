@@ -66,7 +66,7 @@ public static class VanillaTerrainWriter
             fields.Add("RockDistance", distance);
         }
         if (water != null)
-            fields.Add("WaterDistance", GridMath.DistanceTo(i => water[i] > 0f, sizeX, sizeZ));
+            fields.Add("WaterDistance", WaterDefinition.DistanceByDepth(water, sizeX, sizeZ));
         // Hollows hold water up to their spill level toward the map's base levels (#97, #98).
         float[] filled = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SpillDepth, out var spillGrid) ? spillGrid.ToArray() : null;
         if (filled != null)
