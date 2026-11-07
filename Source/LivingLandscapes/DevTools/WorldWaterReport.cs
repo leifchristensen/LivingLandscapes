@@ -198,6 +198,10 @@ public static class WorldWaterReport
                     .Select(i => $"{i} {Find.WorldGrid[i].PrimaryBiome.defName} {Find.WorldGrid[i].hilliness} {Find.WorldGrid[i].rainfall:F0}mm")));
         }
 
+        var junctions = Enumerable.Range(0, n).Where(i => !Water(i) && degree[i] >= 3 && !neighbours[i].Any(Water)).ToList();
+        text.AppendLine("  confluence tiles inland: " + string.Join("; ", junctions.Take(8).Select(i =>
+            $"{i} {Find.WorldGrid[i].PrimaryBiome.defName} {Find.WorldGrid[i].hilliness} links {string.Join("+", ((SurfaceTile)Find.WorldGrid[i]).Rivers.Select(l => l.river.defName))}")));
+
         Directory.CreateDirectory(LayerImageExporter.Folder);
         File.WriteAllText(Path.Combine(LayerImageExporter.Folder, "world-water.txt"), text.ToString());
         foreach (string line in text.ToString().Split('\n'))
