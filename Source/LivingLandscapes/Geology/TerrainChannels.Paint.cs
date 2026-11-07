@@ -17,10 +17,13 @@ public static partial class TerrainChannels
     /// Bars where the sediment budget deposits in the channel (<see cref="Sediment"/>): where the flow loses the power to carry
     /// its load (an easing slope, a widening, below a confluence whose tributary brings more than the joined flow carries) the bed
     /// rises into mid-channel bars; cells raised above the water become dry (islands). The channel regimes' deposition nudge
-    /// scales how readily a deposit forms a bar. Returns the number of bars.
+    /// scales how readily a deposit forms a bar. A bar's height is its deposit (Exner: the bed rises by the thickness laid): the
+    /// crest stands <paramref name="alluvium"/> (the ledger's thickness at the channel cell, in metres) above the bed, at most the
+    /// channel's depth plus <see cref="TerrainChannelSettings.barRise"/>; where the ledger holds none there is no bar (S4, #186).
+    /// Returns the number of bars.
     /// </summary>
     private static int Bars(float[] height, List<int> cells, float[] width, float[] depth, bool[] moving, float[] deposit,
-        float[] deposition, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands,
+        float[] deposition, float[] alluvium, Vector2[] direction, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, out int islands,
         ConfluenceZones zones = null)
     {
         int n = height.Length;
@@ -49,8 +52,10 @@ public static partial class TerrainChannels
 
         var placed = new List<(Vector2 at, float length)>();
         var warp = new Perlin(0.15, 2.0, 0.5, 2, Rand.Int, QualityMode.Medium);
-        foreach ((int c, float strength) in candidates)
+        foreach ((int c, _) in candidates)
         {
+            if (alluvium[c] <= 0f)
+                continue;
             var at = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
             // Below a junction the bar lies in the slow water along the tributary's bank, not mid-channel.
             if (zones != null && zones.SlowShare[c] > 0f)
@@ -61,7 +66,7 @@ public static partial class TerrainChannels
             placed.Add((at, length));
             float level = system.WaterLevel[c];
             float bed = level - depth[c];
-            float crest = bed + (depth[c] + p.barRise) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.barThreshold, 1f, strength));
+            float crest = bed + Mathf.Min(alluvium[c], depth[c] + p.barRise);
             Vector2 along = direction[c] == Vector2.zero ? Vector2.right : direction[c], across = new Vector2(-along.y, along.x);
             int reach = Mathf.CeilToInt(length * 0.5f + 1f + (at - new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f)).magnitude);
             for (int dz = -reach; dz <= reach; dz++)

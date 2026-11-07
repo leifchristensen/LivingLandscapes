@@ -27,10 +27,14 @@ public class FeedbackSettings
 /// </summary>
 public static partial class TerrainChannels
 {
-    /// <summary>Raises <paramref name="height"/> and <paramref name="filled"/> by the network's deposits; returns the cells raised.</summary>
-    private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float[] height, float[] filled,
-        float[] inflow, float[] rockStrength, bool[] moving, float[] width, bool[] sand, System.Func<int, bool> isOutlet, int sizeX, int sizeZ,
-        TerrainChannelSettings p, out float raisedVolume)
+    /// <summary>
+    /// Raises <paramref name="height"/> and <paramref name="filled"/> by the network's deposits; returns the cells raised. The
+    /// deposits are laid with the same settings as the final layers (S4, #186): the bend lean (<c>flow</c>) and the junction
+    /// zones are found from the network as it stands, and the thickness is the ledger's (one kappa for the map).
+    /// </summary>
+    private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float threshold,
+        float[] height, float[] filled, float[] inflow, float[] rockStrength, bool[] moving, float[] width, float[] depth, bool[] sand, Standing standing,
+        System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, DepositLedger ledger, out float raisedVolume)
     {
         int n = height.Length;
         raisedVolume = 0f;
@@ -41,24 +45,30 @@ public static partial class TerrainChannels
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
             baseLevel[i] = isOutlet(i);
+        // The junction zones and the flow direction, from the receivers as they stand (Impact may have changed them this pass).
+        int[] main = MainDonors(cells, receiver, discharge, threshold, n);
+        Vector2[] direction = Hydraulics.Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
+        var stillNow = new bool[n];
+        for (int i = 0; i < n; i++)
+            stillNow[i] = standing.Is(i, height[i], depth[i]);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillNow, sizeX, p.confluences);
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-            out float[] deposit, out float[] depositGrain, out _, out _, out _, sand: sand, secondary: secondary, secondaryShare: secondaryShare);
+            out float[] deposit, out float[] depositGrain, out _, out _, out _, out _, sand: sand, zones: zones, secondary: secondary, secondaryShare: secondaryShare);
         foreach (int c in cells)
         {
             if (!moving[c])
                 deposit[c] = 0f;
         }
-        Sediment.Spread(cells, receiver, null, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, out float[] alluvium,
-            out _, out _, discharge, baseLevel);
+        Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
+            out _, discharge, baseLevel, zones);
+        float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {
-            float rise = alluvium[i] * p.feedback.aggradationShare;
-            if (rise <= 0f)
+            if (rises[i] <= 0f)
                 continue;
-            height[i] += rise;
-            filled[i] += rise;
-            raisedVolume += rise;
+            height[i] += rises[i];
+            filled[i] += rises[i];
             raised++;
         }
         return raised;
