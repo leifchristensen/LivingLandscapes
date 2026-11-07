@@ -155,22 +155,19 @@ public static class Confluences
     {
         int n = receiver.Length;
         var donors = new int[n];
-        var widest = new float[n];
         foreach (int c in cells)
         {
-            int r = receiver[c];
-            if (r < 0)
-                continue;
-            donors[r]++;
-            widest[r] = Mathf.Max(widest[r], width[c]);
+            if (receiver[c] >= 0)
+                donors[receiver[c]]++;
         }
+        // Highest first: every donor of a cell has its final width (hold applied) before the cell is looked at.
+        var widest = new float[n];
         var hold = new float[n];
         var drop = new float[n];
         int widened = 0;
-        // Highest first, so a cell's hold is final before it hands it on.
         foreach (int c in cells)
         {
-            if (donors[c] >= 2 && moving[c] && widest[c] * relax > 0f && widest[c] > hold[c])
+            if (donors[c] >= 2 && moving[c] && widest[c] > hold[c])
             {
                 hold[c] = widest[c];
                 drop[c] = widest[c] * relax;
@@ -181,7 +178,10 @@ public static class Confluences
                 widened++;
             }
             int r = receiver[c];
-            if (r >= 0 && hold[c] - drop[c] > hold[r])
+            if (r < 0)
+                continue;
+            widest[r] = Mathf.Max(widest[r], width[c]);
+            if (hold[c] - drop[c] > hold[r])
             {
                 hold[r] = hold[c] - drop[c];
                 drop[r] = drop[c];
@@ -245,6 +245,7 @@ public static class Confluences
         var audit = new JunctionAudit();
         audit.Narrowed = NarrowedJunctions(cells, receiver, width, moving, 4, 0.8f, out audit.Joins, out audit.WorstWidthRatio, out audit.WorstWidthCell);
         var junction = new HashSet<int>(zones.JunctionCells);
+        var counted = new HashSet<int>();
         foreach (int c in cells)
             audit.DepositTotal += deposit[c];
         // A junction with another within two joined widths either way shares its zone: its scour is not checked.
@@ -268,7 +269,8 @@ public static class Confluences
             {
                 if (k != r && junction.Contains(k))
                     crowded = true;
-                audit.DepositAtJoins += deposit[k];
+                if (counted.Add(k))
+                    audit.DepositAtJoins += deposit[k];
                 if (!crowded && d <= w3 && zones.Scour[k] > zones.Scour[r] + 1e-3f)
                     audit.ScourOffCentre++;
                 if (deposit[k] > 0f)
