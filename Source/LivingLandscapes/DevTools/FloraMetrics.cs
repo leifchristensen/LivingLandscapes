@@ -78,7 +78,8 @@ public static class FloraMetrics
         // share where no species of the biome reaches minFitness (nothing can grow there).
         if (ecology != null && ecology.Ready)
         {
-            int fertile = 0, occupied = 0, hopeless = 0;
+            int fertile = 0, occupied = 0, hopeless = 0, hopelessGround = 0, hopelessRockSide = 0, hopelessWaterSide = 0;
+            double hopelessLight = 0;
             double target = 0;
             float minFitness = PlantEcologyDef.Current.minFitness * MapComponent_Ecology.Strength;
             for (int i = 0; i < area; i++)
@@ -92,10 +93,27 @@ public static class FloraMetrics
                 if (i % 7 == 0)
                     target += ecology.TargetOccupancy(c) * 7;
                 if (!map.Biome.wildPlants.Any(r => ecology.Fitness(r.plant, i) >= minFitness))
+                {
+                    // Why: "ground" = no species passes even in full light (water, soil, warmth); otherwise shade rules them all out.
                     hopeless++;
+                    hopelessLight += ecology.LightAt(i);
+                    if (!map.Biome.wildPlants.Any(r => ecology.GroundFitness(r.plant, i) >= minFitness))
+                        hopelessGround++;
+                    foreach (IntVec3 side in GenAdj.CellsAdjacent8Way(new TargetInfo(c, map)))
+                    {
+                        if (!side.InBounds(map))
+                            continue;
+                        if (side.Impassable(map))
+                            hopelessRockSide++;
+                        else if (side.GetTerrain(map).IsWater)
+                            hopelessWaterSide++;
+                    }
+                }
             }
             float f = Mathf.Max(fertile, 1);
             Log.Message($"{prefix} density fertileLand={fertile / n:F2} occupied={occupied / f:F3} meanTarget={target / f:F3} noCandidate={hopeless / f:F3} tileDensityFactor={map.wildPlantSpawner.CurrentPlantDensityFactor:F2} regrowth={ecology.RegrowthRate():F2}x");
+            if (hopeless > 0)
+                Log.Message($"{prefix} noCandidate cells={hopeless} limitedByGround={hopelessGround / (float)hopeless:F2} meanLight={hopelessLight / hopeless:F2} meanRockNeighbours={hopelessRockSide / (float)hopeless:F2} meanWaterNeighbours={hopelessWaterSide / (float)hopeless:F2}");
         }
 
         // Stand age (P22): share of land per succession stage (open < 6 years, thicket 6-18, young forest 18-45, old),
