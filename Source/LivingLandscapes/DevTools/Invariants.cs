@@ -191,7 +191,7 @@ public static class Invariants
         if (rivers == null)
             return;
         List<RiverPlan> channels = rivers.Channels;
-        int entering = 0, joined = 0;
+        int entering = 0, joined = 0, grazing = 0;
         var lost = new StringBuilder();
         var parent = new int[channels.Count];
         var isWorldRiver = new bool[channels.Count];
@@ -206,20 +206,44 @@ public static class Invariants
         {
             if (!(channels[k].VanillaWidth > 0f && channels[k].EntryArea > 0f))
                 continue;
-            entering++;
             bool joins = RiverEntryRules.Joins(k, parent, isWorldRiver, endsInside);
+            // A river that enters and leaves again within a few cells of the same edge never crossed the map: the world river it
+            // would join runs on the neighbouring tile there, so it has nothing to join here.
+            if (!joins && StaysOnEdge(map, channels, k, EdgeBand))
+            {
+                grazing++;
+                continue;
+            }
+            entering++;
             if (joins)
                 joined++;
             else
                 lost.Append($" channel {k} (width {channels[k].VanillaWidth:F0}, from {PointOf(channels[k].Main, true)} to {PointOf(channels[k].Main, false)}, via {Chain(channels, k)});");
         }
-        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count;
+        int worldInflows = WorldContext.For(map, 1f).RiverInflows.Count - LandscapeGenerator.InflowsAtSea - grazing;
         int expected = Mathf.Max(worldInflows, entering);
         if (expected < 2)
             return;
         string unplanned = entering < expected ? $"; {expected - entering} of the world's {expected} inflows never became a channel" : "";
         summary.AppendLine($"invariant 7 (world rivers join on the map): {(joined == expected ? "ok" : "FAIL")} | {joined} of {expected} entering world rivers join the exit river on the map " +
                            $"({entering} planned as channels)" + (lost.Length > 0 ? $"; not joining:{lost}" : "") + unplanned);
+    }
+
+    /// <summary>Cells from the map edge within which a river that enters and leaves counts as running along the edge.</summary>
+    private const float EdgeBand = 4f;
+
+    /// <summary>True when every point of the channel and of the channels it runs into lies within <paramref name="band"/> of the map edge.</summary>
+    private static bool StaysOnEdge(Map map, List<RiverPlan> channels, int k, float band)
+    {
+        for (int step = 0; step < channels.Count && k >= 0; step++, k = channels[k].Parent)
+        {
+            foreach (Vector2 v in channels[k].Main)
+            {
+                if (Inside(map, v) && !NearEdge(map, v, band))
+                    return false;
+            }
+        }
+        return true;
     }
 
     private static bool NearEdge(Map map, Vector2 v, float distance) =>

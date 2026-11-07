@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace LivingLandscapes.Geology;
 
 /// <summary>
@@ -34,5 +37,59 @@ public static class RiverEntryRules
             index = parent[index];
         }
         return false;
+    }
+
+    /// <summary>
+    /// Where water from beyond the map comes in: the point where a course crosses the map's edge, on the segment from its last
+    /// point outside (<paramref name="outsideX"/>, <paramref name="outsideZ"/>) to its first point inside. The erosion model's
+    /// cells are coarser than the map's, so its first point inside can lie a cell or two in from the edge; the boundary
+    /// condition belongs on the edge cell itself. Map coordinates, the map spanning 0 to size.
+    /// </summary>
+    public static void EdgeCrossing(float outsideX, float outsideZ, float insideX, float insideZ, int sizeX, int sizeZ, out float x, out float z)
+    {
+        float dx = insideX - outsideX, dz = insideZ - outsideZ, t = 0f;
+        if (dx != 0f)
+            t = Math.Max(t, (Math.Min(Math.Max(outsideX, 0f), sizeX - 0.01f) - outsideX) / dx);
+        if (dz != 0f)
+            t = Math.Max(t, (Math.Min(Math.Max(outsideZ, 0f), sizeZ - 0.01f) - outsideZ) / dz);
+        t = Math.Min(Math.Max(t, 0f), 1f);
+        x = outsideX + dx * t;
+        z = outsideZ + dz * t;
+    }
+
+    /// <summary>
+    /// The cells of a drainage tree with every donor before its receiver (a topological order), for the cells where
+    /// <paramref name="isMember"/> holds. Ordering by drainage area is not enough: a world river's entry brings an area so large
+    /// (millions of model cells) that a float cannot tell a cell from the next one downstream, so equal areas would come in any order.
+    /// </summary>
+    public static List<int> DonorsFirst(int[] receiver, Func<int, bool> isMember)
+    {
+        var pending = new int[receiver.Length];
+        var members = new List<int>();
+        for (int c = 0; c < receiver.Length; c++)
+        {
+            if (!isMember(c))
+                continue;
+            members.Add(c);
+            int r = receiver[c];
+            if (r >= 0 && isMember(r))
+                pending[r]++;
+        }
+        var order = new List<int>(members.Count);
+        var ready = new Queue<int>();
+        foreach (int c in members)
+        {
+            if (pending[c] == 0)
+                ready.Enqueue(c);
+        }
+        while (ready.Count > 0)
+        {
+            int c = ready.Dequeue();
+            order.Add(c);
+            int r = receiver[c];
+            if (r >= 0 && isMember(r) && --pending[r] == 0)
+                ready.Enqueue(r);
+        }
+        return order;
     }
 }
