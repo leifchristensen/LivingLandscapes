@@ -593,6 +593,10 @@
         <!-- P25 site water balance: rain alone keeps up to this moisture in drained ground; half of it at aridity index 0.5. -->
         <climateMoistureMax>0.5</climateMoistureMax>
         <aridityHalf>0.5</aridityHalf>
+        <!-- #132: what the terrain readers (soil fertility, wet ground, settlement siting) read of the water field.
+             false = the topographic wetness (LL_Wetness) alone, as always. true = the ground term, that wetness raised by
+             the moisture rain keeps in drained ground. Plants always read this layer's full moisture, either way. -->
+        <terrainReadsMoisture>false</terrainReadsMoisture>
       </li>
     </modExtensions>
   </LivingLandscapes.Environment.EnvironmentLayerDef>

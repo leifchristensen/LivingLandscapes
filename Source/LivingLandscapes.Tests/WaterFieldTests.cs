@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using LivingLandscapes.Layers;
 using Xunit;
 
@@ -118,5 +119,35 @@ public class WaterFieldTests
                 Assert.Equal(BitConverter.SingleToInt32Bits(WaterFieldMath.GroundTerm(w, c)),
                              BitConverter.SingleToInt32Bits(WaterFieldMath.TerrainValue(w, c, true)));
             }
+    }
+
+    /// <summary>
+    /// The switch the terrain readers follow (#132): shipped off in the XML so a released map reads the wetness grid as
+    /// it always did, and stated in the def rather than left to the code default, so a modder sees the choice exists.
+    /// </summary>
+    [Fact]
+    public void TerrainSwitch_ShipsOff_AndSaysSoInTheLayerDef()
+    {
+        string xml = File.ReadAllText(RepoFile(Path.Combine("1.7", "Defs", "EnvironmentLayerDefs", "EnvironmentLayers.xml")));
+        int name = xml.IndexOf("<defName>LL_Moisture</defName>", StringComparison.Ordinal);
+        Assert.True(name > 0, "LL_Moisture def not found in EnvironmentLayers.xml");
+        string def = xml.Substring(name, xml.IndexOf("</LivingLandscapes.Environment.EnvironmentLayerDef>", name,
+            StringComparison.Ordinal) - name);
+        Assert.Contains("<terrainReadsMoisture>false</terrainReadsMoisture>", def);
+
+        string worker = File.ReadAllText(RepoFile(Path.Combine("Source", "LivingLandscapes", "Layers", "MoistureWorker.cs")));
+        Assert.Contains("public bool terrainReadsMoisture = false;", worker);
+    }
+
+    /// <summary>A file of the mod, found by walking up from the test binaries to the checkout root (as WaterDefinitionTests does).</summary>
+    private static string RepoFile(string relative)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            string candidate = Path.Combine(dir.FullName, relative);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+        throw new FileNotFoundException(relative);
     }
 }
