@@ -145,6 +145,31 @@ public sealed class GrainLoads
         for (int i = 0; i < Count; i++)
             shares[i] /= sum;
     }
+
+    /// <summary>
+    /// Invariant 9 (HYDRO-UNIFICATION S3, #186): grain along a river's deposits fines downstream. Walking the channel's cells
+    /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, weighted by
+    /// <paramref name="deposit"/>, both per cell) must not climb above the lowest running mean already passed: a river drops its
+    /// gravel first and its fines last. Cells without deposit are skipped. Returns the worst climb of the running mean
+    /// (0 for a river that only fines), or NaN when fewer than two cells deposited anything and there is nothing to measure.
+    /// Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the DevTools invariant 9.
+    /// </summary>
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit)
+    {
+        float sum = 0f, lowest = float.MaxValue, worst = 0f;
+        int seen = 0;
+        foreach (int c in cellsDownstream)
+        {
+            if (deposit[c] <= 0f)
+                continue;
+            sum += grain[c];
+            seen++;
+            float mean = sum / seen;
+            lowest = Mathf.Min(lowest, mean);
+            worst = Mathf.Max(worst, mean - lowest);
+        }
+        return seen < 2 ? float.NaN : worst;
+    }
 }
 
 public static partial class Sediment

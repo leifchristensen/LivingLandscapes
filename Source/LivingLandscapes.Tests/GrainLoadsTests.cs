@@ -314,4 +314,41 @@ public class GrainLoadsTests
         channel.Deposits(p, b, out float[] second, out _, out _, out _, out _, out _);
         Assert.Equal(first, second);
     }
+
+    /// <summary>
+    /// Invariant 9 (DevTools): grain along a river's deposits fines downstream. A hand-made 6-cell river whose deposits fine
+    /// passes; one whose deposits coarsen by 0.5 grain-index units from source to mouth fails. The rule is the running mean of
+    /// the deposit grain index walking downstream: it may not climb above the lowest mean already passed by more than
+    /// <see cref="SedimentSettings.coarsenTolerance"/>.
+    /// </summary>
+    [Fact]
+    public void InvariantNinePassesAFiningRiverAndFailsACoarseningOne()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        var cells = new List<int>();
+        for (int x = 0; x < 6; x++)
+            cells.Add(Row * SizeX + x);
+        var deposit = new float[SizeX * SizeZ];
+        var grain = new float[SizeX * SizeZ];
+        foreach (int c in cells)
+            deposit[c] = 1f;
+
+        // Fining downstream: gravel at the source, fines at the mouth (the grain table's own indices, coarsest first).
+        float[] finer = { 0.8f, 0.65f, 0.5f, 0.42f, 0.3f, 0.15f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = finer[x];
+        float rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        Assert.True(rise <= tolerance, $"a fining river must pass, measured a running-mean climb of {rise:F3} over the tolerance {tolerance:F2}");
+
+        // Coarsening by 0.5: the mouth's deposit is half a grain-index unit coarser than the source's.
+        float[] coarser = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = coarser[x];
+        rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        Assert.True(rise > tolerance, $"a river coarsening by 0.5 must fail, measured only {rise:F3}");
+
+        // A river that deposits in fewer than two cells has nothing to measure.
+        var bare = new float[SizeX * SizeZ];
+        Assert.True(float.IsNaN(GrainLoads.WorstDownstreamCoarsening(cells, grain, bare)));
+    }
 }

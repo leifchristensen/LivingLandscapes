@@ -120,6 +120,14 @@ public class SedimentSettings
 
     /// <summary>The farthest a jet carries a class (cells); what would settle beyond is washload.</summary>
     public float jetMaxReach = 60f;
+
+    /// <summary>
+    /// Invariant 9 (DevTools, HYDRO-UNIFICATION S3 #186): how much the running mean of the deposit grain index along a channel
+    /// may rise while walking downstream, in grain-index units (0..1, see <see cref="grains"/>). A river drops its gravel first
+    /// and its fines last, so its deposits fine toward the mouth; a running mean that climbs more than this means gravel turning
+    /// up downstream of sand. The check reads this default from the settings (the generator's copy is not kept on the map).
+    /// </summary>
+    public float coarsenTolerance = 0.15f;
 }
 
 /// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>
