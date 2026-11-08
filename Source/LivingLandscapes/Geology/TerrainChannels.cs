@@ -107,6 +107,13 @@ public static partial class TerrainChannels
         // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
         if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
             p.oneHydraulics = one;
+        // Dev: -ll-grains=none|classes|settling|full switches the grain loads of HYDRO-UNIFICATION S3 (classes = S3a, settling adds S3b, full adds S3c).
+        if (GenCommandLine.TryGetCommandLineArg("ll-grains", out string grainsArg))
+        {
+            p.sediment.grainClasses = grainsArg != "none";
+            p.sediment.settlingLength = grainsArg == "settling" || grainsArg == "full";
+            p.sediment.jetClasses = grainsArg == "full";
+        }
         partSlope = partJets = partMomentum = partJoin = partJunction = true;
         partSpread = false;
         joinScale = GenCommandLine.TryGetCommandLineArg("ll-join", out string joinArg) && float.TryParse(joinArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float js) ? js : 1f;
@@ -240,9 +247,10 @@ public static partial class TerrainChannels
         system.CountedStanding = baseLevel;
         // The sediment budget: in-channel deposits make bars (also below confluences, where a tributary brings more than the
         // joined flow can carry), and the floodplain fields.
+        GrainLoads grains = GrainLoads.Create(p.sediment, p.impact.manningN, p.impact.jetWidths, cells, receiver, secondary, filled, depthBeforeScour, width, sizeX);
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out float deposited, out float atBase, out float eroded, out _, sand: sand, zones: zones,
-            secondary: secondary, secondaryShare: secondaryShare);
+            secondary: secondary, secondaryShare: secondaryShare, grains: grains);
         // Ground the water's impact cut away joins its load. It is a volume in metres; the budget's units are metres divided by
         // the ledger's kappa. Kappa is fixed by the feedback passes; without them (or without deposits there) a first Spread fixes it.
         float gougedTotal = gouged.Sum();
@@ -250,14 +258,14 @@ public static partial class TerrainChannels
         {
             if (!ledger.IsFixed)
                 Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
-                    discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null);
+                    discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
             if (ledger.IsFixed)
             {
                 var gougedUnits = new float[n];
                 for (int i = 0; i < n; i++)
                     gougedUnits[i] = gouged[i] / ledger.Kappa;
                 Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
-                    out deposit, out depositGrain, out deposited, out atBase, out eroded, out _, gougedUnits, sand, zones, secondary, secondaryShare);
+                    out deposit, out depositGrain, out deposited, out atBase, out eroded, out _, gougedUnits, sand, zones, secondary, secondaryShare, grains);
             }
         }
         // Only running water lays down alluvium: a seep's trickle builds no banks or floodplain (the map's deposits are
@@ -269,7 +277,7 @@ public static partial class TerrainChannels
         }
         // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
-            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null);
+            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
         system.Junctions = Confluences.Audit(zones, cells, receiver, width, moving, deposit, sizeX);
         system.Junctions.WidthEnforced = p.oneHydraulics && partJunction;
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
