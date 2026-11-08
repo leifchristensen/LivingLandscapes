@@ -41,8 +41,8 @@ public class MoistureWorker : EnvironmentLayerWorker
         for (int i = 0; i < moisture.Length; i++)
         {
             float proximity = Mathf.Exp(-distance[i] / p.waterReachCells);
-            float ground = wetness?[i] ?? 0f;
-            moisture[i] = 1f - (1f - climate) * (1f - ground) * (1f - proximity);
+            // The one water formula (#132): rain, terrain and open water, each wetting what the others leave dry.
+            moisture[i] = WaterFieldMath.Moisture(climate, wetness?[i] ?? 0f, proximity);
         }
         Log.Message($"[LivingLandscapes] Moisture on {context.Map}: rainfall {context.Map.TileInfo?.rainfall ?? 0f:F0} mm, " +
                     $"aridity index {aridity:F2}, moisture from rain alone {climate:F2} (P25).");
