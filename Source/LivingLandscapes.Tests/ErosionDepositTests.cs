@@ -56,3 +56,37 @@ public class ErosionDepositTests
         Assert.Equal(0.005f, load[4], 6);
     }
 }
+
+/// <summary>
+/// Pins <see cref="Sediment.SupplyGrain"/>, extracted verbatim from the expression at Sediment.cs:189 (issue #186, C2).
+/// The expected value is the old expression written out here; any change to one must show up against the other.
+/// </summary>
+public class SupplyGrainTests
+{
+    [Fact]
+    public void MatchesTheOldExpression()
+    {
+        const float coarseSlope = 0.05f;
+        foreach (float slope in new[] { 0f, 0.01f, 0.05f, 0.2f })
+            foreach (float rock in new[] { 0f, 0.5f, 1f })
+            {
+                // The expression as it stood in Sediment.Deposits before the extraction (Sediment.cs:189).
+                float old = UnityEngine.Mathf.Clamp01(
+                    UnityEngine.Mathf.Lerp(0.2f, 1f, slope / UnityEngine.Mathf.Max(coarseSlope, 1e-4f)) *
+                    UnityEngine.Mathf.Lerp(0.7f, 1f, rock));
+                Assert.Equal(old, Sediment.SupplyGrain(slope, rock, coarseSlope));
+            }
+    }
+
+    [Fact]
+    public void RisesWithSlopeAndRockStrengthAndStaysIn0To1()
+    {
+        // lerp(0.2,1,t) floors at 0.2 on no slope; lerp(0.7,1,rock) runs 0.7 (any rock) .. 1.0 (bedrock); clamp01 on top.
+        Assert.Equal(0.2f, Sediment.SupplyGrain(0f, 1f, 0.05f), 6);   // no slope: slope term at its floor, hard rock
+        Assert.Equal(1f, Sediment.SupplyGrain(0.05f, 1f, 0.05f), 6);  // at coarseSlope on bedrock: fully coarse
+        Assert.Equal(0.7f, Sediment.SupplyGrain(0.05f, 0f, 0.05f), 6); // same slope, weakest rock: capped by the rock term
+        Assert.Equal(1f, Sediment.SupplyGrain(1f, 1f, 0.001f), 6);    // far above coarseSlope: t clamps, still 1
+        Assert.True(Sediment.SupplyGrain(0.2f, 1f, 0.05f) > Sediment.SupplyGrain(0.01f, 1f, 0.05f));  // steeper is coarser
+        Assert.True(Sediment.SupplyGrain(0.05f, 1f, 0.05f) > Sediment.SupplyGrain(0.05f, 0f, 0.05f)); // stronger rock is coarser
+    }
+}

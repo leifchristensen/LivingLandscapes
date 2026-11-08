@@ -167,6 +167,15 @@ public class GrainClass
 public static partial class Sediment
 {
     /// <summary>
+    /// The grain of the sediment a cell's erosion supplies (0 mud .. 1 gravel): steep ground cuts coarser material than gentle
+    /// (fully coarse at <paramref name="coarseSlope"/>, a fifth of that at none), and softer rock yields coarser than hard at
+    /// the same slope. Extracted verbatim from <see cref="Deposits"/> (issue #186, G1/G2: the erosion model must remember the
+    /// grain of what it moves, so the same number is reused for the deposited grain and the supply delivered to the sea).
+    /// </summary>
+    public static float SupplyGrain(float slope, float rock, float coarseSlope) =>
+        Mathf.Clamp01(Mathf.Lerp(0.2f, 1f, slope / Mathf.Max(coarseSlope, 1e-4f)) * Mathf.Lerp(0.7f, 1f, rock));
+
+    /// <summary>
     /// The load and capacity walk down the network: what each channel cell deposits, and its grain size. The load is conserved:
     /// what the water erodes (its bed and banks, <paramref name="gouged"/> ground its impact cut away, in the budget's units)
     /// joins it, and what settles leaves it. On loose sand (<paramref name="sand"/>) erosion is limited only by transport: the
@@ -210,7 +219,7 @@ public static partial class Sediment
                 supply += gouged[c];
             if (sand != null && sand[c] && !still)
                 supply = Mathf.Max(supply, capacity - load[c]);
-            float grainSupply = Mathf.Clamp01(Mathf.Lerp(0.2f, 1f, slope / Mathf.Max(p.coarseSlope, 1e-4f)) * Mathf.Lerp(0.7f, 1f, rock));
+            float grainSupply = SupplyGrain(slope, rock, p.coarseSlope);
             float available = load[c] + supply;
             float grain = available > 0f ? (grainLoad[c] + supply * grainSupply) / available : grainSupply;
             eroded += supply;
