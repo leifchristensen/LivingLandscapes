@@ -34,7 +34,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float threshold,
         float[] height, float[] filled, float[] inflow, float[] rockStrength, bool[] moving, float[] width, float[] depth, bool[] sand, Standing standing,
-        System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, DepositLedger ledger, out float raisedVolume)
+        System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, DepositLedger ledger, RoomProbe room, out float raisedVolume)
     {
         int n = height.Length;
         raisedVolume = 0f;
@@ -66,6 +66,7 @@ public static partial class TerrainChannels
             out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
         float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
         Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
+        room.Observe(alluvium, rises, stillNow, standing, height, depth, p.minDepth, p.standingTolerance);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {
@@ -76,5 +77,73 @@ public static partial class TerrainChannels
             raised++;
         }
         return raised;
+    }
+
+    /// <summary>
+    /// Measurement only (HYDRO-UNIFICATION D5, #186 step W1): what the feedback passes' alluvium does to standing water, summed
+    /// over the passes. It counts the standing cells the alluvium reaches, how many of them a pass actually raises (after
+    /// <see cref="Hydraulics.GradeRises"/>), the total rise on them, and the largest <em>room</em> any of them has: the rise that
+    /// would make it stop standing, <c>max(0, L - bed - (max(depth, minDepth) + standingTolerance))</c> with L the filled (spill)
+    /// surface. Nothing here moves the ground; it answers whether the sediment budget lays alluvium on lake cells at all, which is
+    /// what the accommodation step (deposit accommodation) has to be built for. Dropped once accommodation itself lands.
+    /// </summary>
+    private sealed class RoomProbe
+    {
+        private readonly bool[] gotAlluvium;
+        private readonly bool[] wasRaised;
+        private readonly bool[] wasSea;
+        /// <summary>Standing land-water cells the alluvium reached in some pass (each counted once).</summary>
+        public int standingCells;
+        /// <summary>Sea cells the alluvium reached in some pass (each counted once; the sea has no room to fill).</summary>
+        public int seaCells;
+        /// <summary>Of <see cref="standingCells"/>, the ones a pass raised (each counted once).</summary>
+        public int raisedCells;
+        /// <summary>Metres of rise the passes gave those cells, summed over cells and passes (metres times cells).</summary>
+        public float raiseTotal;
+        /// <summary>The largest room a standing cell the alluvium reached had, over the passes (metres).</summary>
+        public float largestRoom;
+
+        public RoomProbe(int n)
+        {
+            gotAlluvium = new bool[n];
+            wasRaised = new bool[n];
+            wasSea = new bool[n];
+        }
+
+        /// <summary>One pass's alluvium and the rises it was graded to, before either touches the ground.</summary>
+        /// <param name="stillNow">Standing water as the water stands this pass (the sea included), the same test the budget used.</param>
+        public void Observe(float[] alluvium, float[] rises, bool[] stillNow, Standing standing, float[] bed, float[] depth, float minDepth, float tolerance)
+        {
+            for (int i = 0; i < alluvium.Length; i++)
+            {
+                if (alluvium[i] <= 0f || !stillNow[i])
+                    continue;
+                if (standing.IsSea(i))
+                {
+                    if (!wasSea[i])
+                    {
+                        wasSea[i] = true;
+                        seaCells++;
+                    }
+                    continue;
+                }
+                if (!gotAlluvium[i])
+                {
+                    gotAlluvium[i] = true;
+                    standingCells++;
+                }
+                float room = Mathf.Max(0f, standing.LevelAt(i) - bed[i] - (Mathf.Max(depth[i], minDepth) + tolerance));
+                largestRoom = Mathf.Max(largestRoom, room);
+                if (rises[i] > 0f)
+                {
+                    raiseTotal += rises[i];
+                    if (!wasRaised[i])
+                    {
+                        wasRaised[i] = true;
+                        raisedCells++;
+                    }
+                }
+            }
+        }
     }
 }

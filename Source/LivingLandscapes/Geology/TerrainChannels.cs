@@ -136,6 +136,8 @@ public static partial class TerrainChannels
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
         // passes and the final layers lay the same deposit as the same thickness.
         var ledger = new DepositLedger();
+        // D5 measurement (#186 step W1): what the passes' alluvium does to standing water. Measures only, logged once below.
+        var room = new RoomProbe(n);
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -193,7 +195,7 @@ public static partial class TerrainChannels
             if (pass >= 1 && pass < passes - 1 && p.feedback.passes > 0)
             {
                 int raised = Aggrade(cells, receiver, secondary, secondaryShare, discharge, dischargeScale, threshold, height, filled, inflow, rockStrength,
-                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, out float volume);
+                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, out float volume);
                 if (raised > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
@@ -313,6 +315,9 @@ public static partial class TerrainChannels
             maxWidth = Mathf.Max(maxWidth, width[c]);
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
+        // D5 measurement (#186 step W1) on its own line, so the "Channels:" line stays byte-identical to main for the flag-off proof.
+        Log.Message($"[LivingLandscapes] Deposit room (D5 probe): {room.standingCells} standing cells got alluvium ({room.seaCells} sea cells), " +
+                    $"{room.raisedCells} of them raised, {room.raiseTotal:0.###} m of rise on them, largest room {room.largestRoom:0.###} m");
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
                     $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {zones.Junctions} junctions (strongest {zones.Strongest:F2}); {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
