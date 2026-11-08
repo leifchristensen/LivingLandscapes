@@ -899,45 +899,12 @@ public static class LandscapeGenerator
     /// Deposition (Davy and Lague 2009): the load runs down the drainage tree from the divides; each land cell keeps
     /// G x load / drainage area of it (rivers drop their load where they gather little more water and slow) and passes the
     /// rest on. What reaches base level (the sea, the region's edges) leaves the model; what reaches a closed basin's lake
-    /// settles there, up to the lake's level.
+    /// settles there, up to the lake's level. The arithmetic lives in <see cref="ErosionDeposit"/> (game-free, tested).
     /// </summary>
     private static void Deposit(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area, int[] stack, int count,
         bool[] outlet, bool[] sink, float[] baseLevel, float[] deposited, GeologyGenerationExtension p)
     {
-        int n = h.Length;
-        Array.Clear(load, 0, n);
-        float yield = 0f;
-        int land = 0;
-        for (int i = 0; i < n; i++)
-        {
-            if (!outlet[i])
-            {
-                yield += eroded[i];
-                land++;
-            }
-        }
-        // Rivers entering the region bring the sediment of their catchment beyond it (sediment yield scales with drainage
-        // area): their inflow, in model cells of drainage, eroding at the region's own mean rate.
-        yield /= Mathf.Max(1, land);
-        for (int k = count - 1; k >= 0; k--)
-        {
-            int c = stack[k];
-            load[c] += eroded[c] + inflow[c] * yield;
-            int r = receiver[c];
-            if (r >= 0)
-            {
-                float keep = Mathf.Min(load[c], p.deposition * load[c] / Mathf.Max(area[c], 1f));
-                h[c] += keep;
-                deposited[c] += keep;
-                load[r] += load[c] - keep;
-            }
-            else if (sink[c])
-            {
-                float before = h[c];
-                h[c] = Mathf.Min(h[c] + load[c], baseLevel[c]);
-                deposited[c] += Mathf.Max(0f, h[c] - before);
-            }
-        }
+        ErosionDeposit.Apply(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, deposited, p.deposition);
     }
 
     /// <summary>Linear hillslope creep; weak rock (higher <paramref name="factor"/>) creeps faster.</summary>

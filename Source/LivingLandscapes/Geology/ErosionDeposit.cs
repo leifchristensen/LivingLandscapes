@@ -1,0 +1,60 @@
+using System;
+
+namespace LivingLandscapes.Geology
+{
+    /// <summary>
+    /// Deposition (Davy and Lague 2009): the load runs down the drainage tree from the divides; each land cell keeps
+    /// G x load / drainage area of it (rivers drop their load where they gather little more water and slow) and passes the
+    /// rest on. What reaches base level (the sea, the region's edges) leaves the model; what reaches a closed basin's lake
+    /// settles there, up to the lake's level. Game-free (issue #186): the arithmetic <see cref="LandscapeGenerator"/>
+    /// has always used, moved out of the generator so tests can run it and the shore pass can build on it.
+    /// </summary>
+    public static class ErosionDeposit
+    {
+        /// <summary>
+        /// One deposition pass over the model grid. Walks the drainage tree from the divides (stack, processed back to
+        /// front): each cell with a receiver keeps min(load, deposition x load / max(area, 1)) of what it carries, added
+        /// to h and deposited, and passes the rest on; a sink fills to its lake level (baseLevel); what reaches base
+        /// level stays in load (it leaves the model). Rivers entering the region bring the sediment of their catchment
+        /// beyond it (sediment yield scales with drainage area): their inflow, in model cells of drainage, eroding at
+        /// the region's own mean rate (yield). Same arithmetic as the generator's Deposit, with Mathf replaced by
+        /// System.Math (identical for Min/Max).
+        /// </summary>
+        public static void Apply(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area,
+            int[] stack, int count, bool[] outlet, bool[] sink, float[] baseLevel, float[] deposited, float deposition)
+        {
+            int n = h.Length;
+            Array.Clear(load, 0, n);
+            float yield = 0f;
+            int land = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (!outlet[i])
+                {
+                    yield += eroded[i];
+                    land++;
+                }
+            }
+            yield /= Math.Max(1, land);
+            for (int k = count - 1; k >= 0; k--)
+            {
+                int c = stack[k];
+                load[c] += eroded[c] + inflow[c] * yield;
+                int r = receiver[c];
+                if (r >= 0)
+                {
+                    float keep = Math.Min(load[c], deposition * load[c] / Math.Max(area[c], 1f));
+                    h[c] += keep;
+                    deposited[c] += keep;
+                    load[r] += load[c] - keep;
+                }
+                else if (sink[c])
+                {
+                    float before = h[c];
+                    h[c] = Math.Min(h[c] + load[c], baseLevel[c]);
+                    deposited[c] += Math.Max(0f, h[c] - before);
+                }
+            }
+        }
+    }
+}
