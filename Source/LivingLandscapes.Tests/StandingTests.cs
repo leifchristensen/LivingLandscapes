@@ -64,4 +64,45 @@ public class StandingTests
         Assert.True(standing.Is(0, 10f, 0.2f));
         Assert.False(standing.Is(0, 10f, 0.2f * 2f));
     }
+
+    // D5 (#186): room (accommodation) = the rise at which the cell stops standing, so a capped deposit never rises above the water.
+
+    [Fact]
+    public void Room_is_zero_when_not_standing()
+    {
+        // 10.30 - 10.00 = 0.30 <= max(0.50, 0.15) + 0.05: flowing, and there is nothing to fill.
+        var standing = new Standing(new[] { 10.30f }, null, MinDepth, Tolerance, SpringDepth);
+        Assert.False(standing.Is(0, 10.00f, 0.50f));
+        Assert.Equal(0f, standing.Room(0, 10.00f, 0.50f));
+    }
+
+    [Fact]
+    public void Room_equals_the_rise_at_which_the_cell_stops_standing()
+    {
+        // L = 12.00 over a bed at 10.00 with a 1.00 m channel: standing needs 1.00 + 0.05, so the room is 2.00 - 1.05 = 0.95 m.
+        var standing = new Standing(new[] { 12.00f }, null, MinDepth, Tolerance, SpringDepth);
+        float room = standing.Room(0, 10.00f, 1.00f);
+        Assert.Equal(0.95f, room, 4);
+        // Just below the cap the cell is still standing water; just above it, it is not: the cap is the standing threshold itself.
+        Assert.True(standing.Is(0, 10.00f + room * 0.99f, 1.00f));
+        Assert.False(standing.Is(0, 10.00f + room * 1.01f, 1.00f));
+    }
+
+    [Fact]
+    public void Room_is_zero_for_the_sea()
+    {
+        // The sea stands at its level whatever the bed: filling it in is the shore pass' work, not the deposits' (D5 v1).
+        var standing = new Standing(new[] { 5f }, new[] { true }, MinDepth, Tolerance, SpringDepth);
+        Assert.True(standing.Is(0, 0f, 1f));
+        Assert.Equal(0f, standing.Room(0, 0f, 1f));
+    }
+
+    [Fact]
+    public void Room_never_negative()
+    {
+        // No hollow at all, and a cell just under the standing threshold (the old gap): the max(0, ...) floors both at zero.
+        var standing = new Standing(new[] { 10.00f, 10.54f }, null, MinDepth, Tolerance, SpringDepth);
+        Assert.Equal(0f, standing.Room(0, 10.00f, 0.50f));
+        Assert.Equal(0f, standing.Room(1, 10.00f, 0.50f));
+    }
 }

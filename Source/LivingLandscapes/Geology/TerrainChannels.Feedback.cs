@@ -66,7 +66,7 @@ public static partial class TerrainChannels
             out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
         float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
         Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
-        room.Observe(alluvium, rises, stillNow, standing, height, depth, p.minDepth, p.standingTolerance);
+        room.Observe(alluvium, rises, stillNow, standing, height, depth);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {
@@ -83,7 +83,7 @@ public static partial class TerrainChannels
     /// Measurement only (HYDRO-UNIFICATION D5, #186 step W1): what the feedback passes' alluvium does to standing water, summed
     /// over the passes. It counts the standing cells the alluvium reaches, how many of them a pass actually raises (after
     /// <see cref="Hydraulics.GradeRises"/>), the total rise on them, and the largest <em>room</em> any of them has: the rise that
-    /// would make it stop standing, <c>max(0, L - bed - (max(depth, minDepth) + standingTolerance))</c> with L the filled (spill)
+    /// would make it stop standing, <see cref="Standing.Room"/> with L the filled (spill)
     /// surface. Nothing here moves the ground; it answers whether the sediment budget lays alluvium on lake cells at all, which is
     /// what the accommodation step (deposit accommodation) has to be built for. Dropped once accommodation itself lands.
     /// </summary>
@@ -112,7 +112,7 @@ public static partial class TerrainChannels
 
         /// <summary>One pass's alluvium and the rises it was graded to, before either touches the ground.</summary>
         /// <param name="stillNow">Standing water as the water stands this pass (the sea included), the same test the budget used.</param>
-        public void Observe(float[] alluvium, float[] rises, bool[] stillNow, Standing standing, float[] bed, float[] depth, float minDepth, float tolerance)
+        public void Observe(float[] alluvium, float[] rises, bool[] stillNow, Standing standing, float[] bed, float[] depth)
         {
             for (int i = 0; i < alluvium.Length; i++)
             {
@@ -132,7 +132,7 @@ public static partial class TerrainChannels
                     gotAlluvium[i] = true;
                     standingCells++;
                 }
-                float room = Mathf.Max(0f, standing.LevelAt(i) - bed[i] - (Mathf.Max(depth[i], minDepth) + tolerance));
+                float room = standing.Room(i, bed[i], depth[i]);
                 largestRoom = Mathf.Max(largestRoom, room);
                 if (rises[i] > 0f)
                 {
