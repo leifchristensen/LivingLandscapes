@@ -115,14 +115,19 @@ public class StandingTests
     /// <summary>The highest bed that is still standing water: the water surface less the channel depth and the standing tolerance.</summary>
     private const float StandingLimit = LakeLevel - (LakeDepth + Tolerance);
 
+    /// <summary>The rounding guard the production cap adds to the room (TerrainChannels.Feedback.cs CrossingEpsilon), so the last
+    /// rise carries the bed strictly across <see cref="StandingLimit"/> instead of freezing a float step below it.</summary>
+    private const float CrossingEpsilon = 0.001f;
+
     /// <summary>
     /// One feedback pass over the lake cell, the way Aggrade does it (TerrainChannels.Feedback.cs:72-87): while the cell stands its
-    /// rise is capped at its room, the bed goes up and the water surface does not. Returns the bed after the pass.
+    /// rise is capped at its room plus the crossing epsilon, the bed goes up and the water surface does not. Returns the bed after
+    /// the pass.
     /// </summary>
     private static float FillPass(DepositLedger ledger, Standing standing, float bed, out float rise)
     {
-        // RoomBelowWater: the room on standing land water, no cap (infinity) anywhere else.
-        float[] roomCap = standing.Is(0, bed, LakeDepth) ? new[] { standing.Room(0, bed, LakeDepth) } : null;
+        // RoomBelowWater: the room plus CrossingEpsilon on standing land water, no cap (infinity) anywhere else.
+        float[] roomCap = standing.Is(0, bed, LakeDepth) ? new[] { standing.Room(0, bed, LakeDepth) + CrossingEpsilon } : null;
         rise = ledger.Raise(new[] { Offered }, Share, roomCap, out _)[0];
         return bed + rise;
     }
@@ -140,8 +145,8 @@ public class StandingTests
             Assert.True(rise >= 0f, $"pass {pass}: a deposit lowered the bed");
             Assert.True(next >= bed, $"pass {pass}: the bed sank from {bed} to {next}");
             if (stoodBefore)
-                Assert.True(next <= StandingLimit + 1e-4f,
-                    $"pass {pass}: a standing bed rose to {next}, above the highest level that is still standing water ({StandingLimit})");
+                Assert.True(next <= StandingLimit + CrossingEpsilon + 1e-4f,
+                    $"pass {pass}: a standing bed rose to {next}, above the standing line ({StandingLimit}) plus the crossing epsilon");
             bed = next;
             total += rise;
         }
@@ -151,24 +156,43 @@ public class StandingTests
     }
 
     [Fact]
-    public void Capped_deposits_stop_a_fed_lake_at_its_standing_threshold()
+    public void Capped_deposits_fill_a_fed_lake_across_its_standing_line()
     {
-        // What the cap actually does, measured (D5 #186, round 12): the bed climbs to the highest level that is still standing
-        // water and stays there. Standing is a strict test (L - bed > depth + tolerance) and the room is exactly that boundary, so
-        // the last rise lands a float step below it: the cell keeps counting as standing water, its room is then ~0, and the final
-        // step to marsh and ground does not happen on its own. The lake shallows to (channel depth + tolerance) and stops there -
-        // 0.2 m on a plain cell, a metre where a river channel runs through the lake. Whether the cap should instead be allowed to
-        // carry the bed across the tolerance band is the architect's call (#186); this test pins today's measured behaviour.
+        // What the cap does with the crossing epsilon (D5 #186, architect 2026-11-09): the bed climbs pass after pass and the last
+        // rise carries it strictly across the standing-water line, so the cell stops being standing water and the normal land rule
+        // (the uncapped share, Deposits_on_ground_are_not_capped...) takes it on to marsh and ground. Without the epsilon the bed
+        // froze a float step below the line, still "standing" with zero room forever (measured in round 12).
         var standing = new Standing(new[] { LakeLevel }, null, MinDepth, Tolerance, SpringDepth);
         var ledger = new DepositLedger();
         float bed = 10.00f;
-        for (int pass = 0; pass < 8; pass++)
+        int pass = 0;
+        while (standing.Is(0, bed, LakeDepth) && pass < 8)
+        {
             bed = FillPass(ledger, standing, bed, out _);
+            pass++;
+        }
 
-        Assert.True(standing.Is(0, bed, LakeDepth), $"the cell stopped standing at bed {bed}; the fill crossed the threshold");
-        Assert.Equal(StandingLimit, bed, 4);
-        // The whole rise delivered is exactly the room the lake had at the start: 12.00 - 10.00 - (1.00 + 0.05) = 0.95 m, no more.
-        Assert.Equal(LakeLevel - 10.00f - (LakeDepth + Tolerance), ledger.AggradedVolume, 4);
+        Assert.False(standing.Is(0, bed, LakeDepth), $"the lake is still standing at bed {bed}; the fill never crossed the line");
+        Assert.True(bed > StandingLimit, $"the bed ended at {bed}, not above the standing line {StandingLimit}");
+        // The rise delivered while the cell stood is exactly the room the lake had at the start plus the crossing epsilon:
+        // 12.00 - 10.00 - (1.00 + 0.05) + 0.001 = 0.951 m, no more (the cap is a ceiling, not a pump).
+        Assert.Equal(LakeLevel - 10.00f - (LakeDepth + Tolerance) + CrossingEpsilon, ledger.AggradedVolume, 6);
+    }
+
+    [Fact]
+    public void Zero_room_and_no_deposit_leaves_the_bed_alone()
+    {
+        // The crossing epsilon is a ceiling adjustment, not a rise: a standing cell whose room is already zero and that receives
+        // no alluvium does not move, and nothing is booked.
+        var standing = new Standing(new[] { LakeLevel }, null, MinDepth, Tolerance, SpringDepth);
+        var ledger = new DepositLedger();
+        float bed = StandingLimit; // exactly on the line: room 0 (+ epsilon still standing by the strict test)
+        Assert.True(standing.Is(0, bed, LakeDepth));
+        float[] roomCap = { standing.Room(0, bed, LakeDepth) + CrossingEpsilon };
+        float rise = ledger.Raise(new[] { 0f }, Share, roomCap, out float volume)[0];
+        Assert.Equal(0f, rise);
+        Assert.Equal(0f, volume);
+        Assert.True(standing.Is(0, bed + rise, LakeDepth));
     }
 
     [Fact]

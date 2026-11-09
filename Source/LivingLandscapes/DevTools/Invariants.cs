@@ -324,8 +324,11 @@ public static class Invariants
         for (int k = 0; k < rivers.Channels.Count; k++)
             climbs += Hydraulics.WaterLevelClimbs(rivers.Channels[k].Main, rivers.ChannelOf, k, rivers.WaterLevel,
                 map.Size.x, map.Size.z, Tolerance);
+        // A fed lake now fills across the standing-water line (room + crossing epsilon), so "still standing at the end" is 0 for
+        // lakes that were fed enough and > 0 only where the sediment supply ran out before the lake filled (D5 #186).
         summary.AppendLine($"accommodation: {rivers.AccommodationRaisedCells} standing cells raised, {rivers.AccommodationRaisedVolume:0} m3, " +
-                           $"{rivers.AccommodationStillStanding} still standing at the end, {climbs} channel cells whose water level is higher than the level upstream");
+                           $"{rivers.AccommodationStillStanding} still standing at the end (0 where the deposits fed the lake enough, more only where the supply ran out), " +
+                           $"{climbs} channel cells whose water level is higher than the level upstream");
     }
 
     /// <summary>Cells from the map edge within which a river that enters and leaves counts as running along the edge.</summary>

@@ -91,15 +91,24 @@ public static partial class TerrainChannels
     }
 
     /// <summary>
+    /// Pushes the last rise of a filling lake strictly across the standing-water line so floating-point rounding cannot freeze a
+    /// cell on it (<see cref="Standing.Is"/> is a strict test and the room is exactly the boundary, so without this the bed stops
+    /// a float step short and stays "standing" with zero room forever). It is not a second threshold: 1 mm, one rounding guard,
+    /// after which the normal land rule takes the cell the rest of the way to marsh and ground (D5 #186, architect 2026-11-09).
+    /// </summary>
+    private const float CrossingEpsilon = 0.001f;
+
+    /// <summary>
     /// The accommodation cap of one pass (<see cref="TerrainChannelSettings.accommodation"/>, D5 #186): the room
-    /// (<see cref="Standing.Room"/>) every standing land-water cell has left below the water surface it stands in. Everywhere
+    /// (<see cref="Standing.Room"/>) every standing land-water cell has left below the water surface it stands in, plus
+    /// <see cref="CrossingEpsilon"/> so a fed lake finishes across the standing line instead of freezing on it. Everywhere
     /// else infinity: the sea (building land into it is the shore pass' work) and ordinary ground keep the uncapped rise.
     /// </summary>
     private static float[] RoomBelowWater(bool[] stillNow, Standing standing, float[] bed, float[] depth)
     {
         var room = new float[bed.Length];
         for (int i = 0; i < room.Length; i++)
-            room[i] = stillNow[i] && !standing.IsSea(i) ? standing.Room(i, bed[i], depth[i]) : float.PositiveInfinity;
+            room[i] = stillNow[i] && !standing.IsSea(i) ? standing.Room(i, bed[i], depth[i]) + CrossingEpsilon : float.PositiveInfinity;
         return room;
     }
 
