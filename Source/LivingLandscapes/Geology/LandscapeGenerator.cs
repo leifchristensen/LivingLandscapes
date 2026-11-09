@@ -178,6 +178,17 @@ public class ErosionKeeps
     /// between a graded lowland river's load and the model's typical upland supply (tuned with the C6 runs).
     /// </summary>
     public float inflowGrain = 0.42f;
+
+    /// <summary>
+    /// Erodibility K of ground buried completely by river deposits, used only in the exported erodibility when
+    /// <see cref="looseGround"/> is on (G4); the model's own K is untouched. 8 sits between loose sand's critical
+    /// shear stress (~1 Pa) and soil's (~10 Pa), well below rock's 100-1000 Pa (TerrainChannels.Impact.cs:27-31):
+    /// deposits erode an order of magnitude easier than the bed under them.
+    /// </summary>
+    public float kLoose = 8f;
+
+    /// <summary>Thickness of river deposits (metres) at which the ground counts as fully loose (G4).</summary>
+    public float looseDepth = 1f;
 }
 
 /// <summary>
@@ -395,6 +406,9 @@ public static class LandscapeGenerator
         }
         // Model height units to metres, as the landform below: (value - min) / (max - min) * relief.
         float metresPerModelHeight = relief / Mathf.Max(max - min, 1e-6f);
+        // Loose ground (G4, issue #186): when on, the exported erodibility softens toward kLoose where the rivers left
+        // deposits; the model itself keeps cutting with the rock K.
+        ErosionKeeps keepsSettings = p.erosionKeeps;
         var resistant = new float[sizeX * sizeZ];
         // The sea is the model's base level (P1), one height for the whole coast. Beside it the regional slope rises from the
         // sea (CoastMath.RegionalRise) instead of tilting along a plane, which would put part of the shore above the sea and part below.
@@ -415,8 +429,13 @@ public static class LandscapeGenerator
                 rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
                 // Erodibility K the model used: the landform's factor times the exposed bed's (P2). Deposition: what the rivers laid down and kept.
                 float modelX = originX + x / mapCellsPerModelCell, modelZ = originZ + z / mapCellsPerModelCell;
-                erosion.Erodibility[z * sizeX + x] = Bilinear(erodibility, gx, gz, modelX, modelZ) * strata.Erodibility(site, bedHeight);
+                float rockK = Bilinear(erodibility, gx, gz, modelX, modelZ) * strata.Erodibility(site, bedHeight);
                 erosion.Deposition[z * sizeX + x] = Bilinear(deposited, gx, gz, modelX, modelZ) * metresPerModelHeight;
+                // Loose ground (G4): with the setting on, the exported K blends toward kLoose by the share of looseDepth
+                // the deposit fills; off, it is exactly the rock K the model cut with (P2), as always.
+                erosion.Erodibility[z * sizeX + x] = keepsSettings.looseGround
+                    ? LooseGround.Erodibility(rockK, erosion.Deposition[z * sizeX + x], keepsSettings.kLoose, keepsSettings.looseDepth)
+                    : rockK;
                 // The grain of that deposit (0..1, coarse to fine); dimensionless, so no metre factor (issue #186).
                 if (erosion.DepositionGrain != null)
                     erosion.DepositionGrain[z * sizeX + x] = Bilinear(keeps.DepositGrain, gx, gz, modelX, modelZ);

@@ -35,6 +35,7 @@
     <Compile Include="..\LivingLandscapes\Geology\Sediment.Grains.cs" Link="Linked\Sediment.Grains.cs" />
     <Compile Include="..\LivingLandscapes\Geology\DepositLedger.cs" Link="Linked\DepositLedger.cs" />
     <Compile Include="..\LivingLandscapes\Geology\ErosionDeposit.cs" Link="Linked\ErosionDeposit.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\LooseGround.cs" Link="Linked\LooseGround.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WatershedMath.cs" Link="Linked\WatershedMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WorldAltitudeMath.cs" Link="Linked\WorldAltitudeMath.cs" />
     <Compile Include="..\LivingLandscapes\Flora\ShadeRadiusRules.cs" Link="Linked\ShadeRadiusRules.cs" />
