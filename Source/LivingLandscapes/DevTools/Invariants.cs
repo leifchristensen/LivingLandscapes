@@ -187,6 +187,7 @@ public static class Invariants
         var inflow = new bool[rivers.ChannelOf.Length];
         int measured = 0, coarsening = 0, worstChannel = -1, nearMouth = 0, flaggedReceiving = 0, worstPeakAt = -1, worstLen = 0;
         float worst = 0f;
+        var detail = new StringBuilder();
         for (int k = 0; k < rivers.Channels.Count; k++)
         {
             RiverPlan plan = rivers.Channels[k];
@@ -247,6 +248,14 @@ public static class Invariants
                         flaggedReceiving++;
                         break;
                     }
+                if (coarsening <= 4) // the line stays readable: the first four flagged channels are named with what the climb looks like
+                {
+                    int junction = NearestInflow(cells, inflow, worstAt);
+                    detail.Append($" ch{k}(w{plan.NominalWidth:F0}, {cells.Count} cells, climb {rise:F2}, peaks " +
+                                  $"{Mathf.Max(cells.Count - 1 - worstAt, 0)} above mouth, " +
+                                  (junction >= 0 ? $"nearest tributary {Mathf.Abs(worstAt - junction)} cells {(junction <= worstAt ? "above" : "below")} the peak" : "no tributary on this channel") +
+                                  $", grain {GrainAround(rivers, cells, worstAt)};");
+                }
             }
             if (rise > worst)
             {
@@ -259,8 +268,44 @@ public static class Invariants
         summary.AppendLine($"invariant 9 (grain does not coarsen downstream): {(coarsening == 0 ? "ok" : "FAIL")} | {measured} of {rivers.Channels.Count} channels with deposits measured, " +
                            $"running mean grain climbs at most {worst:F2} over the {tolerance:F2} allowed" +
                            $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}" +
-                           $"{(coarsening == 0 ? "" : $"; diagnosis: worst climb peaks {Mathf.Max(worstLen - 1 - worstPeakAt, 0)} walk cells above channel {worstChannel}'s mouth of {worstLen} cells, " +
-                           $"{nearMouth} of {coarsening} flagged channels peak within 3 cells of their mouth, {flaggedReceiving} receive a tributary")}");
+                            $"{(coarsening == 0 ? "" : $"; diagnosis: worst climb peaks {Mathf.Max(worstLen - 1 - worstPeakAt, 0)} walk cells above channel {worstChannel}'s mouth of {worstLen} cells, " +
+                            $"{nearMouth} of {coarsening} flagged channels peak within 3 cells of their mouth, {flaggedReceiving} receive a tributary" +
+                            (detail.Length > 0 ? $"; flagged:{detail}" : ""))}");
+    }
+
+    /// <summary>Index in the channel walk of the junction cell nearest walk cell <paramref name="at"/>, or -1 when the channel
+    /// receives no tributary (#186 diagnosis: how far a flagged climb sits from the junction the walk excuses).</summary>
+    private static int NearestInflow(List<int> cells, bool[] inflow, int at)
+    {
+        int nearest = -1, best = int.MaxValue;
+        for (int i = 0; i < cells.Count; i++)
+        {
+            if (inflow == null || !inflow[cells[i]])
+                continue;
+            int d = Mathf.Abs(i - at);
+            if (d < best)
+            {
+                best = d;
+                nearest = i;
+            }
+        }
+        return nearest;
+    }
+
+    /// <summary>The deposit grain index of the nine walk cells centred on walk cell <paramref name="at"/> ("-" where the cell holds
+    /// no deposit): whether a flagged climb is one coarse outlier or a stretch of coarse bed (#186 diagnosis).</summary>
+    private static string GrainAround(RiverSystem rivers, List<int> cells, int at)
+    {
+        int lo = Mathf.Max(at - 4, 0), hi = Mathf.Min(at + 4, cells.Count - 1);
+        var profile = new StringBuilder();
+        for (int i = lo; i <= hi; i++)
+        {
+            if (i > lo)
+                profile.Append(' ');
+            int c = cells[i];
+            profile.Append(rivers.Alluvium[c] > 0f ? rivers.GrainSize[c].ToString("F2") : "-");
+        }
+        return profile.ToString();
     }
 
     /// <summary>
