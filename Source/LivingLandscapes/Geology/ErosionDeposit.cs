@@ -153,4 +153,26 @@ namespace LivingLandscapes.Geology
             return mass > 0f ? (grainA * massA + grainB * massB) / mass : 0f;
         }
     }
+
+    /// <summary>
+    /// What a deposition pass with the keeps on (issue #186, C4) accumulated over the erosion model's whole run: the
+    /// mass-weighted mean grain of the deposit standing at each model cell (G1), the load each base-level cell handed
+    /// to the sea and its grain (G2), and the sediment budget of the run (kept + delivered + lake fill + lost at sinks
+    /// = eroded + inflow yield; the log line's closure). Null fields mean that keep was off.
+    /// </summary>
+    public class ErosionKeepsOutput
+    {
+        /// <summary>Grain (0..1, 1 coarsest) of the deposit standing at each model cell; 0 where none stands.</summary>
+        public float[] DepositGrain;
+
+        /// <summary>Metres of load each base-level model cell handed to the sea, summed over the run.</summary>
+        public float[] SeaSupply;
+
+        /// <summary>Grain (0..1) of the load handed to the sea at each base-level model cell; 0 where none was.</summary>
+        public float[] SeaSupplyGrain;
+
+        // The sediment budget of the run, in model height units summed over the iterations (the four-way split of
+        // everything eroded or brought in; ApplyCore's per-pass conservation, accumulated).
+        public float Kept, Delivered, SinkFill, LostAtSink, Eroded, InflowYield;
+    }
 }
