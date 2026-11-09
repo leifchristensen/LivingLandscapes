@@ -115,11 +115,35 @@ public class SedimentSettings
     public float ellMin = 1f;
     public float ellMax = 400f;
 
+    /// <summary>
+    /// Floor on any speed (m/s) the grain model reads: the water speed in the settling length (GrainLoads.Length), and a class's
+    /// speed of first movement where it sets the width of the competence logistic (GrainLoads.Competence) and sits in a
+    /// denominator. Standing water (u = 0) would give a settling length of 0, which <see cref="GrainLoads.Settled"/> divides by:
+    /// the load would settle in no distance at all, or the number would come out NaN. At this floor the length is the shortest the
+    /// model allows (<see cref="ellMin"/> cells): still water still drops its load, just over a cell rather than instantly.
+    /// </summary>
+    public float uMin = 0.05f;
+
+    /// <summary>
+    /// Still-water floor on the flow depth (m) in the settling length (GrainLoads.Length): the length is the
+    /// distance travelled while the grain falls through the depth, so a dry or film-thin cell (d = 0) would settle everything in
+    /// one step; at this depth the length stays finite and is clamped by <see cref="ellMin"/> anyway.
+    /// </summary>
+    public float dMin = 0.05f;
+
     /// <summary>How sharply a class switches on around its critical speed (logistic steepness); a smooth weight, not a step.</summary>
     public float competenceSharpness = 6f;
 
     /// <summary>The farthest a jet carries a class (cells); what would settle beyond is washload.</summary>
     public float jetMaxReach = 60f;
+
+    /// <summary>
+    /// Invariant 9 (DevTools, HYDRO-UNIFICATION S3 #186): how much the running mean of the deposit grain index along a channel
+    /// may rise while walking downstream, in grain-index units (0..1, see <see cref="grains"/>). A river drops its gravel first
+    /// and its fines last, so its deposits fine toward the mouth; a running mean that climbs more than this means gravel turning
+    /// up downstream of sand. The check reads this default from the settings (the generator's copy is not kept on the map).
+    /// </summary>
+    public float coarsenTolerance = 0.15f;
 }
 
 /// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>

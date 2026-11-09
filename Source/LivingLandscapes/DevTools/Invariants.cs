@@ -40,6 +40,7 @@ public static class Invariants
         EntryRiversJoin(map, summary);
         MovingWaterFlows(map, summary);
         StandingAgrees(map, summary);
+        GrainFinesDownstream(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
         JunctionsHold(map, summary);
         TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
@@ -153,6 +154,69 @@ public static class Invariants
         }
         summary.AppendLine($"invariant 8 (one standing-water test): {(flowing == 0 ? "ok" : "FAIL")} | {handed} cells left to the lake model, " +
                            $"{flowing} of them counted as flowing water{(first >= 0 ? $" (first at {first % map.Size.x},{first / map.Size.x})" : "")}");
+    }
+
+    /// <summary>
+    /// Invariant 9 (grain does not coarsen downstream, HYDRO-UNIFICATION S3 #186): walking each channel from its source to its mouth,
+    /// the running mean of the deposit grain index must not climb above the lowest mean already passed by more than
+    /// <see cref="SedimentSettings.coarsenTolerance"/>. A river drops its gravel first and its sand and fines last, so its deposits
+    /// fine toward the mouth; gravel turning up downstream of sand breaks the settling order. The grain index is the mean grain of the
+    /// deposit laid on each cell, which the sediment pass keeps on the river system (<see cref="RiverSystem.GrainSize"/>,
+    /// <see cref="Geology.Sediment.Layers"/>); the walk is the channel centre line, as in invariant 1. Evaluated only with the grain
+    /// classes on (the -ll-grains switch, <see cref="Geology.TerrainChannels"/>); otherwise printed as not enforced, as invariant 10
+    /// does for the junction width.
+    /// </summary>
+    private static void GrainFinesDownstream(Map map, StringBuilder summary)
+    {
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null || rivers.Channels.Count == 0 || rivers.GrainSize == null || rivers.Alluvium == null)
+            return;
+        // The grain classes are switched on the command line only (-ll-grains=classes|settling|full, TerrainChannels.cs); the
+        // generator's settings are not kept on the map, so the switch is read the same way the generator reads it.
+        if (!GenCommandLine.TryGetCommandLineArg("ll-grains", out string grainsArg) || grainsArg == "none")
+        {
+            summary.AppendLine("invariant 9 (grain does not coarsen downstream): not enforced: grain classes off");
+            return;
+        }
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        int measured = 0, coarsening = 0, worstChannel = -1;
+        float worst = 0f;
+        for (int k = 0; k < rivers.Channels.Count; k++)
+        {
+            RiverPlan plan = rivers.Channels[k];
+            var cells = new List<int>();
+            int previous = -1;
+            for (int i = 0; i < plan.Main.Count - 1; i++)
+            {
+                Vector2 a = plan.Main[i], b = plan.Main[i + 1];
+                float segment = (b - a).magnitude;
+                for (float t = 0f; t < segment; t += 1f)
+                {
+                    Vector2 v = Vector2.Lerp(a, b, t / Mathf.Max(segment, 1e-3f));
+                    if (!Inside(map, v))
+                        continue;
+                    int index = RiverGrid.Index(v, map.Size.x, map.Size.z);
+                    if (rivers.ChannelOf[index] != k || index == previous)
+                        continue;
+                    previous = index;
+                    cells.Add(index);
+                }
+            }
+            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium);
+            if (float.IsNaN(rise))
+                continue;
+            measured++;
+            if (rise > tolerance)
+                coarsening++;
+            if (rise > worst)
+            {
+                worst = rise;
+                worstChannel = k;
+            }
+        }
+        summary.AppendLine($"invariant 9 (grain does not coarsen downstream): {(coarsening == 0 ? "ok" : "FAIL")} | {measured} of {rivers.Channels.Count} channels with deposits measured, " +
+                           $"running mean grain climbs at most {worst:F2} over the {tolerance:F2} allowed" +
+                           $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}");
     }
 
     /// <summary>
