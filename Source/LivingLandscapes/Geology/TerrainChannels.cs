@@ -114,6 +114,9 @@ public static partial class TerrainChannels
             p.sediment.settlingLength = grainsArg == "settling" || grainsArg == "full";
             p.sediment.jetClasses = grainsArg == "full";
         }
+        // Dev: -ll-boundary=on|off switches the boundary-state fixes of HYDRO-S8 (phase B); nothing reads p.boundaryState yet.
+        if (GenCommandLine.TryGetCommandLineArg("ll-boundary", out string boundaryArg))
+            p.boundaryState = boundaryArg == "on";
         partSlope = partJets = partMomentum = partJoin = partJunction = true;
         partSpread = false;
         joinScale = GenCommandLine.TryGetCommandLineArg("ll-join", out string joinArg) && float.TryParse(joinArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float js) ? js : 1f;
