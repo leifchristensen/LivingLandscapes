@@ -158,26 +158,32 @@ public sealed class GrainLoads
     /// <paramref name="deposit"/> only marks the cells that deposited anything) must not climb above the lowest running mean
     /// already passed: a river drops its gravel first and its fines last. Cells without deposit are skipped. Where the channel
     /// receives load from another channel (<paramref name="inflow"/>, optional, true at the junction cell) the running mean
-    /// restarts at that cell: a tributary arriving with gravel is a new source, and the coarser bed there is its load, not the
-    /// river coarsening towards its own mouth (#186). Fining is still required within every reach between inflows and from each
-    /// junction to the mouth. Returns the worst climb of the running mean over all reaches (0 for a river that only fines), or
-    /// NaN when fewer than two cells deposited anything and there is nothing to measure. Compared against
-    /// <see cref="SedimentSettings.coarsenTolerance"/> by the DevTools invariant 9.
+    /// restarts there: a tributary arriving with gravel is a new source, and the coarser bed there is its load, not the river
+    /// coarsening towards its own mouth (#186). A confluence scours its own hole, so the junction cell itself may hold no
+    /// deposit; the restart then waits for the next cell that deposits anything, wherever the mixed load first lands (#186).
+    /// Fining is still required within every reach between inflows and from each junction to the mouth. Returns the worst climb
+    /// of the running mean over all reaches (0 for a river that only fines), or NaN when fewer than two cells deposited
+    /// anything and there is nothing to measure. Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the
+    /// DevTools invariant 9.
     /// </summary>
     public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow = null)
     {
         float sum = 0f, lowest = float.MaxValue, worst = 0f;
         int seen = 0, reach = 0;
+        bool pendingReset = false;
         foreach (int c in cellsDownstream)
         {
+            if (inflow != null && inflow[c] && reach > 0)
+                pendingReset = true; // may fire at this cell or, if it scours, at the next one that deposits
             if (deposit[c] <= 0f)
                 continue;
-            if (inflow != null && inflow[c] && reach > 0)
+            if (pendingReset)
             {
-                // A new source: the reach below the junction is measured on its own, from the mixed load at this cell (#186).
+                // A new source: the reach below the junction is measured on its own, from the mixed load where it first lands (#186).
                 sum = 0f;
                 reach = 0;
                 lowest = float.MaxValue;
+                pendingReset = false;
             }
             sum += grain[c];
             seen++;

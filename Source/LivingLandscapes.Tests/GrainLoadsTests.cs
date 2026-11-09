@@ -832,4 +832,47 @@ public class GrainLoadsTests
         Assert.True(rise <= tolerance,
             $"a junction followed by a fining reach must pass: measured {rise:F3} over the tolerance {tolerance:F2}");
     }
+
+    /// <summary>
+    /// C2 follow-up (#186): a confluence scours its own hole, so the junction cell can hold no deposit - the reset must then
+    /// wait for the next cell that deposits anything. Upstream fines (0.4 -> 0.2), x=3 is the scoured junction (inflow, no
+    /// deposit), x=4..7 hold the tributary's coarse bar (0.9). Measured straight across the junction the bar climbs the running
+    /// mean 0.34 over the tolerance 0.15 - this is what failed f1/f3/f8 in the battery; restarting where the mixed load first
+    /// lands, the bar is the new reach's own bed and the river passes (climb 0). Genuine coarsening below a scoured junction
+    /// (0.3 -> 0.9) still fails, so the waiting reset does not hide real coarsening.
+    /// </summary>
+    [Fact]
+    public void InvariantNineResetsBelowAScouredJunctionCell()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        var cells = new List<int>();
+        for (int x = 0; x < 8; x++)
+            cells.Add(Row * SizeX + x);
+        var deposit = new float[SizeX * SizeZ];
+        var grain = new float[SizeX * SizeZ];
+        foreach (int c in cells)
+            deposit[c] = 1f;
+        int junction = cells[3];
+        deposit[junction] = 0f; // the confluence scours: the junction cell deposits nothing
+        var inflow = new bool[SizeX * SizeZ];
+        inflow[junction] = true;
+
+        float[] bar = { 0.4f, 0.3f, 0.2f, 0f, 0.9f, 0.9f, 0.9f, 0.9f };
+        for (int x = 0; x < 8; x++)
+            grain[cells[x]] = bar[x];
+        float blind = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        Assert.True(blind > tolerance,
+            $"the bar across a scoured junction must be a rise worth excusing, or the fixture proves nothing: measured {blind:F3}");
+        float joined = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(joined <= tolerance,
+            $"the reset must wait for the first deposit below the scoured junction: measured {joined:F3} over the tolerance " +
+            $"{tolerance:F2}");
+
+        float[] coarser = { 0.4f, 0.3f, 0.2f, 0f, 0.3f, 0.5f, 0.7f, 0.9f };
+        for (int x = 0; x < 8; x++)
+            grain[cells[x]] = coarser[x];
+        float rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise > tolerance,
+            $"a reach coarsening below a scoured junction must still fail: measured {rise:F3} over the tolerance {tolerance:F2}");
+    }
 }
