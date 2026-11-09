@@ -10,7 +10,7 @@ namespace LivingLandscapes.Tests;
 /// Steps S3a-S3c of the hydrology unification (#186): sediment carried as separate loads per grain class (gravel, sand, fines).
 /// Guards: one class is the old lumped load exactly; every class conserves mass (supplied = deposited + left at the end); the capacity
 /// is shared among the classes the water can move and never exceeded; coarse settles before fine; joins add and splits share the
-/// loads; the jet's washload is booked, not lost.
+/// loads; the jet's washload is booked, not lost; the mouth jet thins monotonically along its axis and books every class to its supply.
 /// </summary>
 public class GrainLoadsTests
 {
@@ -271,6 +271,117 @@ public class GrainLoadsTests
         foreach (float g in grainSize)
             Assert.InRange(g, 0f, 0.8001f);
         Assert.True(Sum(alluvium) > 0f);
+    }
+
+    /// <summary>
+    /// The jet test the plan asks for (HYDRO-UNIFICATION section 10 point 14, #186): monotone decay along the axis plus mass
+    /// closure, not equality with the old kernel. The fixture river ends inland (mouth at x = 19) so the jet's axis lies on the
+    /// map: row 5, x = 19..23, straight downstream (the momentum at the mouth of a straight channel is exactly +x). The mouth sits
+    /// where the profile 6 e^(-x/5) has gone gentle (slope under ~0.055 = the coarseSlope 0.15 threshold times the mix factor):
+    /// the reach above it erodes a supply fine enough (grain index under the sand class's 0.42, Sediment.Grains.cs:237) to carry
+    /// fines at all. Two checks:
+    /// (1) walking away from the mouth, each class's deposit per cell never grows; (2) fed only one class's load, the jet lays
+    /// that class on the map or lets it leave past its reach as washload, and the two add back to the supply Deposits booked.
+    /// Only the fines' settling length (jetSettleWidths x w x reference/fall x jetReachLengths = 120 cells at w = 2) exceeds
+    /// jetMaxReach (60), so only they leave; gravel (7.5) and sand (30) are laid in full.
+    /// </summary>
+    [Fact]
+    public void TheJetDecaysAlongItsAxisAndBooksEveryClassToItsSupply()
+    {
+        const int Mouth = 19;
+        int n = SizeX * SizeZ;
+        var cells = new List<int>();
+        var receiver = new int[n];
+        var discharge = new float[n];
+        var filled = new float[n];
+        var inflow = new float[n];
+        var width = new float[n];
+        var speed = new float[n];
+        var depth = new float[n];
+        var baseLevel = new bool[n];
+        for (int i = 0; i < n; i++)
+        {
+            receiver[i] = -1;
+            width[i] = 2f;
+            speed[i] = 1.2f;
+            depth[i] = 1f;
+            filled[i] = 6f * (float)Math.Exp(-(i % SizeX) / 5.0); // falls downstream, so the jet's ground lies below its level
+        }
+        for (int x = 0; x <= Mouth; x++)
+        {
+            int c = Row * SizeX + x;
+            cells.Add(c);
+            discharge[c] = 10f;
+            receiver[c] = x < Mouth ? c + 1 : -1;
+        }
+        inflow[Row * SizeX] = 10f;
+        baseLevel[Row * SizeX + Mouth] = true;
+
+        var p = Classes(settling: true, jets: true);
+        p.typicalThickness = 1f;
+        p.maxThickness = 1e6f; // no clipping: the closure must be the jet's, not the ledger's cap
+        p.minThickness = 0f;
+        GrainLoads grains = new GrainLoads(p, speed, depth);
+        Sediment.Deposits(cells, receiver, discharge, 1f, filled, inflow, null, baseLevel, SizeX, p,
+            out float[] deposit, out float[] grain, out _, out _, out _, out _, grains: grains);
+        Assert.True(deposit[Row * SizeX + Mouth] > 0f, "the base-level mouth deposits the load the jet carries");
+
+        // All three classes at once: the ledger closes on itself and the axis only thins away from the mouth.
+        var combinedLedger = new DepositLedger();
+        LayTotals combined = Sediment.Spread(cells, receiver, null, deposit, grain, width, filled, filled, SizeX, SizeZ, p,
+            combinedLedger, out float[] alluviumAll, out _, discharge, baseLevel, grains: grains);
+        Assert.Equal(0f, combined.Unplaced, 2);
+        Assert.Equal(combined.Offered, combined.Laid + combined.Clipped + combined.Unplaced + combined.Washload, 2);
+        AssertThinsAlongAxis(alluviumAll, Mouth, "all classes together");
+
+        // One class at a time: the same jet fed only that class's load. Then the volume laid on the map plus the washload that
+        // leaves past the reach is exactly the supply Deposits booked for the class (within 1e-4).
+        for (int k = 0; k < grains.Count; k++)
+        {
+            var only = new GrainLoads(p, speed, depth) { Deposit = new float[grains.Count][] };
+            for (int j = 0; j < grains.Count; j++)
+                only.Deposit[j] = j == k ? grains.Deposit[j] : new float[n];
+            var classDeposit = (float[])grains.Deposit[k].Clone();
+            var classGrain = new float[n];
+            for (int i = 0; i < n; i++)
+                classGrain[i] = p.grains[k].index;
+            var ledger = new DepositLedger();
+            LayTotals t = Sediment.Spread(cells, receiver, null, classDeposit, classGrain, width, filled, filled, SizeX, SizeZ, p,
+                ledger, out float[] alluvium, out _, discharge, baseLevel, grains: only);
+            string cls = p.grains[k].name;
+            Assert.Equal(0f, t.Unplaced, 4);
+            Assert.Equal(0f, t.Clipped, 4);
+            // The jet was offered exactly the class's supply, and laid it on the map or let it leave: map + washload = supply,
+            // within 1e-4 (the plan's closure tolerance).
+            AssertClose(grains.Supplied[k], t.Offered / ledger.Kappa, $"{cls}: offered vs supplied");
+            AssertClose(grains.Supplied[k], (t.Laid + t.Washload) / ledger.Kappa, $"{cls}: map + washload vs supplied");
+            AssertClose(only.Washload, t.Washload / ledger.Kappa, $"{cls}: grains washload vs ledger washload");
+            float fullReach = p.jetSettleWidths * 2f * grains.ReferenceFall / p.grains[k].fallSpeed * p.jetReachLengths;
+            Assert.True((fullReach > p.jetMaxReach) == (t.Washload > 0f),
+                $"{cls}: reach {fullReach} vs jetMaxReach {p.jetMaxReach}, washload {t.Washload}");
+            AssertThinsAlongAxis(alluvium, Mouth, cls);
+            Assert.True(alluvium[Row * SizeX + Mouth + 1] > 0f, $"{cls} lays along the axis past the mouth");
+        }
+    }
+
+    /// <summary>Two budget-unit volumes agree within 1e-4 (absolute near zero, relative above): the plan's mass-closure tolerance.</summary>
+    private static void AssertClose(float expected, float actual, string what)
+    {
+        Assert.True(Math.Abs(expected - actual) <= 1e-4f * Math.Max(1f, Math.Abs(expected)),
+            $"{what}: expected {expected:E4}, got {actual:E4}");
+    }
+
+    /// <summary>The jet's deposit per cell along the axis (the mouth's row, from the mouth to the map edge) never grows downstream.</summary>
+    private static void AssertThinsAlongAxis(float[] alluvium, int mouth, string what)
+    {
+        for (int x = mouth; x < SizeX - 1; x++)
+        {
+            float a = alluvium[Row * SizeX + x], b = alluvium[Row * SizeX + x + 1];
+            Assert.True(b - a <= 1e-4f * Math.Max(1f, a),
+                $"{what}: the jet's deposit grows from x = {x} ({a:E4}) to x = {x + 1} ({b:E4}) away from the mouth");
+        }
+        Assert.True(alluvium[Row * SizeX + mouth + 4] < alluvium[Row * SizeX + mouth],
+            $"{what}: the jet's deposit must fall along its axis");
     }
 
     [Fact]
