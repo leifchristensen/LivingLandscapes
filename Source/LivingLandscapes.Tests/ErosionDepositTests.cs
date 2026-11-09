@@ -55,6 +55,60 @@ public class ErosionDepositTests
         Assert.Equal(0.06375f, load[3], 6);
         Assert.Equal(0.005f, load[4], 6);
     }
+
+    [Fact]
+    public void LedgerSplitsTheLoadAndConservesIt()
+    {
+        // Apply and ApplyWithLedger over fresh copies of the same fixture.
+        (float[] hA, float[] eA, float[] lA, float[] iA, int[] rA, float[] aA, int[] sA,
+            bool[] oA, bool[] skA, float[] bA, float[] dA) = Fixture();
+        ErosionDeposit.Apply(hA, eA, lA, iA, rA, aA, sA, sA.Length, oA, skA, bA, dA, 1.5f);
+
+        (float[] hL, float[] eL, float[] lL, float[] iL, int[] rL, float[] aL, int[] sL,
+            bool[] oL, bool[] skL, float[] bL, float[] dL) = Fixture();
+        float[] delivered = new float[5];
+        ErosionDeposit.ApplyWithLedger(hL, eL, lL, iL, rL, aL, sL, sL.Length, oL, skL, bL, dL, 1.5f,
+            delivered, out float sinkFill, out float lostAtSink);
+
+        // Same terrain, same deposits, cell for cell.
+        Assert.Equal(hA, hL);
+        Assert.Equal(dA, dL);
+
+        // The ledger on this fixture: the outlet (cell 0) delivers the load the old-arithmetic test pins (0.046125);
+        // the lake (cell 4) gains 0.002 and loses the 0.003 of its load it has no room for; no other cell delivers.
+        Assert.Equal(0.046125f, delivered[0], 6);
+        Assert.Equal(0f, delivered[1], 6);
+        Assert.Equal(0f, delivered[2], 6);
+        Assert.Equal(0f, delivered[3], 6);
+        Assert.Equal(0f, delivered[4], 6);
+        Assert.Equal(0.002f, sinkFill, 6);
+        Assert.Equal(0.003f, lostAtSink, 6);
+
+        // Conservation, with the sums read off the arrays and yield as the code computes it (mean eroded over the
+        // non-outlet cells): everything the model eroded or brought in from beyond the region ends up deposited
+        // (channel keeps + lake fill), delivered to the sea, or lost at a sink.
+        float sumEroded = 0f, sumInflow = 0f, yieldSum = 0f;
+        int land = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            sumEroded += eL[i];
+            sumInflow += iL[i];
+            if (!oL[i]) { yieldSum += eL[i]; land++; }
+        }
+        float total = sumEroded + yieldSum / land * sumInflow; // 0.105 + 0.02375 x 1 = 0.12875
+        Assert.Equal(0.12875f, total, 6);
+
+        float sumDeposited = 0f, sumDelivered = 0f, sumChannel = 0f;
+        for (int i = 0; i < 5; i++)
+        {
+            sumDeposited += dL[i];
+            sumDelivered += delivered[i];
+            if (rL[i] >= 0) sumChannel += dL[i]; // the lake fill sits in deposited too; channel keeps are the rest
+        }
+        Assert.Equal(total, sumDeposited + sumDelivered + lostAtSink, 4);
+        // The same split four ways: channel deposits, sea delivery, lake fill, loss at the sink.
+        Assert.Equal(total, sumChannel + sumDelivered + sinkFill + lostAtSink, 4);
+    }
 }
 
 /// <summary>
