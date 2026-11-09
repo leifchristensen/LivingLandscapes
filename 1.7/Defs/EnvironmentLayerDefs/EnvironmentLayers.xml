@@ -459,7 +459,7 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Wetness</defName>
     <label>wetness</label>
-    <description>0 (dry) to 1 (wet): where water collects and the water table is near the surface, from drainage area, slope and height above the nearest drainage line; sharper on dry tiles. Drives soil fertility and wet ground.</description>
+    <description>0 (dry) to 1 (wet): where the terrain alone lets water gather and the water table nears the surface, from drainage area, slope and height above the nearest drainage line; sharper on dry tiles. Internal input to the water field (#132): the topographic term of LL_Moisture, and what soil fertility, wet ground and settlement siting read while terrainReadsMoisture is off.</description>
     <workerClass>LivingLandscapes.Layers.WetnessWorker</workerClass>
     <precision>Byte</precision>
     <dependsOn>
@@ -570,7 +570,7 @@
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_Moisture</defName>
     <label>moisture</label>
-    <description>0 (dry) to 1 (saturated): the water rain keeps in freely drained ground (rainfall over evaporation), raised where water gathers from upslope and near open water. Plants read it.</description>
+    <description>0 (dry) to 1 (saturated): the water in the ground, from three sources - the rain it keeps in freely drained ground (rainfall over evaporation), the terrain that gathers water from upslope, and nearness to open water. The one water layer plants read; the ground reads it too when terrainReadsMoisture is on (#132).</description>
     <workerClass>LivingLandscapes.Layers.MoistureWorker</workerClass>
     <dependsOn>
       <li>LL_WaterDistance</li>
