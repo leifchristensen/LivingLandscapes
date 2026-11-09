@@ -267,6 +267,7 @@ public static partial class TerrainChannels
         // The world flow is what leaves the tile, after the losses on the way: the scale is settled over a few rounds,
         // since losses depend on the channels' width.
         float scale = 1f;
+        float largestOwn = 1f;
         for (int round = 0; round < 4; round++)
         {
             Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p,
@@ -275,7 +276,14 @@ public static partial class TerrainChannels
             foreach (float q in carried)
                 largest = Mathf.Max(largest, q);
             scale = Mathf.Min(1f, target / largest);
+            largestOwn = largest;
         }
+        // What the scale is made of, so a map whose own water is scaled down is readable in the log (HYDRO-S8 C2): the cap
+        // (target) against what the map's own rain gathers (largestOwn), both in the discharge units of width = 0.04*sqrt(Q).
+        Log.Message($"[LivingLandscapes] Own discharge (#216): " +
+                    (creek != null && !float.IsNaN(worldFlow) ? $"world flow {worldFlow:F0}, a creek's {creek.degradeThreshold:F0}, " : "") +
+                    $"cap {target:F0} (at most {p.maxWidthWithoutWorldRiver:F1} cells wide), the map's own largest channel " +
+                    $"{largestOwn:F0} ({p.widthPerSqrtDischarge * Mathf.Sqrt(largestOwn):F1} cells) -> scale {scale:0.###}.");
         return scale;
     }
 
