@@ -105,4 +105,84 @@ public class StandingTests
         Assert.Equal(0f, standing.Room(0, 10.00f, 0.50f));
         Assert.Equal(0f, standing.Room(1, 10.00f, 0.50f));
     }
+
+    // What a player would see (D5, #186): a lake a river keeps feeding shallows pass after pass. Below is the measured behaviour on
+    // the two pure pieces the feedback pass uses (Standing.Room and the ledger's room cap), with the water surface held fixed as it
+    // is in a closed depression - the spill over the sill does not depend on how high its bed has built up.
+
+    private const float LakeLevel = 12.00f, LakeDepth = 1.00f, Share = 0.5f, Offered = 1.00f;
+
+    /// <summary>The highest bed that is still standing water: the water surface less the channel depth and the standing tolerance.</summary>
+    private const float StandingLimit = LakeLevel - (LakeDepth + Tolerance);
+
+    /// <summary>
+    /// One feedback pass over the lake cell, the way Aggrade does it (TerrainChannels.Feedback.cs:72-87): while the cell stands its
+    /// rise is capped at its room, the bed goes up and the water surface does not. Returns the bed after the pass.
+    /// </summary>
+    private static float FillPass(DepositLedger ledger, Standing standing, float bed, out float rise)
+    {
+        // RoomBelowWater: the room on standing land water, no cap (infinity) anywhere else.
+        float[] roomCap = standing.Is(0, bed, LakeDepth) ? new[] { standing.Room(0, bed, LakeDepth) } : null;
+        rise = ledger.Raise(new[] { Offered }, Share, roomCap, out _)[0];
+        return bed + rise;
+    }
+
+    [Fact]
+    public void Capped_deposits_never_lift_a_standing_bed_above_its_water()
+    {
+        var standing = new Standing(new[] { LakeLevel }, null, MinDepth, Tolerance, SpringDepth);
+        var ledger = new DepositLedger();
+        float bed = 10.00f, total = 0f;
+        for (int pass = 0; pass < 8; pass++)
+        {
+            bool stoodBefore = standing.Is(0, bed, LakeDepth);
+            float next = FillPass(ledger, standing, bed, out float rise);
+            Assert.True(rise >= 0f, $"pass {pass}: a deposit lowered the bed");
+            Assert.True(next >= bed, $"pass {pass}: the bed sank from {bed} to {next}");
+            if (stoodBefore)
+                Assert.True(next <= StandingLimit + 1e-4f,
+                    $"pass {pass}: a standing bed rose to {next}, above the highest level that is still standing water ({StandingLimit})");
+            bed = next;
+            total += rise;
+        }
+        // The ledger books the rise that happened, not the alluvium that was offered, so soil depth cannot count it twice (SD11).
+        Assert.Equal(total, ledger.AggradedVolume, 4);
+        Assert.True(ledger.AggradedVolume < 8 * Offered * Share, "the room refused nothing: the cap never bound");
+    }
+
+    [Fact]
+    public void Capped_deposits_stop_a_fed_lake_at_its_standing_threshold()
+    {
+        // What the cap actually does, measured (D5 #186, round 12): the bed climbs to the highest level that is still standing
+        // water and stays there. Standing is a strict test (L - bed > depth + tolerance) and the room is exactly that boundary, so
+        // the last rise lands a float step below it: the cell keeps counting as standing water, its room is then ~0, and the final
+        // step to marsh and ground does not happen on its own. The lake shallows to (channel depth + tolerance) and stops there -
+        // 0.2 m on a plain cell, a metre where a river channel runs through the lake. Whether the cap should instead be allowed to
+        // carry the bed across the tolerance band is the architect's call (#186); this test pins today's measured behaviour.
+        var standing = new Standing(new[] { LakeLevel }, null, MinDepth, Tolerance, SpringDepth);
+        var ledger = new DepositLedger();
+        float bed = 10.00f;
+        for (int pass = 0; pass < 8; pass++)
+            bed = FillPass(ledger, standing, bed, out _);
+
+        Assert.True(standing.Is(0, bed, LakeDepth), $"the cell stopped standing at bed {bed}; the fill crossed the threshold");
+        Assert.Equal(StandingLimit, bed, 4);
+        // The whole rise delivered is exactly the room the lake had at the start: 12.00 - 10.00 - (1.00 + 0.05) = 0.95 m, no more.
+        Assert.Equal(LakeLevel - 10.00f - (LakeDepth + Tolerance), ledger.AggradedVolume, 4);
+    }
+
+    [Fact]
+    public void Deposits_on_ground_are_not_capped_and_carry_the_bed_above_the_water()
+    {
+        // The other half of the rule: a cell that is not standing water keeps the plain land rule (no cap, no second threshold),
+        // so the same deposits carry a filled hollow up through the water surface and out of it.
+        var standing = new Standing(new[] { LakeLevel }, null, MinDepth, Tolerance, SpringDepth);
+        var ledger = new DepositLedger();
+        float bed = 11.00f; // 1.00 m below the surface, less than depth + tolerance: already not standing water
+        Assert.False(standing.Is(0, bed, LakeDepth));
+        for (int pass = 0; pass < 3; pass++)
+            bed = FillPass(ledger, standing, bed, out _);
+        Assert.Equal(12.50f, bed, 4); // three uncapped passes of 0.5 m: the bed stands above the water surface it used to hold
+        Assert.Equal(1.50f, ledger.AggradedVolume, 4);
+    }
 }
