@@ -29,14 +29,21 @@ public class WaterFormulaOnceTests
         string math = RepoFile(Path.Combine("Source", "LivingLandscapes", "Layers", "WaterFieldMath.cs"));
         string root = Directory.GetParent(Path.GetDirectoryName(math)).FullName; // Source/LivingLandscapes
         var offenders = new List<string>();
+        int scanned = 0;
         foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
         {
             if (string.Equals(file, math, StringComparison.OrdinalIgnoreCase))
                 continue;
+            scanned++;
             string text = File.ReadAllText(file);
             foreach (Match match in ComplementProduct.Matches(text))
                 offenders.Add($"  {file.Substring(root.Length + 1).Replace('\\', '/')}:{LineOf(text, match.Index)}  {match.Value}");
         }
+        // A guard that looked at nothing guarded nothing: the mod is over a hundred files, so a scan this short means the
+        // checkout was not found from the test binaries and the search would report no offenders without having read them.
+        Assert.True(scanned > 50,
+            $"WaterFormulaOnceTests read only {scanned} .cs files under {root.Replace('\\', '/')}; the mod has over a "
+            + "hundred, so this guard is not looking at the mod (the checkout root is not where the test binaries are).");
         Assert.True(offenders.Count == 0,
             "The water sources are combined in one place only, Layers/WaterFieldMath.cs (#132). The same law is written "
             + "elsewhere - call WaterFieldMath (or WaterField.TerrainWater for the ground) instead:\n" + string.Join("\n", offenders));
