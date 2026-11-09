@@ -168,11 +168,24 @@ public sealed class GrainLoads
     /// </summary>
     public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow = null)
     {
+        int ignored;
+        return WorstDownstreamCoarsening(cellsDownstream, grain, deposit, inflow, out ignored);
+    }
+
+    /// <summary>
+    /// <see cref="WorstDownstreamCoarsening(List{int},float[],float[],bool[])"/> (the same single definition of the rule) also
+    /// reporting where the worst climb peaks: the index in <paramref name="cellsDownstream"/> of the cell whose running mean
+    /// stands highest above the lowest mean passed (-1 if nothing climbs). The DevTools invariant 9 line uses it to say whether
+    /// a flagged climb sits at the channel's mouth or mid-channel (#186 diagnosis).
+    /// </summary>
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow, out int worstAt)
+    {
         float sum = 0f, lowest = float.MaxValue, worst = 0f;
-        int seen = 0, reach = 0;
+        int seen = 0, reach = 0, at = -1, i = -1;
         bool pendingReset = false;
         foreach (int c in cellsDownstream)
         {
+            i++;
             if (inflow != null && inflow[c] && reach > 0)
                 pendingReset = true; // may fire at this cell or, if it scours, at the next one that deposits
             if (deposit[c] <= 0f)
@@ -190,8 +203,13 @@ public sealed class GrainLoads
             reach++;
             float mean = sum / reach;
             lowest = Mathf.Min(lowest, mean);
-            worst = Mathf.Max(worst, mean - lowest);
+            if (mean - lowest > worst)
+            {
+                worst = mean - lowest;
+                at = i;
+            }
         }
+        worstAt = at;
         return seen < 2 ? float.NaN : worst;
     }
 }

@@ -185,7 +185,7 @@ public static class Invariants
         // Junction cells, where a channel brings its load into another (RiverPlan.Parent): invariant 9 restarts its running
         // mean there, because a tributary arriving with gravel is a new source, not the receiving river coarsening (#186).
         var inflow = new bool[rivers.ChannelOf.Length];
-        int measured = 0, coarsening = 0, worstChannel = -1;
+        int measured = 0, coarsening = 0, worstChannel = -1, nearMouth = 0, flaggedReceiving = 0, worstPeakAt = -1, worstLen = 0;
         float worst = 0f;
         for (int k = 0; k < rivers.Channels.Count; k++)
         {
@@ -229,21 +229,38 @@ public static class Invariants
                 if (nearest >= 0)
                     inflow[nearest] = true;
             }
-            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow);
+            int worstAt;
+            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow, out worstAt);
             if (float.IsNaN(rise))
                 continue;
             measured++;
             if (rise > tolerance)
+            {
                 coarsening++;
+                // #186 diagnosis: does the flagged climb peak at this channel's own mouth (a junction bar laid in the channel
+                // that joins, where its flow slows entering the confluence) or mid-channel (a junction the walk failed to excuse)?
+                if (worstAt >= cells.Count - 4)
+                    nearMouth++;
+                foreach (int c in cells)
+                    if (inflow[c])
+                    {
+                        flaggedReceiving++;
+                        break;
+                    }
+            }
             if (rise > worst)
             {
                 worst = rise;
                 worstChannel = k;
+                worstPeakAt = worstAt;
+                worstLen = cells.Count;
             }
         }
         summary.AppendLine($"invariant 9 (grain does not coarsen downstream): {(coarsening == 0 ? "ok" : "FAIL")} | {measured} of {rivers.Channels.Count} channels with deposits measured, " +
                            $"running mean grain climbs at most {worst:F2} over the {tolerance:F2} allowed" +
-                           $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}");
+                           $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}" +
+                           $"{(coarsening == 0 ? "" : $"; diagnosis: worst climb peaks {Mathf.Max(worstLen - 1 - worstPeakAt, 0)} walk cells above channel {worstChannel}'s mouth of {worstLen} cells, " +
+                           $"{nearMouth} of {coarsening} flagged channels peak within 3 cells of their mouth, {flaggedReceiving} receive a tributary")}");
     }
 
     /// <summary>
