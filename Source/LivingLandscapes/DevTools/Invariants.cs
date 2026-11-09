@@ -161,7 +161,9 @@ public static class Invariants
     /// Invariant 9 (grain does not coarsen downstream, HYDRO-UNIFICATION S3 #186): walking each channel from its source to its mouth,
     /// the running mean of the deposit grain index must not climb above the lowest mean already passed by more than
     /// <see cref="SedimentSettings.coarsenTolerance"/>. A river drops its gravel first and its sand and fines last, so its deposits
-    /// fine toward the mouth; gravel turning up downstream of sand breaks the settling order. The grain index is the mean grain of the
+    /// fine toward the mouth; gravel turning up downstream of sand breaks the settling order. The running mean restarts where another
+    /// channel brings its load in (<see cref="RiverPlan.Parent"/>): a tributary arriving with gravel makes the bed coarser at the
+    /// junction legitimately, and the reach below is measured from that mixed load (#186). The grain index is the mean grain of the
     /// deposit laid on each cell, which the sediment pass keeps on the river system (<see cref="RiverSystem.GrainSize"/>,
     /// <see cref="Geology.Sediment.Layers"/>); the walk is the channel centre line, as in invariant 1. Evaluated only with the grain
     /// classes on (the -ll-grains switch, <see cref="Geology.TerrainChannels"/>); otherwise printed as not enforced, as invariant 10
@@ -180,6 +182,9 @@ public static class Invariants
             return;
         }
         float tolerance = new SedimentSettings().coarsenTolerance;
+        // Junction cells, where a channel brings its load into another (RiverPlan.Parent): invariant 9 restarts its running
+        // mean there, because a tributary arriving with gravel is a new source, not the receiving river coarsening (#186).
+        var inflow = new bool[rivers.ChannelOf.Length];
         int measured = 0, coarsening = 0, worstChannel = -1;
         float worst = 0f;
         for (int k = 0; k < rivers.Channels.Count; k++)
@@ -203,7 +208,28 @@ public static class Invariants
                     cells.Add(index);
                 }
             }
-            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium);
+            // Mark this channel's junction cells: the cell of its walk nearest the mouth of every channel that joins it.
+            for (int j = 0; j < rivers.Channels.Count; j++)
+            {
+                RiverPlan child = rivers.Channels[j];
+                if (child.Parent != k || child.Main.Count == 0)
+                    continue;
+                Vector2 mouth = child.Main[child.Main.Count - 1];
+                int nearest = -1;
+                float best = float.MaxValue;
+                foreach (int c in cells)
+                {
+                    float d = (new Vector2(c % map.Size.x, c / map.Size.x) - mouth).sqrMagnitude;
+                    if (d < best)
+                    {
+                        best = d;
+                        nearest = c;
+                    }
+                }
+                if (nearest >= 0)
+                    inflow[nearest] = true;
+            }
+            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow);
             if (float.IsNaN(rise))
                 continue;
             measured++;

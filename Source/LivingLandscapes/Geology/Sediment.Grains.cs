@@ -154,23 +154,35 @@ public sealed class GrainLoads
 
     /// <summary>
     /// Invariant 9 (HYDRO-UNIFICATION S3, #186): grain along a river's deposits fines downstream. Walking the channel's cells
-    /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, weighted by
-    /// <paramref name="deposit"/>, both per cell) must not climb above the lowest running mean already passed: a river drops its
-    /// gravel first and its fines last. Cells without deposit are skipped. Returns the worst climb of the running mean
-    /// (0 for a river that only fines), or NaN when fewer than two cells deposited anything and there is nothing to measure.
-    /// Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the DevTools invariant 9.
+    /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, per cell, unweighted;
+    /// <paramref name="deposit"/> only marks the cells that deposited anything) must not climb above the lowest running mean
+    /// already passed: a river drops its gravel first and its fines last. Cells without deposit are skipped. Where the channel
+    /// receives load from another channel (<paramref name="inflow"/>, optional, true at the junction cell) the running mean
+    /// restarts at that cell: a tributary arriving with gravel is a new source, and the coarser bed there is its load, not the
+    /// river coarsening towards its own mouth (#186). Fining is still required within every reach between inflows and from each
+    /// junction to the mouth. Returns the worst climb of the running mean over all reaches (0 for a river that only fines), or
+    /// NaN when fewer than two cells deposited anything and there is nothing to measure. Compared against
+    /// <see cref="SedimentSettings.coarsenTolerance"/> by the DevTools invariant 9.
     /// </summary>
-    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit)
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow = null)
     {
         float sum = 0f, lowest = float.MaxValue, worst = 0f;
-        int seen = 0;
+        int seen = 0, reach = 0;
         foreach (int c in cellsDownstream)
         {
             if (deposit[c] <= 0f)
                 continue;
+            if (inflow != null && inflow[c] && reach > 0)
+            {
+                // A new source: the reach below the junction is measured on its own, from the mixed load at this cell (#186).
+                sum = 0f;
+                reach = 0;
+                lowest = float.MaxValue;
+            }
             sum += grain[c];
             seen++;
-            float mean = sum / seen;
+            reach++;
+            float mean = sum / reach;
             lowest = Mathf.Min(lowest, mean);
             worst = Mathf.Max(worst, mean - lowest);
         }

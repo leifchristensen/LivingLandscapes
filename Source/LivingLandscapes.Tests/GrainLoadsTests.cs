@@ -704,21 +704,21 @@ public class GrainLoadsTests
 
         // A river that deposits in fewer than two cells has nothing to measure.
         var bare = new float[SizeX * SizeZ];
-        Assert.True(float.IsNaN(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit)));
+        Assert.True(float.IsNaN(GrainLoads.WorstDownstreamCoarsening(cells, grain, bare)));
     }
 
+    private const int PlainCells = 40; // the plain's length in cells (row 1)
+    private const int JunctionX = 6;   // where the gravel tributary joins the plain
+
     /// <summary>
-    /// C1 (#186): the junction probe for invariant 9. A river runs a long gentle plain (row 1, <see cref="PlainCells"/> cells, soft
+    /// C1 (#186): the junction fixture for invariant 9. A river runs a long gentle plain (row 1, <see cref="PlainCells"/> cells, soft
     /// gouged source at x=0 on flat ground, so its own supply is fines by <see cref="Sediment.SupplyGrain"/>) and fines downstream;
     /// a steep gravel tributary (cell <see cref="JunctionX"/>, gouged on steep ground, mix ~0.7 = gravel) joins it there. The joined
     /// load is the model's own arithmetic (the per-class loads add at the receiver, Sediment.Grains.cs:321-322), so below the
     /// junction the deposit is coarser than above it - physically right: a gravel tributary onto a fines plain makes the bed gravel
-    /// there, as in the failing flat-map cases. Returns the whole-stem climb of the running mean; the caller also measures each
-    /// reach between inflows on its own, and walks both with <see cref="GrainLoads.WorstDownstreamCoarsening"/>.
+    /// there, as in the failing flat-map cases. Returns the whole-stem climb of the running mean WITHOUT junction knowledge (the
+    /// C1 measurement); the caller also walks it with the junction cell marked as inflow, the corrected check (C2).
     /// </summary>
-    private const int PlainCells = 40;
-    private const int JunctionX = 6;
-
     private static float FinePlainWithGravelTributary(bool tributary, out float[] deposit, out float[] grain, out List<int> mainStem)
     {
         const int SX = PlainCells, SZ = 3, N = SX * SZ;
@@ -767,34 +767,69 @@ public class GrainLoadsTests
     }
 
     /// <summary>
-    /// C1 (#186): invariant 9 as written measures a legitimate junction as a violation. The lone fines plain river fines and passes
-    /// (climb 0); the same river with a gravel tributary joining mid-plain climbs above <see cref="SedimentSettings.coarsenTolerance"/>
-    /// below the junction, yet each reach between inflows still fines (both climbs ~0): the whole climb is the one step of coarser
-    /// grain AT the junction cell, where the tributary's gravel joins the load - correct sedimentology, not a river coarsening
-    /// towards its own mouth. So the check must account for the inflow at junctions instead of blaming the settling order
-    /// (the fix is C2, #186). Measured here: lone 0.000, joined 0.296 against the tolerance 0.15, each reach 0.000, deposit grain
-    /// 0.339 above the junction, 0.775 at it, 0.454 at the mouth; the same mechanism gives the flat-map cases 0.18-0.37.
+    /// C1-C2 (#186): invariant 9 must pass a legitimate junction. The lone fines plain river fines and passes (climb 0); with a
+    /// gravel tributary joining mid-plain the whole-stem walk WITHOUT junction knowledge climbs above
+    /// <see cref="SedimentSettings.coarsenTolerance"/> (C1's measurement: 0.296 against 0.15, while each reach between inflows
+    /// fines, both climbs ~0): the climb is the one step of coarser grain AT the junction cell, where the tributary's gravel
+    /// joins the load - correct sedimentology, not a river coarsening towards its own mouth. The corrected check restarts the
+    /// running mean at the junction cell (the inflow), and the same joined river passes (measured 0.000): the reach from the
+    /// junction to the mouth still fines, from the mixed load (0.775 at the junction) to 0.454 at the mouth.
     /// </summary>
     [Fact]
-    public void InvariantNineFlagsALegitimateGravelTributaryOnAFinePlain()
+    public void InvariantNinePassesALegitimateGravelTributaryOnAFinePlain()
     {
         float tolerance = new SedimentSettings().coarsenTolerance;
         float lone = FinePlainWithGravelTributary(false, out float[] depositLone, out float[] grainLone, out List<int> stem);
-        float joined = FinePlainWithGravelTributary(true, out float[] depositJoined, out float[] grainJoined, out _);
-        // The same joined walk, cut at the junction: what each reach between inflows does on its own.
-        float above = GrainLoads.WorstDownstreamCoarsening(stem.GetRange(0, JunctionX), grainJoined, depositJoined);
-        float below = GrainLoads.WorstDownstreamCoarsening(stem.GetRange(JunctionX, PlainCells - JunctionX), grainJoined, depositJoined);
+        float joinedBlind = FinePlainWithGravelTributary(true, out float[] depositJoined, out float[] grainJoined, out _);
+        // The corrected walk: the same stem, with the junction cell marked as receiving load from the tributary.
+        var inflow = new bool[depositJoined.Length];
+        inflow[stem[JunctionX]] = true;
+        float joined = GrainLoads.WorstDownstreamCoarsening(stem, grainJoined, depositJoined, inflow);
         Assert.True(lone <= tolerance,
             $"the lone fine river must pass: measured a running-mean climb of {lone:F3} over the tolerance {tolerance:F2}");
-        Assert.True(joined > tolerance,
-            $"the joined river must show the junction's rise to prove the point: measured only {joined:F3}");
-        Assert.True(above <= tolerance && below <= tolerance,
-            $"each reach between inflows fines, so the whole-channel climb is the junction step, not coarsening: " +
-            $"above {above:F3}, below {below:F3}");
+        Assert.True(joinedBlind > tolerance,
+            $"the junction's rise must be there to be excused, or the fixture proves nothing: measured only {joinedBlind:F3}");
+        Assert.True(joined <= tolerance,
+            $"the corrected check must pass the legitimate junction: measured a climb of {joined:F3} over the tolerance " +
+            $"{tolerance:F2}");
         Assert.True(grainJoined[PlainCells + JunctionX] > grainLone[PlainCells + JunctionX] + 0.2f,
             $"the tributary's gravel must reach the plain below the junction: " +
             $"{grainJoined[PlainCells + JunctionX]:F2} against {grainLone[PlainCells + JunctionX]:F2}");
         Assert.True(depositJoined[PlainCells + JunctionX] > 0f && depositJoined[2 * PlainCells - 1] > 0f,
             "the joined river deposits to its mouth");
+    }
+
+    /// <summary>
+    /// C2 (#186): the junction reset must not hide real coarsening. A fines reach ends at a junction (an inflow at x=3); the
+    /// reach below coarsens from 0.4 to 1.0 - the running mean restarts at the junction and still climbs 0.300 over the
+    /// tolerance 0.15, so the check fails it. The same cells fining below the junction pass.
+    /// </summary>
+    [Fact]
+    public void InvariantNineStillFailsAReachThatCoarsensBelowAJunction()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        var cells = new List<int>();
+        for (int x = 0; x < 6; x++)
+            cells.Add(Row * SizeX + x);
+        var deposit = new float[SizeX * SizeZ];
+        var grain = new float[SizeX * SizeZ];
+        foreach (int c in cells)
+            deposit[c] = 1f;
+        var inflow = new bool[SizeX * SizeZ];
+        inflow[cells[3]] = true; // a tributary brings its load in at x=3
+
+        float[] coarser = { 0.8f, 0.6f, 0.5f, 0.4f, 0.7f, 1.0f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = coarser[x];
+        float rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise > tolerance,
+            $"a reach below a junction that coarsens must still fail: measured {rise:F3} over the tolerance {tolerance:F2}");
+
+        float[] finer = { 0.8f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = finer[x];
+        rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise <= tolerance,
+            $"a junction followed by a fining reach must pass: measured {rise:F3} over the tolerance {tolerance:F2}");
     }
 }
