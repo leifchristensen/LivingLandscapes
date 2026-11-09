@@ -37,7 +37,8 @@ public static partial class TerrainChannels
     /// </summary>
     private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float threshold,
         float[] height, float[] filled, float[] inflow, float[] rockStrength, bool[] moving, float[] width, float[] depth, bool[] sand, Standing standing,
-        System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, DepositLedger ledger, RoomProbe room, out float raisedVolume)
+        System.Func<int, bool> isOutlet, int sizeX, int sizeZ, TerrainChannelSettings p, DepositLedger ledger, RoomProbe room, AccommodationTally accom,
+        out float raisedVolume)
     {
         int n = height.Length;
         raisedVolume = 0f;
@@ -72,6 +73,8 @@ public static partial class TerrainChannels
         float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, roomCap, out raisedVolume);
         Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
         room.Observe(alluvium, rises, stillNow, standing, height, depth);
+        if (p.accommodation)
+            accom.Observe(rises, stillNow, standing);
         int raised = 0;
         for (int i = 0; i < n; i++)
         {
@@ -165,6 +168,53 @@ public static partial class TerrainChannels
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// What the feedback passes did to standing-water beds with <see cref="TerrainChannelSettings.accommodation"/> on (D5, #186
+    /// step W4): the standing land-water cells whose beds rose (each counted once) and the volume of that rise (metres times
+    /// cells, a cell is 1 m²). How many of those cells still stand when the passes end is read from the finished ground
+    /// (<see cref="StillStanding"/>); the rest filled up to marsh or ground. Reported in the export summary
+    /// (<see cref="DevTools.Invariants"/>). With the setting off nothing is observed and every count stays 0.
+    /// </summary>
+    private sealed class AccommodationTally
+    {
+        private readonly bool[] raised;
+        /// <summary>Standing land-water cells whose bed a pass raised (each counted once).</summary>
+        public int cells;
+        /// <summary>Metres times cells of rise on those cells, summed over the passes (m³).</summary>
+        public float volume;
+
+        public AccommodationTally(int n)
+        {
+            raised = new bool[n];
+        }
+
+        /// <summary>One pass's graded rises, before they touch the ground.</summary>
+        public void Observe(float[] rises, bool[] stillNow, Standing standing)
+        {
+            for (int i = 0; i < rises.Length; i++)
+            {
+                if (rises[i] <= 0f || !stillNow[i] || standing.IsSea(i))
+                    continue;
+                volume += rises[i];
+                if (!raised[i])
+                {
+                    raised[i] = true;
+                    cells++;
+                }
+            }
+        }
+
+        /// <summary>Of the raised cells, the ones that are still standing water on the ground as it stands now.</summary>
+        public int StillStanding(Standing standing, float[] bed, float[] depth)
+        {
+            int m = 0;
+            for (int i = 0; i < raised.Length; i++)
+                if (raised[i] && standing.Is(i, bed[i], depth[i]))
+                    m++;
+            return m;
         }
     }
 }

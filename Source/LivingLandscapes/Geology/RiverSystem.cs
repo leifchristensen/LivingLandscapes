@@ -87,6 +87,15 @@ public class RiverSystem
     /// <summary>The junction invariant's findings on the final network (invariant 10).</summary>
     public JunctionAudit Junctions;
 
+    /// <summary>(D5, <see cref="TerrainChannelSettings.accommodation"/>) Standing land-water cells whose bed the feedback passes raised (each counted once).</summary>
+    public int AccommodationRaisedCells;
+
+    /// <summary>Metres times cells of that rise (a cell is 1 m², so this is m³); 0 with the setting off.</summary>
+    public float AccommodationRaisedVolume;
+
+    /// <summary>Of those raised cells, the ones still standing water when the passes end: the rest filled up to marsh or ground.</summary>
+    public int AccommodationStillStanding;
+
 
     public RiverPlan WorldRiver => Channels.Find(c => c.WorldRiver);
 }

@@ -141,6 +141,9 @@ public static partial class TerrainChannels
         var ledger = new DepositLedger();
         // D5 measurement (#186 step W1): what the passes' alluvium does to standing water. Measures only, logged once below.
         var room = new RoomProbe(n);
+        // D5 accommodation report (#186 step W4): what the passes did to standing-water beds with the setting on; reported in the
+        // export summary (DevTools.Invariants.Accommodation).
+        var accomTally = new AccommodationTally(n);
         for (int pass = 0; pass < passes; pass++)
         {
             discharge = Route(filled, receiver, inflow, worldSource, runoff, threshold, spread, mapSpread, sizeX, sizeZ, p,
@@ -198,7 +201,7 @@ public static partial class TerrainChannels
             if (pass >= 1 && pass < passes - 1 && p.feedback.passes > 0)
             {
                 int raised = Aggrade(cells, receiver, secondary, secondaryShare, discharge, dischargeScale, threshold, height, filled, inflow, rockStrength,
-                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, out float volume);
+                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, accomTally, out float volume);
                 if (raised > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
@@ -216,6 +219,13 @@ public static partial class TerrainChannels
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
             }
         }
+
+        // D5 accommodation report (#186 step W4): what the passes did to standing-water beds, for the export summary. depth here
+        // is the depth the passes used (before junction scour); Standing holds the spill surface by reference and Refill updated
+        // it in place, so the still-standing count reads the final water level.
+        system.AccommodationRaisedCells = accomTally.cells;
+        system.AccommodationRaisedVolume = accomTally.volume;
+        system.AccommodationStillStanding = accomTally.StillStanding(standing, height, depth);
 
         if (GenCommandLine.TryGetCommandLineArg("ll-probe-cell", out string probe))
         {
