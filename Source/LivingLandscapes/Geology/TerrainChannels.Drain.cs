@@ -268,6 +268,7 @@ public static partial class TerrainChannels
         // since losses depend on the channels' width.
         float scale = 1f;
         float largestOwn = 1f;
+        float[] own = null; // the last round's carried array, for the exit measurement below
         for (int round = 0; round < 4; round++)
         {
             Route(filled, receiver, inflow, worldSource, runoff, threshold, null, mapSpread, sizeX, sizeZ, p,
@@ -277,6 +278,7 @@ public static partial class TerrainChannels
                 largest = Mathf.Max(largest, q);
             scale = Mathf.Min(1f, target / largest);
             largestOwn = largest;
+            own = carried;
         }
         // What the scale is made of, so a map whose own water is scaled down is readable in the log (HYDRO-S8 C2): the cap
         // (target) against what the map's own rain gathers (largestOwn), both in the discharge units of width = 0.04*sqrt(Q).
@@ -284,6 +286,24 @@ public static partial class TerrainChannels
                     (creek != null && !float.IsNaN(worldFlow) ? $"world flow {worldFlow:F0}, a creek's {creek.degradeThreshold:F0}, " : "") +
                     $"cap {target:F0} (at most {p.maxWidthWithoutWorldRiver:F1} cells wide), the map's own largest channel " +
                     $"{largestOwn:F0} ({p.widthPerSqrtDischarge * Mathf.Sqrt(largestOwn):F1} cells) -> scale {scale:0.###}.");
+        // Where that largest line ends and what reaches the end (HYDRO-S8 C2, architect's extra for #141): the biggest
+        // carried value against the exit cell's own. The receiver chain ends where there is no receiver: an edge cell
+        // (the water leaves the map) or a sink (it does not).
+        int at = 0;
+        for (int c = 1; c < own.Length; c++)
+            if (own[c] > own[at])
+                at = c;
+        int steps = 0;
+        while (receiver[at] >= 0 && steps < own.Length) // the chain descends, so it ends; the bound is belt-and-braces
+        {
+            at = receiver[at];
+            steps++;
+        }
+        int exitX = at % sizeX, exitZ = at / sizeX;
+        bool onEdge = exitX == 0 || exitZ == 0 || exitX == sizeX - 1 || exitZ == sizeZ - 1;
+        Log.Message($"[LivingLandscapes] Own discharge exit (#216): from the largest cell, {steps} step(s) down to " +
+                    $"({exitX},{exitZ}) {(onEdge ? "on the map edge" : "in a sink, not an edge")}, arriving with " +
+                    $"{own[at]:F0} of the {largestOwn:F0} gathered upstream.");
         return scale;
     }
 
