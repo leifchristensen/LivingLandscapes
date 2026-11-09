@@ -83,6 +83,9 @@ public class GeologyGenerationExtension : DefModExtension
     /// </summary>
     public float deposition = 1f;
 
+    /// <summary>What the erosion model remembers for the shore pass (issue #186); all off by default.</summary>
+    public ErosionKeeps erosionKeeps = new ErosionKeeps();
+
 
     /// <summary>How much more the upslope side of the region is uplifted than the downslope side.</summary>
     public float regionalUpliftBias = 0.5f;
@@ -150,6 +153,42 @@ public class GeologyGenerationExtension : DefModExtension
             default: return reliefSmallHills;
         }
     }
+}
+
+/// <summary>
+/// What the erosion model remembers beyond the terrain it carves (issue #186, HYDRO-A design): the grain of the
+/// sediment it deposits (G1), the sediment it delivers to the sea (G2), and loose ground in the exported erodibility
+/// (G4). All off by default: with none on, the model runs its old arithmetic and exports exactly what it always did.
+/// Dev: -ll-erosion-keeps=grain,sea,loose|none|all switches them on for a test run.
+/// </summary>
+public class ErosionKeeps
+{
+    /// <summary>Track the grain of the sediment through deposition and export it per map cell (G1): the shore pass builds its beaches from it.</summary>
+    public bool depositGrain;
+
+    /// <summary>Keep the load each base-level cell hands to the sea, with its grain (G2): the shore pass feeds its nearshore drift from it.</summary>
+    public bool seaSupply;
+
+    /// <summary>Write loose ground (river deposit) into the exported erodibility (G4); the model's own K is untouched.</summary>
+    public bool looseGround;
+
+    /// <summary>
+    /// Grain of the sediment a world river brings in from beyond the region. Its load is the yield of its whole
+    /// catchment, mostly gentle lowland ground, so finer than what the region's own steep cells supply; 0.42 sits
+    /// between a graded lowland river's load and the model's typical upland supply (tuned with the C6 runs).
+    /// </summary>
+    public float inflowGrain = 0.42f;
+
+    /// <summary>
+    /// Erodibility K of ground buried completely by river deposits, used only in the exported erodibility when
+    /// <see cref="looseGround"/> is on (G4); the model's own K is untouched. 8 sits between loose sand's critical
+    /// shear stress (~1 Pa) and soil's (~10 Pa), well below rock's 100-1000 Pa (TerrainChannels.Impact.cs:27-31):
+    /// deposits erode an order of magnitude easier than the bed under them.
+    /// </summary>
+    public float kLoose = 8f;
+
+    /// <summary>Thickness of river deposits (metres) at which the ground counts as fully loose (G4).</summary>
+    public float looseDepth = 1f;
 }
 
 /// <summary>
@@ -276,8 +315,17 @@ public static class LandscapeGenerator
                 ErosionGridExport.Write($"RockK_{iteration}", rockKNow, gx, gz);
             };
         }
+        // Dev: -ll-erosion-keeps=grain,sea,loose|none|all switches on what the erosion model remembers (issue #186).
+        if (GenCommandLine.TryGetCommandLineArg("ll-erosion-keeps", out string keepsArg))
+        {
+            bool all = keepsArg == "all";
+            p.erosionKeeps.depositGrain = all || keepsArg.Contains("grain");
+            p.erosionKeeps.seaSupply = all || keepsArg.Contains("sea");
+            p.erosionKeeps.looseGround = all || keepsArg.Contains("loose");
+        }
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
-            out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, floor, observe, WaterBalance.LakeShare(map, out _), courseFlow);
+            out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, out ErosionKeepsOutput keeps,
+            floor, observe, WaterBalance.LakeShare(map, out _), courseFlow);
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -342,8 +390,25 @@ public static class LandscapeGenerator
         rock = new ThingDef[sizeX * sizeZ];
         rockStage = new int[sizeX * sizeZ];
         erosion = new ErosionFields { Erodibility = new float[sizeX * sizeZ], Deposition = new float[sizeX * sizeZ] };
+        // What the model kept for the shore pass (issue #186): the grain of the deposit joins the map fields, the sea
+        // supply stays on the model grid (it is handed over beyond the map's edge), with the grid's own coordinates.
+        if (keeps is { DepositGrain: not null })
+            erosion.DepositionGrain = new float[sizeX * sizeZ];
+        if (keeps is { SeaSupply: not null })
+        {
+            erosion.SeaSupply = keeps.SeaSupply;
+            erosion.SeaSupplyGrain = keeps.SeaSupplyGrain;
+            erosion.GridX = gx;
+            erosion.GridZ = gz;
+            erosion.OriginX = originX;
+            erosion.OriginZ = originZ;
+            erosion.MapCellsPerModelCell = mapCellsPerModelCell;
+        }
         // Model height units to metres, as the landform below: (value - min) / (max - min) * relief.
         float metresPerModelHeight = relief / Mathf.Max(max - min, 1e-6f);
+        // Loose ground (G4, issue #186): when on, the exported erodibility softens toward kLoose where the rivers left
+        // deposits; the model itself keeps cutting with the rock K.
+        ErosionKeeps keepsSettings = p.erosionKeeps;
         var resistant = new float[sizeX * sizeZ];
         // The sea is the model's base level (P1), one height for the whole coast. Beside it the regional slope rises from the
         // sea (CoastMath.RegionalRise) instead of tilting along a plane, which would put part of the shore above the sea and part below.
@@ -364,8 +429,16 @@ public static class LandscapeGenerator
                 rockStage[z * sizeX + x] = strata.HardBedsBelow(site, bedHeight);
                 // Erodibility K the model used: the landform's factor times the exposed bed's (P2). Deposition: what the rivers laid down and kept.
                 float modelX = originX + x / mapCellsPerModelCell, modelZ = originZ + z / mapCellsPerModelCell;
-                erosion.Erodibility[z * sizeX + x] = Bilinear(erodibility, gx, gz, modelX, modelZ) * strata.Erodibility(site, bedHeight);
+                float rockK = Bilinear(erodibility, gx, gz, modelX, modelZ) * strata.Erodibility(site, bedHeight);
                 erosion.Deposition[z * sizeX + x] = Bilinear(deposited, gx, gz, modelX, modelZ) * metresPerModelHeight;
+                // Loose ground (G4): with the setting on, the exported K blends toward kLoose by the share of looseDepth
+                // the deposit fills; off, it is exactly the rock K the model cut with (P2), as always.
+                erosion.Erodibility[z * sizeX + x] = keepsSettings.looseGround
+                    ? LooseGround.Erodibility(rockK, erosion.Deposition[z * sizeX + x], keepsSettings.kLoose, keepsSettings.looseDepth)
+                    : rockK;
+                // The grain of that deposit (0..1, coarse to fine); dimensionless, so no metre factor (issue #186).
+                if (erosion.DepositionGrain != null)
+                    erosion.DepositionGrain[z * sizeX + x] = Bilinear(keeps.DepositGrain, gx, gz, modelX, modelZ);
                 resistant[z * sizeX + x] = site.hard;
 
                 float rel = (window[z * sizeX + x] - min) / Mathf.Max(max - min, 1e-6f);
@@ -684,7 +757,8 @@ public static class LandscapeGenerator
     /// </summary>
     private static float[] Erode(float[] uplift, float[] erodibility, System.Action<float[], float[]> baseLevels, float[] inflow, float[] seaDepth,
         float relief, int gx, int gz, GeologyGenerationExtension p, RockStrata strata, RockStrata.Site[] sites, float reliefCells,
-        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, out float[] depositedOut, float[] initialFloor = null,
+        out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, out float[] depositedOut,
+        out ErosionKeepsOutput keepsOut, float[] initialFloor = null,
         System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity, float[] courseFlow = null)
     {
         int n = gx * gz;
@@ -777,6 +851,81 @@ public static class LandscapeGenerator
         var load = new float[n];
         // Deposit still standing at each cell (model height units): added by Deposit, worn off again when the cell incises. Only read out.
         var deposited = new float[n];
+        // What the model remembers for the shore pass (issue #186): the sediment budget and the grain of the sediment,
+        // accumulated over the iterations. Off, the model runs exactly its old arithmetic and exports nothing new.
+        var keeps = p.erosionKeeps;
+        bool keepLedger = keeps.depositGrain || keeps.seaSupply;
+        var delivered = new float[n];
+        var supplyGrain = new float[n];
+        var passGrain = new float[n];      // grain of what this pass deposited at each cell (ApplyWithGrain's output)
+        var deliveredGrain = new float[n]; // grain of what this pass reached the sea with at each cell
+        var depositGrainMass = new float[n]; // grain x deposit mass, per cell, for the mass-weighted mean grain of the standing deposit
+        var depositMass = new float[n];
+        var seaMass = new float[n];
+        var seaGrainMass = new float[n];
+        var depositBefore = new float[n];
+        float keptTotal = 0f, deliveredTotal = 0f, sinkFillTotal = 0f, lostTotal = 0f, erodedTotal = 0f, yieldTotal = 0f;
+        float inflowSum = 0f;
+        for (int i = 0; i < n; i++)
+            inflowSum += inflow[i];
+        // Slope (metres per model cell) at which eroded sediment is coarsest: SedimentSettings.coarseSlope's default;
+        // the erosion model has no channel settings of its own to read it from.
+        const float SupplyCoarseSlope = 0.15f;
+
+        // One deposition pass with the ledger and the grain on (issue #186): the same arithmetic as Deposit (pinned by
+        // ErosionDepositTests), plus the sediment budget of the pass and the grain of what each cell deposits and of
+        // what reaches the sea. Each pass conserves mass on its own (ApplyCore), so the totals accumulated here close.
+        void DepositWithKeeps()
+        {
+            float top = Mathf.Max(1e-6f, h.Max());
+            float metresPerHeight = relief / top; // model height units to metres, as the strata read them (h/top*reliefCells)
+            float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
+            for (int i = 0; i < n; i++)
+            {
+                // Grain of the sediment cell i's own erosion supplies: coarse on steep slopes and hard rock
+                // (Sediment.SupplyGrain); slope = the cell's drop to its receiver in metres over the model cell size.
+                int r = receiver[i];
+                float drop = r >= 0 ? Mathf.Max(0f, h[i] - h[r]) : 0f;
+                float slope = drop * metresPerHeight / metresPerModelCell;
+                supplyGrain[i] = Sediment.SupplyGrain(slope, strata.Strength(sites[i], h[i] / top * reliefCells), SupplyCoarseSlope);
+            }
+            Array.Copy(deposited, depositBefore, n);
+            ErosionDeposit.ApplyWithGrain(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel,
+                deposited, p.deposition, delivered, supplyGrain, keeps.inflowGrain, passGrain, deliveredGrain,
+                out float sinkFill, out float lostAtSink);
+            float kept = 0f, deliveredSum = 0f, erodedSum = 0f, yieldSum = 0f;
+            int land = 0;
+            for (int i = 0; i < n; i++)
+            {
+                float gain = deposited[i] - depositBefore[i]; // what this pass deposited here: a channel keep, or a lake fill at a sink
+                if (gain > 0f)
+                {
+                    depositMass[i] += gain;
+                    depositGrainMass[i] += passGrain[i] * gain;
+                    if (receiver[i] >= 0)
+                        kept += gain;
+                }
+                if (delivered[i] > 0f)
+                {
+                    seaMass[i] += delivered[i];
+                    seaGrainMass[i] += deliveredGrain[i] * delivered[i];
+                    deliveredSum += delivered[i];
+                }
+                erodedSum += eroded[i];
+                if (!outlet[i])
+                {
+                    yieldSum += eroded[i];
+                    land++;
+                }
+            }
+            keptTotal += kept;
+            deliveredTotal += deliveredSum;
+            sinkFillTotal += sinkFill;
+            lostTotal += lostAtSink;
+            erodedTotal += erodedSum;
+            yieldTotal += yieldSum / Mathf.Max(1, land) * inflowSum; // the world rivers' sediment, as ApplyCore's yield weighs it
+        }
+
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
             if (iteration % StrataUpdateInterval == 0)
@@ -845,7 +994,12 @@ public static class LandscapeGenerator
                 deposited[c] = Mathf.Max(0f, deposited[c] - eroded[c]);
             }
             if (p.deposition > 0f)
-                Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, deposited, p);
+            {
+                if (keepLedger)
+                    DepositWithKeeps();
+                else
+                    Deposit(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, deposited, p);
+            }
 
             // Hillslope creep.
             Diffuse(h, outlet, gx, gz, p.hillslopeDiffusion, creep);
@@ -860,6 +1014,52 @@ public static class LandscapeGenerator
         }
         if (!float.IsInfinity(lakeShare))
             Log.Message($"[LivingLandscapes] Erosion model closed basins (#99): {sinks} keep their water (lake area {lakeShare:G3} x catchment).");
+        keepsOut = null;
+        if (keepLedger)
+        {
+            // The sediment budget of the run: everything the model eroded or took in with the world rivers ended up
+            // deposited, delivered to the sea, or lost at a sink. Closure 1 says the wiring kept every grain accounted for.
+            float closure = (keptTotal + deliveredTotal + sinkFillTotal + lostTotal) / Mathf.Max(1e-9f, erodedTotal + yieldTotal);
+            float grainSum = 0f, grainMass = 0f;
+            int grainCells = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (depositMass[i] > 0f)
+                {
+                    grainSum += depositGrainMass[i];
+                    grainMass += depositMass[i];
+                    grainCells++;
+                }
+            }
+            float metresPerHeight = relief / Mathf.Max(1e-6f, h.Max());
+            float metresPerModelCell = Mathf.Max(p.erosionCellSize, p.cellSize);
+            Log.Message($"[LivingLandscapes] Erosion keeps: grain mean {grainSum / Mathf.Max(1e-9f, grainMass):F3} over {grainCells} cells, " +
+                $"delivered {deliveredTotal * metresPerHeight * metresPerModelCell * metresPerModelCell:F0} m3-equivalent (closure {closure:F6}), " +
+                $"kept {keptTotal * metresPerHeight:F1} m, lake {sinkFillTotal * metresPerHeight:F1} m, lost at sinks {lostTotal * metresPerHeight:F1} m, " +
+                $"eroded {erodedTotal * metresPerHeight:F1} m + inflow yield {yieldTotal * metresPerHeight:F1} m (over the whole run).");
+            var o = new ErosionKeepsOutput { Kept = keptTotal, Delivered = deliveredTotal, SinkFill = sinkFillTotal, LostAtSink = lostTotal, Eroded = erodedTotal, InflowYield = yieldTotal };
+            if (keeps.depositGrain)
+            {
+                o.DepositGrain = new float[n];
+                for (int i = 0; i < n; i++)
+                {
+                    if (depositMass[i] > 0f)
+                        o.DepositGrain[i] = depositGrainMass[i] / depositMass[i];
+                }
+            }
+            if (keeps.seaSupply)
+            {
+                o.SeaSupply = new float[n];
+                o.SeaSupplyGrain = new float[n];
+                for (int i = 0; i < n; i++)
+                {
+                    o.SeaSupply[i] = seaMass[i] * metresPerHeight; // metres of load handed to the sea, summed over the run
+                    if (seaMass[i] > 0f)
+                        o.SeaSupplyGrain[i] = seaGrainMass[i] / seaMass[i];
+                }
+            }
+            keepsOut = o;
+        }
         receiverOut = receiver;
         areaOut = area;
         baseLevelOut = baseLevel;
@@ -899,45 +1099,12 @@ public static class LandscapeGenerator
     /// Deposition (Davy and Lague 2009): the load runs down the drainage tree from the divides; each land cell keeps
     /// G x load / drainage area of it (rivers drop their load where they gather little more water and slow) and passes the
     /// rest on. What reaches base level (the sea, the region's edges) leaves the model; what reaches a closed basin's lake
-    /// settles there, up to the lake's level.
+    /// settles there, up to the lake's level. The arithmetic lives in <see cref="ErosionDeposit"/> (game-free, tested).
     /// </summary>
     private static void Deposit(float[] h, float[] eroded, float[] load, float[] inflow, int[] receiver, float[] area, int[] stack, int count,
         bool[] outlet, bool[] sink, float[] baseLevel, float[] deposited, GeologyGenerationExtension p)
     {
-        int n = h.Length;
-        Array.Clear(load, 0, n);
-        float yield = 0f;
-        int land = 0;
-        for (int i = 0; i < n; i++)
-        {
-            if (!outlet[i])
-            {
-                yield += eroded[i];
-                land++;
-            }
-        }
-        // Rivers entering the region bring the sediment of their catchment beyond it (sediment yield scales with drainage
-        // area): their inflow, in model cells of drainage, eroding at the region's own mean rate.
-        yield /= Mathf.Max(1, land);
-        for (int k = count - 1; k >= 0; k--)
-        {
-            int c = stack[k];
-            load[c] += eroded[c] + inflow[c] * yield;
-            int r = receiver[c];
-            if (r >= 0)
-            {
-                float keep = Mathf.Min(load[c], p.deposition * load[c] / Mathf.Max(area[c], 1f));
-                h[c] += keep;
-                deposited[c] += keep;
-                load[r] += load[c] - keep;
-            }
-            else if (sink[c])
-            {
-                float before = h[c];
-                h[c] = Mathf.Min(h[c] + load[c], baseLevel[c]);
-                deposited[c] += Mathf.Max(0f, h[c] - before);
-            }
-        }
+        ErosionDeposit.Apply(h, eroded, load, inflow, receiver, area, stack, count, outlet, sink, baseLevel, deposited, p.deposition);
     }
 
     /// <summary>Linear hillslope creep; weak rock (higher <paramref name="factor"/>) creeps faster.</summary>
