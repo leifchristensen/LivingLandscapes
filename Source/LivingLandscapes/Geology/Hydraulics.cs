@@ -247,4 +247,36 @@ public static class Hydraulics
         }
         return direction;
     }
+
+    /// <summary>
+    /// (D5, #186) Channel cells along one centre line whose water level stands higher than the level of the cell immediately
+    /// upstream: the feedback passes raise beds after the water levels were chosen, and the never-rising profile must survive
+    /// that (<see cref="TerrainChannelSettings.accommodation"/>); the summary line's K, expected 0 with the setting on and off.
+    /// Walks the centre line as the downhill invariant does: one-metre steps, only cells of this channel, comparing neighbours;
+    /// cells without a water level (NaN, not carved) never count and are not compared across.
+    /// </summary>
+    public static int WaterLevelClimbs(List<Vector2> main, int[] channelOf, int channel, float[] waterLevel, int sizeX, int sizeZ, float tolerance)
+    {
+        int climbs = 0, prev = -1;
+        for (int i = 0; i + 1 < main.Count; i++)
+        {
+            Vector2 a = main[i], b = main[i + 1];
+            float segment = (b - a).magnitude;
+            for (float t = 0f; t <= segment + 1e-3f; t += 1f)
+            {
+                float s = Mathf.Clamp01(t / Mathf.Max(segment, 1e-3f));
+                int x = (int)(a.x + (b.x - a.x) * s), y = (int)(a.y + (b.y - a.y) * s);
+                if (x < 0 || y < 0 || x >= sizeX || y >= sizeZ)
+                    continue;
+                int index = y * sizeX + x;
+                if (channelOf[index] != channel || index == prev)
+                    continue;
+                if (prev >= 0 && !float.IsNaN(waterLevel[prev]) && !float.IsNaN(waterLevel[index])
+                    && waterLevel[index] > waterLevel[prev] + tolerance)
+                    climbs++;
+                prev = index;
+            }
+        }
+        return climbs;
+    }
 }

@@ -52,6 +52,15 @@ public sealed class Standing
     /// </summary>
     public bool Deep(int i, float bed, float depth) => level[i] - bed > Mathf.Max(depth, minDepth) + tolerance;
 
+    /// <summary>
+    /// (D5, #186) The room (accommodation) at a cell: how far its bed can rise before the cell stops being standing water,
+    /// <c>max(0, L - bed - (max(depth, minDepth) + tolerance))</c>. It is exactly the rise at which <see cref="Deep"/> turns off,
+    /// so a deposit capped by it never lifts the bed above the water surface; past that point the normal land rule applies.
+    /// The sea has no room to fill here (0): building land into it is the shore pass' work, not the feedback's.
+    /// </summary>
+    public float Room(int i, float bed, float depth) =>
+        IsSea(i) ? 0f : Mathf.Max(0f, level[i] - bed - (Mathf.Max(depth, minDepth) + tolerance));
+
     /// <summary>Standing water: the sea, or <see cref="Deep"/>. This is what makes a cell a base level for the budget and for junctions.</summary>
     public bool Is(int i, float bed, float depth) => IsSea(i) || Deep(i, bed, depth);
 

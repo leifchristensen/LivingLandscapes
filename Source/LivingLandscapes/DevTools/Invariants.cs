@@ -43,6 +43,7 @@ public static class Invariants
         GrainFinesDownstream(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
         JunctionsHold(map, summary);
+        Accommodation(map, summary);
         TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
     }
 
@@ -307,6 +308,27 @@ public static class Invariants
         bool ok = (a.Narrowed == 0 || !a.WidthEnforced) && a.ScourOffCentre == 0;
         summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm{(a.WidthEnforced ? "" : " (not enforced: one hydraulics off)")} " +
                            $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones ({a.Holes} with a scour hole of 1.5x depth or more), {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
+    }
+
+    /// <summary>
+    /// D5 accommodation (#186, step W4): what the feedback passes did to standing-water beds with the setting on (all counts 0
+    /// with it off), and the check that must hold either way: channel cells whose water level is higher than the level upstream
+    /// (K, must be 0). A bed may rise toward the water surface it stands under, but the water surface must never climb downstream.
+    /// </summary>
+    private static void Accommodation(Map map, StringBuilder summary)
+    {
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null || rivers.Channels == null || rivers.Channels.Count == 0)
+            return;
+        int climbs = 0;
+        for (int k = 0; k < rivers.Channels.Count; k++)
+            climbs += Hydraulics.WaterLevelClimbs(rivers.Channels[k].Main, rivers.ChannelOf, k, rivers.WaterLevel,
+                map.Size.x, map.Size.z, Tolerance);
+        // A fed lake now fills across the standing-water line (room + crossing epsilon), so "still standing at the end" is 0 for
+        // lakes that were fed enough and > 0 only where the sediment supply ran out before the lake filled (D5 #186).
+        summary.AppendLine($"accommodation: {rivers.AccommodationRaisedCells} standing cells raised, {rivers.AccommodationRaisedVolume:0} m3, " +
+                           $"{rivers.AccommodationStillStanding} still standing at the end (0 where the deposits fed the lake enough, more only where the supply ran out), " +
+                           $"{climbs} channel cells whose water level is higher than the level upstream");
     }
 
     /// <summary>Cells from the map edge within which a river that enters and leaves counts as running along the edge.</summary>

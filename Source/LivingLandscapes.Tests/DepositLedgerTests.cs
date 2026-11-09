@@ -176,6 +176,46 @@ public class DepositLedgerTests
     }
 
     [Fact]
+    public void Raise_with_room_caps_and_books_the_capped_rise()
+    {
+        // D5 (issue #186): a standing cell cannot rise past its room, and the ledger must book what actually rose, not what was offered.
+        var ledger = new DepositLedger();
+        float[] alluvium = { 1f, 2f, 4f, 0f };
+        float[] room = { 0.2f, 10f, 1.5f, 0f };
+        float[] rise = ledger.Raise(alluvium, 0.5f, room, out float volume);
+        Assert.Equal(new float[] { 0.2f, 1f, 1.5f, 0f }, rise);
+        Assert.Equal(2.7f, volume, 4);
+        Assert.Equal(volume, Sum(ledger.Aggraded), 4);
+        Assert.Equal(volume, ledger.AggradedVolume, 4);
+    }
+
+    [Fact]
+    public void Raise_without_room_is_unchanged()
+    {
+        float[] alluvium = { 1f, 2f, 4f, 0f };
+        var capped = new DepositLedger();
+        var plain = new DepositLedger();
+        float[] rise = capped.Raise(alluvium, 0.5f, null, out float volume);
+        float[] asBefore = plain.Raise(alluvium, 0.5f, out float volumeBefore);
+        Assert.Equal(asBefore, rise);
+        Assert.Equal(volumeBefore, volume, 4);
+        Assert.Equal(0.5f * Sum(alluvium), volume, 4);
+        Assert.Equal(Sum(asBefore), Sum(plain.Aggraded), 4);
+    }
+
+    [Fact]
+    public void Raise_with_zero_room_books_nothing()
+    {
+        var ledger = new DepositLedger();
+        float[] alluvium = { 1f, 2f, 4f };
+        float[] rise = ledger.Raise(alluvium, 0.5f, new float[3], out float volume);
+        Assert.Equal(0f, volume);
+        Assert.Equal(0f, Sum(rise));
+        Assert.Equal(0f, ledger.AggradedVolume);
+        Assert.Equal(0f, Sum(ledger.Aggraded));
+    }
+
+    [Fact]
     public void NoDepositsLeavesKappaAtOneWithoutNaN()
     {
         var channel = new Channel(true);
@@ -202,5 +242,111 @@ public class DepositLedgerTests
         // Held: a later, much larger deposit does not move it.
         ledger.FixFrom(new float[] { 100f, 200f }, p);
         Assert.Equal(2f, ledger.Kappa);
+    }
+
+    // D5 measurement (#186, step W1b, measured here instead of on a map because map tests cannot get memory today): does the
+    // sediment budget's layer reach standing water at all? The accommodation cap only means something if it does. This runs the
+    // two real steps of a feedback pass exactly as TerrainChannels.Feedback.cs:59-68 runs them - Sediment.Deposits, then
+    // Sediment.Spread with the BED as the ground the kernel may lay on and lakes NOT marked base level (Feedback.cs:45-49) -
+    // over a river falling into a closed flat lake, and measures where the alluvium lands.
+
+    private const int LakeFrom = 12, LakeTo = 17;
+    private const float ChannelDepth = 0.5f, MinDepth = 0.5f, StandingTolerance = 0.05f;
+
+    /// <summary>
+    /// A river along one row falling into a closed lake (x = <paramref name="LakeFrom"/>..<see cref="LakeTo"/>, no outlet). The
+    /// water surface is flat over the lake, so the budget's capacity there is nil (Sediment.cs:178-180: capacity is discharge
+    /// times the slope of the water surface) and the load it carried settles. The lake is 1.8 m deep against a channel that is
+    /// 0.5 m deep, so <see cref="Standing.Is"/> calls it standing water and the river cells not.
+    /// </summary>
+    private sealed class LakeProfile
+    {
+        public readonly List<int> Cells = new List<int>();
+        public readonly int[] Receiver = new int[SizeX * SizeZ];
+        public readonly float[] Discharge = new float[SizeX * SizeZ];
+        public readonly float[] Inflow = new float[SizeX * SizeZ];
+        public readonly float[] Width = new float[SizeX * SizeZ];
+        public readonly float[] Bed = new float[SizeX * SizeZ];
+        public readonly float[] Filled = new float[SizeX * SizeZ];
+        public readonly bool[] BaseLevel = new bool[SizeX * SizeZ]; // all false, as in the feedback pass
+        public readonly Standing Standing;
+
+        public LakeProfile()
+        {
+            for (int i = 0; i < Receiver.Length; i++)
+            {
+                Receiver[i] = -1;
+                Width[i] = 2f;
+            }
+            float lakeSurface = 14f - 0.7f * (LakeFrom - 1) + ChannelDepth;
+            for (int x = 0; x < SizeX; x++)
+            {
+                int c = Row * SizeX + x;
+                Filled[c] = x < LakeFrom ? 14f - 0.7f * x + ChannelDepth : lakeSurface;
+                Bed[c] = x < LakeFrom ? Filled[c] - ChannelDepth : Filled[c] - 1.8f;
+                Discharge[c] = 10f;
+                if (x <= LakeTo)
+                {
+                    Cells.Add(c);
+                    Receiver[c] = x < LakeTo ? c + 1 : -1; // closed: the lake has no outlet
+                }
+            }
+            // The ground beside the row: the same profile, so the kernels see a plain with a trench across it, not a cliff.
+            for (int z = 0; z < SizeZ; z++)
+            {
+                if (z == Row)
+                    continue;
+                for (int x = 0; x < SizeX; x++)
+                {
+                    Filled[z * SizeX + x] = Filled[Row * SizeX + x];
+                    Bed[z * SizeX + x] = Bed[Row * SizeX + x];
+                }
+            }
+            Inflow[Row * SizeX] = 10f;
+            Standing = new Standing(Filled, null, MinDepth, StandingTolerance, 0.5f);
+        }
+
+        public bool IsLake(int i) => i / SizeX == Row && i % SizeX >= LakeFrom && i % SizeX <= LakeTo;
+    }
+
+    [Fact]
+    public void The_budget_lays_its_layer_on_the_standing_water_a_channel_flows_into()
+    {
+        var lake = new LakeProfile();
+        for (int x = LakeFrom; x <= LakeTo; x++)
+            Assert.True(lake.Standing.Is(Row * SizeX + x, lake.Bed[Row * SizeX + x], ChannelDepth), $"the lake cell x={x} is not standing water");
+        Assert.False(lake.Standing.Is(Row * SizeX + LakeFrom - 1, lake.Bed[Row * SizeX + LakeFrom - 1], ChannelDepth), "the river cell above the lake is standing water");
+
+        var p = new SedimentSettings();
+        Sediment.Deposits(lake.Cells, lake.Receiver, lake.Discharge, 1f, lake.Filled, lake.Inflow, null, lake.BaseLevel, SizeX, p,
+            out float[] deposit, out float[] grain, out float total, out _, out _, out _);
+        Assert.True(total > 0f, "the river erodes nothing on its fall, so there is no load to follow");
+
+        float supplyInLake = 0f;
+        foreach (int c in lake.Cells)
+            if (lake.IsLake(c))
+                supplyInLake += deposit[c];
+        Assert.True(supplyInLake > 0f, "the budget keeps its load in flat water instead of dropping it there");
+
+        // The same Spread call the pass makes (Feedback.cs:67): natural = the bed, still = base level (lakes excluded).
+        Sediment.Spread(lake.Cells, lake.Receiver, null, deposit, grain, lake.Width, lake.Filled, lake.Bed, SizeX, SizeZ, p,
+            new DepositLedger(), out float[] alluvium, out _, lake.Discharge, lake.BaseLevel);
+
+        float onStanding = 0f, onLakeCells = 0f;
+        int standingCells = 0;
+        for (int i = 0; i < alluvium.Length; i++)
+        {
+            if (alluvium[i] <= 0f || !lake.Standing.Is(i, lake.Bed[i], ChannelDepth))
+                continue;
+            onStanding += alluvium[i];
+            standingCells++;
+            if (lake.IsLake(i))
+                onLakeCells += alluvium[i];
+        }
+        Assert.True(standingCells > 0 && onStanding > 0f, "the layer lands on no standing cell: a room cap would cap nothing");
+        Assert.True(onLakeCells > 0f, "the layer misses the lake cells themselves: only their banks get it");
+        // So the room cap of the accommodation pass has something to cap: the budget already delivers to standing water, and no
+        // separate delivery step is needed (the map probe of step W1 says the same thing on real maps, with real numbers).
+        Assert.True(Sum(alluvium) > onStanding, "nothing is laid outside standing water: the profile is all lake");
     }
 }

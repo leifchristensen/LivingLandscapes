@@ -116,7 +116,14 @@ public sealed class DepositLedger
     /// One aggradation pass: the ground rises by <paramref name="share"/> of this pass's alluvium. Adds the rise to
     /// <see cref="Aggraded"/> and returns it per cell, so the pass's rise sum is exactly share times the layer's sum.
     /// </summary>
-    public float[] Raise(float[] alluvium, float share, out float volume)
+    public float[] Raise(float[] alluvium, float share, out float volume) => Raise(alluvium, share, null, out volume);
+
+    /// <summary>
+    /// One aggradation pass with an accommodation cap (D5, issue #186): where <paramref name="room"/> is given, a cell rises by
+    /// at most its room (the rise at which standing water stops standing, <c>Standing.Room</c>), and the ledger books the CAPPED
+    /// rise in <see cref="Aggraded"/>. <paramref name="room"/> null means no cap, exactly the share-only pass.
+    /// </summary>
+    public float[] Raise(float[] alluvium, float share, float[] room, out float volume)
     {
         Aggraded ??= new float[alluvium.Length];
         var rise = new float[alluvium.Length];
@@ -126,6 +133,8 @@ public sealed class DepositLedger
             if (alluvium[i] <= 0f)
                 continue;
             rise[i] = alluvium[i] * share;
+            if (room != null)
+                rise[i] = Mathf.Min(rise[i], room[i]);
             Aggraded[i] += rise[i];
             volume += rise[i];
         }

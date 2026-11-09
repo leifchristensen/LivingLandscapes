@@ -211,6 +211,17 @@ public class TerrainChannelSettings
     public float momentumCells = 4f;
 
     /// <summary>
+    /// Accommodation (D5, #186): sediment reaching standing water (a lake, a hollow, marsh) settles on its bed, but the bed can
+    /// only rise through the room left below the water surface: rise = min(aggradationShare x alluvium, room), where
+    /// room = max(0, level - bed - (max(depth, minDepth) + standingTolerance)) (<see cref="Standing.Room"/>). The bed stops rising
+    /// exactly where the cell stops being standing water, and the ordinary land rule (aggradationShare of the alluvium) takes
+    /// over there, so lakes and hollows fill up over the feedback passes with no second threshold. The water level does not rise
+    /// with the bed; the refill recomputes the spill from the new heights. The sea is excluded (delta building into the sea is
+    /// the shore architect's area). Off: standing beds are raised as today, uncapped. Kept until the owner accepts the A/B.
+    /// </summary>
+    public bool accommodation = false;
+
+    /// <summary>
     /// Confinement field for the channel regimes: the valley floor is ground no higher than this (metres) above the
     /// water, measured across the channel up to this many channel widths each side.
     /// </summary>
