@@ -176,6 +176,46 @@ public class DepositLedgerTests
     }
 
     [Fact]
+    public void Raise_with_room_caps_and_books_the_capped_rise()
+    {
+        // D5 (issue #186): a standing cell cannot rise past its room, and the ledger must book what actually rose, not what was offered.
+        var ledger = new DepositLedger();
+        float[] alluvium = { 1f, 2f, 4f, 0f };
+        float[] room = { 0.2f, 10f, 1.5f, 0f };
+        float[] rise = ledger.Raise(alluvium, 0.5f, room, out float volume);
+        Assert.Equal(new float[] { 0.2f, 1f, 1.5f, 0f }, rise);
+        Assert.Equal(2.7f, volume, 4);
+        Assert.Equal(volume, Sum(ledger.Aggraded), 4);
+        Assert.Equal(volume, ledger.AggradedVolume, 4);
+    }
+
+    [Fact]
+    public void Raise_without_room_is_unchanged()
+    {
+        float[] alluvium = { 1f, 2f, 4f, 0f };
+        var capped = new DepositLedger();
+        var plain = new DepositLedger();
+        float[] rise = capped.Raise(alluvium, 0.5f, null, out float volume);
+        float[] asBefore = plain.Raise(alluvium, 0.5f, out float volumeBefore);
+        Assert.Equal(asBefore, rise);
+        Assert.Equal(volumeBefore, volume, 4);
+        Assert.Equal(0.5f * Sum(alluvium), volume, 4);
+        Assert.Equal(Sum(asBefore), Sum(plain.Aggraded), 4);
+    }
+
+    [Fact]
+    public void Raise_with_zero_room_books_nothing()
+    {
+        var ledger = new DepositLedger();
+        float[] alluvium = { 1f, 2f, 4f };
+        float[] rise = ledger.Raise(alluvium, 0.5f, new float[3], out float volume);
+        Assert.Equal(0f, volume);
+        Assert.Equal(0f, Sum(rise));
+        Assert.Equal(0f, ledger.AggradedVolume);
+        Assert.Equal(0f, Sum(ledger.Aggraded));
+    }
+
+    [Fact]
     public void NoDepositsLeavesKappaAtOneWithoutNaN()
     {
         var channel = new Channel(true);
