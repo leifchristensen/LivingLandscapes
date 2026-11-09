@@ -316,6 +316,106 @@ public class GrainLoadsTests
     }
 
     /// <summary>
+    /// The settling law's prerequisite (HYDRO-UNIFICATION section 10, #186): every consumer of the settling constants and of a
+    /// deposit's mean grain index is listed here and pinned. If one of these defaults moves, every consumer below moves with it,
+    /// so the change must be deliberate and this test updated on purpose. No XML sets any of these values (grep over *.xml finds
+    /// none), so the code defaults are the live values.
+    ///
+    /// Consumers found by grep (2026-11-09):
+    /// - settleShare (0.04): Sediment.cs:201 (share of the excess load settling in one cell), Sediment.cs:208 (slow share below a
+    ///   junction), Sediment.Grains.cs:124 (the per-class settling length falls back to it when the length switch is off).
+    /// - jetSettleWidths (5): Sediment.cs:253 (a mouth jet settles its load over this many channel widths), Sediment.cs:420
+    ///   (a class's jet reach scales the settling length by the reference fall speed over its own).
+    /// - jetReachLengths (3): Sediment.cs:253 and :421 (the jet reaches this many settling lengths).
+    /// - settlingCompression (24.5), ellMin (1), ellMax (400): Sediment.Grains.cs:120, the per-class settling length
+    ///   Length = Clamp(settlingCompression x max(u,0.05) x max(d,0.05) / fallSpeed, ellMin, ellMax) cells.
+    /// - competenceSharpness (6): the steepness of the logistic that switches a class on around its critical speed.
+    /// - jetMaxReach (60): Sediment.cs:422 caps the jet at this many cells; what would settle beyond leaves as washload (:423-428).
+    /// - the grain table (index / fallSpeed / criticalSpeed): Sediment.cs:105-107, the classes the load is split into.
+    /// - mean grain index of a deposit: written at Sediment.cs:215 (lumped path) and Sediment.Grains.cs:297 (per class); read by
+    ///   the jet and floodplain spread (Sediment.cs:392/395/430/437) into DepositLedger.cs:105 (grainSize = Clamp01(grainSum/raw)),
+    ///   stored as the layer's GrainSize (SedimentLayers.cs:20), published as LL_GrainSize (SedimentWorkers.cs:20-28), which the
+    ///   floor seepage rules threshold at grainSilt 0.25 / grainGravel 0.7 (FloorSeepageRules.cs:29-30, used by
+    ///   FloorSeepageGrid.cs:19/33), and checked downstream by invariant 9 (Invariants.cs:205).
+    ///
+    /// The fixture numbers are main's (88dda93): with grains = null (both switches off) Deposits and Spread are the old lumped
+    /// path unchanged, so these literals pin what the switches must never alter.
+    /// </summary>
+    [Fact]
+    public void EveryConsumerOfTheSettlingConstantsIsPinned()
+    {
+        var p = new SedimentSettings();
+        Assert.Equal(0.04f, p.settleShare, 6);
+        Assert.Equal(5f, p.jetSettleWidths, 6);
+        Assert.Equal(3f, p.jetReachLengths, 6);
+        Assert.Equal(24.5f, p.settlingCompression, 6);
+        Assert.Equal(1f, p.ellMin, 6);
+        Assert.Equal(400f, p.ellMax, 6);
+        Assert.Equal(6f, p.competenceSharpness, 6);
+        Assert.Equal(60f, p.jetMaxReach, 6);
+
+        Assert.Equal(3, p.grains.Count);
+        Assert.Equal("gravel", p.grains[0].name);
+        Assert.Equal(0.8f, p.grains[0].index, 6);
+        Assert.Equal(4f, p.grains[0].fallSpeed, 6);
+        Assert.Equal(0.9f, p.grains[0].criticalSpeed, 6);
+        Assert.Equal("sand", p.grains[1].name);
+        Assert.Equal(0.42f, p.grains[1].index, 6);
+        Assert.Equal(1f, p.grains[1].fallSpeed, 6);
+        Assert.Equal(0.4f, p.grains[1].criticalSpeed, 6);
+        Assert.Equal("fines", p.grains[2].name);
+        Assert.Equal(0.15f, p.grains[2].index, 6);
+        Assert.Equal(0.25f, p.grains[2].fallSpeed, 6);
+        Assert.Equal(0.1f, p.grains[2].criticalSpeed, 6);
+
+        var rules = new FloorSeepageRules();
+        Assert.Equal(0.25f, rules.grainSilt, 6);
+        Assert.Equal(0.7f, rules.grainGravel, 6);
+
+        // The fixture river, off path: deposits/grain at channel cells x = 6, 12, 18, 23; alluvium/grainSize beside the
+        // channel (in the channel at x=6, one row over, four rows over) and at the mouth x = 23.
+        PinOffPathFixture(baseLevel: false, total: 1.89f, atBase: 0f, eroded: 4.24f, exits: 2.35f, kappa: 77.57f,
+            dep: new[] { 0.0605f, 0.1140f, 0.1093f, 0.0980f }, grn: new[] { 0.9976f, 0.9941f, 0.9911f, 0.9883f },
+            all: new[] { 0.5937f, 0.5604f, 0.3356f, 0.7279f }, gs: new[] { 0.4871f, 0.4293f, 0.2025f, 0.5556f },
+            offered: 146.72f, laid: 146.63f, clipped: 0.09f, unplaced: 0f);
+        PinOffPathFixture(baseLevel: true, total: 4.24f, atBase: 2.45f, eroded: 4.24f, exits: 0f, kappa: 77.06f,
+            dep: new[] { 0.0605f, 0.1140f, 0.1093f, 2.4507f }, grn: new[] { 0.9976f, 0.9941f, 0.9911f, 0.7072f },
+            all: new[] { 0.5898f, 0.5567f, 0.3334f, 3.0000f }, gs: new[] { 0.4871f, 0.4293f, 0.2025f, 0.7051f },
+            offered: 327.04f, laid: 152.31f, clipped: 174.73f, unplaced: 0f);
+    }
+
+    private static void PinOffPathFixture(bool baseLevel, float total, float atBase, float eroded, float exits, float kappa,
+        float[] dep, float[] grn, float[] all, float[] gs, float offered, float laid, float clipped, float unplaced)
+    {
+        var channel = new Channel(baseLevel);
+        var p = new SedimentSettings(); // both switches off: exactly main's lumped path
+        Sediment.Deposits(channel.Cells, channel.Receiver, channel.Discharge, 1f, channel.Filled, channel.Inflow, null, channel.BaseLevel,
+            SizeX, p, out float[] deposit, out float[] grain, out float gotTotal, out float gotAtBase, out float gotEroded, out float gotExits);
+        var ledger = new DepositLedger();
+        LayTotals t = Sediment.Spread(channel.Cells, channel.Receiver, null, deposit, grain, channel.Width, channel.Filled, channel.Filled,
+            SizeX, SizeZ, p, ledger, out float[] alluvium, out float[] grainSize, channel.Discharge, channel.BaseLevel);
+        Assert.Equal(total, gotTotal, 2);
+        Assert.Equal(atBase, gotAtBase, 2);
+        Assert.Equal(eroded, gotEroded, 2);
+        Assert.Equal(exits, gotExits, 2);
+        Assert.Equal(kappa, ledger.Kappa, 2);
+        int[] cells = { Row * SizeX + 6, Row * SizeX + 12, Row * SizeX + 18, Row * SizeX + 23 };
+        int[] spots = { Row * SizeX + 6, (Row + 1) * SizeX + 6, (Row + 4) * SizeX + 6, Row * SizeX + 23 };
+        for (int i = 0; i < 4; i++)
+        {
+            Assert.Equal(dep[i], deposit[cells[i]], 4);
+            Assert.Equal(grn[i], grain[cells[i]], 4);
+            Assert.Equal(all[i], alluvium[spots[i]], 4);
+            Assert.Equal(gs[i], grainSize[spots[i]], 4);
+        }
+        Assert.Equal(offered, t.Offered, 2);
+        Assert.Equal(laid, t.Laid, 2);
+        Assert.Equal(clipped, t.Clipped, 2);
+        Assert.Equal(unplaced, t.Unplaced, 2);
+        Assert.Equal(0f, t.Washload, 6); // the lumped path has no jet: nothing leaves the map as washload
+    }
+
+    /// <summary>
     /// Invariant 9 (DevTools): grain along a river's deposits fines downstream. A hand-made 6-cell river whose deposits fine
     /// passes; one whose deposits coarsen by 0.5 grain-index units from source to mouth fails. The rule is the running mean of
     /// the deposit grain index walking downstream: it may not climb above the lowest mean already passed by more than
