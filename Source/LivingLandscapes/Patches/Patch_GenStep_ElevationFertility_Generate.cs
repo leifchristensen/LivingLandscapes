@@ -41,12 +41,15 @@ public static class Patch_GenStep_ElevationFertility_Generate
             environment.PlannedCliffs = VanillaTerrainWriter.Write(map, fields, DefDatabase<GroundRulesDef>.GetNamed("LL_GroundRules"),
                 soil.ToArray(), landform.ToArray(), generation.cellSize, terraces, out GroundCover[] cover);
             environment.PlannedCover = cover;
-            if (environment.TryGetGrid(EnvironmentLayerDefOf.LL_Wetness, out EnvironmentGrid wetness))
+            // The water the ground is classified with: the wetness grid while the terrain switch is off, else the same
+            // grid raised by the rain baseline (Layers/WaterField.cs). Same values, same null when there is no wetness grid.
+            float[] wetness = Layers.WaterField.TerrainWater(environment, map);
+            if (wetness != null)
             {
                 float[] Layer(EnvironmentLayerDef def) => environment.TryGetGrid(def, out EnvironmentGrid g) ? g.ToArray() : null;
                 float[] throughflow = GroundWriter.ThroughflowOf(Layer(EnvironmentLayerDefOf.LL_DrainageArea), Layer(EnvironmentLayerDefOf.LL_Slope),
                     Layer(EnvironmentLayerDefOf.LL_HeightAboveDrainage), generation.cellSize, ground, map.Size.x, map.Size.z);
-                GroundWriter.Write(map, wetness.ToArray(), soil.ToArray(), ground, throughflow, Layer(EnvironmentLayerDefOf.LL_SurfaceWater));
+                GroundWriter.Write(map, wetness, soil.ToArray(), ground, throughflow, Layer(EnvironmentLayerDefOf.LL_SurfaceWater));
             }
             Gameplay.SettlementSiting.Plan(map, environment);
         }

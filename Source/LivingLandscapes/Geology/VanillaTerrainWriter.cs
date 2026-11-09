@@ -35,15 +35,20 @@ public static class VanillaTerrainWriter
             if (environment.TryGetGrid(layer, out Environment.EnvironmentGrid grid))
                 fields.Add(layer.defName, grid.ToArray());
         }
+        // The water the ground is classified with (#132): asked through Layers/WaterField.cs like every other terrain reader,
+        // so the LL_Wetness field the ground rules test and the Stagnation below follow the terrainReadsMoisture switch
+        // together. While it is off (the default) this is the wetness grid unchanged, cell for cell.
+        float[] terrainWater = Layers.WaterField.TerrainWater(environment, map);
+        if (terrainWater != null)
+            fields.Add("LL_Wetness", terrainWater);
         // Stagnation: wetness where the water does not move (#187); the marsh and mud rules read this, not wetness.
-        if (environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Wetness, out var wetGrid)
-            && environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Slope, out var slopeGrid))
+        if (terrainWater != null && environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_Slope, out var slopeGrid))
         {
             var moving = Environment.EnvironmentLayerDefOf.LL_Wetness.GetModExtension<GroundWriterExtension>() ?? new GroundWriterExtension();
-            float[] wet = wetGrid.ToArray(), slope = slopeGrid.ToArray();
-            var stagnation = new float[wet.Length];
+            float[] slope = slopeGrid.ToArray();
+            var stagnation = new float[terrainWater.Length];
             for (int i = 0; i < stagnation.Length; i++)
-                stagnation[i] = Throughflow.Stagnation(wet[i], slope[i] / cellSize, moving.throughflowMovingGradient);
+                stagnation[i] = Throughflow.Stagnation(terrainWater[i], slope[i] / cellSize, moving.throughflowMovingGradient);
             fields.Add("Stagnation", stagnation);
         }
         float[] soil = environment.TryGetGrid(Environment.EnvironmentLayerDefOf.LL_SoilDepth, out var soilGrid) ? soilGrid.ToArray() : null;

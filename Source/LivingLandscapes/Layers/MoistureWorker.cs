@@ -18,6 +18,15 @@ public class MoistureExtension : DefModExtension
     /// </summary>
     public float climateMoistureMax = 0.5f;
     public float aridityHalf = 0.5f;
+
+    /// <summary>
+    /// What the terrain readers (soil fertility, wet ground, settlement siting) read of the water field (#132). Off (the
+    /// default, and what every map uses today): they read the topographic wetness W alone, exactly as before the two water
+    /// layers were merged. On: they read the ground term G = 1 - (1 - C)(1 - W) - the wetness raised by the moisture the
+    /// rain already keeps in drained ground - so a wet climate makes ground wetter even on a slope. Plants always read the
+    /// full moisture M (this layer) and never change with this switch. See <see cref="WaterField.TerrainWater"/>.
+    /// </summary>
+    public bool terrainReadsMoisture = false;
 }
 
 /// <summary>
@@ -36,18 +45,27 @@ public class MoistureWorker : EnvironmentLayerWorker
 
         var p = def.GetModExtension<MoistureExtension>() ?? new MoistureExtension();
         float aridity = AridityIndex(context.Map);
-        float climate = p.climateMoistureMax * aridity / (aridity + p.aridityHalf);
+        float climate = ClimateBaseline(aridity, p);
         var moisture = new float[distance.Length];
         for (int i = 0; i < moisture.Length; i++)
         {
             float proximity = Mathf.Exp(-distance[i] / p.waterReachCells);
-            float ground = wetness?[i] ?? 0f;
-            moisture[i] = 1f - (1f - climate) * (1f - ground) * (1f - proximity);
+            // The one water formula (#132): rain, terrain and open water, each wetting what the others leave dry.
+            moisture[i] = WaterFieldMath.Moisture(climate, wetness?[i] ?? 0f, proximity);
         }
         Log.Message($"[LivingLandscapes] Moisture on {context.Map}: rainfall {context.Map.TileInfo?.rainfall ?? 0f:F0} mm, " +
                     $"aridity index {aridity:F2}, moisture from rain alone {climate:F2} (P25).");
         return moisture;
     }
+
+    /// <summary>
+    /// The rain baseline C (P25): the moisture rain alone keeps in freely drained ground at this aridity index - the site
+    /// water balance of <see cref="MoistureExtension.climateMoistureMax"/>, half of it at
+    /// <see cref="MoistureExtension.aridityHalf"/>. One place, read the same way by <see cref="WaterField"/> when the
+    /// terrain is asked for the ground term instead of the wetness.
+    /// </summary>
+    public static float ClimateBaseline(float aridity, MoistureExtension p) =>
+        p.climateMoistureMax * aridity / (aridity + p.aridityHalf);
 
     /// <summary>
     /// Aridity index P / PET: the tile's yearly rainfall over the evaporation its mean temperature drives, the same

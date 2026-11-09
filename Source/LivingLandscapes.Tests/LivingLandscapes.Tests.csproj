@@ -37,6 +37,7 @@
     <Compile Include="..\LivingLandscapes\Geology\WatershedMath.cs" Link="Linked\WatershedMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WorldAltitudeMath.cs" Link="Linked\WorldAltitudeMath.cs" />
     <Compile Include="..\LivingLandscapes\Flora\ShadeRadiusRules.cs" Link="Linked\ShadeRadiusRules.cs" />
+    <Compile Include="..\LivingLandscapes\Layers\WaterFieldMath.cs" Link="Linked\WaterFieldMath.cs" />
     <Compile Include="..\LivingLandscapes\Overlay\TopologyBandMath.cs" Link="Linked\TopologyBandMath.cs" />
   </ItemGroup>
 

@@ -26,7 +26,9 @@ public class SettlementWorker : EnvironmentLayerWorker
         MapComponent_Environment environment = context.Environment;
         GroundCover[] cover = environment.PlannedCover;
         float[] slope = context.Get(EnvironmentLayerDefOf.LL_Slope);
-        float[] wetness = context.Get(EnvironmentLayerDefOf.LL_Wetness);
+        // How wet the ground is, asked through the one water field (#132): the wetness grid while the terrainReadsMoisture
+        // switch is off (the default), else the ground term. The siting terms still call the field "LL_Wetness".
+        float[] wetness = WaterField.TerrainWater(context);
         if (cover == null || slope == null || wetness == null)
             return null;
         var p = def.GetModExtension<SettlementExtension>() ?? new SettlementExtension();
