@@ -107,6 +107,9 @@ public static partial class TerrainChannels
         // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
         if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
             p.oneHydraulics = one;
+        // Dev: -ll-accommodation=true caps a standing-water bed's rise at its room (the A/B of D5, #186).
+        if (GenCommandLine.TryGetCommandLineArg("ll-accommodation", out string accomArg) && bool.TryParse(accomArg, out bool accom))
+            p.accommodation = accom;
         // Dev: -ll-grains=none|classes|settling|full switches the grain loads of HYDRO-UNIFICATION S3 (classes = S3a, settling adds S3b, full adds S3c).
         if (GenCommandLine.TryGetCommandLineArg("ll-grains", out string grainsArg))
         {
