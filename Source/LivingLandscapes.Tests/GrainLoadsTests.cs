@@ -162,6 +162,66 @@ public class GrainLoadsTests
         Assert.Equal(p.ellMax, grains.Length(2, 100f, 100f), 3);
     }
 
+    /// <summary>
+    /// The still-water floors are named settings (<see cref="SedimentSettings.uMin"/> m/s and <see cref="SedimentSettings.dMin"/> m,
+    /// #186), not literals buried in the two expressions that read a speed or a depth. With the shipped grain table neither floor can
+    /// move a number (every class has a critical speed above uMin, and ellMin already clamps a length of 0), so the test first pins
+    /// the defaults and shows the numbers are still the ones the inline literals gave, then lifts the clamp and the critical speeds to
+    /// show the floors themselves are what keeps standing water usable: a settling length above 0 (which <c>Settled</c> divides by)
+    /// and a competence that is a finite number rather than a 0-by-0 NaN for a class that starts moving at no speed at all.
+    /// </summary>
+    [Fact]
+    public void TheStillWaterFloorsKeepStandingWaterUsable()
+    {
+        var p = Classes(settling: true);
+        Assert.Equal(0.05f, p.uMin, 6); // m/s - the literal Mathf.Max(u, 0.05f) used to be
+        Assert.Equal(0.05f, p.dMin, 6); // m   - the literal Mathf.Max(d, 0.05f) used to be
+        var grains = new GrainLoads(p, new float[1], new float[1]);
+
+        // Standing water is the same water as water exactly at the floors, for every class.
+        for (int k = 0; k < grains.Count; k++)
+            Assert.Equal(grains.Length(k, 0f, 0f), grains.Length(k, p.uMin, p.dMin), 6);
+
+        // The floor, not the ellMin clamp, is what keeps the length usable: lift the clamp and standing water still has a length,
+        // the product of the two floors, above 0 and finite, and the share settling over a cell is a number, not NaN.
+        p.ellMin = 0f;
+        for (int k = 0; k < grains.Count; k++)
+        {
+            float still = grains.Length(k, 0f, 0f);
+            Assert.False(float.IsNaN(still) || float.IsInfinity(still), $"class {k}: settling length in standing water is {still}");
+            Assert.True(still > 0f, $"class {k}: settling length in standing water is {still}, not above 0");
+            Assert.Equal(p.settlingCompression * p.uMin * p.dMin / p.grains[k].fallSpeed, still, 6);
+            float settled = grains.Settled(k, 0f, 0f, 1f);
+            Assert.False(float.IsNaN(settled) || float.IsInfinity(settled), $"class {k}: share settling in standing water is {settled}");
+            Assert.Equal(1f - Mathf.Exp(-1f / still), settled, 6);
+        }
+
+        // Competence reads the floor too, where the class's speed of first movement is the width of the logistic: without the floor a
+        // class that starts moving at no speed at all would divide 0 by 0 in standing water and give NaN. With it the logistic is
+        // defined everywhere - half competent in standing water (the logistic sits at its centre, u = uc = 0), not NaN.
+        var soft = Classes();
+        soft.grains = new List<GrainClass>
+        {
+            new GrainClass { name = "dust", index = 0.1f, fallSpeed = 0.25f, criticalSpeed = 0f },
+            new GrainClass { name = "sand", index = 0.42f, fallSpeed = 1f, criticalSpeed = 0.4f },
+        };
+        var dust = new GrainLoads(soft, new float[1], new float[1]);
+        float dustStill = dust.Competence(0, 0f);
+        Assert.False(float.IsNaN(dustStill), "a class with criticalSpeed 0 must not divide 0 by 0 in the competence logistic");
+        Assert.Equal(0.5f, dustStill, 6);
+        // The floor bounds the logistic's width, not its centre: the centre stays at u = uc = 0, so one floor-speed above it the
+        // class is already almost fully competent - 1 / (1 + exp(-sharpness)) - and the number is finite, which is what the floor is for.
+        Assert.Equal(1f / (1f + Mathf.Exp(-soft.competenceSharpness)), dust.Competence(0, soft.uMin), 6);
+
+        // And with the shipped table no floor bites, so the competence of gravel in standing water is still exactly what the
+        // logistic gives with the class's own critical speed: 1 / (1 + exp(competenceSharpness)).
+        var q = Classes();
+        float uc = q.grains[0].criticalSpeed;
+        Assert.True(uc > q.uMin, "every class must stay above the speed floor, or the floor would move the shipped numbers");
+        var table = new GrainLoads(q, new float[1], new float[1]);
+        Assert.Equal(1f / (1f + Mathf.Exp(-q.competenceSharpness * (0f - uc) / uc)), table.Competence(0, 0f), 6);
+    }
+
     [Fact]
     public void SlowWaterCannotCarryGravelButCarriesFines()
     {
@@ -254,10 +314,10 @@ public class GrainLoadsTests
     /// The join/split fixture for the plan's S3 arithmetic test (HYDRO-UNIFICATION section 10 point 12, #186): two rivers join at
     /// cell 2, which then divides its water again (the main way to cell 3, a second way to cell 4 taking
     /// <paramref name="splitShare"/>). Cells 3 and 4 are base level on solid rock, so they drop exactly the load that arrives at them
-    /// (Sediment.Grains.cs:259): their per-class deposits read the load on each way before anything else can settle. Each branch's
+    /// (Sediment.Grains.cs:262-266): their per-class deposits read the load on each way before anything else can settle. Each branch's
     /// load is known by construction: the only supply is <c>gouged</c> (rock = 1 erodes nothing, inflow = 0 brings nothing), shared
     /// over the classes by the supply's mix, and the mix follows from the reach's slope (grainSupply = slope / coarseSlope at rock 1,
-    /// Sediment.Grains.cs:237, since Lerp(0.7, 1, 1) = 1). Cell 0 (slope (0.15 - 0) / 2 = 0.075 → index 0.6) brings 1.0 as gravel
+    /// Sediment.Grains.cs:243, since Lerp(0.7, 1, 1) = 1). Cell 0 (slope (0.15 - 0) / 2 = 0.075 → index 0.6) brings 1.0 as gravel
     /// 0.4737 + sand 0.5263; cell 1 (slope 0.0375 / 2 = 0.01875 → index 0.3) brings 0.5 as sand 0.2778 + fines 0.2222. The water
     /// above the base-level cells is fast and deep (discharge 100), so its capacity is more than the load on it and nothing settles
     /// on the way: the load at the probes is the load at the join.
@@ -356,7 +416,7 @@ public class GrainLoadsTests
     /// closure, not equality with the old kernel. The fixture river ends inland (mouth at x = 19) so the jet's axis lies on the
     /// map: row 5, x = 19..23, straight downstream (the momentum at the mouth of a straight channel is exactly +x). The mouth sits
     /// where the profile 6 e^(-x/5) has gone gentle (slope under ~0.055 = the coarseSlope 0.15 threshold times the mix factor):
-    /// the reach above it erodes a supply fine enough (grain index under the sand class's 0.42, Sediment.Grains.cs:237) to carry
+    /// the reach above it erodes a supply fine enough (grain index under the sand class's 0.42, Sediment.Grains.cs:243) to carry
     /// fines at all. Two checks:
     /// (1) walking away from the mouth, each class's deposit per cell never grows; (2) fed only one class's load, the jet lays
     /// that class on the map or lets it leave past its reach as washload, and the two add back to the supply Deposits booked.
@@ -511,18 +571,22 @@ public class GrainLoadsTests
     /// none), so the code defaults are the live values.
     ///
     /// Consumers found by grep (2026-11-09):
-    /// - settleShare (0.04): Sediment.cs:201 (share of the excess load settling in one cell), Sediment.cs:208 (slow share below a
-    ///   junction), Sediment.Grains.cs:124 (the per-class settling length falls back to it when the length switch is off).
-    /// - jetSettleWidths (5): Sediment.cs:253 (a mouth jet settles its load over this many channel widths), Sediment.cs:420
+    /// - settleShare (0.04): Sediment.cs:217 (share of the excess load settling in one cell), Sediment.cs:224 (slow share below a
+    ///   junction), Sediment.Grains.cs:130 (the per-class settling length falls back to it when the length switch is off).
+    /// - jetSettleWidths (5): Sediment.cs:269 (a mouth jet settles its load over this many channel widths), Sediment.cs:436
     ///   (a class's jet reach scales the settling length by the reference fall speed over its own).
-    /// - jetReachLengths (3): Sediment.cs:253 and :421 (the jet reaches this many settling lengths).
-    /// - settlingCompression (24.5), ellMin (1), ellMax (400): Sediment.Grains.cs:120, the per-class settling length
-    ///   Length = Clamp(settlingCompression x max(u,0.05) x max(d,0.05) / fallSpeed, ellMin, ellMax) cells.
-    /// - competenceSharpness (6): the steepness of the logistic that switches a class on around its critical speed.
-    /// - jetMaxReach (60): Sediment.cs:422 caps the jet at this many cells; what would settle beyond leaves as washload (:423-428).
+    /// - jetReachLengths (3): Sediment.cs:269 and :437 (the jet reaches this many settling lengths).
+    /// - settlingCompression (24.5), ellMin (1), ellMax (400): Sediment.Grains.cs:126, the per-class settling length
+    ///   Length = Clamp(settlingCompression x max(u,uMin) x max(d,dMin) / fallSpeed, ellMin, ellMax) cells.
+    /// - uMin (0.05 m/s), dMin (0.05 m): the still-water floors in that same length (Sediment.Grains.cs:126) and, for uMin, the
+    ///   floor under a class's critical speed where it sets the width of the competence logistic (Sediment.Grains.cs:92). Named
+    ///   settings since the still-water-floor step (#186); before that the same two literals sat inline in those expressions.
+    /// - competenceSharpness (6): the steepness of the logistic that switches a class on around its critical speed
+    ///   (Sediment.Grains.cs:92).
+    /// - jetMaxReach (60): Sediment.cs:438 caps the jet at this many cells; what would settle beyond leaves as washload (:439-444).
     /// - the grain table (index / fallSpeed / criticalSpeed): Sediment.cs:105-107, the classes the load is split into.
-    /// - mean grain index of a deposit: written at Sediment.cs:215 (lumped path) and Sediment.Grains.cs:297 (per class); read by
-    ///   the jet and floodplain spread (Sediment.cs:392/395/430/437) into DepositLedger.cs:105 (grainSize = Clamp01(grainSum/raw)),
+    /// - mean grain index of a deposit: written at Sediment.cs:231 (lumped path) and Sediment.Grains.cs:303 (per class); read by
+    ///   the jet and floodplain spread (Sediment.cs:408/411/446/453) into DepositLedger.cs:105 (grainSize = Clamp01(grainSum/raw)),
     ///   stored as the layer's GrainSize (SedimentLayers.cs:20), published as LL_GrainSize (SedimentWorkers.cs:20-28), which the
     ///   floor seepage rules threshold at grainSilt 0.25 / grainGravel 0.7 (FloorSeepageRules.cs:29-30, used by
     ///   FloorSeepageGrid.cs:19/33), and checked downstream by invariant 9 (Invariants.cs:205).
@@ -541,6 +605,8 @@ public class GrainLoadsTests
         Assert.Equal(1f, p.ellMin, 6);
         Assert.Equal(400f, p.ellMax, 6);
         Assert.Equal(6f, p.competenceSharpness, 6);
+        Assert.Equal(0.05f, p.uMin, 6);   // m/s
+        Assert.Equal(0.05f, p.dMin, 6);   // m
         Assert.Equal(60f, p.jetMaxReach, 6);
 
         Assert.Equal(3, p.grains.Count);

@@ -81,14 +81,15 @@ public sealed class GrainLoads
     /// <summary>
     /// How far the water at speed <paramref name="u"/> can move class <paramref name="k"/>, 0..1: a logistic of the speed against the
     /// class's speed of first movement, so a class switches on smoothly (a class with no load can still be picked up). A single class is
-    /// the old lumped load and is always competent.
+    /// the old lumped load and is always competent. The width of the logistic is floored at <see cref="SedimentSettings.uMin"/> so a
+    /// class that starts moving at no speed at all cannot divide by zero.
     /// </summary>
     public float Competence(int k, float u)
     {
         if (Count == 1)
             return 1f;
         float uc = P.grains[k].criticalSpeed;
-        return 1f / (1f + Mathf.Exp(-P.competenceSharpness * (u - uc) / Mathf.Max(uc, 0.05f)));
+        return 1f / (1f + Mathf.Exp(-P.competenceSharpness * (u - uc) / Mathf.Max(uc, P.uMin)));
     }
 
     /// <summary>
@@ -115,9 +116,14 @@ public sealed class GrainLoads
         }
     }
 
-    /// <summary>Settling length (cells) of class <paramref name="k"/> in water of speed <paramref name="u"/> and depth <paramref name="d"/>: the distance the water travels while the grain falls the depth, in map cells (P27).</summary>
+    /// <summary>
+    /// Settling length (cells) of class <paramref name="k"/> in water of speed <paramref name="u"/> and depth <paramref name="d"/>: the
+    /// distance the water travels while the grain falls the depth, in map cells (P27). Both speed and depth are floored
+    /// (<see cref="SedimentSettings.uMin"/>, <see cref="SedimentSettings.dMin"/>) so still or film-thin water cannot give a length of
+    /// 0, which <see cref="Settled"/> divides by.
+    /// </summary>
     public float Length(int k, float u, float d) =>
-        Mathf.Clamp(P.settlingCompression * Mathf.Max(u, 0.05f) * Mathf.Max(d, 0.05f) / P.grains[k].fallSpeed, P.ellMin, P.ellMax);
+        Mathf.Clamp(P.settlingCompression * Mathf.Max(u, P.uMin) * Mathf.Max(d, P.dMin) / P.grains[k].fallSpeed, P.ellMin, P.ellMax);
 
     /// <summary>The share of a class's excess that settles over a step of <paramref name="dx"/> cells: the common <c>settleShare</c> (S3a) or 1 - exp(-dx / ell) (S3b).</summary>
     public float Settled(int k, float u, float d, float dx) =>

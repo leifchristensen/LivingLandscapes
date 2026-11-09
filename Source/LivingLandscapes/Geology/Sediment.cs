@@ -115,6 +115,22 @@ public class SedimentSettings
     public float ellMin = 1f;
     public float ellMax = 400f;
 
+    /// <summary>
+    /// Floor on any speed (m/s) the grain model reads: the water speed in the settling length (GrainLoads.Length), and a class's
+    /// speed of first movement where it sets the width of the competence logistic (GrainLoads.Competence) and sits in a
+    /// denominator. Standing water (u = 0) would give a settling length of 0, which <see cref="GrainLoads.Settled"/> divides by:
+    /// the load would settle in no distance at all, or the number would come out NaN. At this floor the length is the shortest the
+    /// model allows (<see cref="ellMin"/> cells): still water still drops its load, just over a cell rather than instantly.
+    /// </summary>
+    public float uMin = 0.05f;
+
+    /// <summary>
+    /// Still-water floor on the flow depth (m) in the settling length (GrainLoads.Length): the length is the
+    /// distance travelled while the grain falls through the depth, so a dry or film-thin cell (d = 0) would settle everything in
+    /// one step; at this depth the length stays finite and is clamped by <see cref="ellMin"/> anyway.
+    /// </summary>
+    public float dMin = 0.05f;
+
     /// <summary>How sharply a class switches on around its critical speed (logistic steepness); a smooth weight, not a step.</summary>
     public float competenceSharpness = 6f;
 
