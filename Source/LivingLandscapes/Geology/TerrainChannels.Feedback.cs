@@ -28,9 +28,12 @@ public class FeedbackSettings
 public static partial class TerrainChannels
 {
     /// <summary>
-    /// Raises <paramref name="height"/> and <paramref name="filled"/> by the network's deposits; returns the cells raised. The
-    /// deposits are laid with the same settings as the final layers (S4, #186): the bend lean (<c>flow</c>) and the junction
-    /// zones are found from the network as it stands, and the thickness is the ledger's (one kappa for the map).
+    /// Raises <paramref name="height"/> and the water surface <paramref name="filled"/> by the network's deposits; returns the
+    /// cells raised. The deposits are laid with the same settings as the final layers (S4, #186): the bend lean (<c>flow</c>) and
+    /// the junction zones are found from the network as it stands, and the thickness is the ledger's (one kappa for the map).
+    /// With <see cref="TerrainChannelSettings.accommodation"/>, a standing-water bed (a lake, a hollow, marsh; not the sea) rises
+    /// only through the room left below the water surface and <paramref name="filled"/> is left alone there: the bed fills up
+    /// under the water instead of carrying the water surface up with it.
     /// </summary>
     private static int Aggrade(List<int> cells, int[] receiver, int[] secondary, float[] secondaryShare, float[] discharge, float dischargeScale, float threshold,
         float[] height, float[] filled, float[] inflow, float[] rockStrength, bool[] moving, float[] width, float[] depth, bool[] sand, Standing standing,
@@ -38,10 +41,8 @@ public static partial class TerrainChannels
     {
         int n = height.Length;
         raisedVolume = 0f;
-        // Base level as the water stands now: the sea and the network's outlets.
-        // Deferred (HYDRO-UNIFICATION D5, #186): standing lakes and hollows are not base level here yet. Treating them so makes the
-        // deposits fill lakes during routing (s7 invariant 2 fails: shallow water outside a depression) before the final pass can
-        // re-evaluate Standing on the raised bed. It lands with the accommodation step (ledger, S4).
+        // Base level as the water stands now: the sea and the network's outlets. Lakes and hollows are not base level here (the
+        // budget still drops its load where the river meets them); what they do with that load is the accommodation cap below.
         var baseLevel = new bool[n];
         for (int i = 0; i < n; i++)
             baseLevel[i] = standing.IsSea(i) || (isOutlet(i) && !Outlets.IsEdge(i, sizeX, sizeZ));
@@ -64,7 +65,11 @@ public static partial class TerrainChannels
         }
         Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
             out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
-        float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, out raisedVolume);
+        // Accommodation (D5, #186): with the setting on, a standing-water bed rises only through the room left below its water
+        // surface, so a lake shallows over the passes instead of climbing out of the hole it fills. Everywhere else the rise is
+        // the plain share of the alluvium, exactly as before.
+        float[] roomCap = p.accommodation ? RoomBelowWater(stillNow, standing, height, depth) : null;
+        float[] rises = ledger.Raise(alluvium, p.feedback.aggradationShare, roomCap, out raisedVolume);
         Hydraulics.GradeRises(cells, receiver, secondary, filled, rises);
         room.Observe(alluvium, rises, stillNow, standing, height, depth);
         int raised = 0;
@@ -73,10 +78,26 @@ public static partial class TerrainChannels
             if (rises[i] <= 0f)
                 continue;
             height[i] += rises[i];
-            filled[i] += rises[i];
+            // The water surface rises with the bed only where the bed is not standing water: on a lake the deposit settles under
+            // the water, and the refill recomputes the spill surface from the new heights.
+            if (!(p.accommodation && stillNow[i] && !standing.IsSea(i)))
+                filled[i] += rises[i];
             raised++;
         }
         return raised;
+    }
+
+    /// <summary>
+    /// The accommodation cap of one pass (<see cref="TerrainChannelSettings.accommodation"/>, D5 #186): the room
+    /// (<see cref="Standing.Room"/>) every standing land-water cell has left below the water surface it stands in. Everywhere
+    /// else infinity: the sea (building land into it is the shore pass' work) and ordinary ground keep the uncapped rise.
+    /// </summary>
+    private static float[] RoomBelowWater(bool[] stillNow, Standing standing, float[] bed, float[] depth)
+    {
+        var room = new float[bed.Length];
+        for (int i = 0; i < room.Length; i++)
+            room[i] = stillNow[i] && !standing.IsSea(i) ? standing.Room(i, bed[i], depth[i]) : float.PositiveInfinity;
+        return room;
     }
 
     /// <summary>
