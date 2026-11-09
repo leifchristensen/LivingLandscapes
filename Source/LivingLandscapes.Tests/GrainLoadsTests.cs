@@ -250,6 +250,84 @@ public class GrainLoadsTests
         Assert.True(deposit[2] > 0f || deposit[1] > 0f);
     }
 
+    /// <summary>
+    /// The join/split fixture for the plan's S3 arithmetic test (HYDRO-UNIFICATION section 10 point 12, #186): two rivers join at
+    /// cell 2, which then divides its water again (the main way to cell 3, a second way to cell 4 taking
+    /// <paramref name="splitShare"/>). Cells 3 and 4 are base level on solid rock, so they drop exactly the load that arrives at them
+    /// (Sediment.Grains.cs:259): their per-class deposits read the load on each way before anything else can settle. Each branch's
+    /// load is known by construction: the only supply is <c>gouged</c> (rock = 1 erodes nothing, inflow = 0 brings nothing), shared
+    /// over the classes by the supply's mix, and the mix follows from the reach's slope (grainSupply = slope / coarseSlope at rock 1,
+    /// Sediment.Grains.cs:237, since Lerp(0.7, 1, 1) = 1). Cell 0 (slope (0.15 - 0) / 2 = 0.075 → index 0.6) brings 1.0 as gravel
+    /// 0.4737 + sand 0.5263; cell 1 (slope 0.0375 / 2 = 0.01875 → index 0.3) brings 0.5 as sand 0.2778 + fines 0.2222. The water
+    /// above the base-level cells is fast and deep (discharge 100), so its capacity is more than the load on it and nothing settles
+    /// on the way: the load at the probes is the load at the join.
+    /// </summary>
+    private static GrainLoads TwoRiversJoinAndSplit(float splitShare, bool steepBranch = true, bool gentleBranch = true)
+    {
+        var cells = new List<int> { 0, 1, 2, 3, 4 };
+        var receiver = new[] { 2, 2, 3, -1, -1 };
+        var secondary = new[] { -1, -1, 4, -1, -1 };
+        var share = new[] { 0f, 0f, splitShare, 0f, 0f };
+        var discharge = new[] { 100f, 100f, 100f, 0f, 0f };
+        var filled = new[] { 0.15f, 0.0375f, 0.8f, 0f, 0f };
+        var inflow = new float[5];
+        var rock = new[] { 1f, 1f, 1f, 1f, 1f };
+        var gouged = new[] { steepBranch ? 1f : 0f, gentleBranch ? 0.5f : 0f, 0f, 0f, 0f };
+        var baseLevel = new[] { false, false, false, true, true };
+        var p = Classes(settling: true);
+        var grains = new GrainLoads(p, new[] { 1.2f, 1.2f, 1.2f, 1.2f, 1.2f }, new[] { 1f, 1f, 1f, 1f, 1f });
+        Sediment.Deposits(cells, receiver, discharge, 1f, filled, inflow, rock, baseLevel, 5, p, out _, out _, out _, out _, out _, out _,
+            gouged: gouged, secondary: secondary, secondaryShare: share, grains: grains);
+        return grains;
+    }
+
+    /// <summary>What class <paramref name="k"/> laid on the two base-level probes: the whole load that reached them.</summary>
+    private static float ArrivedLoad(GrainLoads grains, int k) => grains.Deposit[k][3] + grains.Deposit[k][4];
+
+    /// <summary>
+    /// C4 (#186): the per-class loads are extensive, so a confluence adds them. Downstream of the join, before anything settles,
+    /// every class's load is the sum of the two rivers' loads: gravel comes only from the steep branch, fines only from the gentle
+    /// one, and sand from both, so the join is checked class by class and not only in total.
+    /// </summary>
+    [Fact]
+    public void AJoinSumsEveryClassDownstreamOfTheConfluence()
+    {
+        GrainLoads both = TwoRiversJoinAndSplit(0.3f);
+        GrainLoads steep = TwoRiversJoinAndSplit(0.3f, gentleBranch: false);
+        GrainLoads gentle = TwoRiversJoinAndSplit(0.3f, steepBranch: false);
+        // The two rivers' own loads, per class: gouged supply x the supply's mix (the hat of Grains.Mix, Sediment.Grains.cs:56).
+        var steepLoad = new[] { 1f * 0.4736842f, 1f * 0.5263158f, 0f };
+        var gentleLoad = new[] { 0f, 0.5f * 0.5555556f, 0.5f * 0.4444444f };
+        for (int k = 0; k < 3; k++)
+        {
+            AssertClose(steepLoad[k], ArrivedLoad(steep, k), $"the steep branch's own load, class {k}");
+            AssertClose(gentleLoad[k], ArrivedLoad(gentle, k), $"the gentle branch's own load, class {k}");
+            AssertClose(steepLoad[k] + gentleLoad[k], ArrivedLoad(both, k), $"the joined load below the confluence, class {k}");
+            AssertClose(both.Supplied[k], both.Deposited[k] + both.Exits[k], $"class {k} mass closure at the join");
+        }
+        Assert.True(ArrivedLoad(both, 0) > 0f && ArrivedLoad(both, 1) > 0f && ArrivedLoad(both, 2) > 0f, "all three classes reach the join");
+    }
+
+    /// <summary>
+    /// C4 (#186): where the water divides, the load divides with it by the same share (the routing's <c>secondaryShare</c>, the rule
+    /// of #118): the second way takes exactly that share of every class, no more of the fines than of the gravel.
+    /// </summary>
+    [Theory]
+    [InlineData(0.1f)]
+    [InlineData(0.3f)]
+    [InlineData(0.5f)]
+    public void ASplitSendsExactlyTheSecondaryShareOfEveryClass(float share)
+    {
+        GrainLoads grains = TwoRiversJoinAndSplit(share);
+        for (int k = 0; k < 3; k++)
+        {
+            float main = grains.Deposit[k][3], second = grains.Deposit[k][4], joined = main + second;
+            Assert.True(joined > 0f, $"class {k} must reach the split");
+            AssertClose(share * joined, second, $"the second way's share {share} of class {k}");
+            AssertClose((1f - share) * joined, main, $"the main way's share {1f - share} of class {k}");
+        }
+    }
+
     [Fact]
     public void TheJetBooksItsWashloadAndLaysEachClassOnItsOwnGrain()
     {
