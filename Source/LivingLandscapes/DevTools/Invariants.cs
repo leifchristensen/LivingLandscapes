@@ -573,6 +573,7 @@ public static class Invariants
         }
         int lakes = 0, inDepression = 0, lagoons = 0;
         var failing = new StringBuilder();
+        int firstFailing = -1;
         for (int l = 0; l < lakeCount; l++)
         {
             if (lakeCells[l] < DepressionCells)
@@ -586,7 +587,11 @@ public static class Invariants
                 lagoons++;
             }
             else
+            {
                 failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]} at {lakeAt[l].x},{lakeAt[l].z}");
+                if (firstFailing < 0)
+                    firstFailing = l;
+            }
         }
 
         int hollowCount = GridMath.LabelRegions(i => filled[i] - h[i] > Tolerance, sizeX, sizeZ, out int[] hollowLabels);
@@ -616,5 +621,61 @@ public static class Invariants
                            $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea or their river ({lagoons} lagoons and river pools); " +
                            $"{hollows} closed depressions >= {DepressionDepth} m deep ({hollowArea} cells), {dryHollows} hold no water" +
                            (failing.Length > 0 ? $"; not in a depression:{failing}" : ""));
+        // Its own line, so the line above stays byte-identical to main while the check passes.
+        if (firstFailing >= 0)
+            summary.AppendLine($"invariant 2 diagnosis: {FailingLake(firstFailing, lakeLabels, h, filled, rivers, sizeX, sizeZ)}");
+    }
+
+    /// <summary>
+    /// #186 diagnosis (C4): a body of still water that lies in no closed depression and is not open to the sea or held up by
+    /// its river. Says how much of it the channel network covers, how high its own water stands and how high the flowing water
+    /// beside it stands: a pool whose bed its river built up above the reach below reads as water standing above the water
+    /// beside it, water painted where no channel runs reads as cells outside the network.
+    /// </summary>
+    private static string FailingLake(int label, int[] lakeLabels, float[] h, float[] filled, RiverSystem rivers,
+        int sizeX, int sizeZ)
+    {
+        int cells = 0, inChannel = 0, flowingNeighbours = 0;
+        float deepest = 0f, levelMin = float.MaxValue, levelMax = float.MinValue;
+        float besideMin = float.MaxValue, besideMax = float.MinValue;
+        var channels = new Dictionary<int, int>();
+        for (int i = 0; i < lakeLabels.Length; i++)
+        {
+            if (lakeLabels[i] != label)
+                continue;
+            cells++;
+            deepest = Mathf.Max(deepest, filled[i] - h[i]);
+            if (rivers == null)
+                continue;
+            GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb =>
+            {
+                if (lakeLabels[nb] == label || rivers.ChannelOf[nb] < 0 || rivers.Still[nb] || float.IsNaN(rivers.WaterLevel[nb]))
+                    return;
+                flowingNeighbours++;
+                besideMin = Mathf.Min(besideMin, rivers.WaterLevel[nb]);
+                besideMax = Mathf.Max(besideMax, rivers.WaterLevel[nb]);
+            });
+            int channel = rivers.ChannelOf[i];
+            if (channel < 0)
+                continue;
+            inChannel++;
+            channels[channel] = channels.TryGetValue(channel, out int seen) ? seen + 1 : 1;
+            float level = rivers.WaterLevel[i];
+            if (float.IsNaN(level))
+                continue;
+            levelMin = Mathf.Min(levelMin, level);
+            levelMax = Mathf.Max(levelMax, level);
+        }
+        var byChannel = new StringBuilder();
+        foreach (KeyValuePair<int, int> pair in channels)
+            byChannel.Append($"ch {pair.Key} x{pair.Value} ");
+        bool anyLevel = levelMax >= levelMin;
+        string water = anyLevel ? $"water stands {levelMin:F2} to {levelMax:F2}" : "no water level of its own";
+        string beside = flowingNeighbours == 0 ? "touches no flowing water"
+            : $"touches {flowingNeighbours} flowing cells at {besideMin:F2} to {besideMax:F2}"
+              + (anyLevel ? $", so its surface stands {levelMin - besideMax:F2} m above the highest water beside it" : "");
+        return $"{cells} cells, {inChannel} of them in the channel network" +
+               (byChannel.Length > 0 ? $" [{byChannel.ToString().Trim()}]" : " (none: painted where no channel runs)") +
+               $", hollow at most {deepest:F2} m, {water}; {beside}.";
     }
 }
