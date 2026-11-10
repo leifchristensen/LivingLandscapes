@@ -182,6 +182,8 @@ public static class Invariants
             return;
         }
         float tolerance = new SedimentSettings().coarsenTolerance;
+        float steepen = new SedimentSettings().steepenFactor;
+        var walkSlope = new float[rivers.ChannelOf.Length];
         // Junction cells, where a channel brings its load into another (RiverPlan.Parent): invariant 9 restarts its running
         // mean there, because a tributary arriving with gravel is a new source, not the receiving river coarsening (#186).
         var inflow = new bool[rivers.ChannelOf.Length];
@@ -232,7 +234,8 @@ public static class Invariants
                     inflow[nearest] = true;
             }
             int worstAt;
-            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow, out worstAt);
+            GrainLoads.WalkSlopes(cells, rivers.WaterLevel, map.Size.x, Hydraulics.TransportSteps, walkSlope);
+            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow, walkSlope, steepen, out worstAt);
             if (float.IsNaN(rise))
                 continue;
             measured++;
@@ -628,9 +631,10 @@ public static class Invariants
 
     /// <summary>
     /// #186 diagnosis (C4): a body of still water that lies in no closed depression and is not open to the sea or held up by
-    /// its river. Says how much of it the channel network covers, how high its own water stands and how high the flowing water
-    /// beside it stands: a pool whose bed its river built up above the reach below reads as water standing above the water
-    /// beside it, water painted where no channel runs reads as cells outside the network.
+    /// its river. Says how much of it the channel network covers, how high its own water stands, and - for the cells that
+    /// touch flowing water, which is the link the check looks for - how high that water stands and whether it is the same
+    /// channel: a pool whose bed its river built up above the reach below reads as water standing above the water beside it,
+    /// water painted where no channel runs reads as cells outside the network.
     /// </summary>
     private static string FailingLake(int label, int[] lakeLabels, float[] h, float[] filled, RiverSystem rivers,
         int sizeX, int sizeZ)
@@ -639,6 +643,9 @@ public static class Invariants
         float deepest = 0f, levelMin = float.MaxValue, levelMax = float.MinValue;
         float besideMin = float.MaxValue, besideMax = float.MinValue;
         var channels = new Dictionary<int, int>();
+        // Where the body touches flowing water: (its own level, that level, that channel, the cell), closest to being
+        // forgiven (the smallest step down) first - those are the links the check's own test weighs.
+        var links = new List<(float own, float other, int channel, bool same, int cell)>();
         for (int i = 0; i < lakeLabels.Length; i++)
         {
             if (lakeLabels[i] != label)
@@ -647,6 +654,8 @@ public static class Invariants
             deepest = Mathf.Max(deepest, filled[i] - h[i]);
             if (rivers == null)
                 continue;
+            int channel = rivers.ChannelOf[i];
+            float level = rivers.WaterLevel[i];
             GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb =>
             {
                 if (lakeLabels[nb] == label || rivers.ChannelOf[nb] < 0 || rivers.Still[nb] || float.IsNaN(rivers.WaterLevel[nb]))
@@ -654,13 +663,13 @@ public static class Invariants
                 flowingNeighbours++;
                 besideMin = Mathf.Min(besideMin, rivers.WaterLevel[nb]);
                 besideMax = Mathf.Max(besideMax, rivers.WaterLevel[nb]);
+                if (!float.IsNaN(level))
+                    links.Add((level, rivers.WaterLevel[nb], rivers.ChannelOf[nb], rivers.ChannelOf[nb] == channel, i));
             });
-            int channel = rivers.ChannelOf[i];
             if (channel < 0)
                 continue;
             inChannel++;
             channels[channel] = channels.TryGetValue(channel, out int seen) ? seen + 1 : 1;
-            float level = rivers.WaterLevel[i];
             if (float.IsNaN(level))
                 continue;
             levelMin = Mathf.Min(levelMin, level);
@@ -674,8 +683,17 @@ public static class Invariants
         string beside = flowingNeighbours == 0 ? "touches no flowing water"
             : $"touches {flowingNeighbours} flowing cells at {besideMin:F2} to {besideMax:F2}"
               + (anyLevel ? $", so its surface stands {levelMin - besideMax:F2} m above the highest water beside it" : "");
+        links.Sort((a, b) => (a.own - a.other).CompareTo(b.own - b.other));
+        var where = new StringBuilder();
+        for (int k = 0; k < links.Count && k < 3; k++)
+        {
+            (float own, float other, int channel, bool same, int cell) = links[k];
+            where.Append($" ({cell % sizeX},{cell / sizeX}) own {own:F2} vs ch {channel} {other:F2}" +
+                         $"{(same ? "" : " [other channel]")} is {own - other:F2} m above it;");
+        }
         return $"{cells} cells, {inChannel} of them in the channel network" +
                (byChannel.Length > 0 ? $" [{byChannel.ToString().Trim()}]" : " (none: painted where no channel runs)") +
-               $", hollow at most {deepest:F2} m, {water}; {beside}.";
+               $", hollow at most {deepest:F2} m, {water}; {beside}." +
+               (where.Length > 0 ? $" Where it touches flowing water, closest first:{where}" : "");
     }
 }

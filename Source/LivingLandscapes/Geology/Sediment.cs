@@ -144,6 +144,14 @@ public class SedimentSettings
     /// up downstream of sand. The check reads this default from the settings (the generator's copy is not kept on the map).
     /// </summary>
     public float coarsenTolerance = 0.15f;
+
+    /// <summary>
+    /// Invariant 9 restarts its running mean where the walk's slope rises to this multiple of the reach's mean slope or more
+    /// (owner decision 2026-11-10, #186): grain sorting (coarse drops out first) holds at a given slope, and steeper water lays
+    /// coarser bed, so a steepening starts a new reach. Not a tolerance on the climb itself; <see cref="coarsenTolerance"/> still
+    /// applies within each reach.
+    /// </summary>
+    public float steepenFactor = 1.5f;
 }
 
 /// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>

@@ -1121,4 +1121,83 @@ public class GrainLoadsTests
             $"the river must not lay a bed coarser than the mix it is handed: laid {grain[coarsest]:F2} at x={coarsest} against a mix " +
             $"of {supply[coarsest]:F2}, and the supply-relative running mean climbs {relative:F3} over the tolerance {tolerance:F2}");
     }
+
+    /// <summary>The per-cell slope invariant 9 reads for a fixture channel: the model's own reach slope on the ground it walks on.</summary>
+    private static float[] FixtureSlopes(List<int> cells, int[] receiver, float[] filled, int n)
+    {
+        var slope = new float[n];
+        foreach (int x in cells)
+            slope[x] = Hydraulics.ReachSlope(x, receiver, filled, n);
+        return slope;
+    }
+
+    /// <summary>
+    /// Slope-aware invariant 9 (owner decision 2026-11-10, #186): the same river that the plain rule flags (a bed that coarsens
+    /// where the reach steepens, climb 0.293) passes once a steepening starts a new reach, because steeper water lays coarser bed.
+    /// The plain rule still flags it (the blind overload is unchanged); the slope-aware one reads the slope the model runs on.
+    /// </summary>
+    [Fact]
+    public void ASteepeningStartsANewReachForInvariantNine()
+    {
+        const int n = 26;
+        var drop = new float[n];
+        for (int x = 0; x < n; x++)
+            drop[x] = x < 10 ? 0.01f : x < 14 ? 0.20f : 0.01f;
+        AggradingReach(n, drop, out List<int> cells, out int[] receiver, out float[] filled, out float[] discharge,
+            out float[] deposit, out float[] grain, out SedimentSettings p);
+        float[] slope = FixtureSlopes(cells, receiver, filled, n);
+
+        float blind = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        float aware = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, slope, p.steepenFactor, out _);
+        Assert.True(blind > p.coarsenTolerance, $"the plain rule must still flag this river, climb {blind:F3}");
+        Assert.True(aware <= p.coarsenTolerance,
+            $"a bed that coarsens where the slope steepens must pass the slope-aware rule: climb {aware:F3} over {p.coarsenTolerance:F2}");
+    }
+
+    /// <summary>The slope-aware rule must not excuse real coarsening: on a flat, uniform slope a bed that coarsens by 0.5 fails,
+    /// and so does a bed that coarsens by 0.5 in the reach below a steepening (the restart measures that reach on its own).</summary>
+    [Fact]
+    public void SlopeAwareInvariantNineStillFlagsCoarseningAtASteadySlope()
+    {
+        const int n = 12;
+        var cells = new List<int>();
+        var grain = new float[n];
+        var deposit = new float[n];
+        var slope = new float[n];
+        for (int x = 0; x < n; x++)
+        {
+            cells.Add(x);
+            deposit[x] = 1f;
+            slope[x] = 0.01f;
+            grain[x] = 0.1f + 0.05f * x; // 0.1 .. 0.65: coarsening by 0.55 with no change of slope
+        }
+        float tol = new SedimentSettings().coarsenTolerance, factor = new SedimentSettings().steepenFactor;
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, slope, factor, out _) > tol,
+            "a bed that coarsens at a steady slope must fail");
+
+        // Steepen at x=4 (0.01 to 0.03): the first reach (x 0..3) fines, the steepening restarts, and below it the bed coarsens by 0.5.
+        for (int x = 0; x < n; x++)
+        {
+            slope[x] = x < 4 ? 0.01f : 0.03f;
+            grain[x] = x < 4 ? 0.5f - 0.02f * x : 0.1f + 0.06f * (x - 4);
+        }
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, slope, factor, out _) > tol,
+            "coarsening in the reach below a steepening must still fail");
+    }
+
+    /// <summary>WalkSlopes: the drop over the next steps of the walk divided by the distance, flat or rising water counts 0, and an
+    /// uncarved cell (NaN) takes the last slope seen.</summary>
+    [Fact]
+    public void WalkSlopesIsTheDropOverTheNextStepsAndNeverNegative()
+    {
+        var cells = new List<int> { 0, 1, 2, 3, 4, 5, 6, 7 };
+        var level = new float[] { 8f, 7f, 6f, 5f, 4f, float.NaN, 5f, 6f };
+        var slope = new float[8];
+        GrainLoads.WalkSlopes(cells, level, 8, 2, slope);
+        Assert.Equal(1f, slope[0], 3);
+        Assert.Equal(1f, slope[2], 3);
+        Assert.Equal(1f, slope[3], 3);       // its look-ahead cell is uncarved (NaN): carries the last slope
+        Assert.Equal(slope[4], slope[5], 3); // an uncarved cell itself takes the last slope seen
+        Assert.Equal(0f, slope[6], 3);       // water rising downstream counts as flat
+    }
 }

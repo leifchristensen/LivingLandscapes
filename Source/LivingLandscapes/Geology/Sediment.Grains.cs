@@ -153,6 +153,29 @@ public sealed class GrainLoads
     }
 
     /// <summary>
+    /// The slope invariant 9 reads along a walked channel (#186): at each cell the water-surface drop over the next
+    /// <paramref name="steps"/> cells of the walk (the same look-ahead as <see cref="Hydraulics.ReachSlope"/>, which is what the grain
+    /// supply follows) divided by the distance walked, written to <paramref name="slope"/> at the cell's index. Cells without a water
+    /// level (NaN, not carved) take the last slope seen; a rising surface counts as flat (0).
+    /// </summary>
+    public static void WalkSlopes(List<int> cellsDownstream, float[] waterLevel, int sizeX, int steps, float[] slope)
+    {
+        int n = cellsDownstream.Count;
+        float last = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            int c = cellsDownstream[i];
+            int j = Mathf.Min(i + steps, n - 1);
+            int d = cellsDownstream[j];
+            float dx = c % sizeX - d % sizeX, dz = c / sizeX - d / sizeX;
+            float run = Mathf.Sqrt(dx * dx + dz * dz);
+            if (j > i && run > 1e-3f && !float.IsNaN(waterLevel[c]) && !float.IsNaN(waterLevel[d]))
+                last = Mathf.Max(0f, (waterLevel[c] - waterLevel[d]) / run);
+            slope[c] = last;
+        }
+    }
+
+    /// <summary>
     /// Invariant 9 (HYDRO-UNIFICATION S3, #186): grain along a river's deposits fines downstream. Walking the channel's cells
     /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, per cell, unweighted;
     /// <paramref name="deposit"/> only marks the cells that deposited anything) must not climb above the lowest running mean
@@ -161,7 +184,11 @@ public sealed class GrainLoads
     /// restarts there: a tributary arriving with gravel is a new source, and the coarser bed there is its load, not the river
     /// coarsening towards its own mouth (#186). A confluence scours its own hole, so the junction cell itself may hold no
     /// deposit; the restart then waits for the next cell that deposits anything, wherever the mixed load first lands (#186).
-    /// Fining is still required within every reach between inflows and from each junction to the mouth. Returns the worst climb
+    /// Fining is still required within every reach between inflows and from each junction to the mouth. Where the walk's slope
+    /// is given (<paramref name="slope"/>, per cell, the reach slope the model runs on) the running mean also restarts where the
+    /// slope steepens: it rises to <paramref name="steepenFactor"/> times the running mean of the reach's slope or more. Sorting
+    /// (the coarse classes drop out first) holds at a given slope; steeper water can move and lay coarser bed (Shields), so a
+    /// steepening is a new reach, not the river coarsening towards its own mouth. Returns the worst climb
     /// of the running mean over all reaches (0 for a river that only fines), or NaN when fewer than two cells deposited
     /// anything and there is nothing to measure. Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the
     /// DevTools invariant 9.
@@ -179,8 +206,17 @@ public sealed class GrainLoads
     /// a flagged climb sits at the channel's mouth or mid-channel (#186 diagnosis).
     /// </summary>
     public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow, out int worstAt)
+        => WorstDownstreamCoarsening(cellsDownstream, grain, deposit, inflow, null, 0f, out worstAt);
+
+    /// <summary>
+    /// The slope-aware form of <see cref="WorstDownstreamCoarsening(List{int},float[],float[],bool[])"/> (D: owner decision
+    /// 2026-11-10, #186): <paramref name="slope"/> (per cell, null = not slope-aware) restarts the running mean at a cell whose slope
+    /// is at least <paramref name="steepenFactor"/> times the reach's running mean slope. Still the one definition of the rule.
+    /// </summary>
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow,
+        float[] slope, float steepenFactor, out int worstAt)
     {
-        float sum = 0f, lowest = float.MaxValue, worst = 0f;
+        float sum = 0f, lowest = float.MaxValue, worst = 0f, slopeSum = 0f;
         int seen = 0, reach = 0, at = -1, i = -1;
         bool pendingReset = false;
         foreach (int c in cellsDownstream)
@@ -196,8 +232,19 @@ public sealed class GrainLoads
                 sum = 0f;
                 reach = 0;
                 lowest = float.MaxValue;
+                slopeSum = 0f;
                 pendingReset = false;
             }
+            else if (slope != null && reach > 0 && slope[c] >= steepenFactor * (slopeSum / reach))
+            {
+                // Steeper water lays coarser bed: the reach below a steepening is measured on its own (#186).
+                sum = 0f;
+                reach = 0;
+                lowest = float.MaxValue;
+                slopeSum = 0f;
+            }
+            if (slope != null)
+                slopeSum += slope[c];
             sum += grain[c];
             seen++;
             reach++;
