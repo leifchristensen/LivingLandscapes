@@ -146,12 +146,18 @@ public class SedimentSettings
     public float coarsenTolerance = 0.15f;
 
     /// <summary>
-    /// Invariant 9 restarts its running mean where the walk's slope rises to this multiple of the reach's mean slope or more
-    /// (owner decision 2026-11-10, #186): grain sorting (coarse drops out first) holds at a given slope, and steeper water lays
-    /// coarser bed, so a steepening starts a new reach. Not a tolerance on the climb itself; <see cref="coarsenTolerance"/> still
-    /// applies within each reach.
+    /// Invariant 9 ignores deposits thinner than this share of the channel's thickest deposit (#186): the few-centimetre lag at the
+    /// edge of a bar says nothing about sorting, and on the failing maps it alone starts the running mean 0.2 to 0.3 below the bar
+    /// that follows (f1, c4, f8; owner decision 2026-11-10 to make the check physically right, not looser: the tolerance is unchanged).
     /// </summary>
-    public float steepenFactor = 1.5f;
+    public float minDepositShare = 0.2f;
+
+    /// <summary>
+    /// Invariant 9 ends a depositional reach after this many cells in a row with no deposit to speak of (#186): sorting is a property
+    /// of a continuous reach, and the bar laid after a gap is a new one. Five is the look-ahead the model's own slope uses
+    /// (<see cref="Hydraulics.TransportSteps"/>).
+    /// </summary>
+    public int depositGapCells = 5;
 }
 
 /// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>
