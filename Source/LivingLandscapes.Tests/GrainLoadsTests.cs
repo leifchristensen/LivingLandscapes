@@ -706,4 +706,460 @@ public class GrainLoadsTests
         var bare = new float[SizeX * SizeZ];
         Assert.True(float.IsNaN(GrainLoads.WorstDownstreamCoarsening(cells, grain, bare)));
     }
+
+    private const int PlainCells = 40; // the plain's length in cells (row 1)
+    private const int JunctionX = 6;   // where the gravel tributary joins the plain
+
+    /// <summary>
+    /// C1 (#186): the junction fixture for invariant 9. A river runs a long gentle plain (row 1, <see cref="PlainCells"/> cells, soft
+    /// gouged source at x=0 on flat ground, so its own supply is fines by <see cref="Sediment.SupplyGrain"/>) and fines downstream;
+    /// a steep gravel tributary (cell <see cref="JunctionX"/>, gouged on steep ground, mix ~0.7 = gravel) joins it there. The joined
+    /// load is the model's own arithmetic (the per-class loads add at the receiver, Sediment.Grains.cs:321-322), so below the
+    /// junction the deposit is coarser than above it - physically right: a gravel tributary onto a fines plain makes the bed gravel
+    /// there, as in the failing flat-map cases. Returns the whole-stem climb of the running mean WITHOUT junction knowledge (the
+    /// C1 measurement); the caller also walks it with the junction cell marked as inflow, the corrected check (C2).
+    /// </summary>
+    private static float FinePlainWithGravelTributary(bool tributary, out float[] deposit, out float[] grain, out List<int> mainStem)
+    {
+        const int SX = PlainCells, SZ = 3, N = SX * SZ;
+        // Topological walk: the main stem above the junction, then the tributary, then the joined stem below it.
+        var cells = new List<int>();
+        for (int x = 0; x < JunctionX; x++)
+            cells.Add(SX + x);
+        cells.Add(JunctionX);
+        for (int x = JunctionX; x < SX; x++)
+            cells.Add(SX + x);
+        var receiver = new int[N];
+        for (int i = 0; i < N; i++)
+            receiver[i] = -1;
+        for (int x = 0; x < SX - 1; x++)
+            receiver[SX + x] = SX + x + 1;
+        receiver[JunctionX] = SX + JunctionX; // the tributary joins the plain at x = JunctionX
+        var filled = new float[N];
+        for (int x = 0; x < SX; x++)
+        {
+            float t = (float)x / (SX - 1);
+            filled[SX + x] = 0.40f * (1f - t) * (1f - t); // a flat concave plain: ~0.02 m per cell at the head, less below
+        }
+        filled[JunctionX] = 1.5f; // steep ground above the plain
+        var discharge = new float[N];
+        for (int x = 0; x < SX; x++)
+            discharge[SX + x] = 10f;
+        discharge[JunctionX] = tributary ? 4f : 0f;
+        var gouged = new float[N];
+        gouged[SX] = 0.6f; // the plain's own soft source: flat ground, so fines
+        if (tributary)
+            gouged[JunctionX] = 1.5f; // the mountain's gravel
+        var p = Classes(settling: true);
+        var speed = new float[N];
+        var depth = new float[N];
+        for (int i = 0; i < N; i++)
+        {
+            speed[i] = 1.2f;
+            depth[i] = 1f;
+        }
+        Sediment.Deposits(cells, receiver, discharge, 1f, filled, new float[N], null, null, SX, p,
+            out deposit, out grain, out _, out _, out _, out _, gouged: gouged, grains: new GrainLoads(p, speed, depth));
+        mainStem = new List<int>();
+        for (int x = 0; x < SX; x++)
+            mainStem.Add(SX + x);
+        return GrainLoads.WorstDownstreamCoarsening(mainStem, grain, deposit);
+    }
+
+    /// <summary>
+    /// C1-C2 (#186): invariant 9 must pass a legitimate junction. The lone fines plain river fines and passes (climb 0); with a
+    /// gravel tributary joining mid-plain the whole-stem walk WITHOUT junction knowledge climbs above
+    /// <see cref="SedimentSettings.coarsenTolerance"/> (C1's measurement: 0.296 against 0.15, while each reach between inflows
+    /// fines, both climbs ~0): the climb is the one step of coarser grain AT the junction cell, where the tributary's gravel
+    /// joins the load - correct sedimentology, not a river coarsening towards its own mouth. The corrected check restarts the
+    /// running mean at the junction cell (the inflow), and the same joined river passes (measured 0.000): the reach from the
+    /// junction to the mouth still fines, from the mixed load (0.775 at the junction) to 0.454 at the mouth.
+    /// </summary>
+    [Fact]
+    public void InvariantNinePassesALegitimateGravelTributaryOnAFinePlain()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        float lone = FinePlainWithGravelTributary(false, out float[] depositLone, out float[] grainLone, out List<int> stem);
+        float joinedBlind = FinePlainWithGravelTributary(true, out float[] depositJoined, out float[] grainJoined, out _);
+        // The corrected walk: the same stem, with the junction cell marked as receiving load from the tributary.
+        var inflow = new bool[depositJoined.Length];
+        inflow[stem[JunctionX]] = true;
+        float joined = GrainLoads.WorstDownstreamCoarsening(stem, grainJoined, depositJoined, inflow);
+        Assert.True(lone <= tolerance,
+            $"the lone fine river must pass: measured a running-mean climb of {lone:F3} over the tolerance {tolerance:F2}");
+        Assert.True(joinedBlind > tolerance,
+            $"the junction's rise must be there to be excused, or the fixture proves nothing: measured only {joinedBlind:F3}");
+        Assert.True(joined <= tolerance,
+            $"the corrected check must pass the legitimate junction: measured a climb of {joined:F3} over the tolerance " +
+            $"{tolerance:F2}");
+        Assert.True(grainJoined[PlainCells + JunctionX] > grainLone[PlainCells + JunctionX] + 0.2f,
+            $"the tributary's gravel must reach the plain below the junction: " +
+            $"{grainJoined[PlainCells + JunctionX]:F2} against {grainLone[PlainCells + JunctionX]:F2}");
+        Assert.True(depositJoined[PlainCells + JunctionX] > 0f && depositJoined[2 * PlainCells - 1] > 0f,
+            "the joined river deposits to its mouth");
+    }
+
+    /// <summary>
+    /// C2 (#186): the junction reset must not hide real coarsening. A fines reach ends at a junction (an inflow at x=3); the
+    /// reach below coarsens from 0.4 to 1.0 - the running mean restarts at the junction and still climbs 0.300 over the
+    /// tolerance 0.15, so the check fails it. The same cells fining below the junction pass.
+    /// </summary>
+    [Fact]
+    public void InvariantNineStillFailsAReachThatCoarsensBelowAJunction()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        var cells = new List<int>();
+        for (int x = 0; x < 6; x++)
+            cells.Add(Row * SizeX + x);
+        var deposit = new float[SizeX * SizeZ];
+        var grain = new float[SizeX * SizeZ];
+        foreach (int c in cells)
+            deposit[c] = 1f;
+        var inflow = new bool[SizeX * SizeZ];
+        inflow[cells[3]] = true; // a tributary brings its load in at x=3
+
+        float[] coarser = { 0.8f, 0.6f, 0.5f, 0.4f, 0.7f, 1.0f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = coarser[x];
+        float rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise > tolerance,
+            $"a reach below a junction that coarsens must still fail: measured {rise:F3} over the tolerance {tolerance:F2}");
+
+        float[] finer = { 0.8f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f };
+        for (int x = 0; x < 6; x++)
+            grain[cells[x]] = finer[x];
+        rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise <= tolerance,
+            $"a junction followed by a fining reach must pass: measured {rise:F3} over the tolerance {tolerance:F2}");
+    }
+
+    /// <summary>
+    /// C2 follow-up (#186): a confluence scours its own hole, so the junction cell can hold no deposit - the reset must then
+    /// wait for the next cell that deposits anything. Upstream fines (0.4 -> 0.2), x=3 is the scoured junction (inflow, no
+    /// deposit), x=4..7 hold the tributary's coarse bar (0.9). Measured straight across the junction the bar climbs the running
+    /// mean 0.34 over the tolerance 0.15 - this is what failed f1/f3/f8 in the battery; restarting where the mixed load first
+    /// lands, the bar is the new reach's own bed and the river passes (climb 0). Genuine coarsening below a scoured junction
+    /// (0.3 -> 0.9) still fails, so the waiting reset does not hide real coarsening.
+    /// </summary>
+    [Fact]
+    public void InvariantNineResetsBelowAScouredJunctionCell()
+    {
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        var cells = new List<int>();
+        for (int x = 0; x < 8; x++)
+            cells.Add(Row * SizeX + x);
+        var deposit = new float[SizeX * SizeZ];
+        var grain = new float[SizeX * SizeZ];
+        foreach (int c in cells)
+            deposit[c] = 1f;
+        int junction = cells[3];
+        deposit[junction] = 0f; // the confluence scours: the junction cell deposits nothing
+        var inflow = new bool[SizeX * SizeZ];
+        inflow[junction] = true;
+
+        float[] bar = { 0.4f, 0.3f, 0.2f, 0f, 0.9f, 0.9f, 0.9f, 0.9f };
+        for (int x = 0; x < 8; x++)
+            grain[cells[x]] = bar[x];
+        float blind = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        Assert.True(blind > tolerance,
+            $"the bar across a scoured junction must be a rise worth excusing, or the fixture proves nothing: measured {blind:F3}");
+        float joined = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(joined <= tolerance,
+            $"the reset must wait for the first deposit below the scoured junction: measured {joined:F3} over the tolerance " +
+            $"{tolerance:F2}");
+
+        float[] coarser = { 0.4f, 0.3f, 0.2f, 0f, 0.3f, 0.5f, 0.7f, 0.9f };
+        for (int x = 0; x < 8; x++)
+            grain[cells[x]] = coarser[x];
+        float rise = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, inflow);
+        Assert.True(rise > tolerance,
+            $"a reach coarsening below a scoured junction must still fail: measured {rise:F3} over the tolerance {tolerance:F2}");
+    }
+
+    /// <summary>
+    /// C2 (#186): the second failure signature, as measured on maps (f1 channel 131: grain 0.76 peaking 44 cells above its mouth of 65,
+    /// 22 cells from the nearest tributary; f8 channel 4: the same, 23 cells from the head and 23 above its one junction). A lone creek
+    /// with no tributary near the climb lays fines in its head cells and gravel a few dozen cells down, then fines again. This fixture is
+    /// the obvious suspect - a flat head, a steep break, a gentler reach to the mouth, one source (the ground it erodes as it goes) and
+    /// no junction - and it shows the suspect is NOT guilty: the flat head erodes nothing (no slope, no capacity), the break sheds
+    /// gravel (grain 0.72 at x=12, where the fresh supply is coarse: grainSupply follows the local slope, Sediment.Grains.cs:279), and
+    /// from that first coarse cell the bed fines to the mouth (0.64), so the running mean never climbs (measured 0.000). A slope break
+    /// therefore cannot be what makes a lone map river coarsen: the fines above the gravel must arrive from off the walk (hillslope
+    /// inflow, another channel's cells) and the gravel be carried from somewhere the walk does not see. Guarded here so a real fix is
+    /// not mistaken for this; the map profile (invariant 9's new "profile of chN" line) names the actual source.
+    /// </summary>
+    [Fact]
+    public void ALoneRiverOverASlopeBreakStillFinesDownstream()
+    {
+        const int n = 24;
+        var cells = new List<int>();
+        var receiver = new int[n];
+        var filled = new float[n];
+        var discharge = new float[n];
+        var speed = new float[n];
+        var depth = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            receiver[i] = i < n - 1 ? i + 1 : -1;
+            cells.Add(i);
+            discharge[i] = 10f;
+            speed[i] = 1.2f;
+            depth[i] = 1f;
+        }
+        // Ground: 0.001 m per cell for the first ten (a flat head), a break of 0.25 m per cell at x=10..11, 0.01 m per cell below.
+        float height = 1.2f;
+        for (int x = 0; x < n; x++)
+        {
+            filled[x] = height;
+            height -= x < 10 ? 0.001f : x < 12 ? 0.25f : 0.01f;
+        }
+        var p = Classes(settling: true);
+        Sediment.Deposits(cells, receiver, discharge, 1f, filled, new float[n], null, null, n, p,
+            out float[] deposit, out float[] grain, out _, out _, out _, out _,
+            grains: new GrainLoads(p, speed, depth));
+
+        int coarsest = 10;
+        for (int x = 11; x < n; x++)
+            if (deposit[x] > 0f && grain[x] > grain[coarsest])
+                coarsest = x;
+        Assert.True(deposit[2] < 0.001f,
+            $"the flat head erodes and lays nothing, so it cannot start the running mean fine: laid {deposit[2]:F4} m of grain " +
+            $"{grain[2]:F2}");
+        Assert.True(coarsest <= 13 && grain[coarsest] > 0.6f,
+            $"the break must shed its gravel just below itself: coarsest bed is grain {grain[coarsest]:F2} at x={coarsest}");
+        Assert.True(grain[coarsest] > grain[n - 2] + 0.05f,
+            $"the bed must fine from the break to the mouth: {grain[coarsest]:F2} at x={coarsest} against {grain[n - 2]:F2} at " +
+            $"x={n - 2}");
+        float climb = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        Assert.True(climb <= tolerance,
+            $"a lone river over a slope break must pass invariant 9: measured a running-mean climb of {climb:F3} over the tolerance " +
+            $"{tolerance:F2} (grain {string.Join(" ", System.Linq.Enumerable.Select(cells, x => deposit[x] > 0f ? grain[x].ToString("F2") : "-"))})");
+    }
+
+    /// <summary>
+    /// A straight channel of <paramref name="n"/> cells, 10 m3/s at 1.2 m/s in 1 m of water, walking over loose alluvium the whole way
+    /// (<c>sand</c>: the flow takes up as much as it can carry, Sediment.Grains.cs:277-278), so it aggrades and lays a bed on every
+    /// cell - the state the channels invariant 9 (the bed must not coarsen downstream) flags on maps are in. The ground drops
+    /// <paramref name="drop"/>[x] metres between cell x and its receiver. Note that the slope the model runs on is not
+    /// <paramref name="drop"/>[x]: it is the reach slope over the next <see cref="Hydraulics.TransportSteps"/> cells
+    /// (<see cref="Hydraulics.ReachSlope"/>), so a steepening shows up in the budget five cells before it reaches the ground.
+    /// </summary>
+    private static void AggradingReach(int n, float[] drop, out List<int> cells, out int[] receiver, out float[] filled,
+        out float[] discharge, out float[] deposit, out float[] grain, out SedimentSettings p)
+    {
+        var speed = new float[n];
+        var depth = new float[n];
+        var sand = new bool[n];
+        cells = new List<int>();
+        receiver = new int[n];
+        filled = new float[n];
+        discharge = new float[n];
+        float height = 3f;
+        for (int x = 0; x < n; x++)
+        {
+            receiver[x] = x < n - 1 ? x + 1 : -1;
+            cells.Add(x);
+            discharge[x] = 10f;
+            speed[x] = 1.2f;
+            depth[x] = 1f;
+            sand[x] = true;
+            filled[x] = height;
+            height -= drop[x];
+        }
+        p = Classes(settling: true);
+        Sediment.Deposits(cells, receiver, discharge, 1f, filled, new float[n], null, null, n, p,
+            out deposit, out grain, out _, out _, out _, out _,
+            sand: sand, grains: new GrainLoads(p, speed, depth));
+    }
+
+    /// <summary>The mix the valley hands the river at each cell, by the model's own rule (<see cref="Sediment.SupplyGrain"/>) on the
+    /// reach slope it walks on and the default rock strength (0.5, used when the caller passes none, Sediment.Grains.cs:263).</summary>
+    private static float[] ValleySupply(int n, int[] receiver, float[] filled, SedimentSettings p)
+    {
+        var supply = new float[n];
+        for (int x = 0; x < n; x++)
+            supply[x] = Sediment.SupplyGrain(Hydraulics.ReachSlope(x, receiver, filled, n), 0.5f, p.coarseSlope);
+        return supply;
+    }
+
+    /// <summary>The running-mean rule of <see cref="GrainLoads.WorstDownstreamCoarsening"/> applied to the bed's grain measured
+    /// against the mix the valley hands the river at the same cell: does the river lay a bed coarser than the one it is handed, and
+    /// does that excess fine downstream? (#186: the candidate definition, measured here before it is chosen.)</summary>
+    private static float WorstSupplyRelativeClimb(List<int> cells, float[] grain, float[] deposit, float[] supply)
+    {
+        float sum = 0f, lowest = float.MaxValue, worst = 0f;
+        int seen = 0;
+        foreach (int x in cells)
+        {
+            if (deposit[x] <= 0f)
+                continue;
+            sum += grain[x] - supply[x];
+            seen++;
+            float mean = sum / seen;
+            if (mean < lowest)
+                lowest = mean;
+            worst = Mathf.Max(worst, mean - lowest);
+        }
+        return worst;
+    }
+
+    /// <summary>Writes the per-cell profile the #186 diagnosis reads: the reach slope the model actually runs on, the mix the valley
+    /// hands it, what it laid and how coarse, and both running-mean climbs.</summary>
+    private static void WriteGrainProfile(string file, List<int> cells, int[] receiver, float[] filled, float[] deposit, float[] grain,
+        float[] supply, float climb, float relative, float tolerance)
+    {
+        int n = cells.Count;
+        System.IO.File.WriteAllText(file,
+            $"climb {climb:F3}  supply-relative {relative:F3}  tol {tolerance:F2}\n" +
+            " x  reachSlope  supply   deposit    grain\n" +
+            string.Join("\n", System.Linq.Enumerable.Select(cells, x =>
+                $"{x,2}  {Hydraulics.ReachSlope(x, receiver, filled, n),9:F4}  {supply[x],6:F3}  {deposit[x],8:F5}  " +
+                $"{(deposit[x] > 0f ? grain[x].ToString("F3") : "  -  ")}")));
+    }
+
+    /// <summary>
+    /// C2 (#186): the rule invariant 9 (the bed must not coarsen downstream) rests on - a river handed the same mix of sediment all the
+    /// way down lays a bed that stays fine or fines further, because the coarse classes drop out first (gravel falls at 4 times sand's
+    /// speed and fines at a quarter, Sediment.cs:105-107, so its settling length is 4x shorter and 16x longer: Sediment.Grains.cs:125-126)
+    /// and the fines are carried to the mouth. Fixture: a straight aggrading channel over ground dropping 0.01 m per cell everywhere, so
+    /// the reach slope the model walks on and the mix the valley hands it (Sediment.SupplyGrain) are the same at every cell - there is
+    /// nothing downstream that could make the bed coarsen. Measured (grainfix-uniform-reach-probe.txt): the reach slope is 0.0100 and
+    /// the supply mix 0.215 at every cell, the bed lays grain 0.301 at x=1 and fines every cell after it to 0.291 at the mouth; the
+    /// running mean climbs 0.000 (0.001 against the supply), well under the 0.15 tolerance. So a uniform aggrading reach is NOT what
+    /// fails on maps - the model sorts correctly when nothing changes under it. The map signature is a reach that steepens, below.
+    /// </summary>
+    [Fact]
+    public void AnAggradingChannelOnAUniformReachFinesItsBedDownstream()
+    {
+        const int n = 26;
+        var drop = new float[n];
+        for (int x = 0; x < n; x++)
+            drop[x] = 0.01f;
+        AggradingReach(n, drop, out List<int> cells, out int[] receiver, out float[] filled, out float[] discharge,
+            out float[] deposit, out float[] grain, out SedimentSettings p);
+
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        float climb = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        float[] supply = ValleySupply(n, receiver, filled, p);
+        WriteGrainProfile("grainfix-uniform-reach-probe.txt", cells, receiver, filled, deposit, grain, supply, climb,
+            WorstSupplyRelativeClimb(cells, grain, deposit, supply), tolerance);
+
+        // 1. The reach must lay a bed in its head, or the running mean starts nowhere and the fixture proves nothing.
+        Assert.True(deposit[5] > 0f && grain[5] < 0.45f,
+            $"the aggrading head must lay a bed of the mix it is handed (supply {supply[5]:F2}): laid {deposit[5]:F4} m of grain " +
+            $"{grain[5]:F2}");
+        // 2. And that bed must not coarsen anywhere on the way to the mouth.
+        Assert.True(climb <= tolerance,
+            $"a river handed the same mix all the way down must not coarsen its bed: measured a running-mean climb of {climb:F3} " +
+            $"over the tolerance {tolerance:F2} (grain " +
+            $"{string.Join(" ", System.Linq.Enumerable.Select(cells, x => deposit[x] > 0f ? grain[x].ToString("F2") : "-"))})");
+    }
+
+    /// <summary>
+    /// C2 (#186): the map's failure signature, reproduced. The channels invariant 9 (the bed must not coarsen downstream) flags
+    /// (f1 ch131, f3 ch52, f8 ch4 in battery mcp-20261110-011823) read fine in the head, then gravel, then fines, with no tributary
+    /// near the climb. The fixture is the same river over ground that steepens: 0.01 m per cell to x=9, 0.20 m per cell at x=10..13,
+    /// 0.01 below. Measured (grainfix-aggrading-break-probe.txt): the head lays grain 0.30, the bed jumps to gravel (0.80) at x=7 and
+    /// stays coarse to x=10, then fines to 0.63 at the mouth - a climb of 0.293, which the check flags. It is not a break in the
+    /// ground at x=7: the slope the model runs on is the reach slope over the next five cells (Hydraulics.TransportSteps = 5,
+    /// Hydraulics.cs:23,63-74), which already sees the steep stretch from x=6 (0.048) and reaches 0.086 at x=7, and the mix the valley
+    /// hands the river follows that slope (0.215 at x=5, 0.560 at x=7).
+    ///
+    /// This test pins the MODEL bug, not a legitimate process. Measured against the mix it is handed at each cell the river still
+    /// lays a bed that coarsens (supply-relative climb 0.197, over the 0.15 tolerance; at x=7 the bed is 0.80 against a mix of 0.560),
+    /// so "the valley steepened under it" does not excuse it. The cause is in the scour: over loose alluvium the flow takes up as
+    /// much as its capacity allows (Sediment.Grains.cs:277-278, capacity proportional to slope, :262) and the mix it takes is graded
+    /// by slope alone (:279), but what it can keep is decided by its speed (GrainLoads.Excess, :100-117). On the steep stretch the
+    /// slope says gravel and the speed (1.2 m/s) cannot move gravel, so the river digs coarse material out of the valley and drops it
+    /// again on the same cell. Load arriving from the world map is graded by that same speed (Sediment.EntryMix, :136-153, used at
+    /// :282-284); the scour is not (:288 uses the raw mix) - one rule, two definitions. The fix must grade the scoured mix by
+    /// competence too; when it does, asserts 2, 4 and 5 below flip and this test becomes the one that a lone river fines even where
+    /// its reach steepens.
+    /// </summary>
+    [Fact]
+    public void AnAggradingChannelCoarsensItsBedWhereTheReachSteepens()
+    {
+        const int n = 26;
+        var drop = new float[n];
+        for (int x = 0; x < n; x++)
+            drop[x] = x < 10 ? 0.01f : x < 14 ? 0.20f : 0.01f;
+        AggradingReach(n, drop, out List<int> cells, out int[] receiver, out float[] filled, out float[] discharge,
+            out float[] deposit, out float[] grain, out SedimentSettings p);
+
+        float tolerance = new SedimentSettings().coarsenTolerance;
+        float climb = GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit);
+        float[] supply = ValleySupply(n, receiver, filled, p);
+        float relative = WorstSupplyRelativeClimb(cells, grain, deposit, supply);
+        WriteGrainProfile("grainfix-aggrading-break-probe.txt", cells, receiver, filled, deposit, grain, supply, climb, relative,
+            tolerance);
+
+        // 1. The head lays fines, so the climb is a climb and not the running mean starting at the gravel.
+        Assert.True(deposit[5] > 0f && grain[5] < 0.45f,
+            $"the aggrading head must lay fines: at x=5 laid {deposit[5]:F4} m of grain {grain[5]:F2}");
+        int coarsest = 0;
+        for (int x = 1; x < n; x++)
+            if (deposit[x] > 0f && grain[x] > grain[coarsest])
+                coarsest = x;
+        // 2. The bed coarsens exactly where the model's reach slope has risen: the scour is graded by slope, not by speed.
+        float headSlope = Hydraulics.ReachSlope(5, receiver, filled, n);
+        Assert.True(grain[coarsest] > grain[5] + 0.15f && Hydraulics.ReachSlope(coarsest, receiver, filled, n) > 3f * headSlope,
+            $"the coarse bed must sit where the model's reach slope has risen, not on the uniform head: grain {grain[coarsest]:F2} " +
+            $"at x={coarsest} (reach slope {Hydraulics.ReachSlope(coarsest, receiver, filled, n):F4}) against {grain[5]:F2} at x=5 " +
+            $"(reach slope {headSlope:F4})");
+        // 3. Below the steep stretch the bed fines again.
+        Assert.True(grain[n - 2] < grain[coarsest] - 0.05f,
+            $"the bed must fine from the steep stretch to the mouth: {grain[coarsest]:F2} at x={coarsest} against " +
+            $"{grain[n - 2]:F2} at x={n - 2}");
+        // 4. The check as written flags it: the map failure, reproduced in a fixture.
+        Assert.True(climb > tolerance,
+            $"this fixture must reproduce the map failure (invariant 9 flagging a bed the slope-graded scour coarsened): measured a " +
+            $"climb of {climb:F3} against the tolerance {tolerance:F2}");
+        // 5. And it is the river, not the valley: the bed is coarser than the mix handed at the same cell, and that excess grows
+        // downstream too - so measuring against the supply would not excuse it either (0.197 measured, against the 0.15 tolerance).
+        Assert.True(grain[coarsest] > supply[coarsest] + tolerance && relative > tolerance,
+            $"the river must not lay a bed coarser than the mix it is handed: laid {grain[coarsest]:F2} at x={coarsest} against a mix " +
+            $"of {supply[coarsest]:F2}, and the supply-relative running mean climbs {relative:F3} over the tolerance {tolerance:F2}");
+    }
+
+    /// <summary>
+    /// Invariant 9 ignores the thin lag at the edge of a bar (#186): 5 cm of fines laid just before 3 m of gravel starts the running
+    /// mean 0.3 below the bar and reads as coarsening (measured on f1 ch131). With the share floor the same river passes; a real
+    /// coarsening between thick deposits still fails.
+    /// </summary>
+    [Fact]
+    public void InvariantNineIgnoresAThinLagButNotRealCoarsening()
+    {
+        var cells = new List<int> { 0, 1, 2, 3, 4, 5 };
+        var deposit = new float[] { 0.05f, 0.2f, 3f, 3f, 3f, 3f };
+        var grain = new float[] { 0.30f, 0.60f, 0.70f, 0.70f, 0.68f, 0.66f };
+        float tol = new SedimentSettings().coarsenTolerance, share = new SedimentSettings().minDepositShare;
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit) > tol, "without the floor the thin lag starts the mean low");
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, out _, share) <= tol, "with the floor the river fines");
+        // Real coarsening between thick deposits still fails.
+        var thick = new float[] { 3f, 3f, 3f, 3f, 3f, 3f };
+        var coarsening = new float[] { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f };
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, coarsening, thick, null, out _, share) > tol);
+    }
+
+    /// <summary>A gap of five cells with no deposit ends the depositional reach for invariant 9 (#186): the gravel bar laid after the gap
+    /// is a new bar, not the same river coarsening; the same coarsening with no gap still fails.</summary>
+    [Fact]
+    public void InvariantNineMeasuresTheBarAfterADepositionGapOnItsOwn()
+    {
+        const int n = 14;
+        var cells = new List<int>();
+        var deposit = new float[n];
+        var grain = new float[n];
+        for (int x = 0; x < n; x++)
+        {
+            cells.Add(x);
+            bool gap = x >= 4 && x < 9;
+            deposit[x] = gap ? 0f : 3f;
+            grain[x] = x < 4 ? 0.2f : 0.6f;
+        }
+        var s = new SedimentSettings();
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, out _, s.minDepositShare, s.depositGapCells) <= s.coarsenTolerance);
+        Assert.True(GrainLoads.WorstDownstreamCoarsening(cells, grain, deposit, null, out _, s.minDepositShare, 0) > s.coarsenTolerance);
+    }
 }

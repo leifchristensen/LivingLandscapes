@@ -161,7 +161,9 @@ public static class Invariants
     /// Invariant 9 (grain does not coarsen downstream, HYDRO-UNIFICATION S3 #186): walking each channel from its source to its mouth,
     /// the running mean of the deposit grain index must not climb above the lowest mean already passed by more than
     /// <see cref="SedimentSettings.coarsenTolerance"/>. A river drops its gravel first and its sand and fines last, so its deposits
-    /// fine toward the mouth; gravel turning up downstream of sand breaks the settling order. The grain index is the mean grain of the
+    /// fine toward the mouth; gravel turning up downstream of sand breaks the settling order. The running mean restarts where another
+    /// channel brings its load in (<see cref="RiverPlan.Parent"/>): a tributary arriving with gravel makes the bed coarser at the
+    /// junction legitimately, and the reach below is measured from that mixed load (#186). The grain index is the mean grain of the
     /// deposit laid on each cell, which the sediment pass keeps on the river system (<see cref="RiverSystem.GrainSize"/>,
     /// <see cref="Geology.Sediment.Layers"/>); the walk is the channel centre line, as in invariant 1. Evaluated only with the grain
     /// classes on (the -ll-grains switch, <see cref="Geology.TerrainChannels"/>); otherwise printed as not enforced, as invariant 10
@@ -180,8 +182,13 @@ public static class Invariants
             return;
         }
         float tolerance = new SedimentSettings().coarsenTolerance;
-        int measured = 0, coarsening = 0, worstChannel = -1;
+        // Junction cells, where a channel brings its load into another (RiverPlan.Parent): invariant 9 restarts its running
+        // mean there, because a tributary arriving with gravel is a new source, not the receiving river coarsening (#186).
+        var inflow = new bool[rivers.ChannelOf.Length];
+        int measured = 0, coarsening = 0, worstChannel = -1, nearMouth = 0, flaggedReceiving = 0, worstPeakAt = -1, worstLen = 0;
         float worst = 0f;
+        List<int> worstCells = null;
+        var detail = new StringBuilder();
         for (int k = 0; k < rivers.Channels.Count; k++)
         {
             RiverPlan plan = rivers.Channels[k];
@@ -203,21 +210,141 @@ public static class Invariants
                     cells.Add(index);
                 }
             }
-            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium);
+            // Mark this channel's junction cells: the cell of its walk nearest the mouth of every channel that joins it.
+            for (int j = 0; j < rivers.Channels.Count; j++)
+            {
+                RiverPlan child = rivers.Channels[j];
+                if (child.Parent != k || child.Main.Count == 0)
+                    continue;
+                Vector2 mouth = child.Main[child.Main.Count - 1];
+                int nearest = -1;
+                float best = float.MaxValue;
+                foreach (int c in cells)
+                {
+                    float d = (new Vector2(c % map.Size.x, c / map.Size.x) - mouth).sqrMagnitude;
+                    if (d < best)
+                    {
+                        best = d;
+                        nearest = c;
+                    }
+                }
+                if (nearest >= 0)
+                    inflow[nearest] = true;
+            }
+            int worstAt;
+            float rise = GrainLoads.WorstDownstreamCoarsening(cells, rivers.GrainSize, rivers.Alluvium, inflow, out worstAt, new SedimentSettings().minDepositShare, new SedimentSettings().depositGapCells);
             if (float.IsNaN(rise))
                 continue;
             measured++;
             if (rise > tolerance)
+            {
                 coarsening++;
+                // #186 diagnosis: does the flagged climb peak at this channel's own mouth (a junction bar laid in the channel
+                // that joins, where its flow slows entering the confluence) or mid-channel (a junction the walk failed to excuse)?
+                if (worstAt >= cells.Count - 4)
+                    nearMouth++;
+                foreach (int c in cells)
+                    if (inflow[c])
+                    {
+                        flaggedReceiving++;
+                        break;
+                    }
+                if (coarsening <= 4) // the line stays readable: the first four flagged channels are named with what the climb looks like
+                {
+                    int junction = NearestInflow(cells, inflow, worstAt);
+                    detail.Append($" ch{k}(w{plan.NominalWidth:F0}, {cells.Count} cells, climb {rise:F2}, peaks " +
+                                  $"{Mathf.Max(cells.Count - 1 - worstAt, 0)} above mouth, " +
+                                  (junction >= 0 ? $"nearest tributary {Mathf.Abs(worstAt - junction)} cells {(junction <= worstAt ? "above" : "below")} the peak" : "no tributary on this channel") +
+                                  $", grain {GrainAround(rivers, cells, worstAt)};");
+                }
+            }
             if (rise > worst)
             {
                 worst = rise;
                 worstChannel = k;
+                worstPeakAt = worstAt;
+                worstLen = cells.Count;
+                worstCells = cells;
             }
         }
         summary.AppendLine($"invariant 9 (grain does not coarsen downstream): {(coarsening == 0 ? "ok" : "FAIL")} | {measured} of {rivers.Channels.Count} channels with deposits measured, " +
                            $"running mean grain climbs at most {worst:F2} over the {tolerance:F2} allowed" +
-                           $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}");
+                           $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}" +
+                            $"{(coarsening == 0 ? "" : $"; diagnosis: worst climb peaks {Mathf.Max(worstLen - 1 - worstPeakAt, 0)} walk cells above channel {worstChannel}'s mouth of {worstLen} cells, " +
+                            $"{nearMouth} of {coarsening} flagged channels peak within 3 cells of their mouth, {flaggedReceiving} receive a tributary" +
+                            (detail.Length > 0 ? $"; flagged:{detail}" : "") +
+                            $"; profile of ch{worstChannel} (source to mouth, < marks the peak of the climb, * a junction cell): " +
+                            GrainProfile(rivers, worstCells, worstPeakAt, inflow))}");
+    }
+
+    /// <summary>A channel walk as two number rows, source to mouth: the deposit grain index in hundredths and the alluvium thickness in
+    /// centimetres ("-" where the cell holds no alluvium), the peak of the flagged climb marked <c>&lt;</c> and junction cells <c>*</c>.
+    /// #186 diagnosis: whether a flagged coarse stretch is a thick bar laid where the channel steepens, a thin lag left where the water
+    /// picks up again, or the bar of the junction just below or above it.</summary>
+    private static string GrainProfile(RiverSystem rivers, List<int> cells, int at, bool[] inflow)
+    {
+        if (cells == null || cells.Count == 0)
+            return "nothing to print";
+        var grain = new StringBuilder("grain ");
+        var thick = new StringBuilder("alluvium cm ");
+        for (int i = 0; i < cells.Count; i++)
+        {
+            int c = cells[i];
+            if (i > 0)
+            {
+                grain.Append(' ');
+                thick.Append(' ');
+            }
+            bool laid = rivers.Alluvium[c] > 0f;
+            grain.Append(laid ? ((int)(rivers.GrainSize[c] * 100f)).ToString() : "-");
+            thick.Append(laid ? ((int)(rivers.Alluvium[c] * 100f)).ToString() : "-");
+            if (i == at)
+            {
+                grain.Append('<');
+                thick.Append('<');
+            }
+            if (inflow != null && inflow[c])
+            {
+                grain.Append('*');
+                thick.Append('*');
+            }
+        }
+        return grain.Append(" | ").Append(thick).ToString();
+    }
+
+    /// <summary>Index in the channel walk of the junction cell nearest walk cell <paramref name="at"/>, or -1 when the channel
+    /// receives no tributary (#186 diagnosis: how far a flagged climb sits from the junction the walk excuses).</summary>
+    private static int NearestInflow(List<int> cells, bool[] inflow, int at)
+    {
+        int nearest = -1, best = int.MaxValue;
+        for (int i = 0; i < cells.Count; i++)
+        {
+            if (inflow == null || !inflow[cells[i]])
+                continue;
+            int d = Mathf.Abs(i - at);
+            if (d < best)
+            {
+                best = d;
+                nearest = i;
+            }
+        }
+        return nearest;
+    }
+
+    /// <summary>The deposit grain index of the nine walk cells centred on walk cell <paramref name="at"/> ("-" where the cell holds
+    /// no deposit): whether a flagged climb is one coarse outlier or a stretch of coarse bed (#186 diagnosis).</summary>
+    private static string GrainAround(RiverSystem rivers, List<int> cells, int at)
+    {
+        int lo = Mathf.Max(at - 4, 0), hi = Mathf.Min(at + 4, cells.Count - 1);
+        var profile = new StringBuilder();
+        for (int i = lo; i <= hi; i++)
+        {
+            if (i > lo)
+                profile.Append(' ');
+            int c = cells[i];
+            profile.Append(rivers.Alluvium[c] > 0f ? rivers.GrainSize[c].ToString("F2") : "-");
+        }
+        return profile.ToString();
     }
 
     /// <summary>
@@ -446,6 +573,7 @@ public static class Invariants
         }
         int lakes = 0, inDepression = 0, lagoons = 0;
         var failing = new StringBuilder();
+        int firstFailing = -1;
         for (int l = 0; l < lakeCount; l++)
         {
             if (lakeCells[l] < DepressionCells)
@@ -459,7 +587,11 @@ public static class Invariants
                 lagoons++;
             }
             else
+            {
                 failing.Append($" {lakeTerrain[l].defName} x{lakeCells[l]} at {lakeAt[l].x},{lakeAt[l].z}");
+                if (firstFailing < 0)
+                    firstFailing = l;
+            }
         }
 
         int hollowCount = GridMath.LabelRegions(i => filled[i] - h[i] > Tolerance, sizeX, sizeZ, out int[] hollowLabels);
@@ -489,5 +621,61 @@ public static class Invariants
                            $"{inDepression} of {lakes} still-water bodies (>= {DepressionCells} cells) lie in a closed depression or open to the sea or their river ({lagoons} lagoons and river pools); " +
                            $"{hollows} closed depressions >= {DepressionDepth} m deep ({hollowArea} cells), {dryHollows} hold no water" +
                            (failing.Length > 0 ? $"; not in a depression:{failing}" : ""));
+        // Its own line, so the line above stays byte-identical to main while the check passes.
+        if (firstFailing >= 0)
+            summary.AppendLine($"invariant 2 diagnosis: {FailingLake(firstFailing, lakeLabels, h, filled, rivers, sizeX, sizeZ)}");
+    }
+
+    /// <summary>
+    /// #186 diagnosis (C4): a body of still water that lies in no closed depression and is not open to the sea or held up by
+    /// its river. Says how much of it the channel network covers, how high its own water stands and how high the flowing water
+    /// beside it stands: a pool whose bed its river built up above the reach below reads as water standing above the water
+    /// beside it, water painted where no channel runs reads as cells outside the network.
+    /// </summary>
+    private static string FailingLake(int label, int[] lakeLabels, float[] h, float[] filled, RiverSystem rivers,
+        int sizeX, int sizeZ)
+    {
+        int cells = 0, inChannel = 0, flowingNeighbours = 0;
+        float deepest = 0f, levelMin = float.MaxValue, levelMax = float.MinValue;
+        float besideMin = float.MaxValue, besideMax = float.MinValue;
+        var channels = new Dictionary<int, int>();
+        for (int i = 0; i < lakeLabels.Length; i++)
+        {
+            if (lakeLabels[i] != label)
+                continue;
+            cells++;
+            deepest = Mathf.Max(deepest, filled[i] - h[i]);
+            if (rivers == null)
+                continue;
+            GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb =>
+            {
+                if (lakeLabels[nb] == label || rivers.ChannelOf[nb] < 0 || rivers.Still[nb] || float.IsNaN(rivers.WaterLevel[nb]))
+                    return;
+                flowingNeighbours++;
+                besideMin = Mathf.Min(besideMin, rivers.WaterLevel[nb]);
+                besideMax = Mathf.Max(besideMax, rivers.WaterLevel[nb]);
+            });
+            int channel = rivers.ChannelOf[i];
+            if (channel < 0)
+                continue;
+            inChannel++;
+            channels[channel] = channels.TryGetValue(channel, out int seen) ? seen + 1 : 1;
+            float level = rivers.WaterLevel[i];
+            if (float.IsNaN(level))
+                continue;
+            levelMin = Mathf.Min(levelMin, level);
+            levelMax = Mathf.Max(levelMax, level);
+        }
+        var byChannel = new StringBuilder();
+        foreach (KeyValuePair<int, int> pair in channels)
+            byChannel.Append($"ch {pair.Key} x{pair.Value} ");
+        bool anyLevel = levelMax >= levelMin;
+        string water = anyLevel ? $"water stands {levelMin:F2} to {levelMax:F2}" : "no water level of its own";
+        string beside = flowingNeighbours == 0 ? "touches no flowing water"
+            : $"touches {flowingNeighbours} flowing cells at {besideMin:F2} to {besideMax:F2}"
+              + (anyLevel ? $", so its surface stands {levelMin - besideMax:F2} m above the highest water beside it" : "");
+        return $"{cells} cells, {inChannel} of them in the channel network" +
+               (byChannel.Length > 0 ? $" [{byChannel.ToString().Trim()}]" : " (none: painted where no channel runs)") +
+               $", hollow at most {deepest:F2} m, {water}; {beside}.";
     }
 }

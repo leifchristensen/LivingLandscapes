@@ -144,6 +144,20 @@ public class SedimentSettings
     /// up downstream of sand. The check reads this default from the settings (the generator's copy is not kept on the map).
     /// </summary>
     public float coarsenTolerance = 0.15f;
+
+    /// <summary>
+    /// Invariant 9 ignores deposits thinner than this share of the channel's thickest deposit (#186): the few-centimetre lag at the
+    /// edge of a bar says nothing about sorting, and on the failing maps it alone starts the running mean 0.2 to 0.3 below the bar
+    /// that follows (f1, c4, f8; owner decision 2026-11-10 to make the check physically right, not looser: the tolerance is unchanged).
+    /// </summary>
+    public float minDepositShare = 0.2f;
+
+    /// <summary>
+    /// Invariant 9 ends a depositional reach after this many cells in a row with no deposit to speak of (#186): sorting is a property
+    /// of a continuous reach, and the bar laid after a gap is a new one. Five is the look-ahead the model's own slope uses
+    /// (<see cref="Hydraulics.TransportSteps"/>).
+    /// </summary>
+    public int depositGapCells = 5;
 }
 
 /// <summary>One row of the grain table (<see cref="SedimentSettings.grains"/>).</summary>

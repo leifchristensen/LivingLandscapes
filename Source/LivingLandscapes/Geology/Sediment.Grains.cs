@@ -154,26 +154,81 @@ public sealed class GrainLoads
 
     /// <summary>
     /// Invariant 9 (HYDRO-UNIFICATION S3, #186): grain along a river's deposits fines downstream. Walking the channel's cells
-    /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, weighted by
-    /// <paramref name="deposit"/>, both per cell) must not climb above the lowest running mean already passed: a river drops its
-    /// gravel first and its fines last. Cells without deposit are skipped. Returns the worst climb of the running mean
-    /// (0 for a river that only fines), or NaN when fewer than two cells deposited anything and there is nothing to measure.
-    /// Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the DevTools invariant 9.
+    /// from source to mouth, the running mean of the deposit grain index (<paramref name="grain"/>, per cell, unweighted;
+    /// <paramref name="deposit"/> only marks the cells that deposited anything) must not climb above the lowest running mean
+    /// already passed: a river drops its gravel first and its fines last. Cells without deposit are skipped. Where the channel
+    /// receives load from another channel (<paramref name="inflow"/>, optional, true at the junction cell) the running mean
+    /// restarts there: a tributary arriving with gravel is a new source, and the coarser bed there is its load, not the river
+    /// coarsening towards its own mouth (#186). A confluence scours its own hole, so the junction cell itself may hold no
+    /// deposit; the restart then waits for the next cell that deposits anything, wherever the mixed load first lands (#186).
+    /// Fining is still required within every reach between inflows and from each junction to the mouth. Deposits thinner than
+    /// <paramref name="minShare"/> of the channel's thickest are ignored (see <see cref="SedimentSettings.minDepositShare"/>), and
+    /// <paramref name="gapCells"/> or more such cells in a row end the reach (see <see cref="SedimentSettings.depositGapCells"/>). Returns the worst climb
+    /// of the running mean over all reaches (0 for a river that only fines), or NaN when fewer than two cells deposited
+    /// anything and there is nothing to measure. Compared against <see cref="SedimentSettings.coarsenTolerance"/> by the
+    /// DevTools invariant 9.
     /// </summary>
-    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit)
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow = null)
     {
-        float sum = 0f, lowest = float.MaxValue, worst = 0f;
-        int seen = 0;
+        int ignored;
+        return WorstDownstreamCoarsening(cellsDownstream, grain, deposit, inflow, out ignored);
+    }
+
+    /// <summary>
+    /// <see cref="WorstDownstreamCoarsening(List{int},float[],float[],bool[])"/> (the same single definition of the rule) also
+    /// reporting where the worst climb peaks: the index in <paramref name="cellsDownstream"/> of the cell whose running mean
+    /// stands highest above the lowest mean passed (-1 if nothing climbs). The DevTools invariant 9 line uses it to say whether
+    /// a flagged climb sits at the channel's mouth or mid-channel (#186 diagnosis).
+    /// </summary>
+    public static float WorstDownstreamCoarsening(List<int> cellsDownstream, float[] grain, float[] deposit, bool[] inflow, out int worstAt,
+        float minShare = 0f, int gapCells = 0)
+    {
+        float sum = 0f, lowest = float.MaxValue, worst = 0f, thickest = 0f;
+        int skipped = 0;
+        // A deposit of a few centimetres beside one of several metres is the thin edge where the flow picks up or drops its load, not
+        // a bed whose grain says anything about sorting. With minShare the walk ignores cells that lay less than that share of the
+        // channel's thickest deposit (#186; measured on f1 ch131: a 5 cm cell of fines starts the running mean 0.27 below the 3 m
+        // gravel bar after it).
+        if (minShare > 0f)
+            foreach (int cell in cellsDownstream)
+                thickest = Mathf.Max(thickest, deposit[cell]);
+        int seen = 0, reach = 0, at = -1, i = -1;
+        bool pendingReset = false;
         foreach (int c in cellsDownstream)
         {
-            if (deposit[c] <= 0f)
+            i++;
+            if (inflow != null && inflow[c] && reach > 0)
+                pendingReset = true; // may fire at this cell or, if it scours, at the next one that deposits
+            if (deposit[c] <= 0f || deposit[c] < minShare * thickest)
+            {
+                skipped++;
                 continue;
+            }
+            // A stretch of gapCells or more cells with no deposit to speak of ends the depositional reach: the bar after it is a
+            // new one, measured on its own, like the reach below a junction (sorting is a property of a continuous reach, #186).
+            if (gapCells > 0 && skipped >= gapCells && reach > 0)
+                pendingReset = true;
+            skipped = 0;
+            if (pendingReset)
+            {
+                // A new source: the reach below the junction is measured on its own, from the mixed load where it first lands (#186).
+                sum = 0f;
+                reach = 0;
+                lowest = float.MaxValue;
+                pendingReset = false;
+            }
             sum += grain[c];
             seen++;
-            float mean = sum / seen;
+            reach++;
+            float mean = sum / reach;
             lowest = Mathf.Min(lowest, mean);
-            worst = Mathf.Max(worst, mean - lowest);
+            if (mean - lowest > worst)
+            {
+                worst = mean - lowest;
+                at = i;
+            }
         }
+        worstAt = at;
         return seen < 2 ? float.NaN : worst;
     }
 }
