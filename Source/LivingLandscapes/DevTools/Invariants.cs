@@ -187,6 +187,7 @@ public static class Invariants
         var inflow = new bool[rivers.ChannelOf.Length];
         int measured = 0, coarsening = 0, worstChannel = -1, nearMouth = 0, flaggedReceiving = 0, worstPeakAt = -1, worstLen = 0;
         float worst = 0f;
+        List<int> worstCells = null;
         var detail = new StringBuilder();
         for (int k = 0; k < rivers.Channels.Count; k++)
         {
@@ -263,6 +264,7 @@ public static class Invariants
                 worstChannel = k;
                 worstPeakAt = worstAt;
                 worstLen = cells.Count;
+                worstCells = cells;
             }
         }
         summary.AppendLine($"invariant 9 (grain does not coarsen downstream): {(coarsening == 0 ? "ok" : "FAIL")} | {measured} of {rivers.Channels.Count} channels with deposits measured, " +
@@ -270,7 +272,44 @@ public static class Invariants
                            $"{(worstChannel >= 0 ? $" (channel {worstChannel}, width {rivers.Channels[worstChannel].NominalWidth:F0})" : "")}" +
                             $"{(coarsening == 0 ? "" : $"; diagnosis: worst climb peaks {Mathf.Max(worstLen - 1 - worstPeakAt, 0)} walk cells above channel {worstChannel}'s mouth of {worstLen} cells, " +
                             $"{nearMouth} of {coarsening} flagged channels peak within 3 cells of their mouth, {flaggedReceiving} receive a tributary" +
-                            (detail.Length > 0 ? $"; flagged:{detail}" : ""))}");
+                            (detail.Length > 0 ? $"; flagged:{detail}" : "") +
+                            $"; profile of ch{worstChannel} (source to mouth, < marks the peak of the climb, * a junction cell): " +
+                            GrainProfile(rivers, worstCells, worstPeakAt, inflow))}");
+    }
+
+    /// <summary>A channel walk as two number rows, source to mouth: the deposit grain index in hundredths and the alluvium thickness in
+    /// centimetres ("-" where the cell holds no alluvium), the peak of the flagged climb marked <c>&lt;</c> and junction cells <c>*</c>.
+    /// #186 diagnosis: whether a flagged coarse stretch is a thick bar laid where the channel steepens, a thin lag left where the water
+    /// picks up again, or the bar of the junction just below or above it.</summary>
+    private static string GrainProfile(RiverSystem rivers, List<int> cells, int at, bool[] inflow)
+    {
+        if (cells == null || cells.Count == 0)
+            return "nothing to print";
+        var grain = new StringBuilder("grain ");
+        var thick = new StringBuilder("alluvium cm ");
+        for (int i = 0; i < cells.Count; i++)
+        {
+            int c = cells[i];
+            if (i > 0)
+            {
+                grain.Append(' ');
+                thick.Append(' ');
+            }
+            bool laid = rivers.Alluvium[c] > 0f;
+            grain.Append(laid ? ((int)(rivers.GrainSize[c] * 100f)).ToString() : "-");
+            thick.Append(laid ? ((int)(rivers.Alluvium[c] * 100f)).ToString() : "-");
+            if (i == at)
+            {
+                grain.Append('<');
+                thick.Append('<');
+            }
+            if (inflow != null && inflow[c])
+            {
+                grain.Append('*');
+                thick.Append('*');
+            }
+        }
+        return grain.Append(" | ").Append(thick).ToString();
     }
 
     /// <summary>Index in the channel walk of the junction cell nearest walk cell <paramref name="at"/>, or -1 when the channel
