@@ -26,7 +26,7 @@ public static partial class TerrainChannels
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
         bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
-        System.Func<float[], int[], float[], bool[], float> yieldScale = null)
+        System.Func<float[], int[], float[], bool[], float> yieldScale = null, bool[] openHollows = null)
     {
         int n = sizeX * sizeZ;
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
@@ -70,9 +70,11 @@ public static partial class TerrainChannels
         // is an outlet at the lake's level, so no channel leaves it.
         if (!float.IsInfinity(lakeShare))
         {
-            float[] fed = inflow;
+            // A hollow the world's water runs through is never a closed basin (invariant 11): follow each entry down the
+            // receivers and mark every cell passed, so a river that meets a small hollow fills it and leaves over its rim.
+            bool[] fed = WorldWaterPath(inflow, receiver);
             int closed = Outlets.CloseBasins(ground, baseLevel, GridMath.FlowAccumulationMfd(filled, sizeX, sizeZ), receiver, lakeShare, sizeX, sizeZ,
-                i => fed[i] > 0f, sink);
+                i => fed[i] || (openHollows?[i] ?? false), sink);
             Log.Message($"[LivingLandscapes] Map closed basins (#99): {closed} keep their water.");
             if (closed > 0)
             {
@@ -115,6 +117,20 @@ public static partial class TerrainChannels
             loss[i] += WaterBalanceMath.LakeLoss(cells[(region[i], spill[i])], runoff, lakeShare);
         }
         return loss;
+    }
+
+    /// <summary>Cells the entering water passes: from each entry cell down the receivers to where they end.</summary>
+    private static bool[] WorldWaterPath(float[] inflow, int[] receiver)
+    {
+        var passed = new bool[inflow.Length];
+        for (int i = 0; i < inflow.Length; i++)
+        {
+            if (!(inflow[i] > 0f))
+                continue;
+            for (int c = i; c >= 0 && !passed[c]; c = receiver[c])
+                passed[c] = true;
+        }
+        return passed;
     }
 
     /// <summary>
