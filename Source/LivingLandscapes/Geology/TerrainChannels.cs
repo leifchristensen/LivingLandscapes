@@ -33,19 +33,26 @@ public static partial class TerrainChannels
     {
         // A closed basin keeps its water (#99), but world-defined water is never lost into one (invariant 11): the closing is
         // decided from the first drainage, and the passes (splits, bends, deposits) can carry the river's water to a basin the
-        // first drainage did not run into. When they do, that basin is opened (it fills and spills like any hollow on a river's
-        // way) and the channels are built again from the unchanged ground.
+        // first drainage did not run into. When they do, the channels are built again from the unchanged ground with that basin
+        // open (it fills and spills like any hollow on a river's way). Opening one basin can send the water to the next, so a
+        // second try opens every basin of the tile: a map whose world water is spread over flat ground has no closed lakes.
         var original = (float[])height.Clone();
         var open = new bool[sizeX * sizeZ];
         for (int attempt = 0; ; attempt++)
         {
             RiverSystem system = BuildOnce(height, sizeX, sizeZ, courses, riverCentre, climate, biome, rockStrength, water, p, worldRiverWidth, sea,
                 worldInflows, worldFlow, seaLevel, riverMouth, sand, edgeOpen, lakeShare, open);
-            if (system.SwallowedWorldWater.Count == 0 || attempt >= 3)
+            if (system.SwallowedWorldWater.Count == 0 || attempt >= 2)
                 return system;
-            Log.Message($"[LivingLandscapes] World water ended in {system.SwallowedWorldWater.Count} closed-basin cell(s); opening those basins and building the channels again (attempt {attempt + 1}).");
+            Log.Message($"[LivingLandscapes] World water ended in {system.SwallowedWorldWater.Count} closed-basin cell(s); building the channels again with " +
+                        (attempt == 0 ? "those basins" : "every closed basin") + " open.");
             foreach (int c in system.SwallowedWorldWater)
                 open[c] = true;
+            if (attempt >= 1)
+            {
+                for (int c = 0; c < open.Length; c++)
+                    open[c] |= system.Sink[c];
+            }
             System.Array.Copy(original, height, height.Length);
         }
     }
