@@ -29,7 +29,7 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
-        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity)
+        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, Vector2 worldExit = default)
     {
         // A closed basin keeps its water (#99), but world-defined water is never lost into one (invariant 11): the closing is
         // decided from the first drainage, and the passes (splits, bends, deposits) can carry the river's water to a basin the
@@ -41,7 +41,7 @@ public static partial class TerrainChannels
         for (int attempt = 0; ; attempt++)
         {
             RiverSystem system = BuildOnce(height, sizeX, sizeZ, courses, riverCentre, climate, biome, rockStrength, water, p, worldRiverWidth, sea,
-                worldInflows, worldFlow, seaLevel, riverMouth, sand, edgeOpen, lakeShare, open);
+                worldInflows, worldFlow, seaLevel, riverMouth, sand, edgeOpen, lakeShare, open, worldExit);
             if (system.SwallowedWorldWater.Count == 0 || attempt >= 2)
                 return system;
             Log.Message($"[LivingLandscapes] World water ended in {system.SwallowedWorldWater.Count} closed-basin cell(s); building the channels again with " +
@@ -60,7 +60,7 @@ public static partial class TerrainChannels
     private static RiverSystem BuildOnce(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea, List<WorldContext.RiverInflow> worldInflows, float worldFlow, float seaLevel, bool riverMouth,
-        bool[] sand, bool[] edgeOpen, float lakeShare, bool[] openHollows)
+        bool[] sand, bool[] edgeOpen, float lakeShare, bool[] openHollows, Vector2 worldExit)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -96,7 +96,7 @@ public static partial class TerrainChannels
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss,
             worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
-            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _), openHollows: openHollows);
+            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _), openHollows: openHollows, worldExit: worldExit);
         system.BaseLevel = outletLevel;
         system.YieldScale = yield;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
