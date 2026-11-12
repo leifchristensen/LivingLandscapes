@@ -188,6 +188,15 @@ public static class WaterRegimes
             ["River"] = RiverCourse.WidthOnMap(map.TileInfo),
             ["Coast"] = world.SeaDirection != Vector2.zero ? 1f : 0f,
         };
+        // Dev aid: -ll-water-regime=LL_Plains forces one regime, so a bug seen only under the regime a mod list happens to
+        // select (tile modifiers differ per mod list) reproduces on any list.
+        if (GenCommandLine.TryGetCommandLineArg("ll-water-regime", out string forced))
+        {
+            WaterRegimeDef named = DefDatabase<WaterRegimeDef>.GetNamedSilentFail(forced);
+            if (named != null)
+                return named;
+            Log.Warning($"[LivingLandscapes] -ll-water-regime={forced}: no such water regime; selecting normally.");
+        }
         var mutators = new HashSet<string>(map.TileInfo?.Mutators?.Select(m => m.defName) ?? Enumerable.Empty<string>());
         foreach (WaterRegimeDef def in DefDatabase<WaterRegimeDef>.AllDefsListForReading.OrderBy(d => d.order))
         {

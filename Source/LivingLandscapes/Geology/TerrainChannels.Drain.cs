@@ -17,18 +17,140 @@ namespace LivingLandscapes.Geology;
 public static partial class TerrainChannels
 {
     /// <summary>
-    /// The drainage the channels follow: water entering the map, the landform filled to its spill levels and each cell's
-    /// steepest-descent receiver. Water leaves where a cell has a base level (<see cref="MapBaseLevels"/>), once its surface
-    /// reaches it; it leaves the map there rather than running along the edge.
+    /// The drainage (see <see cref="DrainCore"/>), with the world river kept on the world's own way out. The world map says
+    /// where a river leaves a tile (<paramref name="worldExit"/>, the side vanilla draws it to, or the sea). When the drainage
+    /// carries an entering river out anywhere else (back out beside its entry, or off another side), the river is laid along
+    /// the cheapest way from its entry to that exit, and the drainage is made again with that way trenched: the ground
+    /// still decides where the river runs between the two ends, and only the ends are the world's.
     /// </summary>
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
         bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
-        System.Func<float[], int[], float[], bool[], float> yieldScale = null)
+        System.Func<float[], int[], float[], bool[], float> yieldScale = null, bool[] openHollows = null, Vector2 worldExit = default)
+    {
+        DrainCore(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out filled, out receiver, out inflow, out worldSource,
+            out vanillaWidth, out baseLevel, out yield, out lakeLoss, worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, sink, yieldScale,
+            openHollows);
+        if (worldExit == Vector2.zero || vanillaWidth <= 0f)
+            return;
+        List<Vector2> guide = null;
+        for (int i = 0; i < sizeX * sizeZ; i++)
+        {
+            if (!worldSource[i] || !Outlets.IsEdge(i, sizeX, sizeZ) || LeavesOnTheWorldsSide(receiver, i, sizeX, sizeZ, sea, worldExit))
+                continue;
+            List<Vector2> way = WorldWay(height, i, sizeX, sizeZ, sea, riverMouth, worldExit);
+            if (way == null)
+                continue;
+            Log.Message($"[LivingLandscapes] World river entering at ({i % sizeX},{i / sizeX}) left the map on another side than the world's; laying it along the ground to the world's exit ({way.Count} cells).");
+            guide ??= new List<Vector2>();
+            guide.AddRange(way);
+        }
+        if (guide != null)
+        {
+            DrainCore(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out filled, out receiver, out inflow, out worldSource,
+                out vanillaWidth, out baseLevel, out yield, out lakeLoss, worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, sink, yieldScale,
+                openHollows, guide, worldExit);
+        }
+    }
+
+    /// <summary>Whether the water entering at <paramref name="entry"/> runs down the receivers to the sea or to an edge cell on the world's exit side.</summary>
+    private static bool LeavesOnTheWorldsSide(int[] receiver, int entry, int sizeX, int sizeZ, bool[] sea, Vector2 worldExit)
+    {
+        int c = entry;
+        for (int steps = 0; receiver[c] >= 0 && steps < receiver.Length; steps++)
+            c = receiver[c];
+        return c != entry && IsExitCell(c, sizeX, sizeZ, sea, worldExit);
+    }
+
+    private static bool IsExitCell(int c, int sizeX, int sizeZ, bool[] sea, Vector2 worldExit)
+    {
+        if (sea != null && sea[c])
+            return true;
+        if (!Outlets.IsEdge(c, sizeX, sizeZ))
+            return false;
+        Vector2 fromCentre = new Vector2(c % sizeX - (sizeX - 1) * 0.5f, c / sizeX - (sizeZ - 1) * 0.5f);
+        return Vector2.Dot(fromCentre.normalized, worldExit.normalized) >= ExitSideDot;
+    }
+
+    /// <summary>An edge cell is on the world's exit side when the direction to it from the map's centre is within 60 degrees of the exit's heading (invariant 11 uses the same).</summary>
+    private const float ExitSideDot = 0.5f;
+
+    /// <summary>
+    /// The cheapest way over the ground from <paramref name="entry"/> to the world's exit (the sea for a river with its mouth
+    /// there, else the edge cells on the exit side): each step costs its length plus a heavy price per metre climbed, so the
+    /// way keeps to low ground. Cell centres; null if no exit cell can be reached.
+    /// </summary>
+    private static List<Vector2> WorldWay(float[] height, int entry, int sizeX, int sizeZ, bool[] sea, bool toSea, Vector2 worldExit)
     {
         int n = sizeX * sizeZ;
+        const float climbCost = 12f;
+        var cost = new float[n];
+        var from = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            cost[i] = float.MaxValue;
+            from[i] = -1;
+        }
+        var open = new SortedSet<(float, int)>();
+        cost[entry] = 0f;
+        open.Add((0f, entry));
+        int goal = -1;
+        while (open.Count > 0)
+        {
+            (float c0, int c) = open.Min;
+            open.Remove(open.Min);
+            if (c0 > cost[c])
+                continue;
+            if (c != entry && (toSea && sea != null ? sea[c] : IsExitCell(c, sizeX, sizeZ, null, worldExit)))
+            {
+                goal = c;
+                break;
+            }
+            int cx = c % sizeX, cz = c / sizeX;
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int x = cx + dx, z = cz + dz;
+                    if ((dx == 0 && dz == 0) || x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                        continue;
+                    int q = z * sizeX + x;
+                    float step = (dx != 0 && dz != 0 ? 1.4142f : 1f) + climbCost * Mathf.Max(0f, height[q] - height[c]);
+                    if (c0 + step < cost[q])
+                    {
+                        cost[q] = c0 + step;
+                        from[q] = c;
+                        open.Add((cost[q], q));
+                    }
+                }
+            }
+        }
+        if (goal < 0)
+            return null;
+        var way = new List<Vector2>();
+        for (int c = goal; c >= 0; c = from[c])
+            way.Add(new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f));
+        way.Reverse();
+        return way;
+    }
+
+    /// <summary>
+    /// The drainage the channels follow: water entering the map, the landform filled to its spill levels and each cell's
+    /// steepest-descent receiver. Water leaves where a cell has a base level (<see cref="MapBaseLevels"/>), once its surface
+    /// reaches it; it leaves the map there rather than running along the edge.
+    /// </summary>
+    private static void DrainCore(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
+        WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
+        out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss,
+        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
+        bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
+        System.Func<float[], int[], float[], bool[], float> yieldScale = null, bool[] openHollows = null, List<Vector2> guide = null, Vector2 worldExit = default)
+    {
+        int n = sizeX * sizeZ;
+        if (sink != null)
+            System.Array.Clear(sink, 0, sink.Length);
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
         inflow = Inflow(courses, sizeX, sizeZ, riverCentre, sourceRadius, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
             out worldSource, out vanillaWidth, worldInflows, sea);
@@ -59,7 +181,10 @@ public static partial class TerrainChannels
                 }
             }
         }
-        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
+        // A way laid from the world's own entry to its exit (see Drain): trenched like a drawn course.
+        if (guide != null && guide.Count > 0)
+            Trench(filled, sizeX, sizeZ, new ChannelCourse { Points = guide, WorldRiver = true }, p);
+        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow, guide != null ? worldExit : default);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
         // The tile's one water budget (#216): where the world gives the tile no river, only the share of the map's own runoff
@@ -70,9 +195,11 @@ public static partial class TerrainChannels
         // is an outlet at the lake's level, so no channel leaves it.
         if (!float.IsInfinity(lakeShare))
         {
-            float[] fed = inflow;
+            // A hollow the world's water runs through is never a closed basin (invariant 11): follow each entry down the
+            // receivers and mark every cell passed, so a river that meets a small hollow fills it and leaves over its rim.
+            bool[] fed = WorldWaterPath(inflow, receiver);
             int closed = Outlets.CloseBasins(ground, baseLevel, GridMath.FlowAccumulationMfd(filled, sizeX, sizeZ), receiver, lakeShare, sizeX, sizeZ,
-                i => fed[i] > 0f, sink);
+                i => fed[i] || (openHollows?[i] ?? false), sink);
             Log.Message($"[LivingLandscapes] Map closed basins (#99): {closed} keep their water.");
             if (closed > 0)
             {
@@ -117,13 +244,27 @@ public static partial class TerrainChannels
         return loss;
     }
 
+    /// <summary>Cells the entering water passes: from each entry cell down the receivers to where they end.</summary>
+    private static bool[] WorldWaterPath(float[] inflow, int[] receiver)
+    {
+        var passed = new bool[inflow.Length];
+        for (int i = 0; i < inflow.Length; i++)
+        {
+            if (!(inflow[i] > 0f))
+                continue;
+            for (int c = i; c >= 0 && !passed[c]; c = receiver[c])
+                passed[c] = true;
+        }
+        return passed;
+    }
+
     /// <summary>
     /// The map's base levels (P1, <see cref="Outlets"/>): the sea's water (ground below the sea's surface) at sea level; the
     /// map's edge open at its own ground where the erosion model's water flows on out of the map (<paramref name="edgeOpen"/>;
     /// every edge without it), except where water enters (<paramref name="inflow"/>), and at the world river's exit, closed elsewhere; every land area keeps an outlet.
     /// </summary>
     private static float[] MapBaseLevels(float[] height, float[] ground, int sizeX, int sizeZ, List<(ChannelCourse course, bool toMouth)> courses,
-        bool[] sea, float seaLevel, bool[] edgeOpen, float[] inflow)
+        bool[] sea, float seaLevel, bool[] edgeOpen, float[] inflow, Vector2 worldExit = default)
     {
         int n = sizeX * sizeZ;
         var baseLevel = new float[n];
@@ -137,6 +278,16 @@ public static partial class TerrainChannels
                 // An edge cell water enters by is an entry, not an exit (#165): a world river the erosion model did not bring in
                 // is placed on the edge facing its neighbour, and an outlet there would take it straight off the map again.
                 baseLevel[i] = Outlets.IsEdge(i, sizeX, sizeZ) && (edgeOpen?[i] ?? true) && !(inflow[i] > 0f) ? ground[i] : float.NaN;
+        }
+        // A river the drainage carried off the wrong side was laid along the world's own way (see Drain): the edges away from the
+        // world's exit then take no water, so it cannot turn aside and leave over them again; what drains to them spills elsewhere.
+        if (worldExit != Vector2.zero)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (Outlets.IsEdge(i, sizeX, sizeZ) && !SeaWater(i) && !IsExitCell(i, sizeX, sizeZ, null, worldExit))
+                    baseLevel[i] = float.NaN;
+            }
         }
         // The world river leaves where its course reaches the edge, whatever the model's coarser drainage says there.
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);

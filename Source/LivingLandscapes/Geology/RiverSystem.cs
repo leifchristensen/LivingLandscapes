@@ -36,6 +36,9 @@ public class RiverSystem
 
     public List<RiverPlan> Channels = new List<RiverPlan>();
 
+    /// <summary>Closed-basin cells the world's water ended in (the channels are built again with those basins open).</summary>
+    public List<int> SwallowedWorldWater = new List<int>();
+
     /// <summary>Base level of each cell (P1, <see cref="Outlets"/>): water leaves once its surface reaches it; NaN where it cannot leave.</summary>
     public float[] BaseLevel;
 

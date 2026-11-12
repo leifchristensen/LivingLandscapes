@@ -61,7 +61,8 @@ public class LandformWorker : EnvironmentLayerWorker
                 // A world river with its mouth at the sea ends in it.
                 riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f,
                 sand: Coastline.BeachCells(map),
-                edgeOpen: LandscapeGenerator.MapEdgeOpen);
+                edgeOpen: LandscapeGenerator.MapEdgeOpen,
+                worldExit: world.HasRiver ? world.RiverExit : Vector2.zero);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
