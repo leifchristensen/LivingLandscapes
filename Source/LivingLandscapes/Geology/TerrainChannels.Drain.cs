@@ -97,9 +97,17 @@ public static partial class TerrainChannels
     {
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
         var cells = new List<int>();
-        for (int k = 0; k < course.Points.Count; k++)
+        // Water from beyond the map enters on the edge cell the course crosses the edge at (see Inflow): the path starts there.
+        List<Vector2> points = course.Points;
+        int first = course.EntryArea > 0f ? points.FindIndex(v => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ) : -1;
+        if (first >= 0)
         {
-            Vector2 a = course.Points[Mathf.Max(0, k - 1)], b = course.Points[k];
+            points = new List<Vector2> { EntryPoint(points, first, sizeX, sizeZ) };
+            points.AddRange(course.Points.GetRange(first, course.Points.Count - first));
+        }
+        for (int k = 0; k < points.Count; k++)
+        {
+            Vector2 a = points[Mathf.Max(0, k - 1)], b = points[k];
             float length = (b - a).magnitude;
             for (float t = k == 0 ? 1f : 0f; t <= 1f; t += length > 0.5f ? 0.5f / length : 1f)
                 cells.Add(Cell(Vector2.Lerp(a, b, t)));
