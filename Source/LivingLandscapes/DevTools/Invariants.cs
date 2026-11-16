@@ -38,6 +38,7 @@ public static class Invariants
         }
         RiverDownhill(map, surface, summary);
         EntryRiversJoin(map, summary);
+        WorldRiversPassThrough(map, summary);
         MovingWaterFlows(map, summary);
         StandingAgrees(map, summary);
         GrainFinesDownstream(map, summary);
@@ -456,6 +457,81 @@ public static class Invariants
         summary.AppendLine($"accommodation: {rivers.AccommodationRaisedCells} standing cells raised, {rivers.AccommodationRaisedVolume:0} m3, " +
                            $"{rivers.AccommodationStillStanding} still standing at the end (0 where the deposits fed the lake enough, more only where the supply ran out), " +
                            $"{climbs} channel cells whose water level is higher than the level upstream");
+    }
+
+    /// <summary>
+    /// Invariant 11 (#235): every world river passes through the map. It enters on the side of the map the world map shows it
+    /// coming from, and the river that leaves leaves on the side vanilla's world map gives it, at the map edge or in the sea;
+    /// it never ends inside the map. Unlike invariant 7 this also covers a tile with a single world river.
+    /// "Side" is the direction from the map centre (dot product with the world's heading at least <see cref="SideDot"/>).
+    /// </summary>
+    private static void WorldRiversPassThrough(Map map, StringBuilder summary)
+    {
+        RiverSystem rivers = map.GetComponent<MapComponent_Environment>()?.PlannedRivers;
+        if (rivers == null)
+            return;
+        WorldContext world = WorldContext.For(map, 1f);
+        if (!world.HasRiver)
+            return;
+        bool[] sea = Coastline.SeaCells(map);
+        int sizeX = map.Size.x;
+        var centre = new Vector2(map.Size.x / 2f, map.Size.z / 2f);
+        List<RiverPlan> channels = rivers.Channels;
+        int exits = 0, exitsOk = 0, entries = 0, entriesOk = 0;
+        var bad = new StringBuilder();
+        for (int k = 0; k < channels.Count; k++)
+        {
+            RiverPlan plan = channels[k];
+            if (!plan.WorldRiver || plan.Main.Count == 0)
+                continue;
+            if (plan.Parent < 0)
+            {
+                exits++;
+                Vector2 end = plan.Main[plan.Main.Count - 1];
+                bool atEdge = !Inside(map, end) || NearEdge(map, end, EdgeBand);
+                bool atSea = NearSea(map, sea, end, 3);
+                bool side = world.RiverExit == Vector2.zero || Vector2.Dot((end - centre).normalized, world.RiverExit.normalized) >= SideDot;
+                if ((atEdge || atSea) && (side || atSea))
+                    exitsOk++;
+                else
+                    bad.Append($" channel {k} leaves {(atEdge || atSea ? "on the wrong side" : "nowhere: it ends inside the map")} at {PointOf(plan.Main, false)} (vanilla heading {world.RiverExit.x:F1},{world.RiverExit.y:F1});");
+            }
+            if (plan.VanillaWidth > 0f && plan.EntryArea > 0f)
+            {
+                entries++;
+                Vector2 start = plan.Main[0];
+                bool onSide = world.RiverInflows.Exists(i => Vector2.Dot((start - centre).normalized, i.From.normalized) >= SideDot);
+                if (onSide && (!Inside(map, start) || NearEdge(map, start, EdgeBand)))
+                    entriesOk++;
+                else
+                    bad.Append($" channel {k} enters at {PointOf(plan.Main, true)}, not on a side the world map brings a river from;");
+            }
+        }
+        if (exits + entries == 0)
+            return;
+        summary.AppendLine($"invariant 11 (world rivers pass through the map): {(bad.Length == 0 ? "ok" : "FAIL")} | {exitsOk} of {exits} world rivers leave at the edge or the sea on vanilla's side, " +
+                           $"{entriesOk} of {entries} enter on a side the world map brings a river from" + (bad.Length > 0 ? $"; {bad}" : ""));
+    }
+
+    /// <summary>Dot product of unit directions from the map centre above which a river counts as being on the world's side (about 60 degrees).</summary>
+    private const float SideDot = 0.5f;
+
+    /// <summary>True when a sea cell lies within <paramref name="reach"/> cells of the point (a river's last point is the cell before the sea).</summary>
+    private static bool NearSea(Map map, bool[] sea, Vector2 v, int reach)
+    {
+        if (sea == null)
+            return false;
+        int cx = Mathf.RoundToInt(v.x), cz = Mathf.RoundToInt(v.y);
+        for (int dz = -reach; dz <= reach; dz++)
+        {
+            for (int dx = -reach; dx <= reach; dx++)
+            {
+                int x = cx + dx, z = cz + dz;
+                if (x >= 0 && z >= 0 && x < map.Size.x && z < map.Size.z && sea[z * map.Size.x + x])
+                    return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>Cells from the map edge within which a river that enters and leaves counts as running along the edge.</summary>
