@@ -63,7 +63,7 @@ public static partial class TerrainChannels
         float[] runoffAt = GroundRunoff.Distribute(runoff, climate, p.AbsorptionOf(biome), rockStrength, GridMath.Slope(height, sizeX, sizeZ),
             p.rockAbsorptionLoss, p.slopeAbsorptionHalf);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss, out int[] courseReceiver,
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss,
             worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
             yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _));
         system.BaseLevel = outletLevel;
@@ -192,7 +192,7 @@ public static partial class TerrainChannels
                     isOutlet, sizeX, sizeZ, p.impact, p.oneHydraulics, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, courseReceiver);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
                     impactCuts += cuts;
                     impactCells += cutCells;
                 }
@@ -204,7 +204,7 @@ public static partial class TerrainChannels
                     moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, accomTally, out float volume);
                 if (raised > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, courseReceiver);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
                     aggraded += raised;
                     aggradedVolume += volume;
                 }
@@ -216,7 +216,7 @@ public static partial class TerrainChannels
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
                 carvedMeanders = Meanders.Apply(height, filled, cells, receiver, main, width, sinuosity, valley, sizeX, sizeZ, p.meander, out oxbows);
                 if (carvedMeanders > 0)
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, courseReceiver);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
             }
         }
 

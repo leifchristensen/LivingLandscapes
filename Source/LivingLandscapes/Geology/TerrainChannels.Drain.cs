@@ -23,7 +23,7 @@ public static partial class TerrainChannels
     /// </summary>
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
-        out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss, out int[] courseReceiver,
+        out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss,
         List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
         bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
         System.Func<float[], int[], float[], bool[], float> yieldScale = null)
@@ -61,8 +61,8 @@ public static partial class TerrainChannels
         }
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
-        courseReceiver = WorldCourseReceivers(laidCourses, sizeX, sizeZ);
-        receiver = Refill(filled, sizeX, sizeZ, baseLevel, p, courseReceiver);
+        receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+        BindWorldCourses(receiver, laidCourses, baseLevel, sizeX, sizeZ);
         // The tile's one water budget (#216): where the world gives the tile no river, only the share of the map's own runoff
         // its world flow lets through reaches its channels, and the same share is what its lakes gather.
         yield = vanillaWidth <= 0f && yieldScale != null ? yieldScale(filled, receiver, inflow, worldSource) : 1f;
@@ -85,7 +85,8 @@ public static partial class TerrainChannels
             if (closed > 0)
             {
                 filled = (float[])ground.Clone();
-                receiver = Refill(filled, sizeX, sizeZ, baseLevel, p, courseReceiver);
+                receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+                BindWorldCourses(receiver, laidCourses, baseLevel, sizeX, sizeZ);
             }
         }
         lakeLoss = LakeLosses(ground, baseLevel, receiver, sizeX, sizeZ, runoff, lakeShare);
@@ -119,12 +120,19 @@ public static partial class TerrainChannels
     /// cell along the course, as they did in the model, whatever the steepest slope of the finished ground says. The world river's
     /// course decides first where courses share a cell, so tributaries join it. Outlets (base level) are left as they are.
     /// </summary>
-    private static int[] WorldCourseReceivers(List<(ChannelCourse course, bool toMouth)> courses, int sizeX, int sizeZ)
+    private static void BindWorldCourses(int[] receiver, List<(ChannelCourse course, bool toMouth)> courses, float[] baseLevel, int sizeX, int sizeZ)
     {
+        if (courses.Count == 0)
+            return;
         var legs = new List<IReadOnlyList<int>>();
         foreach ((ChannelCourse course, bool toMouth) in courses.OrderByDescending(c => c.course.WorldRiver))
             legs.Add(CourseCells(course, sizeX, sizeZ));
-        return PrescribedCourse.PrescribedReceivers(sizeX * sizeZ, legs);
+        int[] bound = PrescribedCourse.PrescribedReceivers(receiver.Length, legs);
+        for (int c = 0; c < receiver.Length; c++)
+        {
+            if (bound[c] >= 0 && float.IsNaN(baseLevel[c]))
+                receiver[c] = bound[c];
+        }
     }
 
     /// <summary>
@@ -276,7 +284,7 @@ public static partial class TerrainChannels
     public static Vector2 NearestOnWorldRiver(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 point,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
     {
-        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _, out _, out _, out _, out _);
+        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _, out _, out _, out _);
         Vector2 best = point;
         float bestDistance = float.MaxValue;
         for (int i = 0; i < worldSource.Length; i++)
@@ -495,7 +503,7 @@ public static partial class TerrainChannels
     /// Fills hollows of the (changed) surface toward their spill levels and returns the steepest-descent receivers, outlets
     /// draining off the map: at first, and again after meanders or distributaries were carved into it.
     /// </summary>
-    private static int[] Refill(float[] filled, int sizeX, int sizeZ, float[] baseLevel, TerrainChannelSettings p, int[] courseReceiver = null)
+    private static int[] Refill(float[] filled, int sizeX, int sizeZ, float[] baseLevel, TerrainChannelSettings p)
     {
         Outlets.Fill(filled, sizeX, sizeZ, baseLevel, p.fillGradient);
         int[] receiver = GridMath.Receivers(filled, sizeX, sizeZ);
@@ -503,9 +511,6 @@ public static partial class TerrainChannels
         {
             if (Outlets.IsOutlet(baseLevel, i))
                 receiver[i] = -1;
-            // A world river's course is a boundary condition (P-boundary-first, #186): its cells drain to the next cell along it.
-            else if (courseReceiver != null && courseReceiver[i] >= 0)
-                receiver[i] = courseReceiver[i];
         }
         return receiver;
     }
