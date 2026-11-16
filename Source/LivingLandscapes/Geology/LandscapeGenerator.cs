@@ -277,8 +277,9 @@ public static class LandscapeGenerator
             }
         }
         var mapWindow = new Rect(originX, originZ, sizeX / mapCellsPerModelCell, sizeZ / mapCellsPerModelCell);
+        var entryInflows = new List<int>();
         RiverEnds(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out List<float> entryFlows,
-            out int riverExit, seaDepth, mapWindow);
+            out int riverExit, seaDepth, mapWindow, entryInflows);
         // Cells at base level from the start: the sea and the river's exit.
         var fixedOutlet = new bool[gx * gz];
         for (int i = 0; i < fixedOutlet.Length; i++)
@@ -344,6 +345,9 @@ public static class LandscapeGenerator
         if (entries.Count > 0)
             Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s); " +
                         $"{channels.Count} channels extracted, {channels.Count(c => c.VanillaWidth > 0f)} carrying world rivers.");
+        if (ErosionGridExport.Enabled)
+            ReportRiverBoundary(world, receiver, entries, entryInflows, riverCentre, riverExit, seaDepth, gx, mapWindow, originX, originZ,
+                                mapCellsPerModelCell, sizeX, sizeZ);
 
         // Cut the map window from the region and scale its range to the tile's relief, in metres above sea level.
         var window = new float[sizeX * sizeZ];
@@ -542,7 +546,7 @@ public static class LandscapeGenerator
     public static int InflowsAtSea { get; internal set; }
 
     private static void RiverEnds(WorldContext world, WaterRegimeDef water, int gx, int gz, Vector2 riverCentre,
-        out List<(int cell, float width)> entries, out List<float> entryFlows, out int riverExit, float[] seaDepth = null, Rect? mapWindow = null)
+        out List<(int cell, float width)> entries, out List<float> entryFlows, out int riverExit, float[] seaDepth = null, Rect? mapWindow = null, List<int> entryInflows = null)
     {
         entryFlows = new List<float>();
         entries = new List<(int, float)>();
@@ -586,6 +590,7 @@ public static class LandscapeGenerator
                     }
                     entries.Add((entry, world.RiverInflows[i].Width));
                     entryFlows.Add(world.RiverInflows[i].Flow);
+                    entryInflows?.Add(i);
                 }
             }
         }
@@ -726,6 +731,73 @@ public static class LandscapeGenerator
             }
         }
         return floor;
+    }
+
+    /// <summary>
+    /// Dev report (issue #186, W1 of the river-boundary plan): where each world river's drainage chain in the erosion model crosses the
+    /// map window, against where the world map says it should. Only logs; changes no generated value.
+    /// </summary>
+    private static void ReportRiverBoundary(WorldContext world, int[] receiver, List<(int cell, float width)> entries, List<int> entryInflows,
+        Vector2 riverCentre, int riverExit, float[] seaDepth, int gx, Rect window, float originX, float originZ, float scale, int sizeX, int sizeZ)
+    {
+        if (entries.Count == 0 || riverExit < 0)
+            return;
+        Vector2 ToMapPt(int c) => new Vector2((c % gx - originX) * scale, (c / gx - originZ) * scale);
+        Vector2 centre = new Vector2((riverCentre.x - originX) * scale, (riverCentre.y - originZ) * scale);
+        Vector2 CrossingToward(Vector2 direction)
+        {
+            Vector2 outside = centre + direction.normalized * (sizeX + sizeZ) * 4f;
+            RiverEntryRules.EdgeCrossing(outside.x, outside.y, centre.x, centre.y, sizeX, sizeZ, out float cx, out float cz);
+            return new Vector2(cx, cz);
+        }
+        // X: where the world says the river leaves: the sea on the way out if it lies within the map, else the window edge on that ray.
+        Vector2 exitPoint = CrossingToward(world.RiverExit);
+        if (seaDepth != null && seaDepth[riverExit] > 0f)
+        {
+            Vector2 sea = ToMapPt(riverExit);
+            if (sea.x >= 0f && sea.y >= 0f && sea.x <= sizeX && sea.y <= sizeZ)
+                exitPoint = sea;
+        }
+        string Pt(Vector2 v) => $"({v.x:F0},{v.y:F0})";
+        int near = 0, nearExit = 0, meets = 0;
+        for (int k = 0; k < entries.Count; k++)
+        {
+            var c = RiverEntryRules.CrossWindow(receiver, gx, window.x, window.y, window.width, window.height, entries[k].cell);
+            Vector2 ci = CrossingToward(world.RiverInflows[entryInflows[k]].From);
+            string first = "none", last = "none", dFirst = "-", dLast = "-", exitSide = "-";
+            bool entryOk = false, exitOk = false;
+            if (c.FirstCell >= 0)
+            {
+                Vector2 f = ToMapPt(c.FirstCell), l = ToMapPt(c.LastCell);
+                first = $"{Pt(f)} {c.FirstSide}";
+                last = c.EndsInside ? $"inside: ends at {Pt(ToMapPt(c.EndCell))}" : $"{Pt(l)} {c.LastSide}";
+                float df = Vector2.Distance(f, ci), dl = Vector2.Distance(l, exitPoint);
+                dFirst = df.ToString("F1");
+                dLast = dl.ToString("F1");
+                entryOk = df <= 4f;
+                exitOk = !c.EndsInside && dl <= 4f;
+                float dot = Vector2.Dot((l - centre).normalized, world.RiverExit.normalized);
+                exitSide = $"{(dot >= 0.5f ? "pass" : "FAIL")} dot {dot:F2}";
+            }
+            int meet = k == 0 ? entries[0].cell : RiverEntryRules.ChainsMeet(receiver, entries[0].cell, entries[k].cell);
+            string meetText = "no";
+            bool meetOk = false;
+            if (meet >= 0)
+            {
+                Vector2 m = ToMapPt(meet);
+                meetOk = m.x >= 0f && m.y >= 0f && m.x <= sizeX && m.y <= sizeZ;
+                meetText = meetOk ? $"yes at {Pt(m)}" : $"only outside the window at {Pt(m)}";
+            }
+            if (k == 0)
+                meetText = "(entry 0 itself)";
+            near += entryOk ? 1 : 0;
+            nearExit += exitOk ? 1 : 0;
+            meets += meetOk || k == 0 ? 1 : 0;
+            Log.Message($"[LivingLandscapes] River boundary: entry {k} (inflow {entryInflows[k]}): entry crossing {first}, world says {Pt(ci)}, off by {dFirst}; " +
+                        $"exit crossing {last}, world says {Pt(exitPoint)}, off by {dLast}; meets entry 0: {meetText}; exit side: {exitSide}.");
+        }
+        Log.Message($"[LivingLandscapes] River boundary summary: {entries.Count} entries; entry crossing within 4 cells of the world's {near}, " +
+                    $"exit crossing within 4 cells of the world's {nearExit}, meets entry 0 {meets}.");
     }
 
     private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null, Rect? window = null)
