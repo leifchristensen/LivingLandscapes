@@ -300,7 +300,7 @@ public static class LandscapeGenerator
         float[] courseBed = null;
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
             ? AntecedentCourses(entries, riverCentre, exitOnWindow, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow,
-                RiverBed.FallPerCell(world.RegionalGradient, metresPerModelCell), out courseFlow, out courseReceiver, out courseBed) : null;
+                0f, out courseFlow, out courseReceiver, out courseBed) : null;
         System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
             (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
@@ -694,7 +694,7 @@ public static class LandscapeGenerator
     /// and lies <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
     /// </summary>
     private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exitOnWindow, int exit, float[] uplift,
-        bool[] outlet, int gx, int gz, float depth, float[] inflow, float fallPerCell, out float[] courseFlow, out int[] prescribed, out float[] bedOut)
+        bool[] outlet, int gx, int gz, float depth, float[] inflow, float baseLevel, out float[] courseFlow, out int[] prescribed, out float[] bedOut)
     {
         int n = gx * gz;
         var floor = new float[n];
@@ -749,7 +749,7 @@ public static class LandscapeGenerator
                 ground[k] = uplift[course[k]] * 1.01f;
                 low = Mathf.Min(low, ground[k]);
             }
-            float[] bed = RiverBed.Grade(ground, low * depth, fallPerCell);
+            float[] bed = RiverBed.Grade(ground, low * depth, baseLevel);
             for (int k = 0; k < course.Count; k++)
             {
                 int c = course[k];

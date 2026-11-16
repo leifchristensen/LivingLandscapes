@@ -6,44 +6,48 @@ namespace LivingLandscapes.Tests;
 
 public class RiverBedTests
 {
-    private static void AssertNeverClimbs(float[] bed)
-    {
-        for (int k = 1; k < bed.Length; k++)
-            Assert.True(bed[k] < bed[k - 1], $"bed climbs or stalls at {k}");
-    }
-
     [Theory]
     [InlineData(new float[] { 10, 9, 8, 7, 6 })]        // falling ground
     [InlineData(new float[] { 5, 6, 7, 8, 9 })]         // rising ground
     [InlineData(new float[] { 8, 3, 9, 2, 10, 1, 7 })]  // bumpy ground
-    public void BedNeverClimbsAndLiesBelowTheGround(float[] ground)
+    public void BedNeverClimbsNeverLiesAboveTheGroundAndEndsAtTheBaseLevel(float[] ground)
     {
-        float[] bed = RiverBed.Grade(ground, 0.5f, 0.1f);
-        AssertNeverClimbs(bed);
-        for (int k = 0; k < ground.Length; k++)
-            Assert.True(bed[k] <= ground[k] - 0.5f - 0.1f + 1e-5f);
-    }
-
-    [Fact]
-    public void FlatGroundFallsByExactlyTheFall()
-    {
-        float[] bed = RiverBed.Grade(new float[] { 4, 4, 4, 4 }, 1f, 0.25f);
+        float[] bed = RiverBed.Grade(ground, 0.5f, 0f);
         for (int k = 1; k < bed.Length; k++)
-            Assert.Equal(0.25f, bed[k - 1] - bed[k], 4);
+            Assert.True(bed[k] <= bed[k - 1] + 1e-6f, $"bed climbs at {k}");
+        for (int k = 0; k < ground.Length; k++)
+        {
+            Assert.True(bed[k] <= ground[k] - 0.5f + 1e-5f || bed[k] <= 1e-5f);
+            Assert.True(bed[k] >= -1e-6f, "bed below its outlet's base level");
+        }
+        Assert.Equal(0f, bed[bed.Length - 1], 5);
     }
 
     [Fact]
-    public void FallFollowsTheGradientAndFallsBackWhenItIsNotUsable()
+    public void BedNeverSinksBelowTheOutletOnALongFlatCourse()
     {
-        Assert.Equal(0.02f, RiverBed.FallPerCell(0.002f, 10f), 5);
-        Assert.Equal(RiverBed.MinFallPerCell, RiverBed.FallPerCell(0f, 10f));
-        Assert.Equal(RiverBed.MinFallPerCell, RiverBed.FallPerCell(float.NaN, 10f));
-        Assert.Equal(RiverBed.MinFallPerCell, RiverBed.FallPerCell(-1f, 10f));
+        // 200 cells over ground 1 m above the outlet: an even fall of a fixed amount per cell would end far below base level.
+        float[] bed = RiverBed.Grade(Enumerable.Repeat(1f, 200).ToArray(), 0.1f, 0f);
+        Assert.True(bed.Min() >= 0f);
+        Assert.Equal(0f, bed[199], 5);
+        Assert.True(bed[0] > bed[100] && bed[100] > bed[198]);
     }
 
     [Fact]
-    public void NanGradientStillGivesAFallingBed() =>
-        AssertNeverClimbs(RiverBed.Grade(new float[] { 3, 6, 2, 8 }, 0.2f, RiverBed.FallPerCell(float.NaN, 5f)));
+    public void GroundLowerThanTheOutletGivesAFlatBedAtTheBaseLevel()
+    {
+        float[] bed = RiverBed.Grade(new float[] { 0.2f, 0.1f, 0f, 0f }, 0.3f, 1f);
+        Assert.All(bed, b => Assert.Equal(1f, b, 5));
+    }
+
+    [Fact]
+    public void AlsoWorksWithABaseLevelAboveZeroAndOneCell()
+    {
+        float[] bed = RiverBed.Grade(new float[] { 12, 11, 10 }, 1f, 4f);
+        Assert.Equal(4f, bed[2], 5);
+        Assert.True(bed[0] <= 11f && bed[0] > bed[1]);
+        Assert.Equal(4f, RiverBed.Grade(new float[] { 9 }, 1f, 4f)[0], 5);
+    }
 }
 
 public class PrescribedCourseTests

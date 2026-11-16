@@ -9,30 +9,22 @@ namespace LivingLandscapes.Geology;
 public static class RiverBed
 {
     /// <summary>
-    /// Fall per cell used when the regional gradient is zero or not a number: a river still runs downstream on flat ground.
-    /// Height units of the erosion model (metres) per model cell.
+    /// The bed along a course, in course order from upstream, ending at the course's outlet at <paramref name="baseLevel"/>.
+    /// Never above the ground less <paramref name="depth"/> (it is entrenched), never rising, never below the base level the water
+    /// leaves at (a bed below its own outlet is a pit), and falling evenly in the share of the way left to the outlet:
+    /// bed(k) = base + (U(k) - base) x (left / total), U(k) = the running minimum of ground - depth, held at or above the base level.
     /// </summary>
-    public const float MinFallPerCell = 0.001f;
-
-    /// <summary>Fall of the bed per model cell: the regional slope (rise per metre) times the cell size, or <see cref="MinFallPerCell"/> if that is not positive.</summary>
-    public static float FallPerCell(float regionalGradient, float metresPerCell)
+    public static float[] Grade(float[] ground, float depth, float baseLevel)
     {
-        float fall = regionalGradient * metresPerCell;
-        return float.IsNaN(fall) || float.IsInfinity(fall) || fall < MinFallPerCell ? MinFallPerCell : fall;
-    }
-
-    /// <summary>
-    /// bed(k) = min(bed(k-1), ground(k) - depth) - fall, in course order from upstream. Never rises, lies at least
-    /// <paramref name="depth"/> + <paramref name="fall"/> below the ground at every cell, and falls at least <paramref name="fall"/> per cell.
-    /// </summary>
-    public static float[] Grade(float[] ground, float depth, float fall)
-    {
-        var bed = new float[ground.Length];
-        float previous = float.PositiveInfinity;
-        for (int k = 0; k < ground.Length; k++)
+        int m = ground.Length;
+        var bed = new float[m];
+        float upper = float.PositiveInfinity;
+        for (int k = 0; k < m; k++)
         {
-            bed[k] = Math.Min(previous, ground[k] - depth) - fall;
-            previous = bed[k];
+            upper = Math.Min(upper, ground[k] - depth);
+            float u = Math.Max(upper, baseLevel);
+            float left = m > 1 ? (m - 1 - k) / (float)(m - 1) : 0f;
+            bed[k] = baseLevel + (u - baseLevel) * left;
         }
         return bed;
     }
