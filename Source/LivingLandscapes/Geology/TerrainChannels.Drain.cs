@@ -62,6 +62,7 @@ public static partial class TerrainChannels
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+        BindWorldCourses(receiver, laidCourses, baseLevel, sizeX, sizeZ);
         // The tile's one water budget (#216): where the world gives the tile no river, only the share of the map's own runoff
         // its world flow lets through reaches its channels, and the same share is what its lakes gather.
         yield = vanillaWidth <= 0f && yieldScale != null ? yieldScale(filled, receiver, inflow, worldSource) : 1f;
@@ -78,9 +79,42 @@ public static partial class TerrainChannels
             {
                 filled = (float[])ground.Clone();
                 receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);
+                BindWorldCourses(receiver, laidCourses, baseLevel, sizeX, sizeZ);
             }
         }
         lakeLoss = LakeLosses(ground, baseLevel, receiver, sizeX, sizeZ, runoff, lakeShare);
+    }
+
+    /// <summary>
+    /// After the erosion model nothing may move a world river (P-boundary-first, #186): the cells of its course drain to the next
+    /// cell along the course, as they did in the model, whatever the steepest slope of the finished ground says. The world river's
+    /// course decides first where courses share a cell, so tributaries join it. Outlets (base level) are left as they are.
+    /// </summary>
+    private static void BindWorldCourses(int[] receiver, List<(ChannelCourse course, bool toMouth)> courses, float[] baseLevel, int sizeX, int sizeZ)
+    {
+        if (courses.Count == 0)
+            return;
+        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
+        var legs = new List<IReadOnlyList<int>>();
+        foreach ((ChannelCourse course, bool toMouth) in courses.OrderByDescending(c => c.course.WorldRiver))
+        {
+            // The course's points are model cells apart: lay the cells between them, so each step is to a neighbour.
+            var cells = new List<int>();
+            for (int k = 0; k < course.Points.Count; k++)
+            {
+                Vector2 a = course.Points[Mathf.Max(0, k - 1)], b = course.Points[k];
+                float length = (b - a).magnitude;
+                for (float t = k == 0 ? 1f : 0f; t <= 1f; t += length > 0.5f ? 0.5f / length : 1f)
+                    cells.Add(Cell(Vector2.Lerp(a, b, t)));
+            }
+            legs.Add(PrescribedCourse.Dedupe(cells));
+        }
+        int[] bound = PrescribedCourse.PrescribedReceivers(receiver.Length, legs);
+        for (int c = 0; c < receiver.Length; c++)
+        {
+            if (bound[c] >= 0 && float.IsNaN(baseLevel[c]))
+                receiver[c] = bound[c];
+        }
     }
 
     /// <summary>
