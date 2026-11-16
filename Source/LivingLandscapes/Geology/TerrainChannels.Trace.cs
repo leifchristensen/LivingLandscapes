@@ -78,6 +78,22 @@ public static partial class TerrainChannels
             }
         }
 
+        // World channels that reach the sea at the same mouth (a delta's distributaries) are one river there: the smaller joins the
+        // largest, where their ends lie within a few cells of each other, instead of both standing as separate roots.
+        for (int k = 0; k < plans.Count; k++)
+        {
+            if (parents[k] >= 0 || plans[k].VanillaWidth <= 0f)
+                continue;
+            for (int j = 0; j < plans.Count; j++)
+            {
+                if (j == k || parents[j] >= 0 || plans[j].VanillaWidth <= 0f || peak[j] <= peak[k])
+                    continue;
+                int dx = ends[j] % sizeX - ends[k] % sizeX, dz = ends[j] / sizeX - ends[k] / sizeX;
+                if (dx * dx + dz * dz <= 36)
+                    parents[k] = j;
+            }
+        }
+
         // The world river: the largest channel carrying world water that leaves the map.
         int worldRiver = -1;
         for (int k = 0; k < plans.Count; k++)

@@ -230,7 +230,7 @@ public static partial class TerrainChannels
             cells.Sort((x, y) => filled[y].CompareTo(filled[x]));
 
             // The main donor of each channel cell: the channel cell upstream whose steepest descent brings the most water.
-            main = MainDonors(cells, receiver, discharge, threshold, n);
+            main = MainDonors(cells, receiver, discharge, threshold, n, WorldWaterPath(inflow, receiver));
 
             direction = Hydraulics.Directions(cells, receiver, main, sizeX, p.flowSmoothingSteps);
             width = new float[n];
@@ -411,7 +411,7 @@ public static partial class TerrainChannels
     }
 
     /// <summary>The main donor of each channel cell: the channel cell upstream whose steepest descent brings the most water (-1 if none).</summary>
-    private static int[] MainDonors(List<int> cells, int[] receiver, float[] discharge, float threshold, int n)
+    private static int[] MainDonors(List<int> cells, int[] receiver, float[] discharge, float threshold, int n, bool[] worldWater = null)
     {
         var main = new int[n];
         for (int i = 0; i < n; i++)
@@ -419,7 +419,18 @@ public static partial class TerrainChannels
         foreach (int c in cells)
         {
             int r = receiver[c];
-            if (r >= 0 && discharge[r] >= threshold && (main[r] < 0 || discharge[c] > discharge[main[r]]))
+            if (r < 0 || discharge[r] < threshold)
+                continue;
+            // The branch that carries the world's water continues the river, whatever the other branch's own catchment adds (the world
+            // river then starts at the map's edge, where the world map brings it in).
+            bool better = main[r] < 0 || discharge[c] > discharge[main[r]];
+            // ... unless the world's branch is not much the smaller of the two (a tributary that dwarfs it is the river there).
+            if (main[r] >= 0 && worldWater != null && worldWater[c] != worldWater[main[r]])
+            {
+                int world = worldWater[c] ? c : main[r], other = worldWater[c] ? main[r] : c;
+                better = (discharge[world] >= 0.5f * discharge[other]) == worldWater[c];
+            }
+            if (better)
                 main[r] = c;
         }
         return main;

@@ -36,34 +36,76 @@ public static partial class TerrainChannels
         if (worldExit == Vector2.zero || vanillaWidth <= 0f)
             return;
         List<Vector2> guide = null;
-        // The largest river first: it is the world river, and the others join the way already laid (they meet it on the map,
-        // as the world map draws them) instead of each running to the exit alone.
-        var onWay = new bool[sizeX * sizeZ];
-        var entries = new List<int>();
-        for (int i = 0; i < sizeX * sizeZ; i++)
+        int n = sizeX * sizeZ;
+        // Up to three rounds: a way laid for one river can change where the others go, so the drainage is checked again after each.
+        for (int round = 0; round < 3; round++)
         {
-            if (worldSource[i] && Outlets.IsEdge(i, sizeX, sizeZ) && (forceWay || !LeavesOnTheWorldsSide(receiver, i, sizeX, sizeZ, sea, worldExit)))
-                entries.Add(i);
-        }
-        float[] entering = inflow;
-        entries.Sort((a, b) => entering[b].CompareTo(entering[a]));
-        foreach (int i in entries)
-        {
-            List<Vector2> way = WorldWay(height, i, sizeX, sizeZ, sea, riverMouth, worldExit, guide == null ? null : onWay);
-            if (way == null)
-                continue;
-            Log.Message($"[LivingLandscapes] World river entering at ({i % sizeX},{i / sizeX}) left the map on another side than the world's; laying it along the ground to the world's exit ({way.Count} cells{(guide == null ? "" : ", to meet the river already laid")}).");
-            guide ??= new List<Vector2>();
-            guide.AddRange(way);
-            foreach (Vector2 v in way)
-                onWay[Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1)] = true;
-        }
-        if (guide != null)
-        {
+            // The river everything else meets: the largest to enter from beyond the map, if it leaves on the world's side. The others
+            // join it on the map (as the world map draws them) instead of each running to the exit alone.
+            int reference = -1;
+            for (int i = 0; i < n; i++)
+            {
+                if (inflow[i] > 0f && Outlets.IsEdge(i, sizeX, sizeZ) && (reference < 0 || inflow[i] > inflow[reference]))
+                    reference = i;
+            }
+            var onWay = new bool[n];
+            int mouth = -1;
+            var refChain = new List<int>();
+            if (reference >= 0 && LeavesOnTheWorldsSide(receiver, reference, sizeX, sizeZ, sea, worldExit))
+            {
+                for (int c = reference, steps = 0; c >= 0 && steps < n; c = receiver[c], steps++)
+                {
+                    onWay[c] = true;
+                    mouth = c;
+                    refChain.Add(c);
+                }
+            }
+            var entries = new List<int>();
+            for (int i = 0; i < n; i++)
+            {
+                if (!worldSource[i] || !Outlets.IsEdge(i, sizeX, sizeZ) || i == mouth)
+                    continue;
+                bool wrongSide = (forceWay && round == 0) || !LeavesOnTheWorldsSide(receiver, i, sizeX, sizeZ, sea, worldExit);
+                if (wrongSide || (i != reference && mouth >= 0 && !MeetsAt(receiver, i, mouth, sizeX)))
+                    entries.Add(i);
+            }
+            if (entries.Count == 0)
+                break;
+            float[] entering = inflow;
+            entries.Sort((a, b) => entering[b].CompareTo(entering[a]));
+            foreach (int i in entries)
+            {
+                List<Vector2> way = WorldWay(height, i, sizeX, sizeZ, sea, riverMouth, worldExit, onWay, onlyJoin: true) ??
+                                    WorldWay(height, i, sizeX, sizeZ, sea, riverMouth, worldExit, onWay);
+                if (way == null)
+                    continue;
+                Log.Message($"[LivingLandscapes] World river entering at ({i % sizeX},{i / sizeX}) did not leave by the world's way; laying it along the ground ({way.Count} cells, round {round + 1}).");
+                guide ??= new List<Vector2>();
+                guide.AddRange(way);
+                // Where it met the reference river, the guide goes on down that river's own course, so the meeting holds when the
+                // trench changes the ground around it.
+                int last = Mathf.Clamp(Mathf.RoundToInt(way[way.Count - 1].y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(way[way.Count - 1].x - 0.5f), 0, sizeX - 1);
+                int at = refChain.IndexOf(last);
+                for (int q = at + 1; at >= 0 && q < refChain.Count; q++)
+                    guide.Add(new Vector2(refChain[q] % sizeX + 0.5f, refChain[q] / sizeX + 0.5f));
+                foreach (Vector2 v in way)
+                    onWay[Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1)] = true;
+            }
+            if (guide == null)
+                break;
             DrainCore(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out filled, out receiver, out inflow, out worldSource,
                 out vanillaWidth, out baseLevel, out yield, out lakeLoss, worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, sink, yieldScale,
                 openHollows, guide, worldExit);
         }
+    }
+
+    /// <summary>Whether the water entering at <paramref name="entry"/> ends within a few cells of <paramref name="mouth"/> (one mouth for the tile's rivers).</summary>
+    private static bool MeetsAt(int[] receiver, int entry, int mouth, int sizeX)
+    {
+        int c = entry;
+        for (int steps = 0; receiver[c] >= 0 && steps < receiver.Length; steps++)
+            c = receiver[c];
+        return Mathf.Abs(c % sizeX - mouth % sizeX) <= 8 && Mathf.Abs(c / sizeX - mouth / sizeX) <= 8;
     }
 
     /// <summary>Whether the water entering at <paramref name="entry"/> runs down the receivers to the sea or to an edge cell on the world's exit side.</summary>
@@ -93,7 +135,7 @@ public static partial class TerrainChannels
     /// there, else the edge cells on the exit side): each step costs its length plus a heavy price per metre climbed, so the
     /// way keeps to low ground. Cell centres; null if no exit cell can be reached.
     /// </summary>
-    private static List<Vector2> WorldWay(float[] height, int entry, int sizeX, int sizeZ, bool[] sea, bool toSea, Vector2 worldExit, bool[] join = null)
+    private static List<Vector2> WorldWay(float[] height, int entry, int sizeX, int sizeZ, bool[] sea, bool toSea, Vector2 worldExit, bool[] join = null, bool onlyJoin = false)
     {
         int n = sizeX * sizeZ;
         const float climbCost = 12f;
@@ -114,7 +156,7 @@ public static partial class TerrainChannels
             open.Remove(open.Min);
             if (c0 > cost[c])
                 continue;
-            if (c != entry && ((join != null && join[c]) || (toSea && sea != null ? sea[c] : IsExitCell(c, sizeX, sizeZ, null, worldExit))))
+            if (c != entry && ((join != null && join[c] && !Outlets.IsEdge(c, sizeX, sizeZ)) || (!onlyJoin && (toSea && sea != null ? sea[c] : IsExitCell(c, sizeX, sizeZ, null, worldExit)))))
             {
                 goal = c;
                 break;
@@ -128,6 +170,9 @@ public static partial class TerrainChannels
                     if ((dx == 0 && dz == 0) || x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
                         continue;
                     int q = z * sizeX + x;
+                    // The map's edge is closed to water except where the world leaves, so the way keeps off it until its exit.
+                    if (Outlets.IsEdge(q, sizeX, sizeZ) && !(onlyJoin ? false : (toSea && sea != null ? sea[q] : IsExitCell(q, sizeX, sizeZ, null, worldExit))))
+                        continue;
                     float step = (dx != 0 && dz != 0 ? 1.4142f : 1f) + climbCost * Mathf.Max(0f, height[q] - height[c]);
                     if (c0 + step < cost[q])
                     {
