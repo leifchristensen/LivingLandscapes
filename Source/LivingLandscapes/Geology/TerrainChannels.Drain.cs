@@ -72,8 +72,15 @@ public static partial class TerrainChannels
         if (!float.IsInfinity(lakeShare))
         {
             float[] fed = inflow;
+            // A hollow a world river's course runs through is fed by water from beyond the map: it is no closed basin (as in the model).
+            var onCourse = new bool[n];
+            foreach ((ChannelCourse course, bool _) in laidCourses)
+            {
+                foreach (int c in CourseCells(course, sizeX, sizeZ))
+                    onCourse[c] = true;
+            }
             int closed = Outlets.CloseBasins(ground, baseLevel, GridMath.FlowAccumulationMfd(filled, sizeX, sizeZ), receiver, lakeShare, sizeX, sizeZ,
-                i => fed[i] > 0f, sink);
+                i => fed[i] > 0f || onCourse[i], sink);
             Log.Message($"[LivingLandscapes] Map closed basins (#99): {closed} keep their water.");
             if (closed > 0)
             {
@@ -85,6 +92,21 @@ public static partial class TerrainChannels
         lakeLoss = LakeLosses(ground, baseLevel, receiver, sizeX, sizeZ, runoff, lakeShare);
     }
 
+    /// <summary>The map cells along a course in flow order, each step to a neighbour (its points are model cells apart).</summary>
+    private static List<int> CourseCells(ChannelCourse course, int sizeX, int sizeZ)
+    {
+        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
+        var cells = new List<int>();
+        for (int k = 0; k < course.Points.Count; k++)
+        {
+            Vector2 a = course.Points[Mathf.Max(0, k - 1)], b = course.Points[k];
+            float length = (b - a).magnitude;
+            for (float t = k == 0 ? 1f : 0f; t <= 1f; t += length > 0.5f ? 0.5f / length : 1f)
+                cells.Add(Cell(Vector2.Lerp(a, b, t)));
+        }
+        return PrescribedCourse.Dedupe(cells);
+    }
+
     /// <summary>
     /// After the erosion model nothing may move a world river (P-boundary-first, #186): the cells of its course drain to the next
     /// cell along the course, as they did in the model, whatever the steepest slope of the finished ground says. The world river's
@@ -94,21 +116,9 @@ public static partial class TerrainChannels
     {
         if (courses.Count == 0)
             return;
-        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
         var legs = new List<IReadOnlyList<int>>();
         foreach ((ChannelCourse course, bool toMouth) in courses.OrderByDescending(c => c.course.WorldRiver))
-        {
-            // The course's points are model cells apart: lay the cells between them, so each step is to a neighbour.
-            var cells = new List<int>();
-            for (int k = 0; k < course.Points.Count; k++)
-            {
-                Vector2 a = course.Points[Mathf.Max(0, k - 1)], b = course.Points[k];
-                float length = (b - a).magnitude;
-                for (float t = k == 0 ? 1f : 0f; t <= 1f; t += length > 0.5f ? 0.5f / length : 1f)
-                    cells.Add(Cell(Vector2.Lerp(a, b, t)));
-            }
-            legs.Add(PrescribedCourse.Dedupe(cells));
-        }
+            legs.Add(CourseCells(course, sizeX, sizeZ));
         int[] bound = PrescribedCourse.PrescribedReceivers(receiver.Length, legs);
         for (int c = 0; c < receiver.Length; c++)
         {
@@ -171,6 +181,17 @@ public static partial class TerrainChannels
                 // An edge cell water enters by is an entry, not an exit (#165): a world river the erosion model did not bring in
                 // is placed on the edge facing its neighbour, and an outlet there would take it straight off the map again.
                 baseLevel[i] = Outlets.IsEdge(i, sizeX, sizeZ) && (edgeOpen?[i] ?? true) && !(inflow[i] > 0f) ? ground[i] : float.NaN;
+        }
+        // Water on a world river's course does not leave the map before the course does: an edge cell along it (a river running
+        // along the edge) is no exit, whatever the edge's own drainage says; the course's last cell is opened below.
+        foreach ((ChannelCourse laid, bool _) in courses)
+        {
+            List<int> along = CourseCells(laid, sizeX, sizeZ);
+            for (int k = 0; k + 1 < along.Count; k++)
+            {
+                if (!SeaWater(along[k]) && Outlets.IsEdge(along[k], sizeX, sizeZ))
+                    baseLevel[along[k]] = float.NaN;
+            }
         }
         // The world river leaves where its course reaches the edge, whatever the model's coarser drainage says there.
         int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
