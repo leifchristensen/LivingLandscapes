@@ -1,3 +1,4 @@
+using System.Linq;
 using LivingLandscapes.Geology;
 using Xunit;
 
@@ -43,4 +44,54 @@ public class RiverBedTests
     [Fact]
     public void NanGradientStillGivesAFallingBed() =>
         AssertNeverClimbs(RiverBed.Grade(new float[] { 3, 6, 2, 8 }, 0.2f, RiverBed.FallPerCell(float.NaN, 5f)));
+}
+
+public class PrescribedCourseTests
+{
+    private static int[] Receivers(int n, params int[][] legs) => PrescribedCourse.PrescribedReceivers(n, legs);
+
+    [Fact]
+    public void LegsAreBoundCellToNextCell()
+    {
+        int[] r = Receivers(10, new[] { 1, 2, 3 });
+        Assert.Equal(new[] { -1, 2, 3, -1 }, new[] { r[0], r[1], r[2], r[3] });
+    }
+
+    [Fact]
+    public void TributariesJoinTheExitLegAtTheSharedMeetingCell()
+    {
+        // exit leg 5 -> 6 -> 7; tributaries 1 -> 2 -> 5 and 3 -> 4 -> 5
+        int[] r = Receivers(10, new[] { 5, 6, 7 }, new[] { 1, 2, 5 }, new[] { 3, 4, 5 });
+        Assert.Equal(6, r[5]);
+        Assert.Equal(2, r[1]);
+        Assert.Equal(5, r[2]);
+        Assert.Equal(5, r[4]);
+        Assert.Equal(-1, r[7]);
+        foreach (int start in new[] { 1, 3 })
+        {
+            int c = start;
+            while (r[c] >= 0) c = r[c];
+            Assert.Equal(7, c);
+        }
+    }
+
+    [Fact]
+    public void WhereLegsShareACellTheFirstLegDecides()
+    {
+        // the tributary also passes 6 but would go on to 8; the exit leg's 6 -> 7 stands
+        int[] r = Receivers(10, new[] { 5, 6, 7 }, new[] { 1, 6, 8 });
+        Assert.Equal(7, r[6]);
+        Assert.Equal(6, r[1]);
+    }
+
+    [Fact]
+    public void AStepThatWouldCloseALoopIsSkipped()
+    {
+        int[] r = Receivers(10, new[] { 1, 2, 3 }, new[] { 3, 1 });
+        Assert.Equal(-1, r[3]);
+    }
+
+    [Fact]
+    public void DedupeDropsRepeatedNeighbours() =>
+        Assert.Equal(new[] { 1, 2, 3 }, PrescribedCourse.Dedupe(new[] { 1, 1, 2, 2, 3 }).ToArray());
 }
