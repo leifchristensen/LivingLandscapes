@@ -291,8 +291,14 @@ public static class LandscapeGenerator
             inflow[entries[k].cell] += Mathf.Max(p.riverInflow * gx * gz, entryFlows[k] / rainfall * cellsPerTile);
 
         float[] courseFlow = null;
+        // Where the world says the river leaves the map window: the course passes through it on its way to the region's exit.
+        int exitOnWindow = riverExit >= 0 ? EdgeCellToward(world.RiverExit, gx, gz, riverCentre, mapWindow) : -1;
+        if (exitOnWindow >= 0 && (new Vector2(riverExit % gx, riverExit / gx) - riverCentre).sqrMagnitude
+            <= (new Vector2(exitOnWindow % gx, exitOnWindow / gx) - riverCentre).sqrMagnitude)
+            exitOnWindow = riverExit; // the sea comes first, inside the window
         float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
-            ? AntecedentCourses(entries, riverCentre, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow, out courseFlow) : null;
+            ? AntecedentCourses(entries, riverCentre, exitOnWindow, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow,
+                RiverBed.FallPerCell(world.RegionalGradient, metresPerModelCell), out courseFlow) : null;
         System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
             (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
@@ -576,10 +582,9 @@ public static class LandscapeGenerator
             {
                 for (int i = 0; i < world.RiverInflows.Count; i++)
                 {
-                    // The main river comes in at the region's edge and cuts its valley across it; the others meet it on this
-                    // tile (where the world puts the confluence), so they come in where their side crosses the map's edge:
-                    // beyond it each runs in its own valley on the neighbouring tile.
-                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre, i > 0 ? mapWindow : null);
+                    // Every world river comes in where its side crosses the map window's edge (P-boundary-first, #186): that crossing
+                    // is the boundary condition the world map gives the tile, so the model starts each river there, not at the region's edge.
+                    int entry = EdgeCellToward(world.RiverInflows[i].From, gx, gz, riverCentre, mapWindow);
                     if (entry == riverExit)
                         continue;
                     // A river that meets the sea where it would enter has already reached its base level: nothing to route over land.
@@ -682,11 +687,12 @@ public static class LandscapeGenerator
 
     /// <summary>
     /// The starting floor of the world rivers' antecedent courses (<see cref="GeologyGenerationExtension.antecedentRivers"/>):
-    /// straight from each entry to the meeting point, then on to the exit, falling evenly to base level and lying
-    /// <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
+    /// straight from each entry (on the map window's edge) to the meeting point, then through the point where the world map has
+    /// the river leave the window (<paramref name="exitOnWindow"/>) to the exit; the bed only falls (<see cref="RiverBed.Grade"/>)
+    /// and lies <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
     /// </summary>
-    private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exit, float[] uplift, bool[] outlet,
-        int gx, int gz, float depth, float[] inflow, out float[] courseFlow)
+    private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exitOnWindow, int exit, float[] uplift,
+        bool[] outlet, int gx, int gz, float depth, float[] inflow, float fallPerCell, out float[] courseFlow)
     {
         int n = gx * gz;
         var floor = new float[n];
@@ -714,17 +720,22 @@ public static class LandscapeGenerator
         foreach ((int entry, float _) in entries)
         {
             List<int> course = Line(At(entry), meeting);
-            course.AddRange(Line(meeting, At(exit)));
+            course.AddRange(Line(meeting, At(exitOnWindow)));
+            course.AddRange(Line(At(exitOnWindow), At(exit)));
             float low = float.MaxValue;
-            foreach (int c in course)
-                low = Mathf.Min(low, uplift[c] * 1.01f);
-            float top = low * (1f - depth);
+            var ground = new float[course.Count];
+            for (int k = 0; k < course.Count; k++)
+            {
+                ground[k] = uplift[course[k]] * 1.01f;
+                low = Mathf.Min(low, ground[k]);
+            }
+            float[] bed = RiverBed.Grade(ground, low * depth, fallPerCell);
             for (int k = 0; k < course.Count; k++)
             {
                 int c = course[k];
                 if (outlet[c])
                     continue;
-                float f = top * (1f - (float)k / course.Count) - uplift[c];
+                float f = bed[k] - uplift[c];
                 floor[c] = float.IsNaN(floor[c]) ? f : Mathf.Min(floor[c], f);
                 // The river the course carries is the world river's own discharge (P3): its drainage area, wherever the ground lies.
                 courseFlow[c] += inflow[entry];
@@ -775,7 +786,7 @@ public static class LandscapeGenerator
                 dFirst = df.ToString("F1");
                 dLast = dl.ToString("F1");
                 entryOk = df <= 4f;
-                exitOk = !c.EndsInside && dl <= 4f;
+                exitOk = dl <= 4f;
                 float dot = Vector2.Dot((l - centre).normalized, world.RiverExit.normalized);
                 exitSide = $"{(dot >= 0.5f ? "pass" : "FAIL")} dot {dot:F2}";
             }
@@ -797,7 +808,8 @@ public static class LandscapeGenerator
                         $"exit crossing {last}, world says {Pt(exitPoint)}, off by {dLast}; meets entry 0: {meetText}; exit side: {exitSide}.");
         }
         Log.Message($"[LivingLandscapes] River boundary summary: {entries.Count} entries; entry crossing within 4 cells of the world's {near}, " +
-                    $"exit crossing within 4 cells of the world's {nearExit}, meets entry 0 {meets}.");
+                    $"exit crossing within 4 cells of the world's {nearExit} (a chain ending in the sea inside the window counts), meets entry 0 {meets}; " +
+                    $"verdict {(near == entries.Count && nearExit == entries.Count ? "PASS" : "FAIL")}.");
     }
 
     private static int EdgeCellToward(Vector2 direction, int gx, int gz, Vector2? from = null, Rect? window = null)
