@@ -68,7 +68,7 @@
     <defName>LL_Headwater</defName>
     <label>headwater</label>
     <riverInflow>false</riverInflow>
-    <basinUpliftDrop>0.9</basinUpliftDrop>
+    <basinUpliftDrop>0.3</basinUpliftDrop>
     <centreRadiusShare>0.1</centreRadiusShare>
     <nudges>
       <discharge>0.7</discharge>
