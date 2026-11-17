@@ -99,6 +99,40 @@ public static class PrescribedCourse
         return receiver;
     }
 
+    /// <summary>
+    /// The point on any of the <paramref name="paths"/> (polylines) nearest to (<paramref name="x"/>, <paramref name="z"/>): the foot of
+    /// the perpendicular on the nearest segment, or the nearest end of it. False when there is no path point at all.
+    /// </summary>
+    public static bool NearestOnPaths(System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<(float x, float z)>> paths,
+        float x, float z, out float nearestX, out float nearestZ)
+    {
+        nearestX = x;
+        nearestZ = z;
+        float best = float.MaxValue;
+        bool found = false;
+        foreach (var path in paths)
+        {
+            for (int k = 0; k < path.Count; k++)
+            {
+                (float ax, float az) = path[k];
+                (float bx, float bz) = k + 1 < path.Count ? path[k + 1] : path[k];
+                float dx = bx - ax, dz = bz - az;
+                float length2 = dx * dx + dz * dz;
+                float t = length2 > 0f ? Math.Max(0f, Math.Min(1f, ((x - ax) * dx + (z - az) * dz) / length2)) : 0f;
+                float px = ax + t * dx, pz = az + t * dz;
+                float d = (px - x) * (px - x) + (pz - z) * (pz - z);
+                if (d < best)
+                {
+                    best = d;
+                    nearestX = px;
+                    nearestZ = pz;
+                    found = true;
+                }
+            }
+        }
+        return found;
+    }
+
     private static bool Reaches(int[] receiver, int from, int target)
     {
         for (int c = from, step = 0; c >= 0 && step <= receiver.Length; c = receiver[c], step++)

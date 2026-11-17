@@ -46,8 +46,7 @@ public class LandformWorker : EnvironmentLayerWorker
             // Mutator structures nudge the ground first (headwater hollow, island knob); water follows.
             Vector2? exit = world.HasRiver ? WaterTerrainNudges.EdgeToward(riverCentre, world.RiverExit, map.Size.x, map.Size.z) : (Vector2?)null;
             Vector2 knobCentre = water != null && water.centreKnob.max > 0f
-                ? TerrainChannels.NearestOnWorldRiver(generated, map.Size.x, map.Size.z, channels, riverCentre, water, generation.terrainChannels,
-                    generation.network.worldRiverWidth)
+                ? TerrainChannels.NearestOnWorldRiver(map.Size.x, map.Size.z, LandscapeGenerator.WorldCourses, riverCentre)
                 : riverCentre;
             string nudged = WaterTerrainNudges.Apply(generated, rockStrength, map.Size.x, map.Size.z, riverCentre, knobCentre, exit, water,
                 generation.terrainChannels);
@@ -58,8 +57,6 @@ public class LandformWorker : EnvironmentLayerWorker
                 world.HasRiver ? float.NaN : world.Flow,
                 seaLevel: map.GetComponent<MapComponent_Environment>()?.PlannedSeaLevel ?? float.NaN,
                 lakeShare: Geology.WaterBalance.LakeShare(map, out _),
-                // A world river with its mouth at the sea ends in it.
-                riverMouth: world.HasRiver && world.SeaDirection != Vector2.zero && Vector2.Dot(world.RiverExit.normalized, world.SeaDirection.normalized) > 0.3f,
                 sand: Coastline.BeachCells(map),
                 edgeOpen: LandscapeGenerator.MapEdgeOpen, worldCourses: LandscapeGenerator.WorldCourses);
             var environment = map.GetComponent<MapComponent_Environment>();

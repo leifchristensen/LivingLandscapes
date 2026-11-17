@@ -28,7 +28,7 @@ public static partial class TerrainChannels
     /// <param name="climate">Runoff per cell, 0..1 (the map's climate wetness).</param>
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
-        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
+        bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN,
         bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null)
     {
         int n = sizeX * sizeZ;
@@ -64,7 +64,7 @@ public static partial class TerrainChannels
             p.rockAbsorptionLoss, p.slopeAbsorptionHalf);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss, out WorldCourse worldCourse,
-            worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
+            worldInflows, sea, seaLevel, edgeOpen, lakeShare, system.Sink,
             yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _),
             worldCourses: worldCourses);
         system.BaseLevel = outletLevel;
