@@ -16,10 +16,12 @@ public static partial class TerrainChannels
     /// <summary>
     /// Channels as courses: each runs from its head (or where it enters the map) down through every junction where it
     /// brings the most water, and ends where it joins a larger one or leaves the map. Channels carrying a world river's
-    /// water take its vanilla width; the one leaving the map is the world river.
+    /// water take its vanilla width. The world river is the channel the world river's course (<paramref name="worldLeg"/>, the
+    /// erosion model's path from entry to exit, P-boundary-first #186) leaves the map along; without a course, the largest
+    /// channel carrying world water that leaves the map.
     /// </summary>
     private static List<RiverPlan> Trace(List<int> cells, int[] receiver, int[] main, int[] branchFrom, float[] discharge, float[] inflow, bool[] world, float[] width,
-        int sizeX, float runoff, float vanillaWidth, out int[] planOf)
+        int sizeX, float runoff, float vanillaWidth, out int[] planOf, IReadOnlyList<int> worldLeg = null)
     {
         int n = receiver.Length;
         planOf = new int[n];
@@ -78,9 +80,18 @@ public static partial class TerrainChannels
             }
         }
 
-        // The world river: the largest channel carrying world water that leaves the map.
+        // The world river: the channel that carries the course's water where it leaves (its cells drain along the course).
         int worldRiver = -1;
-        for (int k = 0; k < plans.Count; k++)
+        if (worldLeg != null && worldLeg.Count > 0)
+        {
+            for (int c = worldLeg[0], step = 0; c >= 0 && step < n; c = receiver[c], step++)
+            {
+                if (planOf[c] >= 0)
+                    worldRiver = planOf[c];
+            }
+        }
+        // Without a course: the largest channel carrying world water that leaves the map.
+        for (int k = 0; k < plans.Count && (worldLeg == null || worldLeg.Count == 0); k++)
         {
             if (parents[k] < 0 && plans[k].VanillaWidth > 0f && (worldRiver < 0 || peak[k] > peak[worldRiver]))
                 worldRiver = k;

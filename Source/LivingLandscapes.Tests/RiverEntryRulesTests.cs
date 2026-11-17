@@ -61,4 +61,68 @@ public class RiverEntryRulesTests
                 Assert.True(order.IndexOf(c) < order.IndexOf(receiver[c]));
         }
     }
+
+    // A 10x10 model grid with the map window on x 3..7, z 3..7.
+    private static int[] Chain(params (int x, int z)[] cells)
+    {
+        var receiver = new int[100];
+        for (int i = 0; i < receiver.Length; i++)
+            receiver[i] = -1;
+        for (int i = 0; i + 1 < cells.Length; i++)
+            receiver[cells[i].z * 10 + cells[i].x] = cells[i + 1].z * 10 + cells[i + 1].x;
+        return receiver;
+    }
+
+    [Fact]
+    public void StraightChainCrossesFromWestToEast()
+    {
+        var r = Chain((0, 5), (1, 5), (2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5));
+        var c = RiverEntryRules.CrossWindow(r, 10, 3, 3, 4, 4, 5 * 10);
+        Assert.Equal(5 * 10 + 3, c.FirstCell);
+        Assert.Equal('W', c.FirstSide);
+        Assert.Equal(5 * 10 + 7, c.LastCell);
+        Assert.Equal('E', c.LastSide);
+        Assert.False(c.EndsInside);
+        Assert.Equal(5, c.InsideCells);
+    }
+
+    [Fact]
+    public void ChainThatLeavesAndReEntersReportsFirstAndLastWindowCells()
+    {
+        var r = Chain((1, 5), (3, 5), (4, 5), (5, 5), (5, 8), (7, 8), (7, 5), (9, 5));
+        var c = RiverEntryRules.CrossWindow(r, 10, 3, 3, 4, 4, 5 * 10 + 1);
+        Assert.Equal(5 * 10 + 3, c.FirstCell);
+        Assert.Equal('W', c.FirstSide);
+        Assert.Equal(5 * 10 + 7, c.LastCell);
+        Assert.Equal('E', c.LastSide);
+        Assert.False(c.EndsInside);
+        Assert.Equal(4, c.InsideCells);
+    }
+
+    [Fact]
+    public void ChainEndingInsideTheWindowSaysSo()
+    {
+        var r = Chain((1, 5), (3, 5), (5, 5));
+        var c = RiverEntryRules.CrossWindow(r, 10, 3, 3, 4, 4, 5 * 10 + 1);
+        Assert.Equal(5 * 10 + 5, c.LastCell);
+        Assert.Equal(5 * 10 + 5, c.EndCell);
+        Assert.True(c.EndsInside);
+    }
+
+    [Fact]
+    public void ChainOutsideTheWindowHasNoCrossing()
+    {
+        var c = RiverEntryRules.CrossWindow(Chain((0, 0), (1, 0), (2, 0)), 10, 3, 3, 4, 4, 0);
+        Assert.Equal(-1, c.FirstCell);
+        Assert.False(c.EndsInside);
+    }
+
+    [Fact]
+    public void ChainsMeetAtTheFirstSharedCell()
+    {
+        var r = Chain((0, 5), (1, 5), (2, 5), (3, 5));
+        r[0 * 10 + 2] = 5 * 10 + 2; // a second chain from (2,0) joins (2,5)
+        Assert.Equal(5 * 10 + 2, RiverEntryRules.ChainsMeet(r, 5 * 10, 2));
+        Assert.Equal(-1, RiverEntryRules.ChainsMeet(r, 5 * 10, 9 * 10 + 9));
+    }
 }

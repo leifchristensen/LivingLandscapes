@@ -29,7 +29,7 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN, bool riverMouth = false,
-        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity)
+        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -63,9 +63,10 @@ public static partial class TerrainChannels
         float[] runoffAt = GroundRunoff.Distribute(runoff, climate, p.AbsorptionOf(biome), rockStrength, GridMath.Slope(height, sizeX, sizeZ),
             p.rockAbsorptionLoss, p.slopeAbsorptionHalf);
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
-            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss,
+            out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss, out WorldCourse worldCourse,
             worldInflows, sea, riverMouth, seaLevel, edgeOpen, lakeShare, system.Sink,
-            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _));
+            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _),
+            worldCourses: worldCourses);
         system.BaseLevel = outletLevel;
         system.YieldScale = yield;
         System.Func<int, bool> isOutlet = i => Outlets.IsOutlet(outletLevel, i);
@@ -192,7 +193,7 @@ public static partial class TerrainChannels
                     isOutlet, sizeX, sizeZ, p.impact, p.oneHydraulics, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
                     impactCuts += cuts;
                     impactCells += cutCells;
                 }
@@ -204,7 +205,7 @@ public static partial class TerrainChannels
                     moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, accomTally, out float volume);
                 if (raised > 0)
                 {
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
                     aggraded += raised;
                     aggradedVolume += volume;
                 }
@@ -216,7 +217,7 @@ public static partial class TerrainChannels
                 // Bends: draw the sinuosity the regimes ask for as a trench along a meandering line, then route again.
                 carvedMeanders = Meanders.Apply(height, filled, cells, receiver, main, width, sinuosity, valley, sizeX, sizeZ, p.meander, out oxbows);
                 if (carvedMeanders > 0)
-                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p);
+                    receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
             }
         }
 
@@ -247,7 +248,8 @@ public static partial class TerrainChannels
         ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences, push, stem);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
-        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
+        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,
+            worldCourse.Legs.Count > 0 ? worldCourse.Legs[0] : null);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, depthBeforeScour, standing, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         // How close each seep comes to running: its water as a share of what the seep can hold.

@@ -57,6 +57,74 @@ public static class RiverEntryRules
         z = outsideZ + dz * t;
     }
 
+    /// <summary>Which edge of the map window a cell is nearest to: W (low x), E (high x), S (low z) or N (high z).</summary>
+    public static char NearestSide(float x, float z, float windowX, float windowZ, float windowW, float windowH)
+    {
+        float w = x - windowX, e = windowX + windowW - x, s = z - windowZ, n = windowZ + windowH - z;
+        float best = w;
+        char side = 'W';
+        if (e < best) { best = e; side = 'E'; }
+        if (s < best) { best = s; side = 'S'; }
+        if (n < best) { side = 'N'; }
+        return side;
+    }
+
+    /// <summary>Where a drainage chain crosses the map window (W1 of the river-boundary plan, issue #186). Cells are model grid cells, -1 if none.</summary>
+    public struct WindowCrossings
+    {
+        public int FirstCell, LastCell;
+        public char FirstSide, LastSide;
+        /// <summary>The chain's final cell (receiver &lt; 0) lies on the window, so the river ends inside it.</summary>
+        public bool EndsInside;
+        public int EndCell;
+        public int InsideCells;
+    }
+
+    /// <summary>
+    /// Follows <paramref name="receiver"/> from <paramref name="start"/> until it ends (receiver &lt; 0) and reports the first and last
+    /// cells that lie on the map window (a rectangle in model-grid coordinates, edges inclusive) with the window side each is nearest to.
+    /// A chain that leaves the window and re-enters reports the very first and very last cell on it. Pure: no game types.
+    /// </summary>
+    public static WindowCrossings CrossWindow(int[] receiver, int gridX, float windowX, float windowZ, float windowW, float windowH, int start)
+    {
+        var result = new WindowCrossings { FirstCell = -1, LastCell = -1, EndCell = start };
+        int cell = start;
+        for (int step = 0; step <= receiver.Length && cell >= 0; step++)
+        {
+            float x = cell % gridX, z = cell / gridX;
+            bool on = x >= windowX && x <= windowX + windowW && z >= windowZ && z <= windowZ + windowH;
+            if (on)
+            {
+                if (result.FirstCell < 0)
+                {
+                    result.FirstCell = cell;
+                    result.FirstSide = NearestSide(x, z, windowX, windowZ, windowW, windowH);
+                }
+                result.LastCell = cell;
+                result.LastSide = NearestSide(x, z, windowX, windowZ, windowW, windowH);
+                result.InsideCells++;
+            }
+            result.EndCell = cell;
+            cell = receiver[cell];
+        }
+        if (result.LastCell >= 0)
+            result.EndsInside = result.LastCell == result.EndCell;
+        return result;
+    }
+
+    /// <summary>The first cell of the chain from <paramref name="b"/> that is also on the chain from <paramref name="a"/>; -1 if they never meet.</summary>
+    public static int ChainsMeet(int[] receiver, int a, int b)
+    {
+        var onA = new HashSet<int>();
+        for (int c = a, step = 0; c >= 0 && step <= receiver.Length && onA.Add(c); c = receiver[c], step++) { }
+        for (int c = b, step = 0; c >= 0 && step <= receiver.Length; c = receiver[c], step++)
+        {
+            if (onA.Contains(c))
+                return c;
+        }
+        return -1;
+    }
+
     /// <summary>
     /// The cells of a drainage tree with every donor before its receiver (a topological order), for the cells where
     /// <paramref name="isMember"/> holds. Ordering by drainage area is not enough: a world river's entry brings an area so large
