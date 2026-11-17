@@ -298,8 +298,17 @@ public static class LandscapeGenerator
             exitOnWindow = riverExit; // the sea comes first, inside the window
         int[] courseReceiver = null;
         float[] courseBed = null;
-        float[] floor = p.antecedentRivers && riverExit >= 0 && entries.Count > 0
-            ? AntecedentCourses(entries, riverCentre, exitOnWindow, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow,
+        // Where each world river's course starts: at the map window's edge crossing for a river that enters; a river that rises
+        // on the map (headwater, no entry) starts at its source, the river centre. Either way the course runs on to the exit.
+        var courseStarts = entries.Select(e => e.cell).ToList();
+        if (courseStarts.Count == 0 && riverExit >= 0)
+        {
+            int source = Mathf.Clamp(Mathf.RoundToInt(riverCentre.y), 0, gz - 1) * gx + Mathf.Clamp(Mathf.RoundToInt(riverCentre.x), 0, gx - 1);
+            if (!fixedOutlet[source])
+                courseStarts.Add(source);
+        }
+        float[] floor = p.antecedentRivers && riverExit >= 0 && courseStarts.Count > 0
+            ? AntecedentCourses(courseStarts, riverCentre, exitOnWindow, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow,
                 0f, out courseFlow, out courseReceiver, out courseBed) : null;
         System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
             (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
@@ -350,7 +359,7 @@ public static class LandscapeGenerator
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
             mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
             water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
-        WorldCourses = WorldCoursesOnMap(entries, courseReceiver, ToMap, sizeX, sizeZ);
+        WorldCourses = WorldCoursesOnMap(courseStarts, courseReceiver, ToMap, sizeX, sizeZ);
         if (entries.Count > 0)
             Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s); " +
                         $"{channels.Count} channels extracted, {channels.Count(c => c.VanillaWidth > 0f)} carrying world rivers.");
@@ -616,14 +625,14 @@ public static class LandscapeGenerator
     /// </summary>
     public static List<List<Vector2>> WorldCourses { get; private set; } = new List<List<Vector2>>();
 
-    private static List<List<Vector2>> WorldCoursesOnMap(List<(int cell, float width)> entries, int[] courseReceiver, System.Func<int, Vector2> toMap,
+    private static List<List<Vector2>> WorldCoursesOnMap(List<int> starts, int[] courseReceiver, System.Func<int, Vector2> toMap,
         int sizeX, int sizeZ)
     {
         var result = new List<List<Vector2>>();
         if (courseReceiver == null)
             return result;
         bool Inside(Vector2 v) => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ;
-        foreach ((int cell, float _) in entries)
+        foreach (int cell in starts)
         {
             var chain = new List<Vector2>();
             for (int c = cell, step = 0; c >= 0 && step <= courseReceiver.Length; c = courseReceiver[c], step++)
@@ -718,11 +727,11 @@ public static class LandscapeGenerator
 
     /// <summary>
     /// The starting floor of the world rivers' antecedent courses (<see cref="GeologyGenerationExtension.antecedentRivers"/>):
-    /// straight from each entry (on the map window's edge) to the meeting point, then through the point where the world map has
+    /// straight from each entry (on the map window's edge; a river that rises on the map starts at its source, the meeting point) to the meeting point, then through the point where the world map has
     /// the river leave the window (<paramref name="exitOnWindow"/>) to the exit; the bed only falls (<see cref="RiverBed.Grade"/>)
     /// and lies <paramref name="depth"/> of the starting relief below the ground along it; NaN elsewhere.
     /// </summary>
-    private static float[] AntecedentCourses(List<(int cell, float width)> entries, Vector2 meeting, int exitOnWindow, int exit, float[] uplift,
+    private static float[] AntecedentCourses(List<int> starts, Vector2 meeting, int exitOnWindow, int exit, float[] uplift,
         bool[] outlet, int gx, int gz, float depth, float[] inflow, float baseLevel, out float[] courseFlow, out int[] prescribed, out float[] bedOut)
     {
         int n = gx * gz;
@@ -760,16 +769,16 @@ public static class LandscapeGenerator
         List<int> exitLeg = PrescribedCourse.Dedupe(Line(meeting, At(exitOnWindow)).Concat(Line(At(exitOnWindow), At(exit))));
         var legs = new List<IReadOnlyList<int>> { exitLeg };
         var entryLegs = new List<List<int>>();
-        foreach ((int entry, float _) in entries)
+        foreach (int start in starts)
         {
-            List<int> leg = PrescribedCourse.Dedupe(Line(At(entry), meeting).Concat(new[] { exitLeg[0] }));
+            List<int> leg = PrescribedCourse.Dedupe(Line(At(start), meeting).Concat(new[] { exitLeg[0] }));
             entryLegs.Add(leg);
             legs.Add(leg);
         }
         prescribed = PrescribedCourse.PrescribedReceivers(n, legs);
-        for (int e = 0; e < entries.Count; e++)
+        for (int e = 0; e < starts.Count; e++)
         {
-            int entry = entries[e].cell;
+            int entry = starts[e];
             List<int> course = PrescribedCourse.Dedupe(entryLegs[e].Concat(exitLeg));
             float low = float.MaxValue;
             var ground = new float[course.Count];
