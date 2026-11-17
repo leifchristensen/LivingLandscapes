@@ -49,31 +49,31 @@ public static class PrescribedCourse
     }
 
     /// <summary>
-    /// Cuts the ground along <paramref name="legs"/> (cell lists in flow order) so no cell is higher than the one before it: a
-    /// course that drains cell to cell must never step uphill. Heights only go down; where legs share a cell the lowest value
-    /// wins and the legs are walked again until nothing changes. Returns how many cells were lowered.
+    /// Cuts the ground along a course's drainage (<paramref name="receivers"/>: each course cell's bound receiver, -1 elsewhere, as
+    /// <see cref="PrescribedReceivers"/> makes it) so every course cell lies at least <paramref name="fall"/> above the cell it drains
+    /// to: a course must never step uphill, and with a fall &gt; 0 the drainage's highest-first order keeps every donor before its
+    /// receiver. The cut follows the one drainage tree the cells are bound to (donors first), so two legs that pass the same cells
+    /// in different orders cannot contradict each other. Heights only go down. Returns how many cells were lowered.
     /// </summary>
-    public static int CutDownhill(float[] ground, System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<int>> legs)
+    public static int CutDownhill(float[] ground, int[] receivers, float fall = 0f)
     {
-        var lowered = new System.Collections.Generic.HashSet<int>();
-        // Heights only fall, so this ends; the pass limit guards against float noise.
-        for (int pass = 0, changed = 1; changed > 0 && pass < 64; pass++)
+        var target = new bool[receivers.Length];
+        for (int c = 0; c < receivers.Length; c++)
         {
-            changed = 0;
-            foreach (var leg in legs)
+            if (receivers[c] >= 0)
+                target[receivers[c]] = true;
+        }
+        int lowered = 0;
+        foreach (int c in RiverEntryRules.DonorsFirst(receivers, i => receivers[i] >= 0 || target[i]))
+        {
+            int r = receivers[c];
+            if (r >= 0 && ground[r] > ground[c] - fall)
             {
-                for (int k = 1; k < leg.Count; k++)
-                {
-                    if (ground[leg[k]] > ground[leg[k - 1]])
-                    {
-                        ground[leg[k]] = ground[leg[k - 1]];
-                        lowered.Add(leg[k]);
-                        changed++;
-                    }
-                }
+                ground[r] = ground[c] - fall;
+                lowered++;
             }
         }
-        return lowered.Count;
+        return lowered;
     }
 
     /// <summary>

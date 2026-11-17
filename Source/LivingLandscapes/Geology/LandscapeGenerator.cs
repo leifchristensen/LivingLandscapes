@@ -350,6 +350,7 @@ public static class LandscapeGenerator
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
             mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
             water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
+        WorldCourses = WorldCoursesOnMap(entries, courseReceiver, ToMap, sizeX, sizeZ);
         if (entries.Count > 0)
             Log.Message($"[LivingLandscapes] World rivers enter the erosion model at {entries.Count} edge cell(s); " +
                         $"{channels.Count} channels extracted, {channels.Count(c => c.VanillaWidth > 0f)} carrying world rivers.");
@@ -608,6 +609,34 @@ public static class LandscapeGenerator
     /// <see cref="Generate"/>; null before. Map size, edge cells only.
     /// </summary>
     public static bool[] MapEdgeOpen { get; private set; }
+
+    /// <summary>
+    /// The world rivers' courses as the erosion model laid them (entry, meeting, exit; P-boundary-first, #186), in map coordinates,
+    /// one per entry, each cut to the map with one point beyond each edge. The map's drainage binds these cells; empty without a course.
+    /// </summary>
+    public static List<List<Vector2>> WorldCourses { get; private set; } = new List<List<Vector2>>();
+
+    private static List<List<Vector2>> WorldCoursesOnMap(List<(int cell, float width)> entries, int[] courseReceiver, System.Func<int, Vector2> toMap,
+        int sizeX, int sizeZ)
+    {
+        var result = new List<List<Vector2>>();
+        if (courseReceiver == null)
+            return result;
+        bool Inside(Vector2 v) => v.x >= 0f && v.y >= 0f && v.x < sizeX && v.y < sizeZ;
+        foreach ((int cell, float _) in entries)
+        {
+            var chain = new List<Vector2>();
+            for (int c = cell, step = 0; c >= 0 && step <= courseReceiver.Length; c = courseReceiver[c], step++)
+                chain.Add(toMap(c));
+            int first = chain.FindIndex(Inside), last = chain.FindLastIndex(Inside);
+            if (first < 0)
+                continue;
+            int a = Mathf.Max(0, first - 1), b = Mathf.Min(chain.Count - 1, last + 1);
+            result.Add(chain.GetRange(a, b - a + 1));
+            Log.Message($"[LivingLandscapes] World course on the map: {b - a + 1} points from ({chain[a].x:F0}, {chain[a].y:F0}) to ({chain[b].x:F0}, {chain[b].y:F0}).");
+        }
+        return result;
+    }
 
     /// <summary>Diagnostic: open map edge cells per side (W, E, S, N).</summary>
     private static string OpenPerSide(bool[] open, int sizeX, int sizeZ)

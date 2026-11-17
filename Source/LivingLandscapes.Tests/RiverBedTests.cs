@@ -55,10 +55,18 @@ public class PrescribedCourseTests
     private static int[] Receivers(int n, params int[][] legs) => PrescribedCourse.PrescribedReceivers(n, legs);
 
     [Fact]
+    public void CutDownhillWithAFallLeavesEveryCellStrictlyBelowTheOneBefore()
+    {
+        float[] g = { 5f, 5f, 6f, 1f };
+        PrescribedCourse.CutDownhill(g, Receivers(4, new[] { 0, 1, 2, 3 }), 0.5f);
+        Assert.Equal(new[] { 5f, 4.5f, 4f, 1f }, g);
+    }
+
+    [Fact]
     public void CutDownhillLowersAClimbingCellToItsUpstreamNeighbour()
     {
         float[] g = { 5f, 3f, 4f, 2f };
-        int lowered = PrescribedCourse.CutDownhill(g, new[] { new[] { 0, 1, 2, 3 } });
+        int lowered = PrescribedCourse.CutDownhill(g, Receivers(4, new[] { 0, 1, 2, 3 }));
         Assert.Equal(new[] { 5f, 3f, 3f, 2f }, g);
         Assert.Equal(1, lowered);
     }
@@ -68,8 +76,23 @@ public class PrescribedCourseTests
     {
         // Leg B joins at cell 2 from a lower cell 4; leg A's next cell 3 must then not exceed the lowered cell 2.
         float[] g = { 5f, 4f, 4f, 4f, 1f };
-        PrescribedCourse.CutDownhill(g, new[] { new[] { 0, 1, 2, 3 }, new[] { 4, 2 } });
+        PrescribedCourse.CutDownhill(g, Receivers(5, new[] { 0, 1, 2, 3 }, new[] { 4, 2 }));
         Assert.Equal(new[] { 5f, 4f, 1f, 1f, 1f }, g);
+    }
+
+    [Fact]
+    public void CutDownhillFollowsTheBoundTreeWhereTwoLegsCrossCellsInOppositeOrder()
+    {
+        // Leg B passes cells 1 and 2 the other way round; the first leg decides (1 -> 2), so cell 2 ends below cell 1 and
+        // every bound step falls.
+        float[] g = { 9f, 5f, 6f, 8f, 1f };
+        int[] r = Receivers(5, new[] { 0, 1, 2, 4 }, new[] { 3, 2, 1, 4 });
+        PrescribedCourse.CutDownhill(g, r, 0.1f);
+        for (int c = 0; c < 5; c++)
+        {
+            if (r[c] >= 0)
+                Assert.True(g[r[c]] < g[c], $"cell {c} -> {r[c]}: {g[c]} then {g[r[c]]}");
+        }
     }
 
     [Fact]
