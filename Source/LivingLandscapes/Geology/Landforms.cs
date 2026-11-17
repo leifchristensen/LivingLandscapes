@@ -77,7 +77,8 @@ public class Landforms
     public float ExtraRelief { get; }
 
     /// <param name="riverValley">The valley world rivers run in: laid as rays from the river centre (see <see cref="WorldContext.RiverCentre"/>).</param>
-    public Landforms(Map map, WorldContext world, LandformExtension riverValley = null)
+    /// <param name="water">The water regime: its basin or knob at the river centre joins the model's inputs (W5, <see cref="WaterFeatureMath"/>).</param>
+    public Landforms(Map map, WorldContext world, LandformExtension riverValley = null, WaterRegimeDef water = null)
     {
         warpX = new Perlin(4.0, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
         warpZ = new Perlin(4.0, 2.0, 0.5, 3, Rand.Int, QualityMode.Medium);
@@ -98,6 +99,18 @@ public class Landforms
             foreach (WorldContext.RiverInflow inflow in world.RiverInflows)
                 forms.Add((ray, inflow.From, world.RiverCentre));
             forms.Add((ray, world.RiverExit, world.RiverCentre));
+        }
+        // A regime's headwater basin or river island knob: a disk at the river centre on the same inputs, so erosion forms it (P23, P2).
+        if (water != null && world.HasRiver && (water.basinUpliftDrop > 0f || water.knobErodibility < 1f))
+        {
+            float aspect = Mathf.Max(map.Size.x, map.Size.z) / (float)map.Size.x;
+            var disk = WaterFeatureMath.Disk(water.centreRadiusShare * aspect, water.basinUpliftDrop, water.knobErodibility,
+                riverValley != null ? riverValley.size : float.PositiveInfinity);
+            forms.Add((new LandformExtension
+            {
+                shape = LandformShape.Disk, size = disk.size, edge = disk.edge, warp = disk.warp, upliftInside = disk.upliftInside,
+                erodibilityInside = disk.erodibility,
+            }, Vector2.zero, world.RiverCentre));
         }
         // Low country gets its rock from one plains feature: remnant hills, an escarpment or river bluffs.
         PlainsFeature = PlainsFeatureDef.For(map, world);

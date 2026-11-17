@@ -15,8 +15,9 @@
     nudges: map-wide factors on the channel processes (Docs/WATER-AUDIT.md, step 4): discharge (where channels start;
     below 1 a denser network), width, depth, widthNoise, depthNoise, bankNoise, spread (water divides more readily).
     Keep within about 0.5..3.
-    Terrain nudges (step 5): centreDepression or centreKnob (metres, at the river centre, centreRadiusShare of the map
-    across; a knob is resistant rock, knobRockStrength).
+    Features as erosion inputs (W5): at the river centre, centreRadiusShare of the map across, basinUpliftDrop (0..1, the
+    share of rock uplift taken away: erosion forms a closed basin that spills at the river) or knobErodibility (below 1:
+    resistant rock that stands in the river and splits it). The model forms them; nothing edits finished ground.
     replacesMutatorTerrain: the regime models its mutators' water; their own painting stands aside.
     World river structure: riverInflow (false: the river rises on the map), allRiverLinks (every river link enters:
     a confluence).
@@ -47,8 +48,8 @@
   <LivingLandscapes.Geology.WaterRegimeDef>
     <defName>LL_RiverIsland</defName>
     <label>river island</label>
-    <centreDepression>1~1.5</centreDepression>
-    <centreRadiusShare>0.15</centreRadiusShare>
+    <knobErodibility>0.2</knobErodibility>
+    <centreRadiusShare>0.06</centreRadiusShare>
     <nudges>
       <widthNoise>1.3</widthNoise>
       <spread>3</spread>
@@ -67,7 +68,8 @@
     <defName>LL_Headwater</defName>
     <label>headwater</label>
     <riverInflow>false</riverInflow>
-    <centreDepression>2~4</centreDepression>
+    <basinUpliftDrop>0.3</basinUpliftDrop>
+    <centreRadiusShare>0.1</centreRadiusShare>
     <nudges>
       <discharge>0.7</discharge>
       <depth>0.9</depth>

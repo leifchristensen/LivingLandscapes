@@ -18,6 +18,7 @@
     <Compile Include="..\LivingLandscapes\Geology\RankMath.cs" Link="Linked\RankMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\Throughflow.cs" Link="Linked\Throughflow.cs" />
     <Compile Include="..\LivingLandscapes\Geology\GridMath.cs" Link="Linked\GridMath.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\WaterFeatureMath.cs" Link="Linked\WaterFeatureMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\GroundCover.cs" Link="Linked\GroundCover.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterDefinition.cs" Link="Linked\WaterDefinition.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterBalanceMath.cs" Link="Linked\WaterBalanceMath.cs" />

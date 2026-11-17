@@ -419,7 +419,7 @@ public static partial class TerrainChannels
                 if (entered[k])
                     continue;
                 WorldContext.RiverInflow from = worldInflows[k];
-                Vector2 edge = WaterTerrainNudges.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
+                Vector2 edge = WaterFeatureMath.EdgeToward(riverCentre, from.From, sizeX, sizeZ);
                 int cell = RiverGrid.Index(edge, sizeX, sizeZ);
                 if (sea != null && sea[cell])
                 {
