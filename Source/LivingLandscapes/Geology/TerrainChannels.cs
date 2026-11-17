@@ -248,7 +248,8 @@ public static partial class TerrainChannels
         ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences, push, stem);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
-        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf);
+        List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,
+            worldCourse.Legs.Count > 0 ? worldCourse.Legs[0] : null);
         var natural = (float[])height.Clone();
         int inHollows = Paint(height, filled, cells, width, depth, depthBeforeScour, standing, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
         // How close each seep comes to running: its water as a share of what the seep can hold.
