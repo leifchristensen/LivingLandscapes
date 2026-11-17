@@ -25,6 +25,27 @@ public class WaterFeatureMathTests
     }
 
     [Fact]
+    public void AKnobIsNarrowerThanHalfTheValleyItStandsInSoWaterPassesBothSides()
+    {
+        Assert.Equal(0.025f, WaterFeatureMath.Disk(0.06f, 0f, 0.2f, 0.05f).size, 5);
+        Assert.Equal(0.02f, WaterFeatureMath.Disk(0.02f, 0f, 0.2f, 0.05f).size, 5);
+    }
+
+    [Fact]
+    public void ABasinIsNotLimitedByTheValley()
+    {
+        Assert.Equal(0.1f, WaterFeatureMath.Disk(0.1f, 0.3f, 1f, 0.05f).size, 5);
+    }
+
+    [Fact]
+    public void DistanceToCourseIsTheNearestPoint()
+    {
+        var course = new System.Collections.Generic.List<Vector2> { new Vector2(0, 0), new Vector2(10, 0) };
+        Assert.Equal(5f, WaterFeatureMath.DistanceToCourse(new[] { course }, new Vector2(7, 4)), 4);
+        Assert.True(float.IsPositiveInfinity(WaterFeatureMath.DistanceToCourse(new System.Collections.Generic.List<System.Collections.Generic.IList<Vector2>>(), Vector2.zero)));
+    }
+
+    [Fact]
     public void OutOfRangeInputsAreKeptSane()
     {
         var disk = WaterFeatureMath.Disk(-1f, 5f, -3f);

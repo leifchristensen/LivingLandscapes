@@ -104,7 +104,8 @@ public class Landforms
         if (water != null && world.HasRiver && (water.basinUpliftDrop > 0f || water.knobErodibility < 1f))
         {
             float aspect = Mathf.Max(map.Size.x, map.Size.z) / (float)map.Size.x;
-            var disk = WaterFeatureMath.Disk(water.centreRadiusShare * aspect, water.basinUpliftDrop, water.knobErodibility);
+            var disk = WaterFeatureMath.Disk(water.centreRadiusShare * aspect, water.basinUpliftDrop, water.knobErodibility,
+                riverValley != null ? riverValley.size : float.PositiveInfinity);
             forms.Add((new LandformExtension
             {
                 shape = LandformShape.Disk, size = disk.size, edge = disk.edge, warp = disk.warp, upliftInside = disk.upliftInside,

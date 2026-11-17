@@ -434,7 +434,10 @@ public static class LandscapeGenerator
             float radius = water.centreRadiusShare * Mathf.Max(sizeX, sizeZ) / mapCellsPerModelCell;
             float rise = WaterFeatureMath.RiseAboveRing(h, gx, gz, riverCentre, radius * 1.2f, radius * 1.8f) * metresPerModelHeight;
             Log.Message($"[LivingLandscapes] Water regime {water.defName} feature formed by erosion at ({riverCentre.x:F1}, {riverCentre.y:F1}) in model cells: " +
-                        $"{(water.basinUpliftDrop > 0f ? "basin" : "knob")} radius {radius:F1} cells, ground {rise:+0.0;-0.0} m against the ring round it.");
+                        $"{(water.basinUpliftDrop > 0f ? "basin" : "knob")} radius {radius:F1} cells, ground {rise:+0.0;-0.0} m against the ring round it. " +
+                        (WorldCourses != null && WorldCourses.Count > 0
+                            ? $"Held world course passes {WaterFeatureMath.DistanceToCourse(WorldCourses, (riverCentre - new Vector2(originX, originZ)) * mapCellsPerModelCell):F1} map cells from the feature centre."
+                            : "No held world course (the river rises here)."));
         }
         // Loose ground (G4, issue #186): when on, the exported erodibility softens toward kLoose where the rivers left
         // deposits; the model itself keeps cutting with the rock K.

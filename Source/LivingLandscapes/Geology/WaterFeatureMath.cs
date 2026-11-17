@@ -12,11 +12,25 @@ public static class WaterFeatureMath
     /// The disk a regime's feature lays on the model's inputs, in fractions of the map's width: its radius, how soft its edge is, how
     /// irregular its outline is (so none is a circle), the uplift change inside it and its rock softness.
     /// </summary>
+    /// <param name="valleyHalfWidth">Half-width of the valley the river runs in, as a share of the map's width. A knob is at most half of it
+    /// (so a knob always leaves room for water to pass on both sides; a wider knob dams the valley and a lake forms behind it).</param>
     public static (float size, float edge, float warp, float upliftInside, float erodibility) Disk(float radiusShare, float basinUpliftDrop,
-        float knobErodibility)
+        float knobErodibility, float valleyHalfWidth = float.PositiveInfinity)
     {
         float size = Mathf.Max(radiusShare, 0f);
+        if (knobErodibility < 1f)
+            size = Mathf.Min(size, valleyHalfWidth * 0.5f);
         return (size, size * 0.5f, size * 0.4f, -Mathf.Clamp01(basinUpliftDrop), Mathf.Clamp(knobErodibility, 0.01f, 1f));
+    }
+
+    /// <summary>The smallest distance from <paramref name="point"/> to any of the course's points, or infinity for an empty course.</summary>
+    public static float DistanceToCourse(System.Collections.Generic.IEnumerable<System.Collections.Generic.IList<Vector2>> courses, Vector2 point)
+    {
+        float best = float.PositiveInfinity;
+        foreach (var course in courses)
+            foreach (Vector2 v in course)
+                best = Mathf.Min(best, (v - point).magnitude);
+        return best;
     }
 
     /// <summary>
