@@ -34,6 +34,8 @@ public static partial class TerrainChannels
             out worldSource, out vanillaWidth, worldInflows, sea);
         float[] toSea = sea != null ? GridMath.DistanceTo(i => sea[i], sizeX, sizeZ) : null;
         var laidCourses = new List<(ChannelCourse course, bool toMouth)>();
+        // The world rivers' channels actually laid as rivers (trenched): without the model's course, these are the world course.
+        var trenched = new List<ChannelCourse>();
         // Flats keep a little micro-relief, so water wanders across them instead of running straight or at 45 degrees;
         // on slopes it is far below the fall of the ground and changes nothing.
         filled = (float[])height.Clone();
@@ -50,6 +52,7 @@ public static partial class TerrainChannels
             {
                 ChannelCourse laid = toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course;
                 Trench(filled, sizeX, sizeZ, laid, p);
+                trenched.Add(course);
                 if (toMouth && laid.Points.Count > 0)
                 {
                     Vector2 a = laid.Points[0], b = laid.Points[laid.Points.Count - 1];
@@ -60,10 +63,11 @@ public static partial class TerrainChannels
             }
         }
         // The world rivers' courses as the erosion model laid them, entry to meeting to exit (P-boundary-first, #186); without
-        // them (no antecedent course) the world rivers' extracted channels stand in.
+        // them (no antecedent course) the world rivers' extracted channels laid as rivers stand in; a world river that brings no
+        // water (a dry regime) is laid nowhere and binds nothing.
         worldCourse = worldCourses != null && worldCourses.Count > 0
             ? new WorldCourse(worldCourses.ConvertAll(points => (IReadOnlyList<int>)CourseCells(points, !OnMap(points[0], sizeX, sizeZ), sizeX, sizeZ)), n)
-            : new WorldCourse(laidCourses.OrderByDescending(c => c.course.WorldRiver).Select(c => (IReadOnlyList<int>)CourseCells(c.course, sizeX, sizeZ)).ToList(), n);
+            : new WorldCourse(trenched.OrderByDescending(c => c.WorldRiver).Select(c => (IReadOnlyList<int>)CourseCells(c, sizeX, sizeZ)).ToList(), n);
         // The ground is cut to fall along the course before the base levels read it (Refill repeats the cut after every change).
         PrescribedCourse.CutDownhill(filled, worldCourse.Receivers, p.fillGradient);
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, worldCourse.Legs, sea, seaLevel, edgeOpen, inflow);
