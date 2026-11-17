@@ -24,7 +24,7 @@ public static partial class TerrainChannels
     private static void Drain(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre, float runoff,
         WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth, out float[] filled, out int[] receiver,
         out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] baseLevel, out float yield, out float[] lakeLoss, out WorldCourse worldCourse,
-        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, bool riverMouth = false, float seaLevel = float.NaN,
+        List<WorldContext.RiverInflow> worldInflows = null, bool[] sea = null, float seaLevel = float.NaN,
         bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, bool[] sink = null,
         System.Func<float[], int[], float[], bool[], float> yieldScale = null, List<List<Vector2>> worldCourses = null)
     {
@@ -32,8 +32,6 @@ public static partial class TerrainChannels
         float sourceRadius = (water?.centreRadiusShare ?? 0f) * Mathf.Max(sizeX, sizeZ) * p.sourceRadiusShare;
         inflow = Inflow(courses, sizeX, sizeZ, riverCentre, sourceRadius, runoff, water?.riverInflow ?? true, p, worldRiverWidth,
             out worldSource, out vanillaWidth, worldInflows, sea);
-        float[] toSea = sea != null ? GridMath.DistanceTo(i => sea[i], sizeX, sizeZ) : null;
-        var laidCourses = new List<(ChannelCourse course, bool toMouth)>();
         // The world rivers' channels actually laid as rivers (trenched): without the model's course, these are the world course.
         var trenched = new List<ChannelCourse>();
         // Flats keep a little micro-relief, so water wanders across them instead of running straight or at 45 degrees;
@@ -44,22 +42,10 @@ public static partial class TerrainChannels
             filled[i] += p.flatNoise * (float)microRelief.GetValue(i % sizeX, 0.0, i / sizeX);
         foreach (ChannelCourse course in courses ?? new List<ChannelCourse>())
         {
-            // A river rising on the map (headwater) still runs its course to a mouth at the sea.
-            bool toMouth = riverMouth && course.WorldRiver && toSea != null;
-            if (course.VanillaWidth > 0f)
-                laidCourses.Add((course, toMouth));
-            if (course.VanillaWidth > 0f && ((water?.riverInflow ?? true) || toMouth))
+            if (course.VanillaWidth > 0f && (water?.riverInflow ?? true))
             {
-                ChannelCourse laid = toMouth ? ToTheSea(course, sea, toSea, sizeX, sizeZ) : course;
-                Trench(filled, sizeX, sizeZ, laid, p);
+                Trench(filled, sizeX, sizeZ, course, p);
                 trenched.Add(course);
-                if (toMouth && laid.Points.Count > 0)
-                {
-                    Vector2 a = laid.Points[0], b = laid.Points[laid.Points.Count - 1];
-                    int end = Mathf.Clamp(Mathf.RoundToInt(b.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(b.x - 0.5f), 0, sizeX - 1);
-                    Log.Message($"[LivingLandscapes] World river course to the sea: {laid.Points.Count} points from ({a.x:F0}, {a.y:F0}) to ({b.x:F0}, {b.y:F0}), " +
-                                (sea[end] ? "ending in the sea." : $"ending on land {toSea[end]:F0} cells from the sea."));
-                }
             }
         }
         // The world rivers' courses as the erosion model laid them, entry to meeting to exit (P-boundary-first, #186); without
@@ -70,7 +56,7 @@ public static partial class TerrainChannels
             : new WorldCourse(trenched.OrderByDescending(c => c.WorldRiver).Select(c => (IReadOnlyList<int>)CourseCells(c, sizeX, sizeZ)).ToList(), n);
         // The ground is cut to fall along the course before the base levels read it (Refill repeats the cut after every change).
         PrescribedCourse.CutDownhill(filled, worldCourse.Receivers, p.fillGradient);
-        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, worldCourse.Legs, sea, seaLevel, edgeOpen, inflow);
+        baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, worldCourse.Legs, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p, worldCourse);
         // The tile's one water budget (#216): where the world gives the tile no river, only the share of the map's own runoff
@@ -187,7 +173,7 @@ public static partial class TerrainChannels
     /// map's edge open at its own ground where the erosion model's water flows on out of the map (<paramref name="edgeOpen"/>;
     /// every edge without it), except where water enters (<paramref name="inflow"/>), and at the world river's exit, closed elsewhere; every land area keeps an outlet.
     /// </summary>
-    private static float[] MapBaseLevels(float[] height, float[] ground, int sizeX, int sizeZ, List<(ChannelCourse course, bool toMouth)> courses,
+    private static float[] MapBaseLevels(float[] height, float[] ground, int sizeX, int sizeZ,
         List<IReadOnlyList<int>> worldLegs, bool[] sea, float seaLevel, bool[] edgeOpen, float[] inflow)
     {
         int n = sizeX * sizeZ;
@@ -214,7 +200,6 @@ public static partial class TerrainChannels
             }
         }
         // The world river leaves where its course reaches the edge, whatever the model's coarser drainage says there.
-        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
         int exits = 0;
         // A world course that runs off the map ends on the edge cell it leaves by.
         foreach (IReadOnlyList<int> along in worldLegs)
@@ -226,51 +211,12 @@ public static partial class TerrainChannels
                 exits++;
             }
         }
-        foreach ((ChannelCourse laid, bool toMouth) in courses)
-        {
-            if (toMouth || laid.Points.Count == 0)
-                continue;
-            int last = Cell(laid.Points[laid.Points.Count - 1]);
-            int x = last % sizeX, z = last / sizeX;
-            if (x <= 2) x = 0; else if (x >= sizeX - 3) x = sizeX - 1;
-            if (z <= 2) z = 0; else if (z >= sizeZ - 3) z = sizeZ - 1;
-            int exit = z * sizeX + x;
-            if (Outlets.IsEdge(exit, sizeX, sizeZ) && float.IsNaN(baseLevel[exit]))
-            {
-                baseLevel[exit] = ground[exit];
-                exits++;
-            }
-        }
         int regionCount = GridMath.LabelRegions(i => !SeaWater(i), sizeX, sizeZ, out int[] regions);
         int opened = Outlets.KeepOneOutlet(baseLevel, ground, sizeX, sizeZ, regions, regionCount);
         if (edgeOpen != null)
             Log.Message($"[LivingLandscapes] Map base levels (#97): {exits} river exit(s) opened, {opened} land area(s) given their lowest edge cell; " +
                         $"edge cells draining per side: {Outlets.EdgeSummary(baseLevel, ground, sizeX, sizeZ)}.");
         return baseLevel;
-    }
-
-    /// <summary>
-    /// A world river whose mouth is at the sea: the erosion model lays its course to the map's edge toward the sea before the
-    /// coastline is shaped, so the course may end on land at the edge (draining there, off the map) or run on over the sea. It is
-    /// cut where it first enters the sea, or else at its point nearest the sea; from there the drainage carries the river down to
-    /// the sea, which is base level (P1), along the ground rather than a drawn line.
-    /// </summary>
-    private static ChannelCourse ToTheSea(ChannelCourse course, bool[] sea, float[] toSea, int sizeX, int sizeZ)
-    {
-        int Cell(Vector2 v) => Mathf.Clamp(Mathf.RoundToInt(v.y - 0.5f), 0, sizeZ - 1) * sizeX + Mathf.Clamp(Mathf.RoundToInt(v.x - 0.5f), 0, sizeX - 1);
-        int nearest = 0;
-        for (int k = 0; k < course.Points.Count; k++)
-        {
-            int c = Cell(course.Points[k]);
-            if (sea[c])
-            {
-                nearest = k;
-                break;
-            }
-            if (toSea[c] < toSea[Cell(course.Points[nearest])])
-                nearest = k;
-        }
-        return new ChannelCourse { Points = course.Points.GetRange(0, nearest + 1), WorldRiver = true, VanillaWidth = course.VanillaWidth, Order = course.Order, EntryArea = course.EntryArea };
     }
 
     /// <summary>Lowers the ground along a course (see <see cref="TerrainChannelSettings.worldCourseTrench"/>), deepest on the line.</summary>
@@ -299,32 +245,17 @@ public static partial class TerrainChannels
     }
 
     /// <summary>
-    /// The cell of the world river's course (steepest descent from where it enters) nearest to <paramref name="point"/>,
-    /// or <paramref name="point"/> itself if no world river enters. Mutator structures that sit in the river (an
-    /// island's knob) are placed there.
+    /// The point of the world river's course (the erosion model's path from its start to its exit, <see cref="LandscapeGenerator.WorldCourses"/>)
+    /// nearest to <paramref name="point"/>, kept on the map, or <paramref name="point"/> itself if the tile has no course. Mutator
+    /// structures that sit in the river (an island's knob) are placed there.
     /// </summary>
-    public static Vector2 NearestOnWorldRiver(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 point,
-        WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth)
+    public static Vector2 NearestOnWorldRiver(int sizeX, int sizeZ, List<List<Vector2>> worldCourses, Vector2 point)
     {
-        Drain(height, sizeX, sizeZ, courses, point, 1f, water, p, worldRiverWidth, out _, out int[] receiver, out _, out bool[] worldSource, out _, out _, out _, out _, out _);
-        Vector2 best = point;
-        float bestDistance = float.MaxValue;
-        for (int i = 0; i < worldSource.Length; i++)
-        {
-            if (!worldSource[i])
-                continue;
-            for (int c = i, steps = 0; c >= 0 && steps < worldSource.Length; c = receiver[c], steps++)
-            {
-                var v = new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
-                float d = (v - point).sqrMagnitude;
-                if (d < bestDistance)
-                {
-                    bestDistance = d;
-                    best = v;
-                }
-            }
-        }
-        return best;
+        // Course points are cell indices; a cell's centre is half a cell on.
+        var paths = worldCourses.ConvertAll(c => (IReadOnlyList<(float x, float z)>)c.ConvertAll(v => (v.x + 0.5f, v.y + 0.5f)));
+        if (!PrescribedCourse.NearestOnPaths(paths, point.x, point.y, out float x, out float z))
+            return point;
+        return new Vector2(Mathf.Clamp(x, 0.5f, sizeX - 0.5f), Mathf.Clamp(z, 0.5f, sizeZ - 0.5f));
     }
 
     /// <summary>The discharge that gives a world river of this vanilla width its width on the map.</summary>

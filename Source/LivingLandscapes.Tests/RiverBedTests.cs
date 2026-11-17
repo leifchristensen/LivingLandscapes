@@ -139,4 +139,41 @@ public class PrescribedCourseTests
     [Fact]
     public void DedupeDropsRepeatedNeighbours() =>
         Assert.Equal(new[] { 1, 2, 3 }, PrescribedCourse.Dedupe(new[] { 1, 1, 2, 2, 3 }).ToArray());
+
+    private static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<(float x, float z)>> Paths(params (float x, float z)[][] paths) =>
+        paths.Select(p => (System.Collections.Generic.IReadOnlyList<(float x, float z)>)p).ToList();
+
+    [Fact]
+    public void NearestOnPathsIsTheFootOnTheNearestSegment()
+    {
+        var paths = Paths(new[] { (0f, 0f), (10f, 0f), (10f, 10f) });
+        Assert.True(PrescribedCourse.NearestOnPaths(paths, 4f, 3f, out float x, out float z));
+        Assert.Equal(4f, x, 3);
+        Assert.Equal(0f, z, 3);
+    }
+
+    [Fact]
+    public void NearestOnPathsStopsAtTheEndOfAPath()
+    {
+        var paths = Paths(new[] { (0f, 0f), (10f, 0f) });
+        Assert.True(PrescribedCourse.NearestOnPaths(paths, 15f, 5f, out float x, out float z));
+        Assert.Equal(10f, x, 3);
+        Assert.Equal(0f, z, 3);
+    }
+
+    [Fact]
+    public void NearestOnPathsPicksTheNearerOfTwoPaths()
+    {
+        var paths = Paths(new[] { (0f, 0f), (10f, 0f) }, new[] { (0f, 8f), (10f, 8f) });
+        Assert.True(PrescribedCourse.NearestOnPaths(paths, 5f, 6f, out _, out float z));
+        Assert.Equal(8f, z, 3);
+    }
+
+    [Fact]
+    public void NearestOnPathsHasNothingWithoutAPath()
+    {
+        Assert.False(PrescribedCourse.NearestOnPaths(Paths(), 5f, 6f, out float x, out float z));
+        Assert.Equal(5f, x);
+        Assert.Equal(6f, z);
+    }
 }
