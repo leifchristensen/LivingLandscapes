@@ -59,6 +59,8 @@ public static partial class TerrainChannels
                 }
             }
         }
+        // A course drains cell to cell (BindWorldCourses), so its ground is cut to fall along it: it never steps uphill.
+        PrescribedCourse.CutDownhill(filled, laidCourses.ConvertAll(c => (IReadOnlyList<int>)CourseCells(c.course, sizeX, sizeZ)));
         baseLevel = MapBaseLevels(height, filled, sizeX, sizeZ, laidCourses, sea, seaLevel, edgeOpen, inflow);
         var ground = (float[])filled.Clone();
         receiver = Refill(filled, sizeX, sizeZ, baseLevel, p);

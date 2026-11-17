@@ -55,6 +55,24 @@ public class PrescribedCourseTests
     private static int[] Receivers(int n, params int[][] legs) => PrescribedCourse.PrescribedReceivers(n, legs);
 
     [Fact]
+    public void CutDownhillLowersAClimbingCellToItsUpstreamNeighbour()
+    {
+        float[] g = { 5f, 3f, 4f, 2f };
+        int lowered = PrescribedCourse.CutDownhill(g, new[] { new[] { 0, 1, 2, 3 } });
+        Assert.Equal(new[] { 5f, 3f, 3f, 2f }, g);
+        Assert.Equal(1, lowered);
+    }
+
+    [Fact]
+    public void CutDownhillSettlesWhereLegsShareACell()
+    {
+        // Leg B joins at cell 2 from a lower cell 4; leg A's next cell 3 must then not exceed the lowered cell 2.
+        float[] g = { 5f, 4f, 4f, 4f, 1f };
+        PrescribedCourse.CutDownhill(g, new[] { new[] { 0, 1, 2, 3 }, new[] { 4, 2 } });
+        Assert.Equal(new[] { 5f, 4f, 1f, 1f, 1f }, g);
+    }
+
+    [Fact]
     public void LegsAreBoundCellToNextCell()
     {
         int[] r = Receivers(10, new[] { 1, 2, 3 });

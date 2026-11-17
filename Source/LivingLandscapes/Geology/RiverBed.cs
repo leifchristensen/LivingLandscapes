@@ -49,6 +49,34 @@ public static class PrescribedCourse
     }
 
     /// <summary>
+    /// Cuts the ground along <paramref name="legs"/> (cell lists in flow order) so no cell is higher than the one before it: a
+    /// course that drains cell to cell must never step uphill. Heights only go down; where legs share a cell the lowest value
+    /// wins and the legs are walked again until nothing changes. Returns how many cells were lowered.
+    /// </summary>
+    public static int CutDownhill(float[] ground, System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<int>> legs)
+    {
+        var lowered = new System.Collections.Generic.HashSet<int>();
+        // Heights only fall, so this ends; the pass limit guards against float noise.
+        for (int pass = 0, changed = 1; changed > 0 && pass < 64; pass++)
+        {
+            changed = 0;
+            foreach (var leg in legs)
+            {
+                for (int k = 1; k < leg.Count; k++)
+                {
+                    if (ground[leg[k]] > ground[leg[k - 1]])
+                    {
+                        ground[leg[k]] = ground[leg[k - 1]];
+                        lowered.Add(leg[k]);
+                        changed++;
+                    }
+                }
+            }
+        }
+        return lowered.Count;
+    }
+
+    /// <summary>
     /// The receiver each course cell is bound to: the next cell along its leg (-1 elsewhere). <paramref name="legs"/> are cell paths
     /// in flow order, the exit leg first: where legs share a cell, the leg listed first decides (the way toward the exit), so
     /// tributaries join the exit river by construction. A step that would close a loop is skipped.
