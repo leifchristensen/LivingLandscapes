@@ -101,13 +101,14 @@ public class WaterRegimeDef : Def
     public float marshland;
 
     /// <summary>
-    /// Terrain nudges for the world river's mutator structures (step 5, <see cref="WaterTerrainNudges"/>): a
-    /// depression (metres) or a knob of resistant rock (metres, rock strength) at the river centre, this share of the
-    /// map's size across.
+    /// Features of the world river's mutator structures, given to the erosion model as inputs (<see cref="Landforms"/>), never edited
+    /// into finished ground. A disk at the river centre, <see cref="centreRadiusShare"/> of the map's size across:
+    /// <see cref="basinUpliftDrop"/> (0..1) takes that share of the rock uplift away inside it, so erosion lets the ground sag into a
+    /// closed basin that spills at the river (a headwater, P23); <see cref="knobErodibility"/> (1 = none) is the rock's softness
+    /// inside it, so a resistant knob stands in the river and the water divides round it (a river island, P2).
     /// </summary>
-    public FloatRange centreDepression = FloatRange.Zero;
-    public FloatRange centreKnob = FloatRange.Zero;
-    public float knobRockStrength = 0.9f;
+    public float basinUpliftDrop;
+    public float knobErodibility = 1f;
     public float centreRadiusShare = 0.08f;
 
     /// <summary>Map-wide nudges on the channel processes (multiplied with the channel regimes' blend).</summary>

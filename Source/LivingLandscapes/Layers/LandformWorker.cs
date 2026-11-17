@@ -43,15 +43,6 @@ public class LandformWorker : EnvironmentLayerWorker
             float climate = Mathf.Clamp01((EnvironmentLayerDefOf.LL_Wetness.GetModExtension<WetnessExtension>() ?? new WetnessExtension()).ClimateOf(map)
                                           + (water?.climateOffset ?? 0f));
             var riverCentre = new Vector2(map.Size.x * (0.5f + world.RiverCentre.x), map.Size.z * 0.5f + world.RiverCentre.y * map.Size.x);
-            // Mutator structures nudge the ground first (headwater hollow, island knob); water follows.
-            Vector2? exit = world.HasRiver ? WaterTerrainNudges.EdgeToward(riverCentre, world.RiverExit, map.Size.x, map.Size.z) : (Vector2?)null;
-            Vector2 knobCentre = water != null && water.centreKnob.max > 0f
-                ? TerrainChannels.NearestOnWorldRiver(map.Size.x, map.Size.z, LandscapeGenerator.WorldCourses, riverCentre)
-                : riverCentre;
-            string nudged = WaterTerrainNudges.Apply(generated, rockStrength, map.Size.x, map.Size.z, riverCentre, knobCentre, exit, water,
-                generation.terrainChannels);
-            if (nudged.Length > 0)
-                Log.Message($"[LivingLandscapes] Water regime {water.defName} nudged the terrain: {nudged}.");
             RiverSystem rivers = TerrainChannels.Build(generated, map.Size.x, map.Size.z, channels, riverCentre, climate, map.Biome?.defName, rockStrength, water,
                 generation.terrainChannels, generation.network.worldRiverWidth, Coastline.SeaCells(map), world.RiverInflows,
                 world.HasRiver ? float.NaN : world.Flow,
