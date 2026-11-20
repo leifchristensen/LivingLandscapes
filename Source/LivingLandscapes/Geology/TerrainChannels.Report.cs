@@ -146,8 +146,15 @@ public static partial class TerrainChannels
         if (mouthCell < 0)
             return "no mouth (" + head + ")";
 
+        // Built land: cells of vanilla's water mask standing above the sea. Since D3 the sea mask here has them removed, so they are counted
+        // from the map of built land the coast step planned.
         int built = 0;
-        if (!float.IsNaN(seaLevel))
+        if (Coastline.LastBuilt != null)
+        {
+            foreach (bool b in Coastline.LastBuilt)
+                built += b ? 1 : 0;
+        }
+        else if (!float.IsNaN(seaLevel))
         {
             for (int i = 0; i < sea.Length; i++)
             {

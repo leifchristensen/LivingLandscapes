@@ -27,6 +27,12 @@ public static class Patch_TileMutatorWorker_Coast_CoastTerrainAt
             __result = null;
             return;
         }
+        // Land the rivers built into the sea, and the sand band round it, is the geology's: no vanilla beach on a delta (plan risk 9).
+        if (!__result.IsWater && (environment.PlannedBuiltNear?[i] ?? false))
+        {
+            __result = null;
+            return;
+        }
         // Shallow or deep by the sea floor's own depth: bars, delta fronts and channels show in the water; ground the rivers built
         // above the sea is land.
         if ((__result == TerrainDefOf.WaterOceanShallow || __result == TerrainDefOf.WaterOceanDeep) && !float.IsNaN(environment.PlannedSeaLevel)
