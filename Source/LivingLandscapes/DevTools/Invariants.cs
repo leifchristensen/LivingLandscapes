@@ -439,8 +439,8 @@ public static class Invariants
     }
 
     /// <summary>
-    /// D5 accommodation (#186, step W4): what the feedback passes did to standing-water beds with the setting on (all counts 0
-    /// with it off), and the check that must hold either way: channel cells whose water level is higher than the level upstream
+    /// D5 accommodation (#186, step W4): what the feedback passes did to standing-water beds, and the check that must hold:
+    /// channel cells whose water level is higher than the level upstream
     /// (K, must be 0). A bed may rise toward the water surface it stands under, but the water surface must never climb downstream.
     /// </summary>
     private static void Accommodation(Map map, StringBuilder summary)

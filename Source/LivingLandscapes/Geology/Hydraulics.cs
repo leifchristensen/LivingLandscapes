@@ -251,7 +251,7 @@ public static class Hydraulics
     /// <summary>
     /// (D5, #186) Channel cells along one centre line whose water level stands higher than the level of the cell immediately
     /// upstream: the feedback passes raise beds after the water levels were chosen, and the never-rising profile must survive
-    /// that (<see cref="TerrainChannelSettings.accommodation"/>); the summary line's K, expected 0 with the setting on and off.
+    /// that; the summary line's K, expected 0.
     /// Walks the centre line as the downhill invariant does: one-metre steps, only cells of this channel, comparing neighbours;
     /// cells without a water level (NaN, not carved) never count and are not compared across.
     /// </summary>
