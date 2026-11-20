@@ -87,7 +87,7 @@ public class RiverSystem
     /// <summary>The junction invariant's findings on the final network (invariant 10).</summary>
     public JunctionAudit Junctions;
 
-    /// <summary>(D5, <see cref="TerrainChannelSettings.accommodation"/>) Standing land-water cells whose bed the feedback passes raised (each counted once).</summary>
+    /// <summary>(D5, accommodation) Standing land-water cells whose bed the feedback passes raised (each counted once).</summary>
     public int AccommodationRaisedCells;
 
     /// <summary>Metres times cells of that rise (a cell is 1 m², so this is m³); 0 with the setting off.</summary>
