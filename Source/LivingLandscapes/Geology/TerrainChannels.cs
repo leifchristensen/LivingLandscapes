@@ -114,20 +114,6 @@ public static partial class TerrainChannels
             p.sediment.settlingLength = grainsArg == "settling" || grainsArg == "full";
             p.sediment.jetClasses = grainsArg == "full";
         }
-        partSlope = partJets = partMomentum = partJoin = partJunction = true;
-        partSpread = false;
-        joinScale = GenCommandLine.TryGetCommandLineArg("ll-join", out string joinArg) && float.TryParse(joinArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float js) ? js : 1f;
-        stemChord = GenCommandLine.TryGetCommandLineArg("ll-stem", out string stemArg) && stemArg == "chord";
-        if (GenCommandLine.TryGetCommandLineArg("ll-hyd", out string hydParts))
-        {
-            p.oneHydraulics = true;
-            partJoin = hydParts.Contains("join");
-            partSpread = hydParts.Contains("spread");
-            partSlope = hydParts.Contains("slope");
-            partJets = hydParts.Contains("jets");
-            partMomentum = hydParts.Contains("momentum");
-            partJunction = hydParts.Contains("junction");
-        }
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
@@ -324,7 +310,7 @@ public static partial class TerrainChannels
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         // D1 measurement (DELTA-MODEL-PLAN.md): its own line, so the "Channels:" line stays as it was.
         if (mouth.Present)
-            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, room.seaCells)}");
+            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, 0)}");
         return system;
     }
 
