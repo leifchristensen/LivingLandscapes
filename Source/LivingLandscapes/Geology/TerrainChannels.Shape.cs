@@ -93,7 +93,7 @@ public static partial class TerrainChannels
             moving[c] = q * nudge.width * nudge.width > seep;
             // With the shared hydraulics, water that has just outrun the seep emerges as a stream as wide as the seep it came from
             // (continuity at the spring), so a headwater begins 2-3 cells wide instead of 1-2.
-            float floorWidth = p.oneHydraulics && moving[c] ? Mathf.Max(p.minWidth, p.seepCapacityWidth) : p.minWidth;
+            float floorWidth = moving[c] ? Mathf.Max(p.minWidth, p.seepCapacityWidth) : p.minWidth;
             width[c] = Mathf.Max(floorWidth, baseWidth * nudge.width
                                              * (1f + p.widthNoise * nudge.widthNoise * (float)widthNoise.GetValue(x, 0.0, z)));
             float scour = p.scourRange.ClampToRange(Mathf.Pow(Mathf.Max(slope[k], 1e-6f) / reference, p.scourExponent));

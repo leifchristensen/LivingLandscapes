@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 using Verse.Noise;
@@ -29,7 +30,8 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN,
-        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null)
+        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null,
+        WorldContext.RiverMouth mouth = default, CoastlineExtension coast = null, Hilliness hilliness = Hilliness.Undefined)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -105,12 +107,6 @@ public static partial class TerrainChannels
             if (parts.Length > 1)
                 p.feedback.passes = int.Parse(parts[1]);
         }
-        // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
-        if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
-            p.oneHydraulics = one;
-        // Dev: -ll-accommodation=true caps a standing-water bed's rise at its room (the A/B of D5, #186).
-        if (GenCommandLine.TryGetCommandLineArg("ll-accommodation", out string accomArg) && bool.TryParse(accomArg, out bool accom))
-            p.accommodation = accom;
         // Dev: -ll-grains=none|classes|settling|full switches the grain loads of HYDRO-UNIFICATION S3 (classes = S3a, settling adds S3b, full adds S3c).
         if (GenCommandLine.TryGetCommandLineArg("ll-grains", out string grainsArg))
         {
@@ -137,9 +133,7 @@ public static partial class TerrainChannels
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
         // passes and the final layers lay the same deposit as the same thickness.
         var ledger = new DepositLedger();
-        // D5 measurement (#186 step W1): what the passes' alluvium does to standing water. Measures only, logged once below.
-        var room = new RoomProbe(n);
-        // D5 accommodation report (#186 step W4): what the passes did to standing-water beds with the setting on; reported in the
+        // D5 accommodation report (#186 step W4): what the passes did to standing-water beds; reported in the
         // export summary (DevTools.Invariants.Accommodation).
         var accomTally = new AccommodationTally(n);
         for (int pass = 0; pass < passes; pass++)
@@ -181,13 +175,12 @@ public static partial class TerrainChannels
                     moving[receiver[c]] = true;
             }
             // Below a junction the channel carries both arms' water: it is not narrower than its widest arm (#220).
-            if (p.oneHydraulics && partJunction)
-                Confluences.WidthContinuity(cells, receiver, width, moving, p.confluences.widthRelax);
+            Confluences.WidthContinuity(cells, receiver, width, moving, p.confluences.widthRelax);
             // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
             if (pass < passes - 1 && p.impact.enabled)
             {
                 int cuts = Impact(cells, height, filled, receiver, main, secondary, secondaryShare, discharge, width, depth, moving, rockStrength, sand,
-                    isOutlet, sizeX, sizeZ, p.impact, p.oneHydraulics, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
+                    isOutlet, sizeX, sizeZ, p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
@@ -199,7 +192,7 @@ public static partial class TerrainChannels
             if (pass >= 1 && pass < passes - 1 && p.feedback.passes > 0)
             {
                 int raised = Aggrade(cells, receiver, secondary, secondaryShare, discharge, dischargeScale, threshold, height, filled, inflow, rockStrength,
-                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, room, accomTally, out float volume);
+                    moving, width, depth, sand, standing, isOutlet, sizeX, sizeZ, p, ledger, accomTally, out float volume);
                 if (raised > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
@@ -241,8 +234,8 @@ public static partial class TerrainChannels
         var stillBefore = new bool[n];
         for (int i = 0; i < n; i++)
             stillBefore[i] = standing.Is(i, height[i], depthBeforeScour[i]);
-        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out Vector2[] stem);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences, push, stem);
+        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out _);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, width, stillBefore, sizeX, p.confluences, push);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,
@@ -275,7 +268,7 @@ public static partial class TerrainChannels
         {
             if (!ledger.IsFixed)
                 Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
-                    discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+                    discharge, baseLevel, zones, null, null, grains);
             if (ledger.IsFixed)
             {
                 var gougedUnits = new float[n];
@@ -294,9 +287,8 @@ public static partial class TerrainChannels
         }
         // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
-            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+            deposited, atBase, eroded, discharge, baseLevel, zones, null, null, grains);
         system.Junctions = Confluences.Audit(zones, cells, receiver, width, moving, deposit, sizeX);
-        system.Junctions.WidthEnforced = p.oneHydraulics && partJunction;
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();
@@ -314,7 +306,7 @@ public static partial class TerrainChannels
         }
         if (dry.Count > 0)
             Log.Message($"[LivingLandscapes] Channel cells above their water level at build: {string.Join("; ", dry)}");
-        string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p);
+        string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p, out int branchesToSea);
         int painted = 0;
         for (int i = 0; i < n; i++)
         {
@@ -327,12 +319,12 @@ public static partial class TerrainChannels
             maxWidth = Mathf.Max(maxWidth, width[c]);
             maxDepth = Mathf.Max(maxDepth, depth[c]);
         }
-        // D5 measurement (#186 step W1) on its own line, so the "Channels:" line stays byte-identical to main for the flag-off proof.
-        Log.Message($"[LivingLandscapes] Deposit room (D5 probe): {room.standingCells} standing cells got alluvium ({room.seaCells} sea cells), " +
-                    $"{room.raisedCells} of them raised, {room.raiseTotal:0.###} m of rise on them, largest room {room.largestRoom:0.###} m");
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
                     $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {zones.Junctions} junctions (strongest {zones.Strongest:F2}); {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
+        // D1 measurement (DELTA-MODEL-PLAN.md): its own line, so the "Channels:" line stays as it was.
+        if (mouth.Present)
+            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, room.seaCells)}");
         return system;
     }
 

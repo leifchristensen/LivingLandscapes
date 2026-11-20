@@ -44,6 +44,7 @@ public static class Invariants
         GrainFinesDownstream(map, summary);
         Lakes(map, landform.ToArray(), sizeX, sizeZ, summary);
         JunctionsHold(map, summary);
+        RockIslandsInRivers(map, summary);
         Accommodation(map, summary);
         TerrainInvariants.Report(map, landform.ToArray(), water?.ToArray(), summary);
     }
@@ -423,6 +424,102 @@ public static class Invariants
                            $"({entering} planned as channels)" + (lost.Length > 0 ? $"; not joining:{lost}" : "") + unplanned);
     }
 
+    /// <summary>Rock strength (0..1, <see cref="EnvironmentLayerDefOf.LL_RockStrength"/>) from which an island counts as hard rock.</summary>
+    private const float HardRock = 0.7f;
+    private const int IslandMinCells = 4, IslandMaxCells = 4000;
+
+    /// <summary>
+    /// Invariant 12 (#60, bedrock anabranching): where a river runs round an island of hard rock, the water on both sides of it
+    /// goes the same way: it split upstream of the rock and rejoins below it. An island is a patch of dry land with no cell on the
+    /// map edge, ringed by water that is mostly moving (a channel); hard rock when the mean rock strength of its cells is at least
+    /// <see cref="HardRock"/>. Fails when a hard-rock island's ring is not through-flowing: the mean flow of the ring's moving cells
+    /// is taken as the river's direction and every ring cell must point within 100 degrees of it on at least 80% of the ring
+    /// (a closed circulation or still water would fail). Silent when there is no channel network; reports the counts as information
+    /// (a map may have no hard-rock island at all).
+    /// </summary>
+    private static void RockIslandsInRivers(Map map, StringBuilder summary)
+    {
+        var environment = map.GetComponent<MapComponent_Environment>();
+        RiverSystem rivers = environment?.PlannedRivers;
+        if (rivers == null || rivers.Channels.Count == 0 || rivers.ChannelOf == null || rivers.Flow == null
+            || !environment.TryGetGrid(EnvironmentLayerDefOf.LL_RockStrength, out EnvironmentGrid strengthGrid))
+            return;
+        int sx = map.Size.x, sz = map.Size.z, n = sx * sz;
+        float[] strength = strengthGrid.ToArray();
+        var water = new bool[n];
+        for (int i = 0; i < n; i++)
+            water[i] = map.terrainGrid.TerrainAt(i).IsWater;
+        var seen = new bool[n];
+        var queue = new List<int>();
+        int[] step = { 1, -1, sx, -sx };
+        int islands = 0, hard = 0, hardInRivers = 0, throughFlowing = 0, hardTouchingRivers = 0;
+        var broken = new StringBuilder();
+        for (int start = 0; start < n; start++)
+        {
+            if (seen[start] || water[start])
+                continue;
+            queue.Clear();
+            queue.Add(start);
+            seen[start] = true;
+            bool touchesEdge = false;
+            float strengthSum = 0f;
+            var ring = new HashSet<int>();
+            for (int head = 0; head < queue.Count; head++)
+            {
+                int c = queue[head];
+                int x = c % sx, z = c / sx;
+                if (x == 0 || z == 0 || x == sx - 1 || z == sz - 1)
+                    touchesEdge = true;
+                strengthSum += strength[c];
+                for (int d = 0; d < 4; d++)
+                {
+                    int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), nz = z + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                    if (nx < 0 || nz < 0 || nx >= sx || nz >= sz)
+                        continue;
+                    int q = c + step[d];
+                    if (water[q])
+                        ring.Add(q);
+                    else if (!seen[q])
+                    {
+                        seen[q] = true;
+                        queue.Add(q);
+                    }
+                }
+            }
+            if (touchesEdge || queue.Count < IslandMinCells || queue.Count > IslandMaxCells || ring.Count == 0)
+                continue;
+            islands++;
+            if (strengthSum / queue.Count < HardRock)
+                continue;
+            hard++;
+            int moving = 0;
+            Vector2 mean = Vector2.zero;
+            foreach (int q in ring)
+            {
+                if (rivers.ChannelOf[q] < 0 || (rivers.Still != null && rivers.Still[q]))
+                    continue;
+                moving++;
+                mean += rivers.Flow[q];
+            }
+            if (moving > 0)
+                hardTouchingRivers++;
+            if (moving < ring.Count * 0.7f || mean.sqrMagnitude < 1e-6f)
+                continue;
+            hardInRivers++;
+            mean.Normalize();
+            int agree = 0;
+            foreach (int q in ring)
+                if (rivers.ChannelOf[q] >= 0 && Vector2.Dot(rivers.Flow[q], mean) > -0.17f)
+                    agree++;
+            if (agree >= moving * 0.8f)
+                throughFlowing++;
+            else
+                broken.Append($" island of {queue.Count} cells at ({queue[0] % sx}, {queue[0] / sx}): {agree} of {moving} ring cells flow with the river;");
+        }
+        summary.AppendLine($"invariant 12 (rivers split round hard rock and rejoin): {(broken.Length == 0 ? "ok" : "FAIL")} | {islands} islands in water, {hard} of hard rock, " +
+                           $"{hardTouchingRivers} of those touch a river's water and {hardInRivers} are ringed by one, {throughFlowing} with water flowing past on both sides" + (broken.Length > 0 ? $"; not flowing past:{broken}" : ""));
+    }
+
     /// <summary>
     /// Invariant 10 (CONFLUENCE-ZONES acceptance, #20, #220): the channel below a junction is not narrower than its widest arm; the
     /// scour hole is deepest at the junction; every junction that shaped zones laid deposit in them. Silent when the map has no
@@ -433,14 +530,14 @@ public static class Invariants
         JunctionAudit a = map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.Junctions;
         if (a == null || a.Joins == 0)
             return;
-        bool ok = (a.Narrowed == 0 || !a.WidthEnforced) && a.ScourOffCentre == 0;
-        summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm{(a.WidthEnforced ? "" : " (not enforced: one hydraulics off)")} " +
+        bool ok = a.Narrowed == 0 && a.ScourOffCentre == 0;
+        summary.AppendLine($"invariant 10 (junctions): {(ok ? "ok" : "FAIL")} | {a.Joins} junctions of moving water, {a.Narrowed} with the joined channel narrower than 0.8 of the widest arm " +
                            $"(worst {a.WorstWidthRatio:F2}); {a.Zoned} shaped zones ({a.Holes} with a scour hole of 1.5x depth or more), {a.ScourOffCentre} with the scour not deepest at the junction, {a.NoDeposit} laid no deposit (a zone deposits only where the load exceeds the slow water's capacity: information); {a.DepositAtJoins / System.Math.Max(a.DepositTotal, 1e-6f):P1} of the network's deposit falls in the zones");
     }
 
     /// <summary>
-    /// D5 accommodation (#186, step W4): what the feedback passes did to standing-water beds with the setting on (all counts 0
-    /// with it off), and the check that must hold either way: channel cells whose water level is higher than the level upstream
+    /// D5 accommodation (#186, step W4): what the feedback passes did to standing-water beds, and the check that must hold:
+    /// channel cells whose water level is higher than the level upstream
     /// (K, must be 0). A bed may rise toward the water surface it stands under, but the water surface must never climb downstream.
     /// </summary>
     private static void Accommodation(Map map, StringBuilder summary)

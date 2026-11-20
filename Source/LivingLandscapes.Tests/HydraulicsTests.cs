@@ -121,32 +121,6 @@ public class HydraulicsTests
         return momentum;
     }
 
-    // The old per-cell speeds inside Impact.
-    internal static float[] LegacySpeeds(List<int> cells, int[] main, float[] filled, float[] depth, float[] width, int sizeX, int momentumSteps,
-        float manningN, float jetWidths)
-    {
-        Vector2 At(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
-        var speeds = new float[filled.Length];
-        foreach (int c in cells)
-        {
-            int up = c;
-            float run = 0f;
-            for (int s = 0; s < momentumSteps && main[up] >= 0; s++)
-            {
-                run += (At(main[up]) - At(up)).magnitude;
-                up = main[up];
-            }
-            float slope = Mathf.Max(0f, filled[up] - filled[c]) / Mathf.Max(run, 1f);
-            float d = Mathf.Max(depth[c], 0.01f);
-            float speed = Mathf.Min(Mathf.Pow(d, 2f / 3f) * Mathf.Sqrt(Mathf.Max(slope, 1e-6f)) / manningN, Mathf.Sqrt(9.81f * d));
-            int donor = main[c];
-            if (donor >= 0)
-                speed = Mathf.Max(speed, speeds[donor] * Mathf.Exp(-(At(c) - At(donor)).magnitude / (jetWidths * Mathf.Max(width[c], 1f))));
-            speeds[c] = speed;
-        }
-        return speeds;
-    }
-
     [Fact]
     public void Fixture_HasJoinsAndDiagonals()
     {
@@ -205,28 +179,6 @@ public class HydraulicsTests
                 nonZero++;
         }
         Assert.True(nonZero > 20);
-    }
-
-    [Fact]
-    public void Speeds_EqualTheOldImpactSpeeds()
-    {
-        var (cells, _, main, _, filled, depth, width) = Network();
-        const int steps = 8;
-        const float manningN = 0.035f, jetWidths = 5f;
-        float[] old = LegacySpeeds(cells, main, filled, depth, width, SizeX, steps, manningN, jetWidths);
-        var now = new float[filled.Length];
-        Vector2 At(int c) => new Vector2(c % SizeX + 0.5f, c / SizeX + 0.5f);
-        foreach (int c in cells)
-        {
-            float slope = Hydraulics.UpstreamSlope(c, main, filled, SizeX, steps, out _, out _);
-            float speed = Hydraulics.Speed(depth[c], slope, manningN);
-            int donor = main[c];
-            if (donor >= 0)
-                speed = Hydraulics.WithJet(speed, now[donor], (At(c) - At(donor)).magnitude, jetWidths * Mathf.Max(width[c], 1f));
-            now[c] = speed;
-        }
-        foreach (int c in cells)
-            Assert.Equal(old[c], now[c]);
     }
 
     [Fact]

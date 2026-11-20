@@ -74,24 +74,6 @@ public static class Hydraulics
     }
 
     /// <summary>
-    /// The slope of the reach arriving at <paramref name="c"/>: the drop from the cell up to <paramref name="steps"/> cells upstream
-    /// along <paramref name="main"/> (its main donors), over the run between them. <paramref name="up"/> is that upstream cell
-    /// (<paramref name="c"/> itself on a source) and <paramref name="run"/> the run in cells.
-    /// </summary>
-    public static float UpstreamSlope(int c, int[] main, float[] filled, int sizeX, int steps, out int up, out float run)
-    {
-        up = c;
-        run = 0f;
-        for (int s = 0; s < steps && main[up] >= 0; s++)
-        {
-            int dx = main[up] % sizeX - up % sizeX, dz = main[up] / sizeX - up / sizeX;
-            run += Mathf.Sqrt(dx * dx + dz * dz);
-            up = main[up];
-        }
-        return Mathf.Max(0f, filled[up] - filled[c]) / Mathf.Max(run, 1f);
-    }
-
-    /// <summary>
     /// The speed (m / s) of water of <paramref name="depth"/> down <paramref name="slope"/> (P4): Manning,
     /// u = d^(2/3) S^(1/2) / n, at most the critical speed sqrt(g d) (rivers rarely run supercritical).
     /// </summary>
@@ -100,13 +82,6 @@ public static class Hydraulics
         float d = Mathf.Max(depth, 0.01f);
         return Mathf.Min(Mathf.Pow(d, 2f / 3f) * Mathf.Sqrt(Mathf.Max(slope, 1e-6f)) / manningN, Mathf.Sqrt(Gravity * d));
     }
-
-    /// <summary>
-    /// The speed a cell runs at where water keeps the speed it arrives with (a jet, P5): at least the donor's speed decayed by
-    /// exp(-distance / jetLength), jetLength being jetWidths x the channel width.
-    /// </summary>
-    public static float WithJet(float speed, float donorSpeed, float distance, float jetLength) =>
-        Mathf.Max(speed, Jet(donorSpeed, distance, jetLength));
 
     /// <summary>
     /// The direction the water carries into each cell (P5): the discharge-weighted sum of the steps it took in, down the
@@ -190,13 +165,11 @@ public static class Hydraulics
     /// The speed each channel cell runs at (S2b, one slope): Manning on the <see cref="ReachSlope"/> the shape and the sediment
     /// budget read, or the speed a donor carries in as a jet if that is faster. Every donor counts: a cell hands its speed on to
     /// its receiver and, at a split, to its <paramref name="secondary"/> way too, so below a confluence the jet of the faster
-    /// tributary is kept, not only the main donor's. With <paramref name="reachSlope"/> false the slope is the old one upstream along
-    /// <paramref name="main"/> and with <paramref name="allDonors"/> false only the main donor's jet is kept (the pre-S2b Impact; the
-    /// parts exist to isolate which change drives a difference). Cells are ordered highest first; the jet decays over
+    /// tributary is kept, not only the main donor's. Cells are ordered highest first; the jet decays over
     /// <paramref name="jetWidths"/> widths of the receiving cell's channel.
     /// </summary>
     public static float[] Speeds(List<int> cells, int[] receiver, int[] secondary, float[] filled, float[] depth, float[] width, int sizeX,
-        float manningN, float jetWidths, int[] main = null, int momentumSteps = 8, bool reachSlope = true, bool allDonors = true)
+        float manningN, float jetWidths)
     {
         var speeds = new float[filled.Length];
         var jet = new float[filled.Length];
@@ -204,15 +177,8 @@ public static class Hydraulics
             jet[to] = Mathf.Max(jet[to], Jet(speeds[from], StepLength(from, to, sizeX), jetWidths * Mathf.Max(width[to], 1f)));
         foreach (int c in cells)
         {
-            float slope = reachSlope ? ReachSlope(c, receiver, filled, sizeX) : UpstreamSlope(c, main, filled, sizeX, momentumSteps, out _, out _);
-            float speed = Speed(depth[c], slope, manningN);
-            if (allDonors)
-                speed = Mathf.Max(speed, jet[c]);
-            else if (main[c] >= 0)
-                speed = WithJet(speed, speeds[main[c]], (new Vector2(c % sizeX, c / sizeX) - new Vector2(main[c] % sizeX, main[c] / sizeX)).magnitude, jetWidths * Mathf.Max(width[c], 1f));
+            float speed = Mathf.Max(Speed(depth[c], ReachSlope(c, receiver, filled, sizeX), manningN), jet[c]);
             speeds[c] = speed;
-            if (!allDonors)
-                continue;
             if (receiver[c] >= 0)
                 Hand(c, receiver[c]);
             if (secondary != null && secondary[c] >= 0)
@@ -223,7 +189,7 @@ public static class Hydraulics
 
     /// <summary>
     /// The speed a jet leaves behind it (P5): <paramref name="speed"/> decayed by exp(-distance / jetLength). A cell runs at
-    /// least the strongest of its donors' (see <see cref="WithJet"/>).
+    /// least the strongest of its donors'.
     /// </summary>
     public static float Jet(float speed, float distance, float jetLength) => speed * Mathf.Exp(-distance / jetLength);
 
@@ -251,7 +217,7 @@ public static class Hydraulics
     /// <summary>
     /// (D5, #186) Channel cells along one centre line whose water level stands higher than the level of the cell immediately
     /// upstream: the feedback passes raise beds after the water levels were chosen, and the never-rising profile must survive
-    /// that (<see cref="TerrainChannelSettings.accommodation"/>); the summary line's K, expected 0 with the setting on and off.
+    /// that; the summary line's K, expected 0.
     /// Walks the centre line as the downhill invariant does: one-metre steps, only cells of this channel, comparing neighbours;
     /// cells without a water level (NaN, not carved) never count and are not compared across.
     /// </summary>
