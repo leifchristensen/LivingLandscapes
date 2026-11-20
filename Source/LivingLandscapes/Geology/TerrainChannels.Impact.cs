@@ -63,53 +63,37 @@ public static partial class TerrainChannels
 {
     private const float WaterDensity = 1000f;
 
-    // Which parts of the one hydraulics are on (all three with terrainChannels.oneHydraulics); -ll-hyd=slope,jets,momentum picks
-    // some alone, to isolate what a difference comes from (S2b A/B).
-    private static bool partSlope = true, partJets = true, partMomentum = true, partJoin = true, partJunction = true, partSpread = false;
-
     /// <summary>
     /// The junction momentum S5's zones read (<see cref="Hydraulics.JoinPush"/>): the same push that tilts the stem in Impact, found
-    /// from the network as it stands. Null with the one hydraulics off, so the zones keep the old field angle.
+    /// from the network as it stands.
     /// </summary>
     private static void JunctionMomentum(List<int> cells, int[] receiver, int[] main, float[] discharge, int sizeX, int[] secondary, float[] secondaryShare,
         TerrainChannelSettings p, out Vector2[] push, out Vector2[] stem)
     {
         push = stem = null;
-        if (!p.oneHydraulics || !partJunction)
-            return;
         Vector2[] flow = Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare);
         push = Hydraulics.JoinPush(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, flow, out stem);
     }
-    // Dev: -ll-join=<k> scales the tributaries' cross momentum (1 = as designed, 0 = the main stem alone).
-    private static float joinScale = 1f;
-    private static bool stemChord = false;
-
     /// <summary>Returns the number of cuts; lowers <paramref name="height"/> and <paramref name="filled"/> along them.</summary>
     /// <param name="gouged">Ground (cubic metres) each striking cell's water cut away, added to: it joins that water's load.</param>
-    /// <param name="oneHydraulics">
-    /// <see cref="TerrainChannelSettings.oneHydraulics"/>: the reach slope, every donor's jet and the incoming momentum from
-    /// <see cref="Hydraulics"/> (using <paramref name="secondary"/>, <paramref name="secondaryShare"/> and
-    /// <paramref name="discharge"/>); off, the old upstream slope along <paramref name="main"/>.
-    /// </param>
+    /// <remarks>
+    /// One hydraulics (S2b): the reach slope, every donor's jet and the incoming momentum come from <see cref="Hydraulics"/>
+    /// (using <paramref name="secondary"/>, <paramref name="secondaryShare"/> and <paramref name="discharge"/>).
+    /// </remarks>
     private static int Impact(List<int> cells, float[] height, float[] filled, int[] receiver, int[] main, int[] secondary, float[] secondaryShare,
         float[] discharge, float[] width, float[] depth, bool[] moving, float[] rockStrength, bool[] sand, System.Func<int, bool> isOutlet,
-        int sizeX, int sizeZ, ImpactSettings p, bool oneHydraulics, float bendRadiusWidths, float momentumCells, float[] gouged, out int cutCells)
+        int sizeX, int sizeZ, ImpactSettings p, float bendRadiusWidths, float momentumCells, float[] gouged, out int cutCells)
     {
         cutCells = 0;
         int cuts = 0;
         float cosMinTurn = Mathf.Cos(p.minTurn * Mathf.Deg2Rad);
         Vector2 At(int c) => new Vector2(c % sizeX + 0.5f, c / sizeX + 0.5f);
         var path = new List<int>();
-        // Speed each channel cell runs at (Manning, or the speed carried in from upstream where that is faster), highest first.
-        var speeds = new float[height.Length];
-        // One hydraulics: the speed of every cell (reach slope, the jets of all its donors) and the momentum of the incoming water.
-        float[] allSpeeds = oneHydraulics ? Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths,
-            main, p.momentumSteps, partSlope, partJets) : null;
-        Vector2[] flow = oneHydraulics && partMomentum ? Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare) : null;
+        // The speed of every cell (reach slope, the jets of all its donors) and the momentum of the incoming water.
+        float[] speeds = Hydraulics.Speeds(cells, receiver, secondary, filled, depth, width, sizeX, p.manningN, p.jetWidths);
+        Vector2[] flow = Hydraulics.Momentum(cells, receiver, discharge, sizeX, secondary, secondaryShare);
         // Join weight: the main stem's own direction, tilted by the cross momentum its tributaries bring as a share of the joined flow.
-        Vector2[] push = null, stem = null;
-        if (flow != null && partJoin)
-            push = Hydraulics.JoinPush(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, flow, out stem);
+        Vector2[] push = Hydraulics.JoinPush(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, flow, out Vector2[] stem);
         int turned = 0, over = 0, deflected = 0;
         cutNoStart = cutTooCostly = 0;
         float strongest = 0f, fastest = 0f;
@@ -117,48 +101,13 @@ public static partial class TerrainChannels
         foreach (int c in cells)
         {
             int r = receiver[c];
-            int up = c;
-            float speed;
-            Vector2 momentum;
-            if (oneHydraulics)
-            {
-                speed = allSpeeds[c];
-                if (flow != null)
-                {
-                    Vector2 own = Vector2.zero;
-                    if (push != null)
-                    {
-                        // The main stem's direction: the chord of its last momentumSteps cells (as before S2b), else its own momentum.
-                        Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out int chordUp, out _);
-                        own = stemChord && chordUp != c ? (At(c) - At(chordUp)).normalized : stem[c];
-                    }
-                    momentum = own != Vector2.zero
-                        ? (own + push[c] * joinScale / Mathf.Max(discharge[c], 1e-6f)).normalized
-                        : flow[c].normalized;
-                    if (!moving[c] || r < 0 || momentum == Vector2.zero)
-                        continue;
-                }
-                else
-                {
-                    Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out up, out _);
-                    if (!moving[c] || r < 0 || up == c)
-                        continue;
-                    momentum = (At(c) - At(up)).normalized;
-                }
-            }
-            else
-            {
-                // Speed of the water arriving: Manning on the reach upstream, or the speed carried in, decaying as a jet.
-                float slope = Hydraulics.UpstreamSlope(c, main, filled, sizeX, p.momentumSteps, out up, out _);
-                speed = Hydraulics.Speed(depth[c], slope, p.manningN);
-                int donor = main[c];
-                if (donor >= 0)
-                    speed = Hydraulics.WithJet(speed, speeds[donor], (At(c) - At(donor)).magnitude, p.jetWidths * Mathf.Max(width[c], 1f));
-                speeds[c] = speed;
-                if (!moving[c] || r < 0 || up == c)
-                    continue;
-                momentum = (At(c) - At(up)).normalized;
-            }
+            float speed = speeds[c];
+            Vector2 own = stem[c];
+            Vector2 momentum = own != Vector2.zero
+                ? (own + push[c] / Mathf.Max(discharge[c], 1e-6f)).normalized
+                : flow[c].normalized;
+            if (!moving[c] || r < 0 || momentum == Vector2.zero)
+                continue;
             Vector2 onward = (At(r) - At(c)).normalized;
             float turn = Vector2.Dot(momentum, onward);
             if (turn > cosMinTurn)

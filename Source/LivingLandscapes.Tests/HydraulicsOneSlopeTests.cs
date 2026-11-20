@@ -7,8 +7,7 @@ namespace LivingLandscapes.Tests;
 
 /// <summary>
 /// Step S2b of the hydrology unification: Impact reads the one reach slope and follows both donors at a confluence
-/// (<see cref="Hydraulics.Speeds"/>, <see cref="Hydraulics.Momentum"/> with splits). The flag-off path is the S2a code, still
-/// guarded by <see cref="HydraulicsTests"/> (equality with the old Impact, Spread and budget code).
+/// (<see cref="Hydraulics.Speeds"/>, <see cref="Hydraulics.Momentum"/> with splits).
 /// </summary>
 public class HydraulicsOneSlopeTests
 {
@@ -196,15 +195,6 @@ public class HydraulicsOneSlopeTests
         Assert.Equal(a, b);
     }
 
-    [Fact]
-    public void Speeds_WithTheOldPartsSwitchedOn_EqualTheOldImpactSpeeds()
-    {
-        var (cells, receiver, main, _, filled, depth, width) = HydraulicsTests.Network();
-        float[] old = HydraulicsTests.LegacySpeeds(cells, main, filled, depth, width, HydraulicsTests.SizeX, 8, ManningN, JetWidths);
-        float[] now = Hydraulics.Speeds(cells, receiver, null, filled, depth, width, HydraulicsTests.SizeX, ManningN, JetWidths, main, 8, reachSlope: false, allDonors: false);
-        foreach (int c in cells)
-            Assert.Equal(old[c], now[c]);
-    }
     [Fact]
     public void JoinPush_IsTheTributarysCrossMomentum_AndZeroWhereNothingJoins()
     {

@@ -40,8 +40,6 @@ public class JunctionAudit
     /// <summary>Junctions of moving water, and those where the joined channel is narrower than the widest arm (#220).</summary>
     public int Joins, Narrowed;
 
-    /// <summary>Whether width continuity was applied (the one hydraulics on); the width check only fails the invariant then.</summary>
-    public bool WidthEnforced;
     public float WorstWidthRatio = 1f;
     public int WorstWidthCell = -1;
 

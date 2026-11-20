@@ -65,7 +65,7 @@ public static partial class TerrainChannels
                 deposit[c] = 0f;
         }
         Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
-            out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+            out _, discharge, baseLevel, zones, null, null, grains);
         // Accommodation (D5, #186): a standing-water bed rises only through the room left below its water surface, so a lake
         // shallows over the passes instead of climbing out of the hole it fills. Everywhere else the rise is the plain share of
         // the alluvium.
