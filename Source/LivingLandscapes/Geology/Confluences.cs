@@ -7,17 +7,8 @@ namespace LivingLandscapes.Geology;
 /// <summary>Tuning of <see cref="Confluences"/>, set with the channel settings in XML (tools/Docs/CONFLUENCE-ZONES.md).</summary>
 public class ConfluenceSettings
 {
-    public bool enabled = true;
-
     /// <summary>
-    /// A junction's strength s = smoothstep(minShare, fullShare, qr) x |sin theta|, with qr = Q2 / (Q1 + Q2) the tributary's share
-    /// of the joined flow: a trickle joining a river changes nothing, a tributary of a third or more shapes the junction fully.
-    /// </summary>
-    public float minShare = 0.05f;
-    public float fullShare = 0.3f;
-
-    /// <summary>
-    /// The same bounds when the strength is read from the join push (f = share x sin theta, below the share itself): a push of
+    /// The bounds of a junction's strength, read from the join push (f = share x sin theta, below the share itself): a push of
     /// this share of the joined flow starts to shape the junction, one of fullPush shapes it fully. Stand-in R-number.
     /// </summary>
     public float minPush = 0.03f;
@@ -51,13 +42,12 @@ public static class Confluences
     /// <summary>
     /// Finds each junction (a channel cell whose receiver's main donor is another cell) and lays its zones down the joined
     /// channel. <paramref name="excluded"/> marks cells at base level (the sea, lakes): junctions there have no zones, and the
-    /// zones stop where they reach it or the map's edge. With <paramref name="push"/> and <paramref name="stem"/> (S5, from
-    /// <see cref="Hydraulics.JoinPush"/>) a junction's strength is f = |push| / Q, the tributaries' share times sin(theta): the
+    /// zones stop where they reach it or the map's edge. From <paramref name="push"/> (S5, <see cref="Hydraulics.JoinPush"/>) a junction's strength is f = |push| / Q, the tributaries' share times sin(theta): the
     /// cross momentum the stem cannot absorb. It tilts the stem (Impact), slows the water in the zone to u (1 - f) so the load
-    /// settles, and its direction is the zone's side. Without them the old field-angle strength is used.
+    /// settles, and its direction is the zone's side.
     /// </summary>
-    public static ConfluenceZones Find(List<int> cells, int[] receiver, int[] main, float[] discharge, Vector2[] direction, float[] width,
-        bool[] excluded, int sizeX, ConfluenceSettings p, Vector2[] push = null, Vector2[] stem = null)
+    public static ConfluenceZones Find(List<int> cells, int[] receiver, int[] main, float[] discharge, float[] width,
+        bool[] excluded, int sizeX, ConfluenceSettings p, Vector2[] push)
     {
         int n = receiver.Length;
         var zones = new ConfluenceZones
@@ -66,13 +56,10 @@ public static class Confluences
             SlowSide = new Vector2[n],
             Scour = new float[n],
             SlowCapacity = p.slowSpeed * p.slowSpeed,
-            SlowCapacityAt = push != null ? new float[n] : null,
+            SlowCapacityAt = new float[n],
         };
         for (int i = 0; i < n; i++)
             zones.Scour[i] = 1f;
-        if (!p.enabled)
-            return zones;
-        Vector2 Centre(int c) => new Vector2(c % sizeX, c / sizeX);
         foreach (int c in cells)
         {
             int r = receiver[c];
@@ -83,23 +70,12 @@ public static class Confluences
             if (q1 + q2 <= 0f)
                 continue;
             float share = q2 / (q1 + q2);
-            float theta, strength, f = 0f;
-            if (push != null)
-            {
-                // The lost cross momentum as a share of the joined flow.
-                if (push[r] == Vector2.zero || discharge[r] <= 0f)
-                    continue;
-                f = Mathf.Min(push[r].magnitude / discharge[r], 1f);
-                theta = p.angleRange.ClampToRange(Mathf.Asin(Mathf.Clamp01(f / Mathf.Max(share, 1e-6f))) * Mathf.Rad2Deg);
-                strength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.minPush, p.fullPush, f));
-            }
-            else
-            {
-                if (direction[c] == Vector2.zero || direction[m] == Vector2.zero)
-                    continue;
-                theta = p.angleRange.ClampToRange(Vector2.Angle(direction[c], direction[m]));
-                strength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.minShare, p.fullShare, share)) * Mathf.Sin(theta * Mathf.Deg2Rad);
-            }
+            // The lost cross momentum as a share of the joined flow.
+            if (push[r] == Vector2.zero || discharge[r] <= 0f)
+                continue;
+            float f = Mathf.Min(push[r].magnitude / discharge[r], 1f);
+            float theta = p.angleRange.ClampToRange(Mathf.Asin(Mathf.Clamp01(f / Mathf.Max(share, 1e-6f))) * Mathf.Rad2Deg);
+            float strength = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(p.minPush, p.fullPush, f));
             if (strength <= 0.01f)
                 continue;
             // A junction within one joined width of the map's edge has no reach below it on the map to shape (the zones would
@@ -113,17 +89,10 @@ public static class Confluences
             zones.Strongest = Mathf.Max(zones.Strongest, strength);
 
             // The tributary's side of the joined channel: across its flow, toward where the tributary comes from.
-            Vector2 side;
-            if (push != null)
-                side = -push[r].normalized; // the push is where the stem is shoved to (away from the tributary); the slow zone is on the tributary's bank
-            else
-            {
-                Vector2 along = direction[r] != Vector2.zero ? direction[r] : direction[m];
-                var across = new Vector2(-along.y, along.x);
-                side = Vector2.Dot(across, Centre(c) - Centre(r)) >= 0f ? across : -across;
-            }
+            // The push is where the stem is shoved to (away from the tributary); the slow zone is on the tributary's bank.
+            Vector2 side = -push[r].normalized;
             // Speed in the slow water: the lost cross momentum slows it (u (1 - f)), never below the floor.
-            float slowCapacity = push != null ? Mathf.Pow(Mathf.Max(p.slowSpeed, 1f - f), 2f) : 0f;
+            float slowCapacity = Mathf.Pow(Mathf.Max(p.slowSpeed, 1f - f), 2f);
             float w3 = Mathf.Max(width[r], 1f);
             // The slow zone tapers from the junction down its length; the joined flow keeps at least one cell beside it.
             float slow = Mathf.Min(p.separationWidth * strength, Mathf.Max(0f, 1f - 1f / w3));
@@ -137,8 +106,7 @@ public static class Confluences
                 {
                     zones.SlowShare[k] = a;
                     zones.SlowSide[k] = side;
-                    if (push != null)
-                        zones.SlowCapacityAt[k] = slowCapacity;
+                    zones.SlowCapacityAt[k] = slowCapacity;
                 }
                 // The scour hole: deepest at the junction, easing back to the mean depth over one joined width.
                 zones.Scour[k] = Mathf.Max(zones.Scour[k], 1f + (scour - 1f) * Mathf.Exp(-d / w3));
