@@ -269,17 +269,16 @@ public static partial class TerrainChannels
     /// </summary>
     private static float OwnDischargeScale(float[] filled, int[] receiver, float[] inflow, bool[] worldSource, float runoff, float threshold,
         float mapSpread, int sizeX, int sizeZ, TerrainChannelSettings p, SimpleCurve worldRiverWidth, float worldFlow, float loss, float[] runoffAt,
-        out string summary)
+        float lakeShare, out string summary)
     {
-        float target = Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f);
+        float widthTarget = Mathf.Pow(p.maxWidthWithoutWorldRiver / p.widthPerSqrtDischarge, 2f);
         summary = "";
         RiverDef creek = WorldFlow.Creek();
+        // Where rain beats evaporation (an infinite lake share) the water leaves the map whatever the coarse world flow says (#141).
+        float target = BoundaryMath.OwnTarget(widthTarget, worldFlow, creek?.degradeThreshold ?? 0f,
+            creek != null ? DischargeFor(creek.widthOnMap, worldRiverWidth, p) : 0f, float.IsPositiveInfinity(lakeShare));
         if (!float.IsNaN(worldFlow) && creek != null)
-        {
-            float share = worldFlow / creek.degradeThreshold;
-            target = Mathf.Min(target, DischargeFor(creek.widthOnMap, worldRiverWidth, p) * share);
-            summary = $", world flow {worldFlow:F0} = {share:P0} of a creek";
-        }
+            summary = $", world flow {worldFlow:F0} = {worldFlow / creek.degradeThreshold:P0} of a creek";
         // The world flow is what leaves the tile, after the losses on the way: the scale is settled over a few rounds,
         // since losses depend on the channels' width.
         float scale = 1f;
@@ -292,7 +291,7 @@ public static partial class TerrainChannels
             float largest = 1f;
             foreach (float q in carried)
                 largest = Mathf.Max(largest, q);
-            scale = Mathf.Min(1f, target / largest);
+            scale = BoundaryMath.ClampScale(target, largest);
             largestOwn = largest;
             own = carried;
         }

@@ -67,7 +67,7 @@ public static partial class TerrainChannels
         Drain(height, sizeX, sizeZ, courses, riverCentre, runoff, water, p, worldRiverWidth, out float[] filled, out int[] receiver,
             out float[] inflow, out bool[] worldSource, out float vanillaWidth, out float[] outletLevel, out float yield, out float[] lakeLoss, out WorldCourse worldCourse,
             worldInflows, sea, seaLevel, edgeOpen, lakeShare, system.Sink,
-            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, out _),
+            yieldScale: (f, r, inf, ws) => OwnDischargeScale(f, r, inf, ws, runoff, threshold, mapSpread, sizeX, sizeZ, p, worldRiverWidth, worldFlow, loss, runoffAt, lakeShare, out _),
             worldCourses: worldCourses);
         system.BaseLevel = outletLevel;
         system.YieldScale = yield;
@@ -97,7 +97,7 @@ public static partial class TerrainChannels
         string ownWater = "";
         if (vanillaWidth <= 0f)
             dischargeScale = OwnDischargeScale(filled, receiver, inflow, worldSource, runoff, threshold, mapSpread, sizeX, sizeZ, p,
-                worldRiverWidth, worldFlow, loss, runoffAt, out ownWater);
+                worldRiverWidth, worldFlow, loss, runoffAt, lakeShare, out ownWater);
         float[] carried = null, seepCapacity = null;
         // Dev: -ll-feedback=share,passes overrides the feedback tuning for sweeps.
         if (GenCommandLine.TryGetCommandLineArg("ll-feedback", out string feedbackArg))
@@ -114,9 +114,6 @@ public static partial class TerrainChannels
             p.sediment.settlingLength = grainsArg == "settling" || grainsArg == "full";
             p.sediment.jetClasses = grainsArg == "full";
         }
-        // Dev: -ll-boundary=on|off switches the boundary-state fixes of HYDRO-S8 (phase B); nothing reads p.boundaryState yet.
-        if (GenCommandLine.TryGetCommandLineArg("ll-boundary", out string boundaryArg))
-            p.boundaryState = boundaryArg == "on";
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
@@ -313,7 +310,7 @@ public static partial class TerrainChannels
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         // D1 measurement (DELTA-MODEL-PLAN.md): its own line, so the "Channels:" line stays as it was.
         if (mouth.Present)
-            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, room.seaCells)}");
+            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, 0)}");
         return system;
     }
 

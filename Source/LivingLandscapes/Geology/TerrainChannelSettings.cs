@@ -190,11 +190,6 @@ public class TerrainChannelSettings
     public bool tolerantRouting = true;
 
 
-    /// <summary>
-    /// Boundary-state fixes of HYDRO-S8 (lake overflow catchment, valley-width ceiling, entry water in closed basins).
-    /// Default off: maps are identical to main.
-    /// </summary>
-    public bool boundaryState = false;
     public float backwaterDepths = 1f;
     public float depthTolerance = 1f;
     public float bendRadiusWidths = 2.5f;

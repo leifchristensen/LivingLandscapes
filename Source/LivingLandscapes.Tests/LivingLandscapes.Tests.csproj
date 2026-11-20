@@ -22,6 +22,7 @@
     <Compile Include="..\LivingLandscapes\Geology\WaterFeatureMath.cs" Link="Linked\WaterFeatureMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\GroundCover.cs" Link="Linked\GroundCover.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterDefinition.cs" Link="Linked\WaterDefinition.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\BoundaryMath.cs" Link="Linked\BoundaryMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\WaterBalanceMath.cs" Link="Linked\WaterBalanceMath.cs" />
     <Compile Include="..\LivingLandscapes\Geology\GroundRunoff.cs" Link="Linked\GroundRunoff.cs" />
     <Compile Include="..\LivingLandscapes\Geology\FloorSeepageRules.cs" Link="Linked\FloorSeepageRules.cs" />
