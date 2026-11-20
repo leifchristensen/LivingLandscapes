@@ -221,8 +221,8 @@ public static partial class TerrainChannels
         var stillBefore = new bool[n];
         for (int i = 0; i < n; i++)
             stillBefore[i] = standing.Is(i, height[i], depthBeforeScour[i]);
-        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out Vector2[] stem);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences, push, stem);
+        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out _);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, width, stillBefore, sizeX, p.confluences, push);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,

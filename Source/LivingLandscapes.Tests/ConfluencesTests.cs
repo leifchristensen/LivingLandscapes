@@ -63,29 +63,22 @@ public class ConfluencesTests
         return (cells, receiver, main, discharge, direction, width);
     }
 
-    private static ConfluenceZones Zones(float tributaryQ, bool fromPush, out Vector2[] push)
+    private static ConfluenceZones Zones(float tributaryQ, out Vector2[] push)
     {
-        var (cells, receiver, main, discharge, direction, width) = Tee(tributaryQ);
-        push = null;
-        Vector2[] stem = null;
-        if (fromPush)
-        {
-            Vector2[] total = Hydraulics.Momentum(cells, receiver, discharge, SizeX);
-            push = Hydraulics.JoinPush(cells, receiver, main, discharge, SizeX, null, null, total, out stem);
-        }
-        return Confluences.Find(cells, receiver, main, discharge, direction, width, null, SizeX, new ConfluenceSettings(), push, stem);
+        var (cells, receiver, main, discharge, _, width) = Tee(tributaryQ);
+        Vector2[] total = Hydraulics.Momentum(cells, receiver, discharge, SizeX);
+        push = Hydraulics.JoinPush(cells, receiver, main, discharge, SizeX, null, null, total, out _);
+        return Confluences.Find(cells, receiver, main, discharge, width, null, SizeX, new ConfluenceSettings(), push);
     }
 
     [Fact]
-    public void FromPush_TheZoneLiesOnTheTributarysBank_AsTheOldTestPlaced()
+    public void FromPush_TheZoneLiesOnTheTributarysBank()
     {
-        ConfluenceZones now = Zones(6f, true, out _);
-        ConfluenceZones old = Zones(6f, false, out _);
+        ConfluenceZones now = Zones(6f, out _);
         int below = At(11, 5);
         Assert.True(now.SlowShare[below] > 0f);
         // The tributary comes from the north (smaller z): both place the slow side toward it.
         Assert.True(now.SlowSide[below].y < 0f);
-        Assert.Equal(old.SlowSide[below].y < 0f, now.SlowSide[below].y < 0f);
     }
 
     [Fact]
@@ -102,21 +95,21 @@ public class ConfluencesTests
     public void SlowWaterSpeed_FollowsTheLostCrossMomentum()
     {
         var settings = new ConfluenceSettings();
-        ConfluenceZones z = Zones(6f, true, out Vector2[] push);
+        ConfluenceZones z = Zones(6f, out Vector2[] push);
         var (_, _, _, discharge, _, _) = Tee(6f);
         float f = push[JoinCell].magnitude / discharge[JoinCell];
         float expected = Mathf.Pow(Mathf.Max(settings.slowSpeed, 1f - f), 2f);
         Assert.NotNull(z.SlowCapacityAt);
         Assert.Equal(expected, z.SlowCapacityAt[At(11, 5)], 3);
         // A bigger tributary loses more momentum, so its slow water is slower.
-        ConfluenceZones big = Zones(30f, true, out _);
+        ConfluenceZones big = Zones(30f, out _);
         Assert.True(big.SlowCapacityAt[At(11, 5)] < z.SlowCapacityAt[At(11, 5)]);
     }
 
     [Fact]
     public void ATrickle_ChangesNothing()
     {
-        ConfluenceZones z = Zones(0.2f, true, out _);
+        ConfluenceZones z = Zones(0.2f, out _);
         Assert.Equal(0, z.Junctions);
         foreach (float s in z.Scour)
             Assert.Equal(1f, s);
@@ -125,7 +118,7 @@ public class ConfluencesTests
     [Fact]
     public void FromPush_IsDeterministic()
     {
-        ConfluenceZones a = Zones(6f, true, out _), b = Zones(6f, true, out _);
+        ConfluenceZones a = Zones(6f, out _), b = Zones(6f, out _);
         Assert.Equal(a.SlowShare, b.SlowShare);
         Assert.Equal(a.SlowCapacityAt, b.SlowCapacityAt);
         Assert.Equal(a.Scour, b.Scour);
@@ -133,17 +126,9 @@ public class ConfluencesTests
     }
 
     [Fact]
-    public void WithoutPush_ThePerCellCapacityIsAbsent_SoTheOldFixedFloorApplies()
-    {
-        ConfluenceZones z = Zones(6f, false, out _);
-        Assert.Null(z.SlowCapacityAt);
-        Assert.Equal(new ConfluenceSettings().slowSpeed * new ConfluenceSettings().slowSpeed, z.SlowCapacity, 5);
-    }
-
-    [Fact]
     public void ScourIsDeepestAtTheJunction_AndNeverBelowOne()
     {
-        ConfluenceZones z = Zones(6f, true, out _);
+        ConfluenceZones z = Zones(6f, out _);
         float max = 0f;
         int at = -1;
         for (int i = 0; i < z.Scour.Length; i++)
@@ -162,13 +147,13 @@ public class ConfluencesTests
     [Fact]
     public void Audit_FlagsAChannelNarrowerThanItsArms_AndPassesOneThatIsNot()
     {
-        var (cells, receiver, main, discharge, direction, width) = Tee(6f);
+        var (cells, receiver, main, discharge, _, width) = Tee(6f);
         var moving = new bool[width.Length];
         foreach (int c in cells)
             moving[c] = true;
         Vector2[] total = Hydraulics.Momentum(cells, receiver, discharge, SizeX);
-        Vector2[] push = Hydraulics.JoinPush(cells, receiver, main, discharge, SizeX, null, null, total, out Vector2[] stem);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, null, SizeX, new ConfluenceSettings(), push, stem);
+        Vector2[] push = Hydraulics.JoinPush(cells, receiver, main, discharge, SizeX, null, null, total, out _);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, width, null, SizeX, new ConfluenceSettings(), push);
         var deposit = new float[width.Length];
         deposit[At(11, 5)] = 1f;
         JunctionAudit fine = Confluences.Audit(zones, cells, receiver, width, moving, deposit, SizeX);
@@ -204,6 +189,6 @@ public class ConfluencesTests
         // Upstream of the join nothing changed.
         for (int x = 0; x < 10; x++)
             Assert.Equal(before[At(x, 5)], width[At(x, 5)]);
-        Assert.True(Confluences.Audit(Zones(6f, true, out _), cells, receiver, width, moving, new float[width.Length], SizeX).Narrowed == 0);
+        Assert.True(Confluences.Audit(Zones(6f, out _), cells, receiver, width, moving, new float[width.Length], SizeX).Narrowed == 0);
     }
 }
