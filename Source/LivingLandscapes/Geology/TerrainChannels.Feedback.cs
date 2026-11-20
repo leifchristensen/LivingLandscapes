@@ -53,8 +53,8 @@ public static partial class TerrainChannels
         var stillNow = new bool[n];
         for (int i = 0; i < n; i++)
             stillNow[i] = standing.Is(i, height[i], depth[i]);
-        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out Vector2[] stem);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillNow, sizeX, p.confluences, push, stem);
+        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out _);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, width, stillNow, sizeX, p.confluences, push);
         GrainLoads grains = GrainLoads.Create(p.sediment, p.impact.manningN, p.impact.jetWidths, cells, receiver, secondary, filled, depth, width, sizeX);
         Sediment.Deposits(cells, receiver, discharge, dischargeScale, filled, inflow, rockStrength, baseLevel, sizeX, p.sediment,
             out float[] deposit, out float[] depositGrain, out _, out _, out _, out _, sand: sand, zones: zones, secondary: secondary, secondaryShare: secondaryShare,
@@ -65,7 +65,7 @@ public static partial class TerrainChannels
                 deposit[c] = 0f;
         }
         Sediment.Spread(cells, receiver, direction, deposit, depositGrain, width, filled, height, sizeX, sizeZ, p.sediment, ledger, out float[] alluvium,
-            out _, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+            out _, discharge, baseLevel, zones, null, null, grains);
         // Accommodation (D5, #186): a standing-water bed rises only through the room left below its water surface, so a lake
         // shallows over the passes instead of climbing out of the hole it fills. Everywhere else the rise is the plain share of
         // the alluvium.

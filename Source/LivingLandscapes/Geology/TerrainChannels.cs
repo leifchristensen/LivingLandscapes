@@ -105,9 +105,6 @@ public static partial class TerrainChannels
             if (parts.Length > 1)
                 p.feedback.passes = int.Parse(parts[1]);
         }
-        // Dev: -ll-one-hydraulics=false runs the old Impact and Spread momentum (the A/B of HYDRO-UNIFICATION S2b).
-        if (GenCommandLine.TryGetCommandLineArg("ll-one-hydraulics", out string oneArg) && bool.TryParse(oneArg, out bool one))
-            p.oneHydraulics = one;
         // Dev: -ll-grains=none|classes|settling|full switches the grain loads of HYDRO-UNIFICATION S3 (classes = S3a, settling adds S3b, full adds S3c).
         if (GenCommandLine.TryGetCommandLineArg("ll-grains", out string grainsArg))
         {
@@ -118,20 +115,6 @@ public static partial class TerrainChannels
         // Dev: -ll-boundary=on|off switches the boundary-state fixes of HYDRO-S8 (phase B); nothing reads p.boundaryState yet.
         if (GenCommandLine.TryGetCommandLineArg("ll-boundary", out string boundaryArg))
             p.boundaryState = boundaryArg == "on";
-        partSlope = partJets = partMomentum = partJoin = partJunction = true;
-        partSpread = false;
-        joinScale = GenCommandLine.TryGetCommandLineArg("ll-join", out string joinArg) && float.TryParse(joinArg, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float js) ? js : 1f;
-        stemChord = GenCommandLine.TryGetCommandLineArg("ll-stem", out string stemArg) && stemArg == "chord";
-        if (GenCommandLine.TryGetCommandLineArg("ll-hyd", out string hydParts))
-        {
-            p.oneHydraulics = true;
-            partJoin = hydParts.Contains("join");
-            partSpread = hydParts.Contains("spread");
-            partSlope = hydParts.Contains("slope");
-            partJets = hydParts.Contains("jets");
-            partMomentum = hydParts.Contains("momentum");
-            partJunction = hydParts.Contains("junction");
-        }
         int passes = Mathf.Max(3, p.feedback.passes + 2), aggraded = 0;
         float aggradedVolume = 0f;
         // The one deposit ledger of the map (S4): its kappa is fixed by the first pass that deposits and held, so the feedback
@@ -179,13 +162,12 @@ public static partial class TerrainChannels
                     moving[receiver[c]] = true;
             }
             // Below a junction the channel carries both arms' water: it is not narrower than its widest arm (#220).
-            if (p.oneHydraulics && partJunction)
-                Confluences.WidthContinuity(cells, receiver, width, moving, p.confluences.widthRelax);
+            Confluences.WidthContinuity(cells, receiver, width, moving, p.confluences.widthRelax);
             // Water the ground turns strikes it: it cuts through to lower ground within reach, or is deflected (P6).
             if (pass < passes - 1 && p.impact.enabled)
             {
                 int cuts = Impact(cells, height, filled, receiver, main, secondary, secondaryShare, discharge, width, depth, moving, rockStrength, sand,
-                    isOutlet, sizeX, sizeZ, p.impact, p.oneHydraulics, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
+                    isOutlet, sizeX, sizeZ, p.impact, p.bendRadiusWidths, p.momentumCells, gouged, out int cutCells);
                 if (cuts > 0)
                 {
                     receiver = Refill(filled, sizeX, sizeZ, outletLevel, p, worldCourse);
@@ -239,8 +221,8 @@ public static partial class TerrainChannels
         var stillBefore = new bool[n];
         for (int i = 0; i < n; i++)
             stillBefore[i] = standing.Is(i, height[i], depthBeforeScour[i]);
-        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out Vector2[] stem);
-        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, direction, width, stillBefore, sizeX, p.confluences, push, stem);
+        JunctionMomentum(cells, receiver, main, discharge, sizeX, secondary, secondaryShare, p, out Vector2[] push, out _);
+        ConfluenceZones zones = Confluences.Find(cells, receiver, main, discharge, width, stillBefore, sizeX, p.confluences, push);
         foreach (int c in cells)
             depth[c] *= zones.Scour[c];
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,
@@ -273,7 +255,7 @@ public static partial class TerrainChannels
         {
             if (!ledger.IsFixed)
                 Sediment.Spread(cells, receiver, system.Flow, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, out _, out _,
-                    discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+                    discharge, baseLevel, zones, null, null, grains);
             if (ledger.IsFixed)
             {
                 var gougedUnits = new float[n];
@@ -292,9 +274,8 @@ public static partial class TerrainChannels
         }
         // The final layers are rebuilt from the final network at the ledger's kappa; the bars' height then reads that deposit.
         string sedimentSummary = Sediment.Layers(cells, receiver, deposit, depositGrain, width, filled, natural, sizeX, sizeZ, p.sediment, ledger, system,
-            deposited, atBase, eroded, discharge, baseLevel, zones, p.oneHydraulics && partSpread ? secondary : null, p.oneHydraulics && partSpread ? secondaryShare : null, grains);
+            deposited, atBase, eroded, discharge, baseLevel, zones, null, null, grains);
         system.Junctions = Confluences.Audit(zones, cells, receiver, width, moving, deposit, sizeX);
-        system.Junctions.WidthEnforced = p.oneHydraulics && partJunction;
         int bars = Bars(height, cells, width, depth, moving, deposit, deposition, system.Alluvium, direction, sizeX, sizeZ, p, system, out int islands, zones);
         // Report (TerrainChannels.Report.cs and the log lines below).
         var worldEnds = new List<string>();
