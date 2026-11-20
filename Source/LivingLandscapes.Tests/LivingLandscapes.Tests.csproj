@@ -37,6 +37,7 @@
     <Compile Include="..\LivingLandscapes\Geology\Confluences.cs" Link="Linked\Confluences.cs" />
     <Compile Include="..\LivingLandscapes\Geology\JetKernel.cs" Link="Linked\JetKernel.cs" />
     <Compile Include="..\LivingLandscapes\Geology\SeaFill.cs" Link="Linked\SeaFill.cs" />
+    <Compile Include="..\LivingLandscapes\Geology\SeaState.cs" Link="Linked\SeaState.cs" />
     <Compile Include="..\LivingLandscapes\Geology\Sediment.cs" Link="Linked\Sediment.cs" />
     <Compile Include="..\LivingLandscapes\Geology\Sediment.Grains.cs" Link="Linked\Sediment.Grains.cs" />
     <Compile Include="..\LivingLandscapes\Geology\DepositLedger.cs" Link="Linked\DepositLedger.cs" />
