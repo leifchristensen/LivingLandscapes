@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 using Verse.Noise;
@@ -29,7 +30,8 @@ public static partial class TerrainChannels
     public static RiverSystem Build(float[] height, int sizeX, int sizeZ, List<ChannelCourse> courses, Vector2 riverCentre,
         float climate, string biome, float[] rockStrength, WaterRegimeDef water, TerrainChannelSettings p, SimpleCurve worldRiverWidth,
         bool[] sea = null, List<WorldContext.RiverInflow> worldInflows = null, float worldFlow = float.NaN, float seaLevel = float.NaN,
-        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null)
+        bool[] sand = null, bool[] edgeOpen = null, float lakeShare = float.PositiveInfinity, List<List<Vector2>> worldCourses = null,
+        WorldContext.RiverMouth mouth = default, CoastlineExtension coast = null, Hilliness hilliness = Hilliness.Undefined)
     {
         int n = sizeX * sizeZ;
         // The beach is land (loose sand): the sea, for the water, is the water.
@@ -317,7 +319,7 @@ public static partial class TerrainChannels
         }
         if (dry.Count > 0)
             Log.Message($"[LivingLandscapes] Channel cells above their water level at build: {string.Join("; ", dry)}");
-        string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p);
+        string delta = MainRiver(cells, receiver, secondary, world, discharge, inflow, worldSource, sea, system, sizeX, sizeZ, p, out int branchesToSea);
         int painted = 0;
         for (int i = 0; i < n; i++)
         {
@@ -336,6 +338,9 @@ public static partial class TerrainChannels
         Log.Message($"[LivingLandscapes] Channels: {plans.Count} channels over {cells.Count} centre cells ({inHollows} in hollows the lake model fills, {splits} splits), " +
                     $"{painted} water cells, {bars} bars ({islands} islands), {System.Array.FindAll(system.Seep, v => v).Length} seep cells (runoff {runoff:0.##}, own discharge x{dischargeScale:0.###}{ownWater}, transmission loss {loss:0.#}){(springLake > 0 ? $" ({springLake} in the lake a source rises in)" : "")}, widest {maxWidth:F1} cells, deepest {maxDepth:F2} m, climate {climate:F2}; {infilled} cells of lakes the river silted up, {carvedMeanders} cells carved for meanders, {oxbows} oxbows, {impactCuts} impact cuts ({impactCells} cells, {gougedTotal:0} m3 into the load), {aggradedVolume:0} m3 aggraded over {p.feedback.passes} feedback passes, {delta}; {zones.Junctions} junctions (strongest {zones.Strongest:F2}); {sedimentSummary}; " +
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
+        // D1 measurement (DELTA-MODEL-PLAN.md): its own line, so the "Channels:" line stays as it was.
+        if (mouth.Present)
+            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, room.seaCells)}");
         return system;
     }
 

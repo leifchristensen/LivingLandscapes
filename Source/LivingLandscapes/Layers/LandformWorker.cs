@@ -49,7 +49,8 @@ public class LandformWorker : EnvironmentLayerWorker
                 seaLevel: map.GetComponent<MapComponent_Environment>()?.PlannedSeaLevel ?? float.NaN,
                 lakeShare: Geology.WaterBalance.LakeShare(map, out _),
                 sand: Coastline.BeachCells(map),
-                edgeOpen: LandscapeGenerator.MapEdgeOpen, worldCourses: LandscapeGenerator.WorldCourses);
+                edgeOpen: LandscapeGenerator.MapEdgeOpen, worldCourses: LandscapeGenerator.WorldCourses,
+                mouth: world.Mouth, coast: generation.coast, hilliness: world.Hilliness);
             var environment = map.GetComponent<MapComponent_Environment>();
             if (environment != null)
             {
