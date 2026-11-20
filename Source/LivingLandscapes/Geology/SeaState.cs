@@ -76,6 +76,18 @@ public sealed class SeaPassResult
 }
 
 /// <summary>
+/// The scale from the erosion model's load units to metres of sea floor, fixed once per map by the first pass of the stillstand window.
+/// The model's load (eroded ground plus the world rivers' inflow weights) has no physical unit of its own and is thousands of times the
+/// room a mouth has, so one pass is defined to lay <c>FillPerPass</c> of the room the main mouth's jet reaches (rule R24, one deposit
+/// scale per map); every other mouth and pass is then in proportion to it, and the stillstand window's length sizes the delta.
+/// </summary>
+public sealed class SeaSupply
+{
+    /// <summary>Metres of thickness per unit of delivered load; 0 until the first pass has fixed it.</summary>
+    public double Scale;
+}
+
+/// <summary>
 /// The sea keeps part of what the model's rivers deliver to it during the stillstand window (rule R26) and lays it on the sea floor with the
 /// jet kernel (rules E4 to E6 of the plan); cells it fills to the promotion height become land. The loop over the mouths and the metre
 /// conversion live here so a test can run them without the game.
@@ -88,20 +100,24 @@ public static class SeaFillPass
     /// <summary>Least mouth depth (metres): a creek's bar still rises above the water.</summary>
     public const float MinMouthDepth = 0.15f;
 
-    /// <summary>The settings a pass reads (game-free copy of what <c>GeologyGenerationExtension</c> holds).</summary>
+    
+/// <summary>The settings a pass reads (game-free copy of what <c>GeologyGenerationExtension</c> holds).</summary>
     public struct Settings
     {
-        public double WaveCapacityPerWidth;   // k_w x E, metres per model cell of front per pass
+        public double WaveShare;              // E / E_ref = 1/R: wave capacity of the main mouth as a share of its delivered load (R3 to 5 sheltered, below 1 open)
         public float SettleWidths, ReachLengths, SpreadRate;
         public float MapCellsPerModelCell;
         public float ReferenceWidthModelCells; // width of the largest mouth, model cells
         public int KeepExit;                   // the river's exit cell, never promoted
+        public SeaSupply Supply;               // the load-to-metres scale, fixed by the window's first pass
+        public float FillPerPass;              // share of the room the main jet reaches that one pass lays (the unit of the load)
     }
 
     /// <summary>The Nth axis for a sea outlet cell: the way its biggest donor drains into it (null where nothing drains into it).</summary>
-    public static bool Axis(int cell, int[] receiver, float[] area, int gx, int gz, out float ax, out float az)
+    public static bool Axis(int cell, int[] receiver, float[] area, int gx, int gz, out float ax, out float az, out int donor)
     {
         ax = az = 0f;
+        donor = -1;
         int cx = cell % gx, cz = cell / gx, best = -1;
         for (int dz = -1; dz <= 1; dz++)
         {
@@ -120,15 +136,41 @@ public static class SeaFillPass
         float vx = cx - best % gx, vz = cz - best / gx, len = (float)Math.Sqrt(vx * vx + vz * vz);
         ax = vx / len;
         az = vz / len;
+        donor = best;
         return true;
     }
 
+    /// <summary>The metres per unit of load: the main mouth's first load lays <c>FillPerPass</c> of the room its jet reaches (0 when nothing arrives).</summary>
+    private static double FixScale(SeaState sea, float[] delivered, int[] receiver, float[] area, Settings s, float[] ground)
+    {
+        int main = -1;
+        for (int c = 0; c < delivered.Length; c++)
+        {
+            if (delivered[c] > 0f && sea.Sea[c] && (main < 0 || delivered[c] > delivered[main]))
+                main = c;
+        }
+        if (main < 0 || !Axis(main, receiver, area, sea.Gx, sea.Gz, out float ax, out float az, out _))
+            return 0.0;
+        float w = Math.Max(1f, s.ReferenceWidthModelCells);
+        float depth = Math.Max(MinMouthDepth, MouthDepthPerRootWidth * (float)Math.Sqrt(w * s.MapCellsPerModelCell));
+        var kernel = new List<(int cell, float weight, float d)>();
+        float settle = s.SettleWidths * w;
+        JetKernel.Weights(main, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, settle * s.ReachLengths, s.SpreadRate, kernel);
+        double room = 0.0;
+        foreach (var k in kernel)
+        {
+            if (k.weight > 0f)
+                room += SeaFill.Room(depth, sea.Bed[k.cell]);
+        }
+        return room <= 0.0 ? 0.0 : s.FillPerPass * room / delivered[main];
+    }
+
     /// <summary>
-    /// One pass: every sea outlet cell holding delivered load hands it (x <paramref name="metresPerHeight"/>) to <see cref="SeaFill.Apply"/>
+    /// One pass: every sea outlet cell holding delivered load hands it (x the supply scale) to <see cref="SeaFill.Apply"/>
     /// along its own jet; the cells filled to the promotion height (the mouth's depth) become land with the height their bed reached.
     /// <paramref name="landHeight"/> receives that height (model units) for each promoted cell. Cells are visited in index order (deterministic).
     /// </summary>
-    public static SeaPassResult Run(SeaState sea, float[] delivered, bool[] outlet, int[] receiver, float[] area, float metresPerHeight,
+    public static SeaPassResult Run(SeaState sea, float[] delivered, bool[] outlet, int[] receiver, float[] area, float[] height, float metresPerHeight,
         Settings s, float[] landHeight)
     {
         var result = new SeaPassResult();
@@ -138,39 +180,50 @@ public static class SeaFillPass
         for (int i = 0; i < n; i++)
             ground[i] = sea.Sea[i] ? sea.Bed[i] : float.PositiveInfinity;
         float reference = 0f;
+        double mainLoad = 0.0; // the biggest mouth's delivered load this pass, in metres: the wave capacity is set against it, so both share one unit
         for (int c = 0; c < n; c++)
         {
-            if (delivered[c] > 0f && sea.Sea[c] && area[c] > reference)
-                reference = area[c];
+            if (delivered[c] > 0f && sea.Sea[c])
+            {
+                reference = Math.Max(reference, area[c]);
+                mainLoad = Math.Max(mainLoad, (double)delivered[c]);
+            }
         }
+        // Capacity per model cell of front: the main mouth (width = the reference width) has Q_w = WaveShare x its own load, so R = Q_s/Q_w = 1/WaveShare there.
+        if (s.Supply.Scale <= 0.0)
+            s.Supply.Scale = FixScale(sea, delivered, receiver, area, s, ground);
+        double scale = s.Supply.Scale;
+        double capacityPerWidth = s.WaveShare * mainLoad * scale / Math.Max(1f, s.ReferenceWidthModelCells);
         // Which cells were sea when the pass began: a cell a neighbouring mouth fills during the pass still counts as sea for its own load.
         var seaAtStart = (bool[])sea.Sea.Clone();
         for (int c = 0; c < n; c++)
         {
             if (delivered[c] <= 0f || !seaAtStart[c])
                 continue;
-            double metres = delivered[c] * (double)metresPerHeight;
+            double metres = delivered[c] * scale;
             result.Delivered += delivered[c];
             // Width (model cells) from the drainage area against the biggest mouth's: hydraulic geometry, w ~ sqrt(Q).
             float w = Math.Max(1f, s.ReferenceWidthModelCells * (float)Math.Sqrt(area[c] / Math.Max(reference, 1f)));
             float depth = Math.Max(MinMouthDepth, MouthDepthPerRootWidth * (float)Math.Sqrt(w * s.MapCellsPerModelCell));
-            if (!Axis(c, receiver, area, sea.Gx, sea.Gz, out float ax, out float az))
+            if (!Axis(c, receiver, area, sea.Gx, sea.Gz, out float ax, out float az, out int donor))
             {
                 result.NoRoom += delivered[c];
                 continue;
             }
+            // New land never stands higher than the ground behind the mouth (the land the river comes down), and never below the sea.
+            float ceiling = Math.Min(depth, Math.Max(MinMouthDepth * 0.5f, height[donor] * metresPerHeight));
             float settle = s.SettleWidths * w, reach = settle * s.ReachLengths;
             JetKernel.Weights(c, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, reach, s.SpreadRate, kernel);
             // Shallow cells first from the mouth: the kernel's cells are sea (finite ground) at or below the promotion height.
-            SeaFillResult r = SeaFill.Apply(sea.Bed, depth, kernel, metres, s.WaveCapacityPerWidth, w, w);
-            result.Retained += r.Retained / metresPerHeight;
-            result.RemovedByWaves += r.RemovedByWaves / metresPerHeight;
-            result.NoRoom += r.NoRoom / metresPerHeight;
+            SeaFillResult r = SeaFill.Apply(sea.Bed, ceiling, kernel, metres, capacityPerWidth, w, w);
+            result.Retained += r.Retained / scale;
+            result.RemovedByWaves += r.RemovedByWaves / scale;
+            result.NoRoom += r.NoRoom / scale;
             foreach (int cell in r.Promoted)
             {
                 if (sea.Promote(cell, s.KeepExit))
                 {
-                    landHeight[cell] = sea.Bed[cell] / metresPerHeight;
+                    landHeight[cell] = Math.Max(0f, sea.Bed[cell]) / metresPerHeight;
                     ground[cell] = float.PositiveInfinity;
                     result.PromotedCells++;
                     result.Cells.Add(cell);
@@ -184,6 +237,55 @@ public static class SeaFillPass
             }
         }
         return result;
+    }
+}
+
+/// <summary>
+/// The river's exit as built (plan risk 5): the sea fill can wall the exit cell in with new land, so the world river has to run on across
+/// that land to the first cell of sea still open along its own direction. The cells in between join the drainage as one channel.
+/// </summary>
+public static class SeaExit
+{
+    /// <summary>
+    /// Walks from <paramref name="exit"/> along the direction its biggest donor drains into it, to the first cell that is still sea.
+    /// Receivers of the cells walked are linked into a chain ending at that cell and their drainage area is raised to the exit's.
+    /// Returns the new exit (the old one when the sea is next to it already or no sea lies along the line), and the cells walked.
+    /// </summary>
+    public static int Extend(SeaState sea, int[] receiver, float[] area, int exit, List<int> walked)
+    {
+        walked.Clear();
+        if (exit < 0 || sea.Promoted == 0 || !SeaFillPass.Axis(exit, receiver, area, sea.Gx, sea.Gz, out float ax, out float az, out _))
+            return exit;
+        int ex = exit % sea.Gx, ez = exit / sea.Gx;
+        var line = new List<int>();
+        int last = exit;
+        for (int step = 1; step <= sea.Gx + sea.Gz; step++)
+        {
+            int cx = (int)Math.Round(ex + ax * step), cz = (int)Math.Round(ez + az * step);
+            if (cx < 0 || cz < 0 || cx >= sea.Gx || cz >= sea.Gz)
+                return exit;
+            int c = cz * sea.Gx + cx;
+            if (c == last)
+                continue;
+            if (sea.Sea[c])
+            {
+                if (line.Count == 0)
+                    return exit; // the sea is next to the exit already
+                receiver[last] = c;
+                receiver[c] = -1;
+                walked.AddRange(line);
+                return c;
+            }
+            // Land the sea fill built in front of the exit: the river crosses it.
+            area[c] = Math.Max(area[c], area[exit]);
+            if (line.Count > 0)
+                receiver[last] = c;
+            else
+                receiver[exit] = c;
+            line.Add(c);
+            last = c;
+        }
+        return exit;
     }
 }
 

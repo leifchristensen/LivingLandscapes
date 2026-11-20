@@ -72,10 +72,22 @@ public class SeaStateTests
         return (d, outlet, receiver, area);
     }
 
-    private static SeaFillPass.Settings Settings(double wave = 0.0) => new SeaFillPass.Settings
+    /// <summary>Model heights: the land (left of column 12) stands 'land' high, the sea is 0.</summary>
+    private static float[] Heights(float land)
     {
-        WaveCapacityPerWidth = wave, SettleWidths = 5f, ReachLengths = 3f, SpreadRate = 0.12f,
-        MapCellsPerModelCell = 2f, ReferenceWidthModelCells = 3f, KeepExit = -1,
+        var h = new float[GX * GZ];
+        for (int z = 0; z < GZ; z++)
+        {
+            for (int x = 0; x < 12; x++)
+                h[z * GX + x] = land;
+        }
+        return h;
+    }
+
+    private static SeaFillPass.Settings Settings(double wave = 0.0, float fill = 0.5f) => new SeaFillPass.Settings
+    {
+        WaveShare = wave, SettleWidths = 5f, ReachLengths = 3f, SpreadRate = 0.12f,
+        MapCellsPerModelCell = 2f, ReferenceWidthModelCells = 3f, KeepExit = -1, Supply = new SeaSupply(), FillPerPass = fill,
     };
 
     [Fact]
@@ -84,7 +96,7 @@ public class SeaStateTests
         SeaState sea = NewSea(0.5f);
         var (delivered, outlet, receiver, area) = River(sea, 400f);
         var landHeight = new float[GX * GZ];
-        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, 1f, Settings(0.2), landHeight);
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.3), landHeight);
         Assert.Equal(400.0, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
         Assert.Equal(r.Delivered, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
         // Room is never negative: a bed rises only to the mouth's depth (the promotion height), never past it by more than float rounding.
@@ -101,6 +113,55 @@ public class SeaStateTests
     }
 
     [Fact]
+    public void Exit_RunsOnAcrossNewLandToTheFirstOpenSea()
+    {
+        SeaState sea = NewSea();
+        var (_, _, receiver, area) = River(sea, 1f);
+        int exit = 15 * GX + 12;
+        for (int x = 13; x <= 16; x++)
+            Assert.True(sea.Promote(15 * GX + x, keep: exit));
+        var walked = new List<int>();
+        int built = SeaExit.Extend(sea, receiver, area, exit, walked);
+        Assert.Equal(15 * GX + 17, built);
+        Assert.Equal(4, walked.Count);
+        // The chain from the exit reaches the new exit cell, which stays sea.
+        int c = exit, steps = 0;
+        while (receiver[c] >= 0 && steps++ < 20)
+            c = receiver[c];
+        Assert.Equal(built, c);
+        Assert.True(sea.Sea[built]);
+    }
+
+    [Fact]
+    public void Exit_StaysWhereItIsWhenTheSeaIsOpen()
+    {
+        SeaState sea = NewSea();
+        var (_, _, receiver, area) = River(sea, 1f);
+        int exit = 15 * GX + 12;
+        Assert.True(sea.Promote(14 * GX + 14, keep: exit));
+        Assert.Equal(exit, SeaExit.Extend(sea, receiver, area, exit, new List<int>()));
+    }
+
+    [Fact]
+    public void Supply_TheFirstPassFixesTheUnitSoAHundredTimesTheLoadLaysTheSame()
+    {
+        float[] Beds(float load)
+        {
+            SeaState sea = NewSea(0.5f);
+            var (delivered, outlet, receiver, area) = River(sea, load);
+            var s = Settings(0.0, 0.1f);
+            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, s, new float[GX * GZ]);
+            Assert.True(s.Supply.Scale > 0.0);
+            Assert.Equal(r.Delivered, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
+            return sea.Bed;
+        }
+        float[] a = Beds(70f), b = Beds(7000f);
+        for (int i = 0; i < a.Length; i++)
+            Assert.Equal(a[i], b[i], 4);
+        Assert.Contains(a, v => v > -0.5f); // and it did lay something
+    }
+
+    [Fact]
     public void Run_PromotedCellsStayLandOverRepeatedPasses()
     {
         SeaState sea = NewSea(0.3f);
@@ -109,7 +170,7 @@ public class SeaStateTests
         for (int pass = 0; pass < 6; pass++)
         {
             var (delivered, outlet, receiver, area) = River(sea, 3f);
-            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, 1f, Settings(), landHeight);
+            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(), landHeight);
             foreach (int c in r.Cells)
                 Assert.True(promoted.Add(c), "a cell was promoted twice");
             foreach (int c in promoted)
@@ -124,8 +185,8 @@ public class SeaStateTests
         SeaState sea = NewSea(0.5f);
         var (delivered, outlet, receiver, area) = River(sea, 0.01f);
         var landHeight = new float[GX * GZ];
-        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, 1f, Settings(50.0), landHeight);
-        Assert.True(r.Retained < 0.01 * 0.001, $"retained {r.Retained}");
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(50.0), landHeight);
+        Assert.True(r.Retained < 0.021 * 0.01, $"retained {r.Retained}");
         Assert.Equal(0, r.PromotedCells);
     }
 
@@ -135,7 +196,7 @@ public class SeaStateTests
         SeaState sea = NewSea();
         var (delivered, outlet, receiver, area) = River(sea, 0f);
         float[] before = (float[])sea.Bed.Clone();
-        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, 1f, Settings(), new float[GX * GZ]);
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(), new float[GX * GZ]);
         Assert.Equal(before, sea.Bed);
         Assert.Equal(0.0, r.Delivered);
     }
@@ -147,7 +208,7 @@ public class SeaStateTests
         {
             SeaState sea = NewSea(0.4f);
             var (delivered, outlet, receiver, area) = River(sea, 2f);
-            SeaFillPass.Run(sea, delivered, outlet, receiver, area, 1f, Settings(0.1), new float[GX * GZ]);
+            SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.1), new float[GX * GZ]);
             return sea.Bed;
         }
         Assert.Equal(Once(), Once());
@@ -168,7 +229,7 @@ public class SeaStateTests
         SeaState sea = NewSea(0.5f);
         var (delivered, outlet, receiver, area) = River(sea, 7f);
         var landHeight = new float[GX * GZ];
-        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, 3f, Settings(0.3), landHeight);
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 3f, Settings(0.3), landHeight);
         var l = new ErosionLedger { Eroded = 7, RetainedAtSea = r.Retained, RemovedByWaves = r.RemovedByWaves, NoRoom = r.NoRoom };
         Assert.True(Math.Abs(1.0 - l.Closure) < 1e-5, $"closure {l.Closure}");
     }

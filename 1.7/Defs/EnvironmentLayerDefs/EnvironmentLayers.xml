@@ -132,14 +132,15 @@
         <hillslopeDiffusion>0.12</hillslopeDiffusion>
         <regionalUpliftBias>0.5</regionalUpliftBias>
         <riverInflow>8</riverInflow>
-        <!-- Deltas (DELTA-MODEL-PLAN.md D3): the sea keeps river sediment in the last stillstandShare of the run (R26). Waves carry
-             away at most waveTransportPerEnergy x energy per model cell of mouth width per pass; the energy is a stand-in (R27) until
+        <!-- Deltas (DELTA-MODEL-PLAN.md D3): the sea keeps river sediment in the last stillstandShare of the run (R26). The waves' capacity
+             at the biggest mouth is energy / waveEnergyReference of its own load (river-to-wave ratio R = reference / energy); the energy is a stand-in (R27) until
              each shore cell has its own exposure: low at a RiverDelta tile, higher on an open coast. The jet settles over seaJetSettleWidths
              mouth widths, out to seaJetReachLengths settling lengths. One scale for delta size, never per hilliness. -->
-        <stillstandShare>0.1</stillstandShare>
+        <stillstandShare>0.03</stillstandShare>
         <deltaWaveEnergy>0.15</deltaWaveEnergy>
         <openWaveEnergy>0.5</openWaveEnergy>
-        <waveTransportPerEnergy>0.2</waveTransportPerEnergy>
+        <waveEnergyReference>0.45</waveEnergyReference>
+        <seaFillPerPass>0.05</seaFillPerPass>
         <seaJetSettleWidths>5</seaJetSettleWidths>
         <seaJetReachLengths>3</seaJetReachLengths>
         <seaJetSpread>0.12</seaJetSpread>

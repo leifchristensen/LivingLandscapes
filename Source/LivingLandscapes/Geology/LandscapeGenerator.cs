@@ -86,18 +86,20 @@ public class GeologyGenerationExtension : DefModExtension
     /// <summary>
     /// Rule R26: the sea keeps river sediment only while sea level stands still, the last share of the run (modern deltas formed in the
     /// last ~7 000 years of stable sea level). Earlier the sea only carries what reaches it away. With deltaWaveEnergy and
-    /// waveTransportPerEnergy this sets the size of a delta on the map: the one scale (never per hilliness), tuned on the 12-case battery.
+    /// waveEnergyReference this sets the size of a delta on the map: the one scale (never per hilliness), tuned on the 12-case battery.
     /// </summary>
-    public float stillstandShare = 0.1f;
+    public float stillstandShare = 0.03f;
 
     /// <summary>
     /// Rule R27 (stand-in until each shore cell has its own wave exposure, step D5): wave energy 0..1 at a river mouth. Tiles with the
     /// RiverDelta feature are river-dominated, sheltered places (low energy); a coast tile with a river but no such feature meets the open
-    /// sea (higher). Waves carry away at most waveTransportPerEnergy x energy of sediment per model cell of mouth width per pass.
+    /// sea (higher). The waves' capacity at the biggest mouth is (energy / waveEnergyReference) x that mouth's own delivered load, so the river-to-wave ratio R there is waveEnergyReference / energy: 3 at a sheltered delta tile, 0.9 on an open coast.
     /// </summary>
+    /// <summary>The unit of the sea fill's load (see <see cref="SeaSupply"/>): the share of the room the main mouth's jet reaches that one pass lays.</summary>
+    public float seaFillPerPass = 0.05f;
     public float deltaWaveEnergy = 0.15f;
     public float openWaveEnergy = 0.5f;
-    public float waveTransportPerEnergy = 0.2f;
+    public float waveEnergyReference = 0.45f;
 
     /// <summary>
     /// The mouth jet on the sea floor (principle P27, same kernel as the channel stage's): load settles over seaJetSettleWidths mouth widths
@@ -379,16 +381,38 @@ public static class LandscapeGenerator
         float waveEnergy = world.Mouth.DeltaFeature ? p.deltaWaveEnergy : p.openWaveEnergy;
         var seaSettings = new SeaFillPass.Settings
         {
-            WaveCapacityPerWidth = p.waveTransportPerEnergy * waveEnergy,
+            WaveShare = waveEnergy / Mathf.Max(1e-6f, p.waveEnergyReference),
             SettleWidths = p.seaJetSettleWidths, ReachLengths = p.seaJetReachLengths, SpreadRate = p.seaJetSpread,
             MapCellsPerModelCell = mapCellsPerModelCell,
             ReferenceWidthModelCells = Mathf.Max(1f, (world.Mouth.Present ? world.Mouth.Width : world.RiverExitWidth) / mapCellsPerModelCell),
-            KeepExit = riverExit,
+            KeepExit = riverExit, Supply = new SeaSupply(), FillPerPass = p.seaFillPerPass,
         };
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, sea, seaFillOn, seaSettings, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
             out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, out ErosionKeepsOutput keeps, out ErosionLedger ledger,
             floor, observe, WaterBalance.LakeShare(map, out _), courseFlow, courseReceiver, courseBed);
         LastLedger = ledger;
+        // The river's exit as built: land the sea fill put in front of the exit is crossed by the river down to the first sea still open.
+        int exitAsBuilt = riverExit;
+        if (sea != null && riverExit >= 0)
+        {
+            var crossed = new List<int>();
+            exitAsBuilt = SeaExit.Extend(sea, receiver, area, riverExit, crossed);
+            if (exitAsBuilt != riverExit)
+            {
+                if (courseReceiver != null)
+                {
+                    int prev = riverExit;
+                    foreach (int c in crossed)
+                    {
+                        courseReceiver[prev] = c;
+                        prev = c;
+                    }
+                    courseReceiver[prev] = exitAsBuilt;
+                    courseReceiver[exitAsBuilt] = -1;
+                }
+                Log.Message($"[LivingLandscapes] River exit as built (D3): the sea fill walled in the exit at {riverExit % gx},{riverExit / gx}; the world river runs {crossed.Count + 1} model cells on across the new land to the sea at {exitAsBuilt % gx},{exitAsBuilt / gx}.");
+            }
+        }
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -402,7 +426,7 @@ public static class LandscapeGenerator
         // The channels the model carved, from its drainage tree; the world river is the one reaching its exit.
         channels = RiverNetwork.Extract(receiver, area, gx, gz,
             c => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell),
-            mapCellsPerModelCell, sizeX, sizeZ, entries, riverExit, world.RiverExitWidth,
+            mapCellsPerModelCell, sizeX, sizeZ, entries, exitAsBuilt, world.RiverExitWidth,
             water?.sourceShare.RandomInRange ?? p.network.sourceShare, p.network);
         WorldCourses = WorldCoursesOnMap(courseStarts, courseReceiver, ToMap, sizeX, sizeZ);
         if (entries.Count > 0)
@@ -1289,7 +1313,7 @@ public static class LandscapeGenerator
                 {
                     float top = Mathf.Max(1e-6f, h.Max());
                     lastMetresPerHeight = relief / top;
-                    seaPass = SeaFillPass.Run(sea, delivered, outlet, receiver, area, lastMetresPerHeight, seaSettings, landHeight);
+                    seaPass = SeaFillPass.Run(sea, delivered, outlet, receiver, area, h, lastMetresPerHeight, seaSettings, landHeight);
                     foreach (int cell in seaPass.Cells)
                     {
                         builtLand[cell] = true;
