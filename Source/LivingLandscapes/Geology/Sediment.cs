@@ -290,32 +290,7 @@ public static partial class Sediment
         float[] alluvium, float[] grainSum, List<(int cell, float weight, float d)> weights, float classGrain = -1f, float settleLength = -1f, float reachCells = -1f)
     {
         float settle = settleLength > 0f ? settleLength : p.jetSettleWidths * w, reach = reachCells > 0f ? reachCells : settle * p.jetReachLengths;
-        var across = new Vector2(-axis.y, axis.x);
-        int cx = c % sizeX, cz = c / sizeX, r = Mathf.CeilToInt(reach);
-        weights.Clear();
-        float sum = 0f;
-        for (int dz = -r; dz <= r; dz++)
-        {
-            for (int dx = -r; dx <= r; dx++)
-            {
-                int x = cx + dx, z = cz + dz;
-                if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
-                    continue;
-                var offset = new Vector2(dx, dz);
-                float along = Vector2.Dot(offset, axis), side = Vector2.Dot(offset, across);
-                if (along < -0.5f || along > reach)
-                    continue;
-                int i = z * sizeX + x;
-                if (natural[i] > level)
-                    continue;
-                float half = 0.5f * w + p.jetSpreadRate * Mathf.Max(along, 0f);
-                float weight = Mathf.Exp(-Mathf.Max(along, 0f) / settle) * Mathf.Exp(-side * side / (2f * half * half));
-                if (weight < 1e-4f)
-                    continue;
-                weights.Add((i, weight, Mathf.Max(along, 0f)));
-                sum += weight;
-            }
-        }
+        float sum = JetKernel.Weights(c, axis.x, axis.y, w, level, natural, sizeX, sizeZ, settle, reach, p.jetSpreadRate, weights);
         if (sum <= 0f)
             return false;
         foreach ((int i, float weight, float along) in weights)
