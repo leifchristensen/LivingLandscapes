@@ -64,6 +64,26 @@ public class WorldContext
     /// <summary>Direction the river flows (towards its downstream neighbour).</summary>
     public Vector2 RiverFlow;
 
+    /// <summary>
+    /// What the world says about where the river meets the sea (DELTA-MODEL-PLAN.md section 3): whether the tile carries the RiverDelta
+    /// feature, how many river links it has, the direction the sea lies in, and the discharge and width the river leaves with.
+    /// Nothing reads it yet except the "Delta report" log line. Absent (<see cref="RiverMouth.Present"/> false) where no river meets the sea.
+    /// </summary>
+    public struct RiverMouth
+    {
+        public bool Present;
+        /// <summary>The tile has the RiverDelta mutator (three or more river links meeting the sea).</summary>
+        public bool DeltaFeature;
+        public int Links;
+        public Vector2 SeaDirection;
+        /// <summary>Vanilla's world flow through the tile (<see cref="WorldFlow"/>), in the river defs' units.</summary>
+        public float Q;
+        /// <summary>The widest river link's width on the map.</summary>
+        public float Width;
+    }
+
+    public RiverMouth Mouth;
+
     /// <summary>Least fall per metre along a world river's map (the real fall can be a metre in tens of kilometres).</summary>
     private const float MinRiverGradient = 0.0005f;
 
@@ -153,6 +173,18 @@ public class WorldContext
                 float downHeight = toSea ? 0f : Mathf.Max(WorldAltitude.At(downstream.neighbor), 0f);
                 float tiles = upstream.Count > 0 ? 2f : 1f;
                 context.RegionalGradient = Mathf.Max(MinRiverGradient, (upHeight - downHeight) / (tiles * tileSpacingMetres));
+            }
+            if (mouth)
+            {
+                context.Mouth = new RiverMouth
+                {
+                    Present = true,
+                    DeltaFeature = tile.Mutators.Any(m => m.defName == "RiverDelta"),
+                    Links = links.Count,
+                    SeaDirection = context.SeaDirection != Vector2.zero ? context.SeaDirection : context.RiverExit,
+                    Q = context.Flow,
+                    Width = context.RiverExitWidth,
+                };
             }
             Rand.PushState(Gen.HashCombineInt(Find.World.info.Seed, here.tileId));
             context.RiverCentre = new Vector2(Rand.Range(-0.2f, 0.2f), Rand.Range(-0.2f, 0.2f));
