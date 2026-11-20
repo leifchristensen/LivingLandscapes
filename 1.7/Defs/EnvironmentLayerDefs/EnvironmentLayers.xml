@@ -137,12 +137,14 @@
              each shore cell has its own exposure: low at a RiverDelta tile, higher on an open coast. The jet settles over seaJetSettleWidths
              mouth widths, out to seaJetReachLengths settling lengths. One scale for delta size, never per hilliness. -->
         <stillstandShare>0.03</stillstandShare>
-        <deltaWaveEnergy>0.15</deltaWaveEnergy>
-        <openWaveEnergy>0.5</openWaveEnergy>
+        <deltaWaveEnergy>0.1</deltaWaveEnergy>
+        <openWaveEnergy>0.9</openWaveEnergy>
         <waveEnergyReference>0.45</waveEnergyReference>
         <seaFillPerPass>0.05</seaFillPerPass>
         <seaJetSettleWidths>5</seaJetSettleWidths>
         <seaJetReachLengths>3</seaJetReachLengths>
+        <seaJetMaxReach>60</seaJetMaxReach>
+        <seaJetWindowMargin>8</seaJetWindowMargin>
         <seaJetSpread>0.12</seaJetSpread>
         <!-- Channel network (rules V1-V3): channels first, valleys follow; widths compressed to map scale. -->
         <network>

@@ -110,6 +110,9 @@ public static class SeaFillPass
         public float ReferenceWidthModelCells; // width of the largest mouth, model cells
         public int KeepExit;                   // the river's exit cell, never promoted
         public SeaSupply Supply;               // the load-to-metres scale, fixed by the window's first pass
+        public float WindowMinX, WindowMinZ, WindowMaxX, WindowMaxZ; // the map window on the model grid (model cells); a lobe keeps a margin of open sea inside it
+        public float WindowMargin;             // model cells
+        public float MaxReach;                 // the jet never reaches farther than this from the mouth (model cells); load it cannot place there is noRoom
         public float FillPerPass;              // share of the room the main jet reaches that one pass lays (the unit of the load)
     }
 
@@ -140,6 +143,25 @@ public static class SeaFillPass
         return true;
     }
 
+    /// <summary>How far the jet reaches: its settling lengths, never beyond the cap that keeps a lobe inside the map.</summary>
+    private static float Reach(float settle, Settings s, int cell, float ax, float az, int gx)
+    {
+        float reach = settle * s.ReachLengths;
+        if (s.MaxReach > 0f)
+            reach = Math.Min(reach, s.MaxReach);
+        if (s.WindowMaxX > s.WindowMinX)
+        {
+            // Along the axis to the map window's edge, less a margin: the sea the river ends in stays on the map.
+            float x = cell % gx, z = cell / gx, toEdge = float.MaxValue;
+            if (ax > 1e-4f) toEdge = Math.Min(toEdge, (s.WindowMaxX - x) / ax);
+            else if (ax < -1e-4f) toEdge = Math.Min(toEdge, (s.WindowMinX - x) / ax);
+            if (az > 1e-4f) toEdge = Math.Min(toEdge, (s.WindowMaxZ - z) / az);
+            else if (az < -1e-4f) toEdge = Math.Min(toEdge, (s.WindowMinZ - z) / az);
+            reach = Math.Min(reach, Math.Max(1f, toEdge - s.WindowMargin));
+        }
+        return reach;
+    }
+
     /// <summary>The metres per unit of load: the main mouth's first load lays <c>FillPerPass</c> of the room its jet reaches (0 when nothing arrives).</summary>
     private static double FixScale(SeaState sea, float[] delivered, int[] receiver, float[] area, Settings s, float[] ground)
     {
@@ -155,7 +177,7 @@ public static class SeaFillPass
         float depth = Math.Max(MinMouthDepth, MouthDepthPerRootWidth * (float)Math.Sqrt(w * s.MapCellsPerModelCell));
         var kernel = new List<(int cell, float weight, float d)>();
         float settle = s.SettleWidths * w;
-        JetKernel.Weights(main, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, settle * s.ReachLengths, s.SpreadRate, kernel);
+        JetKernel.Weights(main, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, Reach(settle, s, main, ax, az, sea.Gx), s.SpreadRate, kernel);
         double room = 0.0;
         foreach (var k in kernel)
         {
@@ -212,7 +234,7 @@ public static class SeaFillPass
             }
             // New land never stands higher than the ground behind the mouth (the land the river comes down), and never below the sea.
             float ceiling = Math.Min(depth, Math.Max(MinMouthDepth * 0.5f, height[donor] * metresPerHeight));
-            float settle = s.SettleWidths * w, reach = settle * s.ReachLengths;
+            float settle = s.SettleWidths * w, reach = Reach(settle, s, c, ax, az, sea.Gx);
             JetKernel.Weights(c, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, reach, s.SpreadRate, kernel);
             // Shallow cells first from the mouth: the kernel's cells are sea (finite ground) at or below the promotion height.
             SeaFillResult r = SeaFill.Apply(sea.Bed, ceiling, kernel, metres, capacityPerWidth, w, w);

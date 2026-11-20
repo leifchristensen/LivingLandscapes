@@ -144,6 +144,14 @@ public static class Coastline
     /// <summary>Cells of vanilla's water mask the rivers built into land (above the sea) on the map generated last; null where none.</summary>
     public static bool[] LastBuilt;
 
+    /// <summary>Where the world river meets the sea as built (map cells, radius): the sea stays open there so the river ends in water, not on the blurred edge of new land.</summary>
+    public static (Vector2 centre, float radius)? ExitSea;
+
+    /// <summary>Map cells within a model cell of land the sea fill made; built land is only counted there. Null: no restriction.</summary>
+    public static bool[] PromotedMask;
+
+    private static bool NearExit(int x, int z) => ExitSea.HasValue && (new Vector2(x, z) - ExitSea.Value.centre).sqrMagnitude <= ExitSea.Value.radius * ExitSea.Value.radius;
+
     private static bool[] CoastCells(Map map, bool beach)
     {
         TileMutatorWorker_Coast coast = Find(map);
@@ -255,7 +263,7 @@ public static class Coastline
             built = new bool[n];
             for (int i = 0; i < n; i++)
             {
-                if (water[i] && smoothGround[i] - seaLevel > BuiltLandMin)
+                if (water[i] && smoothGround[i] - seaLevel > BuiltLandMin && !NearExit(i % sizeX, i / sizeX) && (PromotedMask == null || PromotedMask[i]))
                 {
                     built[i] = true;
                     builtCells++;

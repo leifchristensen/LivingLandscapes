@@ -162,6 +162,23 @@ public class SeaStateTests
     }
 
     [Fact]
+    public void Run_TheJetStopsShortOfTheMapEdgeAndTheReachCap()
+    {
+        SeaState sea = NewSea(0.5f);
+        var (delivered, outlet, receiver, area) = River(sea, 400f);
+        var s = Settings(0.0, 3f);
+        // The map window ends 14 cells east of the mouth; with an 8 cell margin the lobe can reach 6 cells.
+        s.WindowMinX = 0; s.WindowMinZ = 0; s.WindowMaxX = 12 + 14; s.WindowMaxZ = GZ; s.WindowMargin = 8f;
+        s.MaxReach = 40f;
+        var landHeight = new float[GX * GZ];
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, s, landHeight);
+        Assert.True(r.PromotedCells > 0);
+        foreach (int c in r.Cells)
+            Assert.True(c % GX <= 12 + 6, $"cell at x={c % GX} promoted beyond the reach");
+        Assert.True(r.NoRoom > 0.0, "load the jet cannot place within reach is noRoom, not carried on");
+    }
+
+    [Fact]
     public void Run_PromotedCellsStayLandOverRepeatedPasses()
     {
         SeaState sea = NewSea(0.3f);
