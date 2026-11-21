@@ -194,9 +194,12 @@ public static class WaterRegimes
         if (GenCommandLine.TryGetCommandLineArg("ll-water-regime", out string forced))
         {
             WaterRegimeDef named = DefDatabase<WaterRegimeDef>.GetNamedSilentFail(forced);
-            if (named != null)
+            if (named != null && WaterFeatureMath.RegimeFitsRiver(named.knobErodibility, world.RiverInflows.Count))
                 return named;
-            Log.Warning($"[LivingLandscapes] -ll-water-regime={forced}: no such water regime; selecting normally.");
+            if (named != null)
+                Log.Warning($"[LivingLandscapes] -ll-water-regime={forced}: its knob needs a river that comes in from beyond the map, and this tile's river rises here (the game never gives such a tile a river island); selecting normally.");
+            else
+                Log.Warning($"[LivingLandscapes] -ll-water-regime={forced}: no such water regime; selecting normally.");
         }
         var mutators = new HashSet<string>(map.TileInfo?.Mutators?.Select(m => m.defName) ?? Enumerable.Empty<string>());
         foreach (WaterRegimeDef def in DefDatabase<WaterRegimeDef>.AllDefsListForReading.OrderBy(d => d.order))
