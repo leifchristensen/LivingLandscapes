@@ -177,7 +177,7 @@ public static partial class TerrainChannels
     /// #180); a hollow too shallow for one keeps the channel painted through it, so the water does not stop at its rim.
     /// </summary>
     private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, float[] depthBeforeScour, Standing standing, bool[] moving, float[] bankAmplitude, Vector2[] direction,
-        int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
+        int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, float[] rockStrength = null)
     {
         int n = height.Length;
         var best = new float[n];
@@ -224,8 +224,14 @@ public static partial class TerrainChannels
                         continue;
                     // Water spreads over ground near its surface, not through high ground: banks, knobs and valley
                     // sides higher than this stay dry, so the channel narrows there and splits around islands.
-                    if (r > 0f && height[z * sizeX + x] > filled[c] + p.maxBankCut)
-                        continue;
+                    // A bank is cut as high as the water can undercut it: its depth, by how soft the ground is (lateral erosion).
+                    if (r > 0f)
+                    {
+                        float softness = rockStrength != null ? 1f - Mathf.Clamp01(rockStrength[z * sizeX + x]) : 0.5f;
+                        float reachUp = Mathf.Max(p.maxBankCut, p.bankCutDepths * depth[c] * softness);
+                        if (height[z * sizeX + x] > filled[c] + reachUp)
+                            continue;
+                    }
                     float t = r / edge;
                     float d = depth[c] * (1f - t * t);
                     // Shoals are sampled per cell, so their edges follow the noise, not the channel's cells.
@@ -245,10 +251,34 @@ public static partial class TerrainChannels
                 }
             }
         }
+        // A single cell of water touching no other water is not a channel: bank noise and the bank-height test leave such specks
+        // along the edge. The channel's own centre line keeps its cells.
+        var speck = new bool[n];
+        for (int i = 0; i < n; i++)
+        {
+            if (owner[i] < 0 || owner[i] == i)
+                continue;
+            bool joined = false;
+            GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => joined |= owner[nb] >= 0);
+            if (!joined)
+            {
+                // The diagonals count too: a stepped one-cell thread is joined corner to corner.
+                int x = i % sizeX, z = i / sizeX;
+                for (int dz = -1; dz <= 1 && !joined; dz++)
+                {
+                    for (int dx = -1; dx <= 1 && !joined; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        joined = (dx != 0 || dz != 0) && nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && owner[nz * sizeX + nx] >= 0;
+                    }
+                }
+            }
+            speck[i] = !joined;
+        }
         for (int i = 0; i < n; i++)
         {
             int c = owner[i];
-            if (c < 0)
+            if (c < 0 || speck[i])
                 continue;
             // Water never stands above the surface a cell drains at: below a fall, a cell the upper channel cell's disc reaches
             // (a hollow centre cell left to the lake model, say) keeps its own lower level rather than the water above the fall.

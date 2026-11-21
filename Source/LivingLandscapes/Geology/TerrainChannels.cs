@@ -227,7 +227,7 @@ public static partial class TerrainChannels
         List<RiverPlan> plans = Trace(cells, receiver, main, branchFrom, discharge, inflow, world, width, sizeX, runoff, vanillaWidth, out int[] planOf,
             worldCourse.Legs.Count > 0 ? worldCourse.Legs[0] : null);
         var natural = (float[])height.Clone();
-        int inHollows = Paint(height, filled, cells, width, depth, depthBeforeScour, standing, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system);
+        int inHollows = Paint(height, filled, cells, width, depth, depthBeforeScour, standing, moving, bankAmplitude, direction, planOf, sizeX, sizeZ, p, system, rockStrength);
         // How close each seep comes to running: its water as a share of what the seep can hold.
         foreach (int c in cells)
         {

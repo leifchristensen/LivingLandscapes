@@ -166,8 +166,15 @@ public class TerrainChannelSettings
     /// </summary>
     public float standingTolerance = 0.05f;
 
-    /// <summary>Ground more than this (metres) above a channel's water surface is not cut into the channel's width.</summary>
+    /// <summary>Ground at least this (metres) above a channel's water surface is never cut into the channel's width.</summary>
     public float maxBankCut = 0.3f;
+
+    /// <summary>
+    /// How high a bank the water cuts away (lateral erosion): up to the channel's depth times this times the softness of the
+    /// bank ground (1 - rock strength), but never less than <see cref="maxBankCut"/>. A river fills the width its discharge
+    /// gives it by undercutting soft banks; hard rock stands (a gorge). 1 = a soft bank is cut up to the full depth.
+    /// </summary>
+    public float bankCutDepths = 1f;
 
     /// <summary>
     /// Flow spreading (step 3): how readily water divides where the ground falls away two ways. Higher is more
