@@ -217,18 +217,20 @@ public static class Coastline
     }
 
     /// <summary>
-    /// Writes the sea floor of the map's coast mutators into <paramref name="height"/> (metres): the shelf profile below
-    /// <paramref name="seaLevel"/>, the model's base level (see <see cref="CoastMath"/>). Land is not touched: the erosion model
-    /// grades it to that level. Resistant rock near the shore (<paramref name="resistant"/>, 0..1 per cell) stays standing in
-    /// the water as sea stacks (#60 moves them into the model). Returns the number of sea cells.
+    /// Height (metres) above sea level at which sea the erosion model filled counts as land built by a river (smooth ground, before micro-relief).
+    /// A third of the least mouth depth (0.15 m): the crop's bilinear sampling and blur leave a faint tail (a few cm) round the real land, and
+    /// a lower line made that tail into one-cell islands and checkerboard blocks at the edge.
     /// </summary>
-    /// <summary>Height (metres) above sea level at which sea the erosion model filled counts as land built by a river (smooth ground, before micro-relief).</summary>
-    public const float BuiltLandMin = 0.02f;
+    public const float BuiltLandMin = 0.05f;
 
     /// <summary>Cells round built land that lose the vanilla beach band: new land reads as delta plain, not a sand rim (plan risk 9).</summary>
     public const int BeachClearRadius = 3;
 
     /// <summary>
+    /// Writes the sea floor of the map's coast mutators into <paramref name="height"/> (metres): the shelf profile below
+    /// <paramref name="seaLevel"/>, the model's base level (see <see cref="CoastMath"/>). Land is not touched: the erosion model
+    /// grades it to that level. Resistant rock near the shore (<paramref name="resistant"/>, 0..1 per cell) stays standing in
+    /// the water as sea stacks (#60 moves them into the model). Returns the number of sea cells.
     /// With <paramref name="smoothGround"/> and <paramref name="modelBed"/> (the erosion model's sea floor below sea level, metres, on the
     /// map's cells) the sea has been allowed to fill: water cells the model raised above the sea (smooth ground over BuiltLandMin) keep their
     /// height, and the floor elsewhere is min(drawn profile from the new shore, the model's bed). The built land and its beach clearance are
@@ -321,6 +323,27 @@ public static class Coastline
                 nearBuilt[i] = fromBuilt[i] <= BeachClearRadius;
             planned.PlannedBuilt = built;
             planned.PlannedBuiltNear = nearBuilt;
+        }
+        if (built != null && ExitSea.HasValue)
+        {
+            // Debug: the cells round the river's exit as built. w water, B built land, n beach cleared round new land, . other; X the exit.
+            int cx = Mathf.RoundToInt(ExitSea.Value.centre.x), cz = Mathf.RoundToInt(ExitSea.Value.centre.y);
+            var sb = new System.Text.StringBuilder();
+            for (int z = cz + 8; z >= cz - 8; z--)
+            {
+                for (int x = cx - 8; x <= cx + 8; x++)
+                {
+                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                        sb.Append(' ');
+                    else
+                    {
+                        int i = z * sizeX + x;
+                        sb.Append(x == cx && z == cz ? 'X' : built[i] ? 'B' : (planned?.PlannedBuiltNear != null && planned.PlannedBuiltNear[i] && !water[i]) ? 'n' : water[i] ? 'w' : '.');
+                    }
+                }
+                sb.Append('/');
+            }
+            Log.Message($"[LivingLandscapes] Exit surroundings (top row first, rows split by /): {sb}");
         }
         if (built != null)
             Log.Message($"[LivingLandscapes] Built land on {map}: {builtCells} cells of vanilla's water mask stand above the sea after the model's sea fill ({(float)builtCells / n:P2} of the map).");

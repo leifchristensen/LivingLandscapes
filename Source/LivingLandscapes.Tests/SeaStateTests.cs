@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using LivingLandscapes.Geology;
@@ -84,10 +85,10 @@ public class SeaStateTests
         return h;
     }
 
-    private static SeaFillPass.Settings Settings(double wave = 0.0, float fill = 0.5f) => new SeaFillPass.Settings
+    private static SeaFillPass.Settings Settings(double wave = 0.0, float metresPerRiver = 200f, float referenceWidth = 6f) => new SeaFillPass.Settings
     {
         WaveShare = wave, SettleWidths = 5f, ReachLengths = 3f, SpreadRate = 0.12f,
-        MapCellsPerModelCell = 2f, ReferenceWidthModelCells = 3f, KeepExit = -1, Supply = new SeaSupply(), FillPerPass = fill,
+        MapCellsPerModelCell = 2f, ReferenceWidthModelCells = 3f, KeepExit = -1, MetresPerReferenceRiver = metresPerRiver, ReferenceRiverWidthMapCells = referenceWidth,
     };
 
     [Fact]
@@ -121,9 +122,11 @@ public class SeaStateTests
         for (int x = 13; x <= 16; x++)
             Assert.True(sea.Promote(15 * GX + x, keep: exit));
         var walked = new List<int>();
-        int built = SeaExit.Extend(sea, receiver, area, exit, walked);
-        Assert.Equal(15 * GX + 17, built);
-        Assert.Equal(4, walked.Count);
+        int built = SeaExit.Extend(sea, receiver, area, Heights(0f).Select((_, i) => sea.Sea[i] ? 0f : 0.3f).ToArray(), exit, walked);
+        // The walk takes the first open sea it meets: the diagonal beside the last cell of land, not the straight line out to x = 17.
+        Assert.True(sea.Sea[built]);
+        Assert.True(built % GX <= 17);
+        Assert.True(walked.Count >= 1 && walked.Count <= 4);
         // The chain from the exit reaches the new exit cell, which stays sea.
         int c = exit, steps = 0;
         while (receiver[c] >= 0 && steps++ < 20)
@@ -133,32 +136,140 @@ public class SeaStateTests
     }
 
     [Fact]
+    public void Exit_FollowsTheLowestGroundNotAStraightLine()
+    {
+        SeaState sea = NewSea();
+        var (_, _, receiver, area) = River(sea, 1f);
+        int exit = 15 * GX + 12;
+        for (int x = 13; x <= 16; x++)
+        {
+            for (int z = 13; z <= 17; z++)
+                Assert.True(sea.Promote(z * GX + x, keep: exit));
+        }
+        // New land 0.3 high everywhere except a gully one row up (z = 14) at 0.05: the river should take it, not run straight east along z = 15.
+        var height = new float[GX * GZ];
+        for (int i = 0; i < height.Length; i++)
+            height[i] = sea.Sea[i] ? 0f : 0.3f;
+        for (int x = 13; x <= 16; x++)
+            height[14 * GX + x] = 0.05f;
+        var walked = new List<int>();
+        int built = SeaExit.Extend(sea, receiver, area, height, exit, walked);
+        Assert.True(sea.Sea[built]);
+        Assert.Contains(14 * GX + 14, walked);
+        Assert.Equal(walked.Count, walked.Distinct().Count());
+        int c = exit, steps = 0;
+        while (receiver[c] >= 0 && steps++ < 40)
+            c = receiver[c];
+        Assert.Equal(built, c);
+    }
+
+    [Fact]
+    public void Exit_NeverClosesALoop_AndLeavesEverythingUntouchedWhenBlocked()
+    {
+        SeaState sea = NewSea();
+        var (_, _, receiver, area) = River(sea, 1f);
+        int exit = 15 * GX + 12;
+        for (int x = 13; x <= 16; x++)
+        {
+            for (int z = 14; z <= 16; z++)
+                Assert.True(sea.Promote(z * GX + x, keep: exit));
+        }
+        // A tributary already drains from the new land into the exit: the walk must not step onto it (that would make a loop).
+        receiver[15 * GX + 13] = exit;
+        area[15 * GX + 13] = 9f;
+        var height = new float[GX * GZ];
+        for (int i = 0; i < height.Length; i++)
+            height[i] = sea.Sea[i] ? 0f : 0.3f;
+        height[15 * GX + 13] = 0.0f; // the lowest ground is the tributary itself
+        var walked = new List<int>();
+        int built = SeaExit.Extend(sea, receiver, area, height, exit, walked);
+        Assert.DoesNotContain(15 * GX + 13, walked);
+        int c = exit, steps = 0;
+        while (receiver[c] >= 0 && steps++ < 100)
+            c = receiver[c];
+        Assert.True(steps < 100, "the chain from the exit loops");
+        Assert.Equal(built, c);
+
+        // Every cell ahead already drains into the exit: no way on without a loop, so nothing changes.
+        SeaState blocked = NewSea();
+        var (_, _, r2, a2) = River(blocked, 1f);
+        for (int z = 14; z <= 16; z++)
+        {
+            Assert.True(blocked.Promote(z * GX + 13, keep: exit));
+            r2[z * GX + 13] = exit;
+        }
+        int[] before = (int[])r2.Clone();
+        float[] areaBefore = (float[])a2.Clone();
+        Assert.Equal(exit, SeaExit.Extend(blocked, r2, a2, new float[GX * GZ], exit, new List<int>()));
+        Assert.Equal(before, r2);
+        Assert.Equal(areaBefore, a2);
+    }
+
+    [Fact]
     public void Exit_StaysWhereItIsWhenTheSeaIsOpen()
     {
         SeaState sea = NewSea();
         var (_, _, receiver, area) = River(sea, 1f);
         int exit = 15 * GX + 12;
         Assert.True(sea.Promote(14 * GX + 14, keep: exit));
-        Assert.Equal(exit, SeaExit.Extend(sea, receiver, area, exit, new List<int>()));
+        Assert.Equal(exit, SeaExit.Extend(sea, receiver, area, new float[GX * GZ], exit, new List<int>()));
     }
 
     [Fact]
-    public void Supply_TheFirstPassFixesTheUnitSoAHundredTimesTheLoadLaysTheSame()
+    public void Scale_DoesNotDependOnTheMagnitudeOfTheModelsLoad()
     {
+        // The model's load has no physical size: the same river with a thousand times the load lays the same floor.
         float[] Beds(float load)
         {
             SeaState sea = NewSea(0.5f);
             var (delivered, outlet, receiver, area) = River(sea, load);
-            var s = Settings(0.0, 0.1f);
-            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, s, new float[GX * GZ]);
-            Assert.True(s.Supply.Scale > 0.0);
+            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.0, 20f), new float[GX * GZ]);
             Assert.Equal(r.Delivered, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
             return sea.Bed;
         }
-        float[] a = Beds(70f), b = Beds(7000f);
+        float[] a = Beds(70f), b = Beds(70000f);
         for (int i = 0; i < a.Length; i++)
             Assert.Equal(a[i], b[i], 4);
         Assert.Contains(a, v => v > -0.5f); // and it did lay something
+    }
+
+    [Fact]
+    public void Run_AWiderRiverOnTheSameCoastBuildsMoreLand()
+    {
+        // Same coast, same constant, same load in the model: the river whose mouth is twice as wide (four times the discharge) lays more floor.
+        (int promoted, double floorRise, double metres) Build(float referenceWidth)
+        {
+            SeaState sea = NewSea(0.5f);
+            var (delivered, outlet, receiver, area) = River(sea, 100f);
+            SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.3, 1500f, referenceWidth), new float[GX * GZ]);
+            return (sea.Promoted, sea.Bed.Sum() - NewSea(0.5f).Bed.Sum(), r.Metres);
+        }
+        var small = Build(12f); // mouth 6 map cells against a reference of 12: weight 1/4
+        var huge = Build(6f);   // weight 1
+        Assert.Equal(4.0, huge.metres / small.metres, 6);
+        Assert.True(huge.floorRise > small.floorRise, $"floor rise huge {huge.floorRise} small {small.floorRise}");
+        Assert.True(huge.promoted >= small.promoted, $"promoted huge {huge.promoted} small {small.promoted}");
+        Assert.True(huge.promoted > 0);
+    }
+
+    [Theory]
+    [InlineData(0f, 6f)]
+    [InlineData(float.NaN, 6f)]
+    [InlineData(float.PositiveInfinity, 6f)]
+    [InlineData(0.5f, 0f)]
+    [InlineData(0.5f, float.NaN)]
+    public void Run_WithNoScaleEverythingIsNoRoomAndNothingIsLost(float metresPerRiver, float referenceWidth)
+    {
+        SeaState sea = NewSea(0.5f);
+        var (delivered, outlet, receiver, area) = River(sea, 40f);
+        float[] before = (float[])sea.Bed.Clone();
+        SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.3, metresPerRiver, referenceWidth), new float[GX * GZ]);
+        Assert.Equal(40.0, r.NoRoom, 9);
+        Assert.Equal(40.0, r.Delivered, 9);
+        Assert.Equal(0.0, r.Retained);
+        Assert.Equal(0.0, r.RemovedByWaves);
+        Assert.Equal(before, sea.Bed);
+        Assert.Equal(0, r.PromotedCells);
     }
 
     [Fact]
@@ -166,7 +277,7 @@ public class SeaStateTests
     {
         SeaState sea = NewSea(0.5f);
         var (delivered, outlet, receiver, area) = River(sea, 400f);
-        var s = Settings(0.0, 3f);
+        var s = Settings(0.0, 3000f);
         // The map window ends 14 cells east of the mouth; with an 8 cell margin the lobe can reach 6 cells.
         s.WindowMinX = 0; s.WindowMinZ = 0; s.WindowMaxX = 12 + 14; s.WindowMaxZ = GZ; s.WindowMargin = 8f;
         s.MaxReach = 40f;
@@ -238,6 +349,27 @@ public class SeaStateTests
         Assert.True(Math.Abs(1.0 - l.Closure) < 1e-5);
         l.Lost += 0.01;
         Assert.True(Math.Abs(1.0 - l.Closure) > 1e-5);
+    }
+
+    [Fact]
+    public void Ledger_DroppedIsASinkAndTheErodedTermsCloseOnTheirOwn()
+    {
+        // The world river's yield is a million times the eroded ground, as in the real logs.
+        var l = new ErosionLedger { Eroded = 1e6, Yield = 1e12, Kept = 4e5, Lake = 1e5, RetainedAtSea = 3e5, RemovedByWaves = 1e12 - 1e5, NoRoom = 5e4, LandEdgeOutlet = 3e5, Lost = 2e5, Dropped = 1e5 };
+        // sinks = 4e5 + 1e5 + 3e5 + (1e12 - 1e5) + 5e4 + 3e5 + 2e5 + 1e5 = 1e12 + 1.35e6 - 1e5... computed here so the test reads the ledger, not a magic number
+        double sinks = l.Kept + l.Lake + l.RetainedAtSea + l.RemovedByWaves + l.NoRoom + l.LandEdgeOutlet + l.Lost + l.Dropped;
+        l.Eroded = sinks - l.Yield;
+        Assert.True(Math.Abs(1.0 - l.Closure) < 1e-12);
+        Assert.True(Math.Abs(1.0 - l.ErodedClosure) < 1e-9, $"eroded closure {l.ErodedClosure}");
+        // Dropped counts: forget it and the eroded closure shows it.
+        double dropped = l.Dropped;
+        l.Dropped = 0.0;
+        Assert.True(Math.Abs(1.0 - l.ErodedClosure) > 0.05, $"eroded closure {l.ErodedClosure}");
+        l.Dropped = dropped;
+        // An error of 1% of the eroded ground is invisible to the whole closure and plain to the eroded one.
+        l.Lost += 0.01 * l.Eroded;
+        Assert.True(Math.Abs(1.0 - l.Closure) < 1e-5);
+        Assert.True(Math.Abs(1.0 - l.ErodedClosure) > 0.009);
     }
 
     [Fact]

@@ -91,12 +91,21 @@ public class GeologyGenerationExtension : DefModExtension
     public float stillstandShare = 0.03f;
 
     /// <summary>
+    /// ONE constant for every map and every river (rule R24, one deposit scale): metres of sea floor, summed over the cells of the jet, that a
+    /// reference river (the Large class) delivers to its mouth in one pass of the stillstand window. A river delivers this times its discharge
+    /// against the reference's (width squared, hydraulic geometry), so a Huge river builds more than a Large one on the same coast and the order is
+    /// a result, not set per map. The model's own load has no physical size, so only the shares between mouths come from it.
+    /// </summary>
+    public float seaMetresPerReferenceRiver = 50f;
+
+    /// <summary>Map width (cells) of the reference river, the Large class (worldRiverWidth 14 -> 12): its discharge weight is 1; a Huge river (24) is 4, a River (6) a quarter.</summary>
+    public float seaReferenceRiverWidth = 12f;
+
+    /// <summary>
     /// Rule R27 (stand-in until each shore cell has its own wave exposure, step D5): wave energy 0..1 at a river mouth. Tiles with the
     /// RiverDelta feature are river-dominated, sheltered places (low energy); a coast tile with a river but no such feature meets the open
     /// sea (higher). The waves' capacity at the biggest mouth is (energy / waveEnergyReference) x that mouth's own delivered load, so the river-to-wave ratio R there is waveEnergyReference / energy: 4.5 at a sheltered delta tile, 0.5 on an open coast.
     /// </summary>
-    /// <summary>The unit of the sea fill's load (see <see cref="SeaSupply"/>): the share of the room the main mouth's jet reaches that one pass lays.</summary>
-    public float seaFillPerPass = 0.05f;
     public float deltaWaveEnergy = 0.1f;
     public float openWaveEnergy = 0.9f;
     public float waveEnergyReference = 0.45f;
@@ -108,7 +117,7 @@ public class GeologyGenerationExtension : DefModExtension
     public float seaJetSettleWidths = 5f;
     public float seaJetReachLengths = 3f;
     /// <summary>The farthest the sea fill's jet reaches from the mouth, in map cells: a delta lobe stays inside the map (plan: 40 to 60 cells deep).</summary>
-    public float seaJetMaxReach = 60f;
+    public float seaJetMaxReach = 50f;
     /// <summary>Open sea the lobe leaves between its tip and the map edge along the river's direction, in map cells, so the river ends in water on the map.</summary>
     public float seaJetWindowMargin = 8f;
     public float seaJetSpread = 0.12f;
@@ -246,6 +255,9 @@ public static class LandscapeGenerator
 
     /// <summary>The erosion model's sediment ledger of the map generated last (the Delta report prints its closure).</summary>
     public static ErosionLedger LastLedger;
+
+    /// <summary>The sea is kept open round the river's exit as built within this many model cells, so the river ends in water.</summary>
+    private const float ExitOpenRadiusModelCells = 1.5f;
 
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
         out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage, out ErosionFields erosion)
@@ -393,7 +405,7 @@ public static class LandscapeGenerator
             ReferenceWidthModelCells = Mathf.Max(1f, (world.Mouth.Present ? world.Mouth.Width : world.RiverExitWidth) / mapCellsPerModelCell),
             WindowMinX = mapWindow.xMin, WindowMinZ = mapWindow.yMin, WindowMaxX = mapWindow.xMax, WindowMaxZ = mapWindow.yMax,
             WindowMargin = p.seaJetWindowMargin / mapCellsPerModelCell,
-            MaxReach = p.seaJetMaxReach / mapCellsPerModelCell, KeepExit = riverExit, Supply = new SeaSupply(), FillPerPass = p.seaFillPerPass,
+            MaxReach = p.seaJetMaxReach / mapCellsPerModelCell, KeepExit = riverExit, MetresPerReferenceRiver = p.seaMetresPerReferenceRiver, ReferenceRiverWidthMapCells = p.seaReferenceRiverWidth,
         };
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, sea, seaFillOn, seaSettings, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
             out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, out ErosionKeepsOutput keeps, out ErosionLedger ledger,
@@ -404,7 +416,7 @@ public static class LandscapeGenerator
         if (sea != null && riverExit >= 0)
         {
             var crossed = new List<int>();
-            exitAsBuilt = SeaExit.Extend(sea, receiver, area, riverExit, crossed);
+            exitAsBuilt = SeaExit.Extend(sea, receiver, area, h, riverExit, crossed);
             if (exitAsBuilt != riverExit)
             {
                 if (courseReceiver != null)
@@ -425,8 +437,8 @@ public static class LandscapeGenerator
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
         Vector2 ToMap(int c) => new Vector2((c % gx - originX) * mapCellsPerModelCell, (c / gx - originZ) * mapCellsPerModelCell);
-        if (exitAsBuilt != riverExit)
-            Coastline.ExitSea = (ToMap(exitAsBuilt), mapCellsPerModelCell * 1.5f);
+        if (sea != null && exitAsBuilt >= 0)
+            Coastline.ExitSea = (ToMap(exitAsBuilt), mapCellsPerModelCell * ExitOpenRadiusModelCells);
         MapEdgeOpen = Outlets.MapEdgesFromModel(sizeX, sizeZ, receiver,
             (x, z) => Mathf.Clamp(Mathf.RoundToInt(originZ + z / mapCellsPerModelCell), 0, gz - 1) * gx
                       + Mathf.Clamp(Mathf.RoundToInt(originX + x / mapCellsPerModelCell), 0, gx - 1),
@@ -755,9 +767,10 @@ public static class LandscapeGenerator
     /// The world rivers' courses as the erosion model laid them (entry, meeting, exit; P-boundary-first, #186), in map coordinates,
     /// one per entry, each cut to the map with one point beyond each edge. The map's drainage binds these cells; empty without a course.
     /// </summary>
-    private static System.Diagnostics.Stopwatch GenerationWatch;
-
     public static List<List<Vector2>> WorldCourses { get; private set; } = new List<List<Vector2>>();
+
+    /// <summary>Times one <see cref="Generate"/> call, for the "took N ms before the coast step" line.</summary>
+    private static System.Diagnostics.Stopwatch GenerationWatch;
 
     private static List<List<Vector2>> WorldCoursesOnMap(List<int> starts, int[] courseReceiver, System.Func<int, Vector2> toMap,
         int sizeX, int sizeZ)
@@ -1185,7 +1198,8 @@ public static class LandscapeGenerator
         var landHeight = new float[n];
         int windowStart = seaFillOn && sea != null ? p.erosionIterations - Mathf.Max(1, Mathf.CeilToInt(p.erosionIterations * p.stillstandShare)) : int.MaxValue;
         int seaPasses = 0;
-        double seaDeliveredSum = 0.0;
+        double seaDeliveredSum = 0.0, seaMetresSum = 0.0;
+        SeaPassResult seaLastPass = null;
         float lastMetresPerHeight = 0f;
         float inflowSum = 0f;
         for (int i = 0; i < n; i++)
@@ -1373,6 +1387,8 @@ public static class LandscapeGenerator
                     ledger.RemovedByWaves += seaPass.RemovedByWaves;
                     ledger.NoRoom += seaPass.NoRoom;
                     seaDeliveredSum += seaPass.Delivered;
+                    seaMetresSum += seaPass.Metres;
+                    seaLastPass = seaPass;
                 }
                 else
                 {
@@ -1446,10 +1462,11 @@ public static class LandscapeGenerator
             float mph = lastMetresPerHeight > 0f ? lastMetresPerHeight : relief / Mathf.Max(1e-6f, h.Max());
             Log.Message($"[LivingLandscapes] Sea fill (D3): {(seaFillOn ? $"on, stillstand window from iteration {windowStart} ({seaPasses} passes)" : "off (-ll-sea-fill=off)")}, " +
                         $"{sea.Initial} sea cells in the model, {sea.Promoted} filled to land ({(float)sea.Promoted / Mathf.Max(1, sea.Initial):P1} of the sea), " +
-                        $"sediment delivered to the sea in the window {seaDeliveredSum * mph:F1} m of model cell thickness; " +
+                        $"sediment delivered to the sea in the window {seaDeliveredSum * mph:F1} m of model cell thickness ({seaMetresSum:G4} m summed over cells at {p.seaMetresPerReferenceRiver:G3} m per reference river per pass); " +
                         $"ledger in model height units: eroded {ledger.Eroded:G5} + yield {ledger.Yield:G5} = kept {ledger.Kept:G5} + lake {ledger.Lake:G5} + retained at sea {ledger.RetainedAtSea:G5} " +
                         $"+ removed by waves {ledger.RemovedByWaves:G5} + no room {ledger.NoRoom:G5} + land-edge outlets {ledger.LandEdgeOutlet:G5} + lost at sinks {ledger.Lost:G5} " +
-                        $"(closure {ledger.Closure:F6}; {ledger.Dropped:G5} taken off by the outlet clamp and bed cap, outside the chain).");
+                        $"main mouth, last pass: Q_s {seaLastPass?.MainQs:G4} m, Q_w {seaLastPass?.MainQw:G4} m, R {seaLastPass?.MainR:G4}, kept {seaLastPass?.MainRetainedMetres:G4} m, raised {seaLastPass?.MainRaisedCells:F0} cells by {seaLastPass?.MainThickness:G3} m on average; " +
+                        $"+ dropped by the outlet clamp and bed cap {ledger.Dropped:G5} (closure {ledger.Closure:F6}; against the eroded ground alone {ledger.ErodedClosure:F6}).");
         }
         receiverOut = receiver;
         areaOut = area;

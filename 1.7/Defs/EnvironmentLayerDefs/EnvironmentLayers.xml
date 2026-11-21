@@ -140,10 +140,11 @@
         <deltaWaveEnergy>0.1</deltaWaveEnergy>
         <openWaveEnergy>0.9</openWaveEnergy>
         <waveEnergyReference>0.45</waveEnergyReference>
-        <seaFillPerPass>0.05</seaFillPerPass>
+        <seaMetresPerReferenceRiver>50</seaMetresPerReferenceRiver>
+        <seaReferenceRiverWidth>12</seaReferenceRiverWidth>
         <seaJetSettleWidths>5</seaJetSettleWidths>
         <seaJetReachLengths>3</seaJetReachLengths>
-        <seaJetMaxReach>60</seaJetMaxReach>
+        <seaJetMaxReach>50</seaJetMaxReach>
         <seaJetWindowMargin>8</seaJetWindowMargin>
         <seaJetSpread>0.12</seaJetSpread>
         <!-- Channel network (rules V1-V3): channels first, valleys follow; widths compressed to map scale. -->
