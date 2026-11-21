@@ -23,6 +23,14 @@ public static class WaterFeatureMath
         return (size, size * 0.5f, size * 0.4f, -Mathf.Clamp01(basinUpliftDrop), Mathf.Clamp(knobErodibility, 0.01f, 1f));
     }
 
+    /// <summary>
+    /// Whether a regime's feature can exist on a tile's river. A knob (<paramref name="knobErodibility"/> below 1) is rock the river
+    /// divides round, so a river must come in from beyond the map; a river that rises on the map (no inflow, the game's own headwater
+    /// tile: it adds a river island only where the tile has other than one river link) has nothing to divide, and the knob would stand on its
+    /// spring, a hill with the spring's pool perched on it. Used to refuse a forced regime the world map cannot give.
+    /// </summary>
+    public static bool RegimeFitsRiver(float knobErodibility, int riverInflows) => knobErodibility >= 1f || riverInflows > 0;
+
     /// <summary>The smallest distance from <paramref name="point"/> to any of the course's points, or infinity for an empty course.</summary>
     public static float DistanceToCourse(System.Collections.Generic.IEnumerable<System.Collections.Generic.IList<Vector2>> courses, Vector2 point)
     {
