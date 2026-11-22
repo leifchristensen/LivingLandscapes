@@ -8,6 +8,14 @@ namespace LivingLandscapes.Tests;
 public class WaterFeatureMathTests
 {
     [Fact]
+    public void AKnobNeedsARiverThatComesIn()
+    {
+        Assert.False(WaterFeatureMath.RegimeFitsRiver(0.2f, 0));
+        Assert.True(WaterFeatureMath.RegimeFitsRiver(0.2f, 1));
+        Assert.True(WaterFeatureMath.RegimeFitsRiver(1f, 0));
+    }
+
+    [Fact]
     public void ABasinTakesUpliftAwayAndLeavesTheRockAlone()
     {
         var disk = WaterFeatureMath.Disk(0.1f, 0.9f, 1f);
