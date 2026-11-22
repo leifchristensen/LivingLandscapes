@@ -173,6 +173,43 @@ public static class WorldWaterReport
         text.AppendLine("  confluence tiles inland: " + string.Join("; ", junctions.Take(8).Select(i =>
             $"{i} {Find.WorldGrid[i].PrimaryBiome.defName} {Find.WorldGrid[i].hilliness} links {string.Join("+", ((SurfaceTile)Find.WorldGrid[i]).Rivers.Select(l => l.river.defName))}")));
 
+        // Deltas (diagnosis): vanilla's rule is coastal land tile + more than two river links + Odyssey active.
+        TileMutatorDef deltaDef = DefDatabase<TileMutatorDef>.GetNamedSilentFail("RiverDelta");
+        var linkHistogram = new SortedDictionary<int, int>();
+        var coastalByLinks = new SortedDictionary<int, int>();
+        int deltaTiles = 0, eligible = 0, eligibleWithDelta = 0, coastalRiver = 0, mouthTiles = 0, mouthTilesWithMutators = 0;
+        var notDelta = new List<string>();
+        for (int i = 0; i < n; i++)
+        {
+            if (Water(i) || Find.WorldGrid[i] is not SurfaceTile s)
+                continue;
+            bool coastal = Find.World.CoastDirectionAt(new PlanetTile(i, layer)).IsValid;
+            int links = s.Rivers.NullOrEmpty() ? 0 : s.Rivers.Count;
+            bool delta = deltaDef != null && s.Mutators.Contains(deltaDef);
+            if (delta)
+                deltaTiles++;
+            if (links > 0)
+                linkHistogram[links] = linkHistogram.TryGetValue(links, out int h) ? h + 1 : 1;
+            if (!coastal || links == 0)
+                continue;
+            coastalRiver++;
+            coastalByLinks[links] = coastalByLinks.TryGetValue(links, out int c2) ? c2 + 1 : 1;
+            if (s.Rivers.Any(l => Water(l.neighbor.tileId)))
+                mouthTiles++;
+            if (links > 2)
+            {
+                eligible++;
+                if (delta)
+                    eligibleWithDelta++;
+                else
+                    notDelta.Add($"{i} links {links} mutators {string.Join("+", s.Mutators.Select(m => m.defName))}");
+            }
+        }
+        text.AppendLine($"  deltas: RiverDelta def {(deltaDef != null ? "present" : "MISSING")}, Odyssey {ModsConfig.OdysseyActive}; tiles with RiverDelta {deltaTiles}; coastal river tiles {coastalRiver} (of which with a link into water {mouthTiles}); coastal tiles with more than two links {eligible}, of those with RiverDelta {eligibleWithDelta}.");
+        text.AppendLine("  deltas: river links per land river tile: " + string.Join(", ", linkHistogram.Select(p => $"{p.Key}:{p.Value}")) + "; per coastal river tile: " + string.Join(", ", coastalByLinks.Select(p => $"{p.Key}:{p.Value}")));
+        if (notDelta.Count > 0)
+            text.AppendLine("  deltas: eligible without RiverDelta: " + string.Join("; ", notDelta.Take(10)));
+
         Directory.CreateDirectory(LayerImageExporter.Folder);
         File.WriteAllText(Path.Combine(LayerImageExporter.Folder, "world-water.txt"), text.ToString());
         foreach (string line in text.ToString().Split('\n'))
