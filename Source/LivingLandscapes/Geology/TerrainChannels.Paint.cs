@@ -224,7 +224,10 @@ public static partial class TerrainChannels
                         continue;
                     // Water spreads over ground near its surface, not through high ground: banks, knobs and valley
                     // sides higher than this stay dry, so the channel narrows there and splits around islands.
-                    if (r > 0f && height[z * sizeX + x] > filled[c] + p.maxBankCut)
+                    // The channel is cut to its bankfull depth: its width came from the discharge (hydraulic geometry, where the banks
+                    // are in balance with the flow), so the water takes the width it was given in ground up to that far above its surface.
+                    // Banks stronger than the flow narrow it through the width itself (the gorge regime), not by refusing the cut here.
+                    if (r > 0f && height[z * sizeX + x] > filled[c] + depth[c])
                         continue;
                     float t = r / edge;
                     float d = depth[c] * (1f - t * t);
@@ -245,10 +248,34 @@ public static partial class TerrainChannels
                 }
             }
         }
+        // A single cell of water touching no other water is not a channel: bank noise and the bank-height test leave such specks
+        // along the edge. The channel's own centre line keeps its cells.
+        var speck = new bool[n];
+        for (int i = 0; i < n; i++)
+        {
+            if (owner[i] < 0 || owner[i] == i)
+                continue;
+            bool joined = false;
+            GridMath.ForEachNeighbour(i, sizeX, sizeZ, nb => joined |= owner[nb] >= 0);
+            if (!joined)
+            {
+                // The diagonals count too: a stepped one-cell thread is joined corner to corner.
+                int x = i % sizeX, z = i / sizeX;
+                for (int dz = -1; dz <= 1 && !joined; dz++)
+                {
+                    for (int dx = -1; dx <= 1 && !joined; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        joined = (dx != 0 || dz != 0) && nx >= 0 && nz >= 0 && nx < sizeX && nz < sizeZ && owner[nz * sizeX + nx] >= 0;
+                    }
+                }
+            }
+            speck[i] = !joined;
+        }
         for (int i = 0; i < n; i++)
         {
             int c = owner[i];
-            if (c < 0)
+            if (c < 0 || speck[i])
                 continue;
             // Water never stands above the surface a cell drains at: below a fall, a cell the upper channel cell's disc reaches
             // (a hollow centre cell left to the lake model, say) keeps its own lower level rather than the water above the fall.
