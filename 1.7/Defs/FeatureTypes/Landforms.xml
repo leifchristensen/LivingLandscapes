@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Feature types (FEATURE-REGIONS.md, decision record 0002: regions set causes, processes make features). A feature type
+    never draws ground: inside a fuzzy region it changes the natural conditions the erosion model reads (rock uplift and the
+    rock arrangement), and erosion then shapes and drains it with the rest of the terrain.
+
+    anchor: which world fact calls the type (a tile mutator, the world river, the water regime, the plains choice).
+    shape: the region. Sizes and offsets are fractions of the map width from the region's origin (the map centre unless the
+      placement says otherwise). Orientation follows the region's downhill direction (towards lower ground or the sea).
+      Band with side Inside is a front: one side of a line. Band with side Both is a strip along a line.
+    contributions: per condition. Uplift: inside and outside are rates added to the background (1 = the strongest background
+      uplift). RockArrangement: inside is an erodibility factor (below 1 resists erosion, a caprock; above 1 erodes easily).
+    Parts a type leaves out mean "no requirement, whole run".
+    With geological terrain on, a mutator a type is anchored on skips its own elevation rewrite. Mutators no type names run
+    as in vanilla. Other mods can describe their own mutators the same way.
+  -->
+
+  <!-- Mountain: a mountain mass rising on the upslope side of the map. -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_Mountain</defName>
+    <label>mountain</label>
+    <anchor><kind>TileMutator</kind><mutators><li>Mountain</li></mutators></anchor>
+    <shape>
+      <kind>Band</kind>
+      <side>Inside</side>
+      <orientation>Upslope</orientation>
+      <offset>0.2</offset>
+      <size>0.15</size>
+      <edge>0.05</edge>
+      <warp>0.08</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>1.0</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- Valley: a valley floor running downhill between raised flanks; it drains along its axis. -->
+  <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
+    <defName>LL_Valley</defName>
+    <label>valley</label>
+    <anchor><kind>TileMutator</kind><mutators><li>Valley</li></mutators></anchor>
+    <shape>
+      <kind>Band</kind>
+      <side>Both</side>
+      <orientation>Downhill</orientation>
+      <size>0.15</size>
+      <edge>0.1</edge>
+      <warp>0.08</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>-0.5</inside><outside>0.8</outside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- Cliffs: an escarpment of hard rock facing downhill (towards the sea on coasts). -->
+  <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
+    <defName>LL_Cliffs</defName>
+    <label>cliffs</label>
+    <anchor><kind>TileMutator</kind><mutators><li>Cliffs</li></mutators></anchor>
+    <shape>
+      <kind>Band</kind>
+      <side>Inside</side>
+      <orientation>Upslope</orientation>
+      <size>0.02</size>
+      <edge>0.01</edge>
+      <warp>0.06</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>1.2</inside></li>
+      <li><condition>RockArrangement</condition><inside>0.4</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- Plateau: a raised block capped by resistant rock, so its top stays flat and its edges stay steep. -->
+  <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
+    <defName>LL_Plateau</defName>
+    <label>plateau</label>
+    <anchor><kind>TileMutator</kind><mutators><li>Plateau</li></mutators></anchor>
+    <shape>
+      <kind>Area</kind>
+      <orientation>Random</orientation>
+      <offset>0.15</offset>
+      <size>0.35</size>
+      <edge>0.03</edge>
+      <warp>0.07</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>0.9</inside></li>
+      <li><condition>RockArrangement</condition><inside>0.15</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!--
+    Bay and Cove: the sea comes from the coast noise (the erosion model's base level, P1), so the type contributes nothing.
+    It only says the geology models the coast, so vanilla's bay and cove elevation rewrite (zero ground where its own noise is
+    low) stands aside instead of flattening the modelled shore (#153).
+  -->
+  <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
+    <defName>LL_BayCove</defName>
+    <label>bay or cove</label>
+    <anchor><kind>TileMutator</kind><mutators><li>Bay</li><li>Cove</li></mutators></anchor>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!--
+    The valley a world river runs in. A map is a slice of a tile that contains the river, so the river's valley crosses it:
+    a path from where the rivers meet toward each river's side of the map, and one toward the exit. Its width also sets
+    where the model's river ends sit.
+  -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_WorldRiverValley</defName>
+    <label>world river valley</label>
+    <anchor><kind>WorldRiver</kind></anchor>
+    <shape>
+      <kind>Path</kind>
+      <placement>AlongWorldRivers</placement>
+      <size>0.05</size>
+      <edge>0.1</edge>
+      <warp>0.1</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>-0.4</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!--
+    The water regime's feature where the world rivers meet: a headwater basin (lower uplift) or a river island's knob (harder
+    rock), Docs/WATER-REGIMES.md W5. Its size and contributions come from the regime's own numbers (WaterFeatureMath.Disk).
+  -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_RiverCentreFeature</defName>
+    <label>river centre feature</label>
+    <anchor><kind>WaterRegimeCentre</kind></anchor>
+    <shape>
+      <kind>Area</kind>
+      <placement>RiverCentre</placement>
+    </shape>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+</Defs>

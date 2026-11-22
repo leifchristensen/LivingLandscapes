@@ -108,15 +108,6 @@ public class GeologyGenerationExtension : DefModExtension
     public bool antecedentRivers = true;
     public float antecedentDepth = 0.5f;
 
-    /// <summary>
-    /// The valley a world river runs in. A map is a slice of a tile that contains the river, so the river's valley
-    /// crosses it; this landform guides the river's channel through the map along the world flow direction.
-    /// </summary>
-    public LandformExtension riverValley = new LandformExtension
-    {
-        shape = LandformShape.Axis, size = 0.05f, edge = 0.1f, upliftInside = -0.4f, warp = 0.1f,
-    };
-
     /// <summary>The channel network: where channels start and how wide each is (V1-V3).</summary>
     public RiverNetworkSettings network = new RiverNetworkSettings();
 
@@ -212,7 +203,7 @@ public static class LandscapeGenerator
     /// <param name="water">The map's water regime (Docs/WATER-REGIMES.md), or null if no regime matches.</param>
     /// <summary>Relief (metres) and plains feature of the map generated last, for the log.</summary>
     public static float Relief;
-    public static PlainsFeatureDef PlainsFeature;
+    public static FeatureTypeDef PlainsFeature;
 
     public static float[] Generate(Map map, GeologyGenerationExtension p, out WorldContext world, out WaterRegimeDef water,
         out List<ChannelCourse> channels, out RockStrata strata, out float[] rockStrength, out ThingDef[] rock, out int[] rockStage, out ErosionFields erosion)
@@ -229,15 +220,16 @@ public static class LandscapeGenerator
         float originX = (gx - 1) * 0.5f - sizeX * 0.5f / mapCellsPerModelCell;
         float originZ = (gz - 1) * 0.5f - sizeZ * 0.5f / mapCellsPerModelCell;
 
-        var landforms = new Landforms(map, world, world.HasRiver ? p.riverValley : null, water);
-        float[] uplift = UpliftField(world, p, gx, gz, metresPerModelCell, out float[] erodibility,
-            landforms, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
-                                             ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
+        // The feature regions, planned before terrain (FEATURE-REGIONS.md): they only change conditions the erosion model reads.
+        var plan = new FeaturePlan(map, world, water);
+        ConditionFields conditions = UpliftField(world, p, gx, gz, metresPerModelCell,
+            plan, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
+                                        ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
         // Rock beds, in map cells around the map's centre; heights in cells above the lowest ground.
         // A plains feature (butte, escarpment, bluffs) stands above or cuts below the tile's own relief.
-        float relief = p.ReliefFor(world.Hilliness) + landforms.ExtraRelief;
+        float relief = p.ReliefFor(world.Hilliness) + plan.ExtraRelief;
         Relief = relief;
-        PlainsFeature = landforms.PlainsFeature;
+        PlainsFeature = plan.PlainsFeature;
         float reliefCells = relief / p.cellSize;
         float extent = Mathf.Max(gx, gz) * mapCellsPerModelCell * 0.75f;
         strata = new RockStrata(p.strata, Find.World.NaturalRockTypesIn(map.Tile).ToList(), new Vector2(sizeX * 0.5f, sizeZ * 0.5f), extent, reliefCells,
@@ -270,12 +262,13 @@ public static class LandscapeGenerator
             // Ground beside base level is graded (P1): the uplift fades to nothing toward the sea over the coastal plain.
             float plainWidth = p.coast.PlainWidthFor(world.Hilliness);
             float[] fromSeaModel = GridMath.DistanceTo(i => seaCell[i], gx, gz);
-            for (int i = 0; i < uplift.Length; i++)
-            {
-                if (!seaCell[i])
-                    uplift[i] *= CoastMath.PlainUplift(fromSeaModel[i] * mapCellsPerModelCell, plainWidth);
-            }
+            conditions.grade = new float[gx * gz];
+            for (int i = 0; i < conditions.grade.Length; i++)
+                conditions.grade[i] = seaCell[i] ? 1f : CoastMath.PlainUplift(fromSeaModel[i] * mapCellsPerModelCell, plainWidth);
         }
+        // Every region's contribution combined by its condition's rule, then the limits last, over the whole map (at the run's start).
+        float[] uplift = conditions.UpliftAt(0f);
+        float[] erodibility = conditions.ErodibilityAt(0f);
         var mapWindow = new Rect(originX, originZ, sizeX / mapCellsPerModelCell, sizeZ / mapCellsPerModelCell);
         var entryInflows = new List<int>();
         RiverEnds(world, water, gx, gz, riverCentre, out List<(int cell, float width)> entries, out List<float> entryFlows,
@@ -311,7 +304,7 @@ public static class LandscapeGenerator
             ? AntecedentCourses(courseStarts, riverCentre, exitOnWindow, riverExit, uplift, fixedOutlet, gx, gz, p.antecedentDepth, inflow,
                 0f, out courseFlow, out courseReceiver, out courseBed) : null;
         System.Action<float[], float[]> baseLevels = ModelBaseLevels(world, seaDepth, floor, entries, riverExit, gx, gz,
-            (p.riverValley.size + p.riverValley.edge) * sizeX / mapCellsPerModelCell);
+            (FeatureTypeDefOf.LL_WorldRiverValley.shape.size + FeatureTypeDefOf.LL_WorldRiverValley.shape.edge) * sizeX / mapCellsPerModelCell);
         // Dev: -ll-export-raw also writes the model's own grid (DevTools/ErosionGridExport).
         ErosionGridExport.Begin();
         System.Action<int, float[], int[], float[], float[]> observe = null;
@@ -343,7 +336,8 @@ public static class LandscapeGenerator
         }
         float[] h = Erode(uplift, erodibility, baseLevels, inflow, seaDepth, relief, gx, gz, p, strata, sites, reliefCells, out int[] receiver,
             out float[] area, out float modelTop, out float[] baseLevel, out float[] deposited, out ErosionKeepsOutput keeps,
-            floor, observe, WaterBalance.LakeShare(map, out _), courseFlow, courseReceiver, courseBed);
+            floor, observe, WaterBalance.LakeShare(map, out _), courseFlow, courseReceiver, courseBed,
+            conditions.ChangeDuringRun ? conditions : null);
         ErosionGridExport.Write("BaseLevel", baseLevel, gx, gz);
         Log.Message($"[LivingLandscapes] Erosion model base levels (#97), edge cells draining per side: {Outlets.EdgeSummary(baseLevel, h, gx, gz)}.");
         // The map's edge drains where the model's water there flows on out of the map (#97, ADR 0001).
@@ -394,7 +388,7 @@ public static class LandscapeGenerator
         // with one, the plain (most of the map) keeps the tile's elevation and the feature stands above it or cuts below it,
         // so a butte does not drop the plain below sea level.
         float level = 0.5f;
-        if (landforms.ExtraRelief > 0f)
+        if (plan.ExtraRelief > 0f)
         {
             var sorted = (float[])window.Clone();
             System.Array.Sort(sorted);
@@ -529,13 +523,13 @@ public static class LandscapeGenerator
     }
 
     /// <summary>
-    /// Rock uplift rate per model cell: fractal noise at landform scale, sharper for mountains, stronger upslope,
-    /// then adjusted by the tile's landforms (valleys, mountain fronts, plateaus...), which also set rock hardness.
+    /// The conditions per model cell: the background rock uplift (fractal noise at landform scale, sharper for mountains,
+    /// stronger upslope) and the feature regions' contributions (valleys, mountain fronts, plateaus...: uplift and rock
+    /// arrangement), combined later by <see cref="ConditionFields"/>.
     /// </summary>
-    private static float[] UpliftField(WorldContext world, GeologyGenerationExtension p, int gx, int gz, float metresPerModelCell,
-        out float[] erodibility, Landforms landforms, System.Func<int, int, Vector2> mapFraction)
+    private static ConditionFields UpliftField(WorldContext world, GeologyGenerationExtension p, int gx, int gz, float metresPerModelCell,
+        FeaturePlan plan, System.Func<int, int, Vector2> mapFraction)
     {
-        erodibility = new float[gx * gz];
         double frequency = metresPerModelCell / p.LandformWavelengthFor(world.Hilliness);
         var swells = new Perlin(frequency, 2.0, 0.5, 4, Rand.Int, QualityMode.High);
         var ridges = new RidgedMultifractal(frequency, 2.0, 4, Rand.Int, QualityMode.High);
@@ -545,7 +539,7 @@ public static class LandscapeGenerator
 
         var centre = new Vector2(gx * 0.5f, gz * 0.5f);
         float half = Mathf.Max(gx, gz) * 0.5f;
-        var uplift = new float[gx * gz];
+        var background = new float[gx * gz];
         for (int z = 0; z < gz; z++)
         {
             for (int x = 0; x < gx; x++)
@@ -555,15 +549,12 @@ public static class LandscapeGenerator
                 float u = Mathf.Lerp(smooth, sharp, ridged) + p.detailUplift * (float)detail.GetValue(x, 0.0, z);
                 float upslope = -Vector2.Dot(new Vector2(x, z) - centre, world.Downhill) / half;
                 u *= Mathf.Max(0.1f, 1f + p.regionalUpliftBias * upslope);
-                u = Mathf.Lerp(0.15f, 1f, Mathf.Clamp01(u));
-                float k = 1f;
-                if (landforms.Any)
-                    landforms.Apply(mapFraction(x, z), ref u, ref k);
-                uplift[z * gx + x] = Mathf.Max(0.02f, u);
-                erodibility[z * gx + x] = k;
+                background[z * gx + x] = Mathf.Lerp(0.15f, 1f, Mathf.Clamp01(u));
             }
         }
-        return uplift;
+        ConditionFields fields = plan.Fields(gx, gz, mapFraction);
+        fields.background = background;
+        return fields;
     }
 
     /// <summary>
@@ -914,7 +905,7 @@ public static class LandscapeGenerator
         out int[] receiverOut, out float[] areaOut, out float modelTop, out float[] baseLevelOut, out float[] depositedOut,
         out ErosionKeepsOutput keepsOut, float[] initialFloor = null,
         System.Action<int, float[], int[], float[], float[]> observe = null, float lakeShare = float.PositiveInfinity, float[] courseFlow = null,
-        int[] courseReceiver = null, float[] courseBed = null)
+        int[] courseReceiver = null, float[] courseBed = null, ConditionFields changing = null)
     {
         int n = gx * gz;
         // Base levels (P1, Outlets): water leaves a cell once its surface reaches them; NaN where it cannot leave.
@@ -1107,6 +1098,15 @@ public static class LandscapeGenerator
 
         for (int iteration = 0; iteration < p.erosionIterations; iteration++)
         {
+            // Contributions with a time window (FEATURE-REGIONS.md 2.1, "Time"): the conditions are combined again for this share
+            // of the run, by the same rules. Null when every contribution acts over the whole run (the arrays are then fixed).
+            if (changing != null && iteration > 0)
+            {
+                float t = iteration / (float)p.erosionIterations;
+                changing.UpliftAt(t, uplift);
+                if (iteration % StrataUpdateInterval == 0)
+                    changing.ErodibilityAt(t, erodibility);
+            }
             if (iteration % StrataUpdateInterval == 0)
             {
                 float top = Mathf.Max(1e-6f, h.Max());

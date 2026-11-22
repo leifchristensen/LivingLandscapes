@@ -9,8 +9,8 @@ using Verse;
 namespace LivingLandscapes.Patches;
 
 /// <summary>
-/// With geological terrain on, a tile mutator whose landform the geology models (it has a
-/// <see cref="LandformExtension"/>) must not also rewrite the elevation grid afterwards; nor must a river mutator
+/// With geological terrain on, a tile mutator whose landform the geology models (a <see cref="FeatureTypeDef"/> is
+/// anchored on it) must not also rewrite the elevation grid afterwards; nor must a river mutator
 /// (headwater lakes and the like) where the geology planned the map's rivers. Targets every mutator worker, vanilla
 /// or modded, that overrides this step.
 /// </summary>
@@ -31,7 +31,6 @@ public static class Patch_TileMutatorWorker_GeneratePostElevationFertility
             return true;
         if (__instance is TileMutatorWorker_River && map.GetComponent<Environment.MapComponent_Environment>()?.PlannedRivers != null)
             return false;
-        var form = __instance.def?.GetModExtension<LandformExtension>();
-        return form == null || !form.replacesVanillaElevation;
+        return __instance.def == null || !FeatureTypeDef.ReplacesVanillaElevation(__instance.def);
     }
 }

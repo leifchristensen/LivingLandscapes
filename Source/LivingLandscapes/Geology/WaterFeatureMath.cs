@@ -4,7 +4,7 @@ namespace LivingLandscapes.Geology;
 
 /// <summary>
 /// Game-free maths of the water regime's features at the river centre (a headwater's basin, a river island's knob). They are
-/// inputs of the erosion model (uplift and rock softness, <see cref="Landforms"/>): erosion forms them, nothing edits finished ground.
+/// inputs of the erosion model (uplift and rock softness, <see cref="FeaturePlan"/>): erosion forms them, nothing edits finished ground.
 /// </summary>
 public static class WaterFeatureMath
 {

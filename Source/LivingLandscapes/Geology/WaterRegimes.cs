@@ -101,7 +101,7 @@ public class WaterRegimeDef : Def
     public float marshland;
 
     /// <summary>
-    /// Features of the world river's mutator structures, given to the erosion model as inputs (<see cref="Landforms"/>), never edited
+    /// Features of the world river's mutator structures, given to the erosion model as inputs (<see cref="FeaturePlan"/>), never edited
     /// into finished ground. A disk at the river centre, <see cref="centreRadiusShare"/> of the map's size across:
     /// <see cref="basinUpliftDrop"/> (0..1) takes that share of the rock uplift away inside it, so erosion lets the ground sag into a
     /// closed basin that spills at the river (a headwater, P23); <see cref="knobErodibility"/> (1 = none) is the rock's softness
