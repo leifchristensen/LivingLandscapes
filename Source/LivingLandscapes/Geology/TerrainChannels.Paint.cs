@@ -177,7 +177,7 @@ public static partial class TerrainChannels
     /// #180); a hollow too shallow for one keeps the channel painted through it, so the water does not stop at its rim.
     /// </summary>
     private static int Paint(float[] height, float[] filled, List<int> cells, float[] width, float[] depth, float[] depthBeforeScour, Standing standing, bool[] moving, float[] bankAmplitude, Vector2[] direction,
-        int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system, float[] rockStrength = null)
+        int[] planOf, int sizeX, int sizeZ, TerrainChannelSettings p, RiverSystem system)
     {
         int n = height.Length;
         var best = new float[n];
@@ -224,14 +224,11 @@ public static partial class TerrainChannels
                         continue;
                     // Water spreads over ground near its surface, not through high ground: banks, knobs and valley
                     // sides higher than this stay dry, so the channel narrows there and splits around islands.
-                    // A bank is cut as high as the water can undercut it: its depth, by how soft the ground is (lateral erosion).
-                    if (r > 0f)
-                    {
-                        float softness = rockStrength != null ? 1f - Mathf.Clamp01(rockStrength[z * sizeX + x]) : 0.5f;
-                        float reachUp = Mathf.Max(p.maxBankCut, p.bankCutDepths * depth[c] * softness);
-                        if (height[z * sizeX + x] > filled[c] + reachUp)
-                            continue;
-                    }
+                    // The channel is cut to its bankfull depth: its width came from the discharge (hydraulic geometry, where the banks
+                    // are in balance with the flow), so the water takes the width it was given in ground up to that far above its surface.
+                    // Banks stronger than the flow narrow it through the width itself (the gorge regime), not by refusing the cut here.
+                    if (r > 0f && height[z * sizeX + x] > filled[c] + depth[c])
+                        continue;
                     float t = r / edge;
                     float d = depth[c] * (1f - t * t);
                     // Shoals are sampled per cell, so their edges follow the noise, not the channel's cells.
