@@ -310,7 +310,17 @@ public static partial class TerrainChannels
                     $"regimes by channel cell [{string.Join(", ", regimes.OrderByDescending(r => r.Value).Select(r => $"{r.Key} {100 * r.Value / cells.Count}%"))}].");
         // D1 measurement (DELTA-MODEL-PLAN.md): its own line, so the "Channels:" line stays as it was.
         if (mouth.Present)
-            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, 0)}");
+        {
+            int shapeMouth = -1;
+            foreach (int c in cells)
+            {
+                if (world[c] && system.ChannelOf[c] >= 0 && !system.Still[c] && (sea == null || !sea[c])
+                    && (shapeMouth < 0 || discharge[c] > discharge[shapeMouth]) && (sea != null ? TouchesSea(sea, c, sizeX, sizeZ) : false))
+                    shapeMouth = c;
+            }
+            Log.Message($"[LivingLandscapes] Delta report: {DeltaReport(mouth, coast, hilliness, cells, receiver, main, world, discharge, filled, height, width, depth, sea, seaLevel, system, sizeX, sizeZ, p, branchesToSea, 0)}; " +
+                        $"shape: {DeltaShape(Coastline.LastBuilt, Coastline.OriginalWater, height, seaLevel, sizeX, sizeZ, shapeMouth, shapeMouth >= 0 ? depth[shapeMouth] : 0f, mouth.SeaDirection, LandscapeGenerator.LastLedger)}");
+        }
         return system;
     }
 

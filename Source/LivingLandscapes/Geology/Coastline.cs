@@ -138,18 +138,39 @@ public static class Coastline
         return coast;
     }
 
+    /// <summary>Vanilla's water mask of the map generated last, before land was built into it (for the report's shape measures); null without a coast.</summary>
+    public static bool[] OriginalWater;
+
+    /// <summary>Cells of vanilla's water mask the rivers built into land (above the sea) on the map generated last; null where none.</summary>
+    public static bool[] LastBuilt;
+
+    /// <summary>Where the world river meets the sea as built (map cells, radius): the sea stays open there so the river ends in water, not on the blurred edge of new land.</summary>
+    public static (Vector2 centre, float radius)? ExitSea;
+
+    /// <summary>Map cells within a model cell of land the sea fill made; built land is only counted there. Null: no restriction.</summary>
+    public static bool[] PromotedMask;
+
+    private static bool NearExit(int x, int z) => ExitSea.HasValue && (new Vector2(x, z) - ExitSea.Value.centre).sqrMagnitude <= ExitSea.Value.radius * ExitSea.Value.radius;
+
     private static bool[] CoastCells(Map map, bool beach)
     {
         TileMutatorWorker_Coast coast = Find(map);
         if (coast == null)
             return null;
         float shore = beach ? SandLimit(coast) : WaterLimit(coast);
+        float water = WaterLimit(coast);
         float[] noise = NoiseOver(map, coast);
         var environment = map.GetComponent<Environment.MapComponent_Environment>();
         bool[] stacks = environment?.PlannedStacks;
+        // Land the sea fill built is no longer sea, and the beach band round it is gone: new land is a delta plain (the ground rules decide its cover).
+        bool[] built = environment?.PlannedBuilt, near = environment?.PlannedBuiltNear;
         var sea = new bool[map.Area];
         for (int i = 0; i < sea.Length; i++)
+        {
             sea[i] = (stacks == null || !stacks[i]) && noise[i] < shore;
+            if (built != null && sea[i] && (built[i] || (near[i] && noise[i] >= water)))
+                sea[i] = false;
+        }
         return sea;
     }
 
@@ -196,14 +217,35 @@ public static class Coastline
     }
 
     /// <summary>
+    /// Height (metres) above sea level at which sea the erosion model filled counts as land built by a river (smooth ground, before micro-relief).
+    /// A third of the least mouth depth (0.15 m): the crop's bilinear sampling and blur leave a faint tail (a few cm) round the real land, and
+    /// a lower line made that tail into one-cell islands and checkerboard blocks at the edge.
+    /// </summary>
+    public const float BuiltLandMin = 0.05f;
+
+    /// <summary>Cells round built land that lose the vanilla beach band: new land reads as delta plain, not a sand rim (plan risk 9).</summary>
+    public const int BeachClearRadius = 3;
+
+    /// <summary>
     /// Writes the sea floor of the map's coast mutators into <paramref name="height"/> (metres): the shelf profile below
     /// <paramref name="seaLevel"/>, the model's base level (see <see cref="CoastMath"/>). Land is not touched: the erosion model
     /// grades it to that level. Resistant rock near the shore (<paramref name="resistant"/>, 0..1 per cell) stays standing in
     /// the water as sea stacks (#60 moves them into the model). Returns the number of sea cells.
+    /// With <paramref name="smoothGround"/> and <paramref name="modelBed"/> (the erosion model's sea floor below sea level, metres, on the
+    /// map's cells) the sea has been allowed to fill: water cells the model raised above the sea (smooth ground over BuiltLandMin) keep their
+    /// height, and the floor elsewhere is min(drawn profile from the new shore, the model's bed). The built land and its beach clearance are
+    /// planned on the map for the terrain patch and the sea masks; without them this is the old drawn sea floor.
     /// </summary>
-    public static int Apply(Map map, float[] height, float seaLevel, CoastlineExtension p, float[] resistant = null)
+    public static int Apply(Map map, float[] height, float seaLevel, CoastlineExtension p, float[] resistant = null,
+        float[] smoothGround = null, float[] modelBed = null)
     {
         TileMutatorWorker_Coast coast = Find(map);
+        var plan0 = map.GetComponent<Environment.MapComponent_Environment>();
+        if (plan0 != null)
+        {
+            plan0.PlannedBuilt = null;
+            plan0.PlannedBuiltNear = null;
+        }
         if (coast == null)
             return 0;
         int sizeX = map.Size.x, n = height.Length, sizeZ = n / sizeX;
@@ -215,7 +257,31 @@ public static class Coastline
             any |= water[i] = noise[i] < waterline;
         if (!any)
             return 0;
-        float[] fromLand = GridMath.DistanceTo(i => !water[i], sizeX, sizeZ);
+        // Land the rivers built into the sea: the model's ground stands above the sea inside vanilla's water mask.
+        bool[] built = null;
+        int builtCells = 0;
+        if (smoothGround != null && modelBed != null)
+        {
+            built = new bool[n];
+            for (int i = 0; i < n; i++)
+            {
+                if (water[i] && smoothGround[i] - seaLevel > BuiltLandMin && !NearExit(i % sizeX, i / sizeX) && (PromotedMask == null || PromotedMask[i]))
+                {
+                    built[i] = true;
+                    builtCells++;
+                }
+            }
+        }
+        OriginalWater = water;
+        LastBuilt = built;
+        bool[] modelWater = water;
+        if (builtCells > 0)
+        {
+            modelWater = (bool[])water.Clone();
+            for (int i = 0; i < n; i++)
+                modelWater[i] &= !built[i];
+        }
+        float[] fromLand = GridMath.DistanceTo(i => !modelWater[i], sizeX, sizeZ);
         Hilliness hilliness = map.TileInfo.hilliness;
         bool[] stacks = null;
         int stackCells = 0;
@@ -226,7 +292,7 @@ public static class Coastline
             stacks = new bool[n];
             for (int i = 0; i < n; i++)
             {
-                if (water[i] && fromLand[i] <= p.stackReach && Core(resistant, i, sizeX, sizeZ, p.stackHardness))
+                if (modelWater[i] && fromLand[i] <= p.stackReach && Core(resistant, i, sizeX, sizeZ, p.stackHardness))
                 {
                     stacks[i] = true;
                     stackCells++;
@@ -236,14 +302,58 @@ public static class Coastline
                 stacks = null;
             isStack = i => stacks != null && stacks[i];
         }
-        int sea = CoastMath.ShapeSeaFloor(height, water, fromLand, seaLevel, cells => p.SeaDepth(cells, hilliness), isStack, resistant, p.stackHeight);
+        int sea = CoastMath.ShapeSeaFloor(height, modelWater, fromLand, seaLevel, cells => p.SeaDepth(cells, hilliness), isStack, resistant, p.stackHeight);
+        // The floor is the lower of the drawn profile (anchored at the new shore) and the bed the model left: the profile is the boundary
+        // condition, the model's shoals in front of a delta are its result. Land the model built keeps its own height (not touched above).
+        if (modelBed != null)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (modelWater[i] && !(isStack != null && isStack(i)))
+                    height[i] = Mathf.Min(height[i], seaLevel + modelBed[i] - CoastMath.FloorBelowShore);
+            }
+        }
+        var planned = map.GetComponent<Environment.MapComponent_Environment>();
+        if (built != null && builtCells > 0 && planned != null)
+        {
+            // The beach band round new land is cleared too: bands of sand within BeachClearRadius cells of built land are land of the geology.
+            float[] fromBuilt = GridMath.DistanceTo(i => built[i], sizeX, sizeZ);
+            var nearBuilt = new bool[n];
+            for (int i = 0; i < n; i++)
+                nearBuilt[i] = fromBuilt[i] <= BeachClearRadius;
+            planned.PlannedBuilt = built;
+            planned.PlannedBuiltNear = nearBuilt;
+        }
+        if (built != null && ExitSea.HasValue)
+        {
+            // Debug: the cells round the river's exit as built. w water, B built land, n beach cleared round new land, . other; X the exit.
+            int cx = Mathf.RoundToInt(ExitSea.Value.centre.x), cz = Mathf.RoundToInt(ExitSea.Value.centre.y);
+            var sb = new System.Text.StringBuilder();
+            for (int z = cz + 8; z >= cz - 8; z--)
+            {
+                for (int x = cx - 8; x <= cx + 8; x++)
+                {
+                    if (x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                        sb.Append(' ');
+                    else
+                    {
+                        int i = z * sizeX + x;
+                        sb.Append(x == cx && z == cz ? 'X' : built[i] ? 'B' : (planned?.PlannedBuiltNear != null && planned.PlannedBuiltNear[i] && !water[i]) ? 'n' : water[i] ? 'w' : '.');
+                    }
+                }
+                sb.Append('/');
+            }
+            Log.Message($"[LivingLandscapes] Exit surroundings (top row first, rows split by /): {sb}");
+        }
+        if (built != null)
+            Log.Message($"[LivingLandscapes] Built land on {map}: {builtCells} cells of vanilla's water mask stand above the sea after the model's sea fill ({(float)builtCells / n:P2} of the map).");
         // Evaluation: how much land beside the sea the model left below its base level (should be none but micro-relief).
-        float[] toSea = GridMath.DistanceTo(i => water[i], sizeX, sizeZ);
+        float[] toSea = GridMath.DistanceTo(i => modelWater[i], sizeX, sizeZ);
         int near = 0, below = 0;
         float deepest = 0f;
         for (int i = 0; i < n; i++)
         {
-            if (water[i] || toSea[i] > 30f)
+            if (modelWater[i] || toSea[i] > 30f)
                 continue;
             near++;
             if (height[i] < seaLevel)
