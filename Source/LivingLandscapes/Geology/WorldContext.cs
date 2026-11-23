@@ -201,7 +201,7 @@ public class WorldContext
     {
         foreach (TileMutatorDef mutator in tile.Mutators)
         {
-            if (mutator.hillinessForElevationGen != Hilliness.Undefined && !mutator.HasModExtension<LandformExtension>())
+            if (mutator.hillinessForElevationGen != Hilliness.Undefined && !FeatureTypeDef.Models(mutator))
                 return mutator.hillinessForElevationGen;
         }
         return tile.hilliness;

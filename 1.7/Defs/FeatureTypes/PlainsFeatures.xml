@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!--
+    Plains features (#51): low, gentle country gets its rock from one feature type, chosen per map by weight (anchor weight)
+    among those whose requirements hold (hilliness, the tile's rock types, a slope, a world river). Types that do not fit are
+    simply not candidates. Each is a region the erosion model shapes like any other (see Landforms.xml for the parts).
+    extraRelief is how far it stands above, or cuts below, the plain. The shape's sizeRange and offsetRange are drawn per
+    instance; byHilliness sets count, height and a size factor per hilliness (flat land gets fewer, lower, smaller features
+    than small hills). First pass, to be tuned by eye. Keep this order: the choice by weight depends on it.
+  -->
+
+  <!-- Buttes and mesas: the last pieces of a hard sedimentary caprock, standing above the plain with cliffs round their rims. -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_Buttes</defName>
+    <label>buttes</label>
+    <anchor><kind>PlainsChoice</kind><weight>1</weight></anchor>
+    <requirements>
+      <li><fact>Hilliness</fact><anyOf><li>Flat</li><li>SmallHills</li></anyOf></li>
+      <li><fact>RockType</fact><anyOf><li>Sandstone</li><li>Limestone</li><li>Slate</li></anyOf></li>
+    </requirements>
+    <count>1~3</count>
+    <extraRelief>12~30</extraRelief>
+    <!-- Flat land: fewer, lower, smaller. -->
+    <byHilliness><li><hilliness>Flat</hilliness><count>1</count><extraRelief>6~12</extraRelief><sizeFactor>0.7</sizeFactor></li></byHilliness>
+    <shape>
+      <kind>Area</kind>
+      <orientation>Random</orientation>
+      <sizeRange>0.05~0.11</sizeRange>
+      <offsetRange>0.12~0.35</offsetRange>
+      <edge>0.015</edge>
+      <warp>0.04</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>1.0</inside></li>
+      <li><condition>RockArrangement</condition><inside>0.25</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- Inselbergs: domes of massive rock (granite, marble) rising alone from the plain, rounded rather than rimmed. -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_Inselbergs</defName>
+    <label>inselbergs</label>
+    <anchor><kind>PlainsChoice</kind><weight>1</weight></anchor>
+    <requirements>
+      <li><fact>Hilliness</fact><anyOf><li>Flat</li><li>SmallHills</li></anyOf></li>
+      <li><fact>RockType</fact><anyOf><li>Granite</li><li>Marble</li></anyOf></li>
+    </requirements>
+    <count>1~2</count>
+    <extraRelief>15~35</extraRelief>
+    <!-- Flat land: fewer, lower, smaller. -->
+    <byHilliness><li><hilliness>Flat</hilliness><count>1</count><extraRelief>6~14</extraRelief><sizeFactor>0.7</sizeFactor></li></byHilliness>
+    <shape>
+      <kind>Area</kind>
+      <orientation>Random</orientation>
+      <sizeRange>0.06~0.12</sizeRange>
+      <offsetRange>0.1~0.3</offsetRange>
+      <edge>0.05</edge>
+      <warp>0.03</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>1.0</inside></li>
+      <li><condition>RockArrangement</condition><inside>0.2</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- Escarpment: the land steps up to a higher plain held up by a hard bed; the step faces downhill, so it stands only
+       where the region slopes (by rougher ground, the sea or a river), not on a plain among plains. -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_Escarpment</defName>
+    <label>escarpment</label>
+    <anchor><kind>PlainsChoice</kind><weight>1</weight></anchor>
+    <requirements>
+      <li><fact>Hilliness</fact><anyOf><li>Flat</li><li>SmallHills</li></anyOf></li>
+      <li><fact>Slope</fact></li>
+    </requirements>
+    <extraRelief>8~20</extraRelief>
+    <!-- Flat land: lower. -->
+    <byHilliness><li><hilliness>Flat</hilliness><extraRelief>3~7</extraRelief></li></byHilliness>
+    <shape>
+      <kind>Band</kind>
+      <side>Inside</side>
+      <orientation>Upslope</orientation>
+      <sizeRange>0.015~0.03</sizeRange>
+      <offsetRange>-0.2~0.2</offsetRange>
+      <edge>0.01</edge>
+      <warp>0.08</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>0.8</inside></li>
+      <li><condition>RockArrangement</condition><inside>0.35</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+  <!-- River bluffs: a river has cut its valley into the plain; the valley walls expose the beds. -->
+  <LivingLandscapes.Geology.FeatureTypeDef>
+    <defName>LL_RiverBluffs</defName>
+    <label>river bluffs</label>
+    <anchor><kind>PlainsChoice</kind><weight>2</weight></anchor>
+    <requirements>
+      <li><fact>Hilliness</fact><anyOf><li>Flat</li><li>SmallHills</li></anyOf></li>
+      <li><fact>WorldRiver</fact></li>
+    </requirements>
+    <extraRelief>6~15</extraRelief>
+    <!-- Flat land: lower. -->
+    <byHilliness><li><hilliness>Flat</hilliness><extraRelief>3~6</extraRelief></li></byHilliness>
+    <shape>
+      <kind>Path</kind>
+      <placement>AlongWorldRivers</placement>
+      <sizeRange>0.12~0.2</sizeRange>
+      <edge>0.015</edge>
+      <warp>0.06</warp>
+    </shape>
+    <contributions>
+      <li><condition>Uplift</condition><inside>-0.6</inside><outside>0.4</outside></li>
+      <li><condition>RockArrangement</condition><inside>1.3</inside></li>
+    </contributions>
+  </LivingLandscapes.Geology.FeatureTypeDef>
+
+</Defs>
