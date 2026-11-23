@@ -68,6 +68,12 @@ public class MapComponent_Environment : MapComponent
     /// <summary>The sea's surface (the beach's height, <see cref="Geology.Coastline"/>); NaN without a coast. Not saved.</summary>
     public float PlannedSeaLevel { get; set; } = float.NaN;
 
+    /// <summary>Cells of vanilla's water mask the rivers built into land (the sea fill, DELTA-MODEL-PLAN D3); null where none. Not saved.</summary>
+    public bool[] PlannedBuilt { get; set; }
+
+    /// <summary>Built land and the cells within a few of it: the vanilla beach band is cleared there. Not saved.</summary>
+    public bool[] PlannedBuiltNear { get; set; }
+
     /// <summary>Sea shallower than this (metres) is shallow water (<see cref="Geology.CoastlineExtension.shallowWaterDepth"/>). Not saved.</summary>
     public float PlannedShallowDepth { get; set; } = float.NaN;
 

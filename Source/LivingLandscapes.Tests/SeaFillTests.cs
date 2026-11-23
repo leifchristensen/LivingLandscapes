@@ -211,4 +211,26 @@ public class SeaFillTests
         Assert.Equal(0.0, SeaFill.Room(0.0, 1.0));
         Assert.Equal(0.0, SeaFill.Room(0.0, 0.0));
     }
+
+    [Fact]
+    public void AGradedTop_IsHighestAtTheMouthAndNoCellRisesAboveItsOwnTop()
+    {
+        // Each cell has its own top (the delta's graded top): the load fills the mouth's cells higher than the far ones, and none above its top.
+        float[] bed = Bed(2f);
+        var kernel = Kernel(bed);
+        var tops = new float[kernel.Count];
+        for (int k = 0; k < kernel.Count; k++)
+            tops[k] = System.Math.Max(0.1f, 1.5f * (1f - kernel[k].d / 30f));
+        SeaFillResult r = SeaFill.Apply(bed, 0f, kernel, 400.0, NoWaves, 3.0, 3.0, 0f, tops);
+        Assert.True(r.Retained > 0.0);
+        for (int k = 0; k < kernel.Count; k++)
+            Assert.True(bed[kernel[k].cell] <= tops[k] + 1e-4f);
+        float near = float.MinValue, far = float.MinValue;
+        for (int k = 0; k < kernel.Count; k++)
+        {
+            if (kernel[k].d < 3f) near = System.Math.Max(near, bed[kernel[k].cell]);
+            if (kernel[k].d > 20f) far = System.Math.Max(far, bed[kernel[k].cell]);
+        }
+        Assert.True(near > far, $"near {near} far {far}");
+    }
 }

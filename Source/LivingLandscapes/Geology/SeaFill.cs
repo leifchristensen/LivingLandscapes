@@ -52,14 +52,16 @@ public static class SeaFill
     /// Lays the kept part of <paramref name="delivered"/> on <paramref name="bed"/> (metres, below sea level; raised in place) along
     /// <paramref name="kernel"/> (cell, weight, distance along the axis; not normalised). Each pass spreads the remaining load over the
     /// cells that still have room in proportion to their weights; a cell takes min(share, room) and what it refuses is spread again, so
-    /// the front advances. Deterministic: kernel order, no random.
+    /// the front advances. With <paramref name="levelPerCell"/> (one per kernel entry) each cell has its own top, <paramref name="level"/> being
+    /// the default: a delta's graded top, highest at the mouth and falling to the sea level at the front. Deterministic: kernel order, no random.
     /// </summary>
     public static SeaFillResult Apply(float[] bed, float level, IReadOnlyList<(int cell, float weight, float d)> kernel, double delivered,
-        double waveCapacityPerWidth, double frontWidth, double mouthWidth, float epsT = 0f)
+        double waveCapacityPerWidth, double frontWidth, double mouthWidth, float epsT = 0f, float[] levelPerCell = null)
     {
         var result = new SeaFillResult();
         if (delivered <= 0.0)
             return result;
+        float LevelOf(int k) => levelPerCell != null ? levelPerCell[k] : level;
         double kept = RetainedLoad(delivered, waveCapacityPerWidth, frontWidth, mouthWidth);
         result.RemovedByWaves = delivered - kept;
         double remaining = kept;
@@ -69,7 +71,7 @@ public static class SeaFill
             double sum = 0.0;
             for (int k = 0; k < kernel.Count; k++)
             {
-                if (kernel[k].weight > 0f && Room(level, bed[kernel[k].cell]) > FullRoom)
+                if (kernel[k].weight > 0f && Room(LevelOf(k), bed[kernel[k].cell]) > FullRoom)
                     sum += kernel[k].weight;
             }
             if (sum <= 0.0)
@@ -78,12 +80,13 @@ public static class SeaFill
             for (int k = 0; k < kernel.Count; k++)
             {
                 int cell = kernel[k].cell;
-                double room = Room(level, bed[cell]);
+                float top = LevelOf(k);
+                double room = Room(top, bed[cell]);
                 if (kernel[k].weight <= 0f || room <= FullRoom)
                     continue;
                 double dz = Math.Min(remaining * kernel[k].weight / sum, room);
                 float before = bed[cell];
-                float after = Math.Min((float)(before + dz), level);
+                float after = Math.Min((float)(before + dz), top);
                 bed[cell] = after;
                 double actual = (double)after - before;
                 if (actual <= 0.0)
@@ -104,7 +107,7 @@ public static class SeaFill
         result.NoRoom = kept - result.Retained;
         for (int k = 0; k < kernel.Count; k++)
         {
-            if (raised[k] && bed[kernel[k].cell] >= level - epsT)
+            if (raised[k] && bed[kernel[k].cell] >= LevelOf(k) - epsT)
                 result.Promoted.Add(kernel[k].cell);
         }
         return result;
