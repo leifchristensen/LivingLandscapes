@@ -100,13 +100,13 @@ public class SeaStateTests
         SeaPassResult r = SeaFillPass.Run(sea, delivered, outlet, receiver, area, Heights(5f), 1f, Settings(0.3), landHeight);
         Assert.Equal(400.0, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
         Assert.Equal(r.Delivered, r.Retained + r.RemovedByWaves + r.NoRoom, 6);
-        // Room is never negative: a bed rises only to the mouth's depth (the promotion height), never past it by more than float rounding.
+        // Room is never negative: a bed rises only to its own top (at most the mouth's depth), never past it by more than float rounding.
         float depth = Math.Max(SeaFillPass.MinMouthDepth, SeaFillPass.MouthDepthPerRootWidth * (float)Math.Sqrt(3f * 2f));
         for (int i = 0; i < sea.Bed.Length; i++)
         {
             Assert.True(sea.Bed[i] <= depth + 1e-4f, $"bed {sea.Bed[i]} above the promotion height {depth}");
             if (!sea.Sea[i] && i % GX >= 12)
-                Assert.True(sea.Bed[i] >= depth - 1e-4f, "a promoted cell reached the promotion height");
+                Assert.True(sea.Bed[i] >= SeaFillPass.MinMouthDepth * SeaFillPass.MinCeilingShare - 1e-4f, "a promoted cell reached at least the least bar height");
         }
         Assert.True(r.PromotedCells > 0);
         foreach (int c in r.Cells)

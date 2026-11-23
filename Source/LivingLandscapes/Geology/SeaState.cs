@@ -267,7 +267,13 @@ public static class SeaFillPass
                 for (int k = 0; k < kernel.Count; k++)
                     bedBefore[k] = sea.Bed[kernel[k].cell];
             }
-            SeaFillResult r = SeaFill.Apply(sea.Bed, ceiling, kernel, metres, capacityPerWidth, w, w);
+            // The delta's graded top: highest (the mouth's depth) where the river enters, falling to the least bar height at the front (the topset
+            // slope), never below that. Not capped by the land behind the mouth: on a flat coast the new plain still has the mouth's depth of room.
+            var tops = new float[kernel.Count];
+            float minTop = MinMouthDepth * MinCeilingShare;
+            for (int k = 0; k < kernel.Count; k++)
+                tops[k] = Math.Max(minTop, depth * (1f - Math.Min(1f, kernel[k].d / Math.Max(1f, reach))));
+            SeaFillResult r = SeaFill.Apply(sea.Bed, ceiling, kernel, metres, capacityPerWidth, w, w, 0f, tops);
             if (bedBefore != null)
             {
                 double rise = 0.0;
