@@ -42,6 +42,65 @@ public class SeaStateTests
     }
 
     [Fact]
+    public void ReleaseEnclosed_TurnsSeaCutOffByNewLandIntoLand_AndKeepsTheOpenSea()
+    {
+        SeaState sea = NewSea();
+        bool[] before = SeaExit.OpenSea(sea);
+        // A wall of promoted land at column 25 from row 5 to row 25 splits nothing yet: the sea goes round it at the top and the bottom.
+        for (int z = 5; z <= 25; z++)
+            Assert.True(sea.Promote(z * GX + 25));
+        Assert.Equal(0, sea.ReleaseEnclosed(before));
+        // Closing the wall to the region edges (rows 1 to 4 and 26 to 29; the edge rows stay sea) leaves the sea east of the wall joined to the border only by the edge rows, so it is still open.
+        for (int z = 1; z <= 29; z++)
+            sea.Promote(z * GX + 25);
+        // The edge rows 0 and 30 are sea still, so east and west stay joined: nothing is cut off.
+        Assert.Equal(0, sea.ReleaseEnclosed(before));
+    }
+
+    [Fact]
+    public void ReleaseEnclosed_AnEnclosedBay_BecomesLandAndNoLongerAnOutlet()
+    {
+        SeaState sea = NewSea();
+        bool[] before = SeaExit.OpenSea(sea);
+        // A ring of promoted land round a block of sea in the middle of the open sea (columns 20 to 24, rows 10 to 14, ring one cell out).
+        for (int z = 9; z <= 15; z++)
+        {
+            for (int x = 19; x <= 25; x++)
+            {
+                if (z == 9 || z == 15 || x == 19 || x == 25)
+                    Assert.True(sea.Promote(z * GX + x));
+            }
+        }
+        int inside = 12 * GX + 22;
+        Assert.True(sea.Sea[inside]);
+        int version = sea.Version;
+        int released = sea.ReleaseEnclosed(before);
+        Assert.Equal(25, released);                    // the 5 x 5 bay
+        Assert.False(sea.Sea[inside]);                 // ordinary land now: not an outlet, drained and filled like any basin
+        Assert.True(sea.Sea[12 * GX + 30]);            // the open sea outside the ring is untouched
+        Assert.True(sea.Version > version);            // readers of the land regions look again
+        Assert.Equal(0, sea.ReleaseEnclosed(before));  // idempotent
+    }
+
+    [Fact]
+    public void ReleaseEnclosed_KeepsTheRiversExit()
+    {
+        SeaState sea = NewSea();
+        bool[] before = SeaExit.OpenSea(sea);
+        for (int z = 9; z <= 15; z++)
+        {
+            for (int x = 19; x <= 25; x++)
+            {
+                if (z == 9 || z == 15 || x == 19 || x == 25)
+                    sea.Promote(z * GX + x);
+            }
+        }
+        int exit = 12 * GX + 22;
+        Assert.Equal(24, sea.ReleaseEnclosed(before, exit));
+        Assert.True(sea.Sea[exit]); // SeaExit.Extend carries the world river on over the new land from it
+    }
+
+    [Fact]
     public void Promote_RefusesRegionEdgeLandAndTheExit()
     {
         SeaState sea = NewSea();

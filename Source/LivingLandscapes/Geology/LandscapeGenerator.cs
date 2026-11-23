@@ -1198,6 +1198,7 @@ public static class LandscapeGenerator
         var landHeight = new float[n];
         int windowStart = seaFillOn && sea != null ? p.erosionIterations - Mathf.Max(1, Mathf.CeilToInt(p.erosionIterations * p.stillstandShare)) : int.MaxValue;
         int seaPasses = 0;
+        int enclosedTotal = 0;
         double seaDeliveredSum = 0.0, seaMetresSum = 0.0;
         SeaPassResult seaLastPass = null;
         float lastMetresPerHeight = 0f;
@@ -1374,6 +1375,7 @@ public static class LandscapeGenerator
                         h[cell] = landHeight[cell];
                     }
                     seaPasses++;
+                    enclosedTotal += seaPass.EnclosedCells;
                 }
                 ledger.Eroded += erodedSum;
                 ledger.Yield += ErosionLedger.YieldDivisor(eroded, outlet, out _) * inflowSum;
@@ -1461,7 +1463,7 @@ public static class LandscapeGenerator
         {
             float mph = lastMetresPerHeight > 0f ? lastMetresPerHeight : relief / Mathf.Max(1e-6f, h.Max());
             Log.Message($"[LivingLandscapes] Sea fill (D3): {(seaFillOn ? $"on, stillstand window from iteration {windowStart} ({seaPasses} passes)" : "off (-ll-sea-fill=off)")}, " +
-                        $"{sea.Initial} sea cells in the model, {sea.Promoted} filled to land ({(float)sea.Promoted / Mathf.Max(1, sea.Initial):P1} of the sea), " +
+                        $"{sea.Initial} sea cells in the model, {sea.Promoted - enclosedTotal} filled to land and {enclosedTotal} cut off from the open sea and made land ({(float)sea.Promoted / Mathf.Max(1, sea.Initial):P1} of the sea), " +
                         $"sediment delivered to the sea in the window {seaDeliveredSum * mph:F1} m of model cell thickness ({seaMetresSum:G4} m summed over cells at {p.seaMetresPerReferenceRiver:G3} m per reference river per pass); " +
                         $"ledger in model height units: eroded {ledger.Eroded:G5} + yield {ledger.Yield:G5} = kept {ledger.Kept:G5} + lake {ledger.Lake:G5} + retained at sea {ledger.RetainedAtSea:G5} " +
                         $"+ removed by waves {ledger.RemovedByWaves:G5} + no room {ledger.NoRoom:G5} + land-edge outlets {ledger.LandEdgeOutlet:G5} + lost at sinks {ledger.Lost:G5} " +

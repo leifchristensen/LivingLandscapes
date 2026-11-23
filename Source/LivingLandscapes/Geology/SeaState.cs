@@ -64,6 +64,30 @@ public sealed class SeaState
         Version++;
         return true;
     }
+
+    /// <summary>
+    /// Turns into land the sea cells that were joined to the open sea (<paramref name="openBefore"/>, from <see cref="SeaExit.OpenSea"/>) and
+    /// no longer are: new land cut them off. The region edge is always open; <paramref name="keep"/> (the river's exit, which <see cref="SeaExit.Extend"/> carries on over the new land) stays. Returns how many.
+    /// </summary>
+    public int ReleaseEnclosed(bool[] openBefore, int keep = -1)
+    {
+        bool[] open = SeaExit.OpenSea(this);
+        int released = 0;
+        for (int i = 0; i < Sea.Length; i++)
+        {
+            if (Sea[i] && openBefore[i] && !open[i] && i != keep)
+            {
+                Sea[i] = false;
+                released++;
+            }
+        }
+        if (released > 0)
+        {
+            Promoted += released;
+            Version++;
+        }
+        return released;
+    }
 }
 
 /// <summary>What one pass of the sea fill did, in the erosion model's height units (the units of the load the model hands over).</summary>
@@ -77,6 +101,8 @@ public sealed class SeaPassResult
     // (same unit), their ratio R = Q_s / Q_w, what it kept (metres), the cells its jet raised, and the mean rise of those cells.
     public double MainQs, MainQw, MainR, MainRetainedMetres, MainRaisedCells, MainThickness;
     public int PromotedCells;
+    /// <summary>Sea cells the promoted land cut off from the open sea in this pass; they became land (see <see cref="SeaState.ReleaseEnclosed"/>).</summary>
+    public int EnclosedCells;
     /// <summary>The cells turned into land by this pass, in the order they were promoted.</summary>
     public readonly List<int> Cells = new List<int>();
 }
@@ -197,6 +223,7 @@ public static class SeaFillPass
     {
         var result = new SeaPassResult();
         int n = sea.Sea.Length;
+        bool[] openBefore = SeaExit.OpenSea(sea);
         var kernel = new List<(int cell, float weight, float d)>();
         var ground = new float[n];
         for (int i = 0; i < n; i++)
@@ -322,6 +349,10 @@ public static class SeaFillPass
                     ground[k.cell] = sea.Bed[k.cell];
             }
         }
+        // The sea's base level is one connected outlet set: sea the new land cut off from the open sea is no outlet any more. It becomes
+        // ordinary low land that drains and fills like any basin (the erosion model's lake rule), not a second way out for the rivers.
+        if (result.PromotedCells > 0)
+            result.EnclosedCells = sea.ReleaseEnclosed(openBefore, s.KeepExit);
         return result;
     }
 }
