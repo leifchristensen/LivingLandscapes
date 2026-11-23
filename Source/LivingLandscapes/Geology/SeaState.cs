@@ -257,7 +257,14 @@ public static class SeaFillPass
             }
             // New land never stands higher than the ground behind the mouth (the land the river comes down), and never below the sea.
             float ceiling = Math.Min(depth, Math.Max(MinMouthDepth * MinCeilingShare, height[donor] * metresPerHeight));
-            float settle = s.SettleWidths * w, reach = Reach(settle, s, c, ax, az, sea.Gx);
+            // The jet settles within the reach it is allowed (the cap that keeps the lobe on the map): a wide mouth would otherwise settle over
+            // more cells than the cap holds, the density would be flat across the whole reach and the load would lie as an even film. With the
+            // settling length held to a third of the reach the density falls to a twentieth by the front, so the deposit is thickest at the mouth.
+            float settle = s.SettleWidths * w;
+            float reachCap = Reach(float.MaxValue / 8f, s, c, ax, az, sea.Gx);
+            if (reachCap < 1e4f)
+                settle = Math.Min(settle, reachCap / Math.Max(s.ReachLengths, 1f));
+            float reach = Reach(settle, s, c, ax, az, sea.Gx);
             JetKernel.Weights(c, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, reach, s.SpreadRate, kernel);
             // Shallow cells first from the mouth: the kernel's cells are sea (finite ground) at or below the promotion height.
             float[] bedBefore = null;

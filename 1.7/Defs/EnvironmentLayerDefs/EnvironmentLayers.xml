@@ -140,7 +140,7 @@
         <deltaWaveEnergy>0.1</deltaWaveEnergy>
         <openWaveEnergy>0.9</openWaveEnergy>
         <waveEnergyReference>0.45</waveEnergyReference>
-        <seaMetresPerReferenceRiver>50</seaMetresPerReferenceRiver>
+        <seaMetresPerReferenceRiver>70</seaMetresPerReferenceRiver>
         <seaReferenceRiverWidth>12</seaReferenceRiverWidth>
         <seaJetSettleWidths>5</seaJetSettleWidths>
         <seaJetReachLengths>3</seaJetReachLengths>

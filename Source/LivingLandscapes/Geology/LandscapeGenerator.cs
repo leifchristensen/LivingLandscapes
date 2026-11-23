@@ -96,7 +96,7 @@ public class GeologyGenerationExtension : DefModExtension
     /// against the reference's (width squared, hydraulic geometry), so a Huge river builds more than a Large one on the same coast and the order is
     /// a result, not set per map. The model's own load has no physical size, so only the shares between mouths come from it.
     /// </summary>
-    public float seaMetresPerReferenceRiver = 50f;
+    public float seaMetresPerReferenceRiver = 70f;
 
     /// <summary>Map width (cells) of the reference river, the Large class (worldRiverWidth 14 -> 12): its discharge weight is 1; a Huge river (24) is 4, a River (6) a quarter.</summary>
     public float seaReferenceRiverWidth = 12f;
