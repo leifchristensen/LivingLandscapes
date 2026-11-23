@@ -1389,6 +1389,8 @@ public static class LandscapeGenerator
                     seaDeliveredSum += seaPass.Delivered;
                     seaMetresSum += seaPass.Metres;
                     seaLastPass = seaPass;
+                    if (seaPass.MouthDebug.Count > 0)
+                        Log.Message("[LivingLandscapes] TEMP mouths: " + string.Join(" | ", seaPass.MouthDebug.Where(m => !m.EndsWith("promoted 0")).Take(40)));
                 }
                 else
                 {
@@ -1460,6 +1462,20 @@ public static class LandscapeGenerator
         if (sea != null)
         {
             float mph = lastMetresPerHeight > 0f ? lastMetresPerHeight : relief / Mathf.Max(1e-6f, h.Max());
+            {
+                var sb0 = new System.Text.StringBuilder("[LivingLandscapes] TEMP model grid (~ sea, P promoted land, o bed above -0.5 m, . land), x 90..189 step 2, z 150 down to 70 step 2:\n");
+                for (int zz = 150; zz >= 70; zz -= 2)
+                {
+                    for (int xx = 90; xx < 190; xx += 2)
+                    {
+                        int ii = zz * sea.Gx + xx;
+                        if (xx >= sea.Gx || zz >= sea.Gz) { sb0.Append(' '); continue; }
+                        sb0.Append(sea.Sea[ii] ? (sea.Bed[ii] > -0.5f ? 'o' : '~') : (sea.Bed[ii] > 0f ? 'P' : '.'));
+                    }
+                    sb0.Append('\n');
+                }
+                Log.Message(sb0.ToString());
+            }
             Log.Message($"[LivingLandscapes] Sea fill (D3): {(seaFillOn ? $"on, stillstand window from iteration {windowStart} ({seaPasses} passes)" : "off (-ll-sea-fill=off)")}, " +
                         $"{sea.Initial} sea cells in the model, {sea.Promoted} filled to land ({(float)sea.Promoted / Mathf.Max(1, sea.Initial):P1} of the sea), " +
                         $"sediment delivered to the sea in the window {seaDeliveredSum * mph:F1} m of model cell thickness ({seaMetresSum:G4} m summed over cells at {p.seaMetresPerReferenceRiver:G3} m per reference river per pass); " +

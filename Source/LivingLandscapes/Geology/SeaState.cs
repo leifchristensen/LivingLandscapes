@@ -77,6 +77,7 @@ public sealed class SeaPassResult
     // (same unit), their ratio R = Q_s / Q_w, what it kept (metres), the cells its jet raised, and the mean rise of those cells.
     public double MainQs, MainQw, MainR, MainRetainedMetres, MainRaisedCells, MainThickness;
     public int PromotedCells;
+    public List<string> MouthDebug = new List<string>(); // TEMP probe
     /// <summary>The cells turned into land by this pass, in the order they were promoted.</summary>
     public readonly List<int> Cells = new List<int>();
 }
@@ -257,8 +258,16 @@ public static class SeaFillPass
             }
             // New land never stands higher than the ground behind the mouth (the land the river comes down), and never below the sea.
             float ceiling = Math.Min(depth, Math.Max(MinMouthDepth * MinCeilingShare, height[donor] * metresPerHeight));
-            float settle = s.SettleWidths * w, reach = Reach(settle, s, c, ax, az, sea.Gx);
-            JetKernel.Weights(c, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, reach, s.SpreadRate, kernel);
+            // The jet settles within the reach it is allowed (the cap that keeps the lobe on the map): a wide mouth would otherwise settle over
+            // more cells than the cap holds and the lobe would end in a straight cut at the cap, a slab. With the settling length held to a third of
+            // the reach the density has fallen to a twentieth by the edge, so the lobe's end is where the load runs out, not a box edge.
+            float settle = s.SettleWidths * w;
+            float reachCap = Reach(float.MaxValue / 8f, s, c, ax, az, sea.Gx);
+            settle = Math.Min(settle, reachCap / Math.Max(s.ReachLengths, 1f));
+            // The kernel is searched out to the cap, not to the settling length: the cells that fill are the densest ones, so the lobe's size is set by
+            // the load kept and its edge is a contour of the density, not the edge of the box the search was limited to.
+            float reach = reachCap;
+            JetKernel.Weights(c, ax, az, w, depth, ground, sea.Gx, sea.Gz, settle, reach, s.SpreadRate, kernel, fan: true);
             // Shallow cells first from the mouth: the kernel's cells are sea (finite ground) at or below the promotion height.
             float[] bedBefore = null;
             if (c == mainCell)
@@ -289,6 +298,7 @@ public static class SeaFillPass
                 result.MainRaisedCells = raised;
                 result.MainThickness = raised > 0 ? rise / raised : 0.0;
             }
+            result.MouthDebug.Add($"mouth ({c % sea.Gx},{c / sea.Gx}) w {w:F1} depth {depth:F2} ceil {ceiling:F2} reach {reach:F1} axis ({ax:F2},{az:F2}) kernel {kernel.Count} metres {metres:F2} retained {r.Retained:F3} promoted {r.Promoted.Count}");
             result.Retained += r.Retained / scale;
             result.RemovedByWaves += r.RemovedByWaves / scale;
             result.NoRoom += r.NoRoom / scale;
