@@ -12,8 +12,10 @@ namespace LivingLandscapes.Patches;
 /// <summary>
 /// A tile mutator whose water the map's water regime models (a delta, a headwater lake, a wetland's channels; the
 /// regime lists the mutator and sets <see cref="WaterRegimeDef.replacesMutatorTerrain"/>) must not paint its own
-/// water over the geology's afterwards. Targets every mutator worker, vanilla or modded, that overrides this step,
-/// except river workers: they lay the river graph here, and their painting stands aside in its own patches.
+/// water over the geology's afterwards. Nor may a stand-in the geology leaves out (<see cref="StandIns"/>: vanilla
+/// paints cave water and gravel, lava pools and dune sand here). Targets every mutator worker, vanilla or modded, that
+/// overrides this step, except river workers: they lay the river graph here, and their painting stands aside in its own
+/// patches.
 /// </summary>
 [HarmonyPatch]
 public static class Patch_TileMutatorWorker_GeneratePostTerrain
@@ -31,6 +33,8 @@ public static class Patch_TileMutatorWorker_GeneratePostTerrain
         // River workers build the river graph here; their own water painting is stood aside separately.
         if (__instance is TileMutatorWorker_River)
             return true;
+        if (StandIns.Replaces(__instance.def) && GeologicalTerrain.AppliesTo(map))
+            return false;
         WaterRegimeDef regime = map.GetComponent<MapComponent_Environment>()?.PlannedRivers?.Regime;
         return regime == null || !regime.replacesMutatorTerrain || __instance.def == null || !regime.mutators.Contains(__instance.def.defName);
     }
