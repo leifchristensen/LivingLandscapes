@@ -8,7 +8,8 @@ public static class GeologicalTerrain
 {
     /// <summary>
     /// On when the map is natural surface terrain: not underground, not a sea tile, and any tile mutator that replaces
-    /// natural elevation is one the geology models (a <see cref="FeatureTypeDef"/> is anchored on it). Not a player setting (#130).
+    /// natural elevation is one the geology models (a <see cref="FeatureTypeDef"/> is anchored on it) or one whose
+    /// shaping it leaves out (<see cref="StandIns"/>). Not a player setting (#130).
     /// </summary>
     public static bool AppliesTo(Map map)
     {
@@ -19,6 +20,6 @@ public static class GeologicalTerrain
             return false;
         if (map.TileInfo.WaterCovered)
             return false;
-        return !map.TileInfo.Mutators.Any(m => m.preventNaturalElevation && !FeatureTypeDef.Models(m));
+        return !map.TileInfo.Mutators.Any(m => m.preventNaturalElevation && !FeatureTypeDef.Models(m) && !StandIns.Replaces(m));
     }
 }

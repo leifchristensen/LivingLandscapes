@@ -24,4 +24,31 @@
       <li MayRequire="Ludeon.RimWorld.Biotech">AncientPollutionJunk</li>
     </genSteps>
   </LivingLandscapes.Settings.GenStepFilterDef>
+
+  <!--
+    Stand-ins that draw a feature straight onto the map. Left out wherever geological terrain applies (not a setting);
+    caves and dunes are to get processes of their own (FEATURE-REGIONS.md phase 7). A listed tile mutator keeps its
+    other effects; only its elevation and terrain shaping is not run, and it no longer switches geology off.
+    Not listed: UndergroundCave (the cave inside underground pocket maps, where geology never applies).
+  -->
+  <LivingLandscapes.Settings.GenStepFilterDef>
+    <defName>LL_GeologyStandIns</defName>
+    <label>cave, dune and cenote stand-ins</label>
+    <mutators>
+      <!-- Cave tunnels, with the water, gravel and lava vanilla paints into them -->
+      <li>Caves</li>
+      <li MayRequire="Ludeon.RimWorld.Odyssey">Cavern</li>
+      <li MayRequire="Ludeon.RimWorld.Odyssey">CaveLakes</li>
+      <li MayRequire="Ludeon.RimWorld.Odyssey">LavaCaves</li>
+      <li MayRequire="Ludeon.RimWorld.Odyssey">IceCaves</li>
+      <!-- Dune shaping: soft sand ridges and solid ice ridges -->
+      <li MayRequire="Ludeon.RimWorld.Odyssey">Dunes</li>
+      <li MayRequire="Ludeon.RimWorld.Odyssey">IceDunes</li>
+    </mutators>
+    <genSteps>
+      <!-- Vanilla Landmarks Expanded: the large and small cenote buildings -->
+      <li MayRequire="VanillaExpanded.VExplorationE">VEE_Cenotes_Large</li>
+      <li MayRequire="VanillaExpanded.VExplorationE">VEE_Cenotes_Small</li>
+    </genSteps>
+  </LivingLandscapes.Settings.GenStepFilterDef>
 </Defs>
