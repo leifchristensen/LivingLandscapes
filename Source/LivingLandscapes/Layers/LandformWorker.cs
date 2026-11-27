@@ -62,6 +62,7 @@ public class LandformWorker : EnvironmentLayerWorker
                 environment.PlannedRockStage = rockStage;
                 environment.PlannedErosion = erosion;
                 environment.PlannedRock = rock;
+                environment.PlannedRegions = LandscapeGenerator.Regions;
             }
             Log.Message($"[LivingLandscapes] Geological terrain for {map}: tile {world.Elevation:F0} m, {world.Hilliness}, " +
                         $"relief {LandscapeGenerator.Relief:F0} m{(LandscapeGenerator.PlainsFeature != null ? $" (plains feature {LandscapeGenerator.PlainsFeature.defName})" : "")}, downhill ({world.Downhill.x:F2}, {world.Downhill.y:F2}), " +

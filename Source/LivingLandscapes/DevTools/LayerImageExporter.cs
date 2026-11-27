@@ -43,9 +43,12 @@ public static class LayerImageExporter
             float[] opacity = style.opacityLayer != null && environment.TryGetGrid(style.opacityLayer, out EnvironmentGrid opacityGrid)
                 ? opacityGrid.ToArray()
                 : null;
-            Export(map, grid, style, path, markCliffs, opacity);
+            float[] contourValues = style.contourLayer != null && environment.TryGetGrid(style.contourLayer, out EnvironmentGrid contourGrid)
+                ? contourGrid.ToArray()
+                : null;
+            Export(map, grid, style, path, markCliffs, opacity, contourValues);
             if (GenCommandLine.CommandLineArgPassed("ll-export-raw"))
-                ExportRaw(grid, Path.Combine(Folder, $"{layer.defName}.f32"));
+                ExportRaw(grid.ToArray(), Path.Combine(Folder, $"{layer.defName}.f32"));
             summary.AppendLine($"{layer.defName}: min {grid.Min:F3} max {grid.Max:F3} {layer.unit} -> {path}");
         }
         // The land's relief without the water's depth: channel beds, scour holes and lake floors are left out (the test
@@ -64,20 +67,48 @@ public static class LayerImageExporter
             if (lo <= hi)
                 summary.AppendLine($"LL_Landform dry ground: min {lo:F3} max {hi:F3} m");
         }
+        summary.AppendLine($"layers hash: {LayersHash(map, environment)}");
         ExportTerrainMap(map, Path.Combine(Folder, "Map.png"));
         Invariants.Report(map, summary);
         GameplayReport.Append(map, summary);
         CliffReport.Append(map, summary);
+        FeatureRegionReport.Append(map, summary);
         File.WriteAllText(Path.Combine(Folder, "summary.txt"), summary.ToString());
         WriteLog();
         Log.Message($"[LivingLandscapes] Exported environment layers to {Folder}");
     }
 
     /// <summary>
-    /// Writes one layer. With <paramref name="markCliffs"/>, terrace cliffs (dark red) and steps (white) are drawn
-    /// over it, so their placement can be checked against the contours.
+    /// A short hash of what the map is made of: the natural and the terraced height, the surface water and every cell's
+    /// terrain. Two runs with the same hash made the same ground (the battery's compare reads this line).
     /// </summary>
-    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path, bool markCliffs, float[] opacity = null)
+    private static string LayersHash(Map map, MapComponent_Environment environment)
+    {
+        var stream = new MemoryStream();
+        var writer = new BinaryWriter(stream);
+        foreach (EnvironmentLayerDef layer in new[] { EnvironmentLayerDefOf.LL_Landform, EnvironmentLayerDefOf.LL_Height, EnvironmentLayerDefOf.LL_SurfaceWater })
+        {
+            writer.Write(layer.defName);
+            if (!environment.TryGetGrid(layer, out EnvironmentGrid grid))
+                continue;
+            foreach (float v in grid.ToArray())
+                writer.Write(v);
+        }
+        for (int i = 0; i < map.cellIndices.NumGridCells; i++)
+            writer.Write(map.terrainGrid.TerrainAt(i)?.defName ?? "");
+        writer.Flush();
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        byte[] hash = sha.ComputeHash(stream.ToArray());
+        return System.BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Writes one layer. With <paramref name="markCliffs"/>, terrace cliffs (dark red) and steps (white) are drawn
+    /// over it, so their placement can be checked against the contours. <paramref name="contourValues"/> are the values of
+    /// the style's contour layer, whose one line is drawn over this layer.
+    /// </summary>
+    private static void Export(Map map, EnvironmentGrid grid, OverlayProperties style, string path, bool markCliffs, float[] opacity = null,
+        float[] contourValues = null)
     {
         int sizeX = map.Size.x;
         int sizeZ = map.Size.z;
@@ -85,12 +116,25 @@ public static class LayerImageExporter
         int height = sizeZ * PixelsPerCell;
         float[] values = grid.ToArray();
 
-        // Sample the field per pixel (bilinear between cell centres) so contours come out smooth.
+        // Sample the field per pixel (bilinear between cell centres) so contours come out smooth. Classes are not blended:
+        // a pixel takes its own cell's class, or a border would show classes the map does not have there.
         var sampled = new float[width * height];
         for (int py = 0; py < height; py++)
         {
             for (int px = 0; px < width; px++)
-                sampled[py * width + px] = Sample(values, sizeX, sizeZ, (px + 0.5f) / PixelsPerCell - 0.5f, (py + 0.5f) / PixelsPerCell - 0.5f);
+                sampled[py * width + px] = style.discrete
+                    ? values[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)]
+                    : Sample(values, sizeX, sizeZ, (px + 0.5f) / PixelsPerCell - 0.5f, (py + 0.5f) / PixelsPerCell - 0.5f);
+        }
+        float[] line = null;
+        if (contourValues != null)
+        {
+            line = new float[width * height];
+            for (int py = 0; py < height; py++)
+            {
+                for (int px = 0; px < width; px++)
+                    line[py * width + px] = Sample(contourValues, sizeX, sizeZ, (px + 0.5f) / PixelsPerCell - 0.5f, (py + 0.5f) / PixelsPerCell - 0.5f);
+            }
         }
 
         var pixels = new Color[width * height];
@@ -114,6 +158,8 @@ public static class LayerImageExporter
                     if (level != int.MinValue)
                         color = Color.Lerp(color, style.contourColor, style.IsIndexLevel(level) ? 1f : 0.7f);
                 }
+                if (line != null && CrossesAt(line, width, height, px, py, style.contourLevel))
+                    color = style.contourColor;
                 if (markCliffs && map.edificeGrid[CellIndicesUtility.CellToIndex(px / PixelsPerCell, py / PixelsPerCell, sizeX)] is { } cliff
                     && CliffDefs.IsCliff(cliff.def))
                     color = cliff.def.passability == Traversability.Standable ? StepsMark : CliffMark;
@@ -134,9 +180,8 @@ public static class LayerImageExporter
     /// Writes a layer's values as little-endian 32-bit floats, one per cell, x fastest then z (row 0 is the south edge),
     /// so tools can measure a field instead of reading colours. The map size is in summary.txt.
     /// </summary>
-    private static void ExportRaw(EnvironmentGrid grid, string path)
+    internal static void ExportRaw(float[] values, string path)
     {
-        float[] values = grid.ToArray();
         var bytes = new byte[values.Length * sizeof(float)];
         System.Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
         File.WriteAllBytes(path, bytes);
@@ -276,6 +321,14 @@ public static class LayerImageExporter
                 return Mathf.Max(north, band);
         }
         return int.MinValue;
+    }
+
+    /// <summary>Whether the line at <paramref name="level"/> passes between this pixel and its east or north neighbour.</summary>
+    private static bool CrossesAt(float[] sampled, int width, int height, int px, int py, float level)
+    {
+        bool above = sampled[py * width + px] >= level;
+        return (px + 1 < width && sampled[py * width + px + 1] >= level != above)
+            || (py + 1 < height && sampled[(py + 1) * width + px] >= level != above);
     }
 
     private static float Sample(float[] values, int sizeX, int sizeZ, float x, float z)

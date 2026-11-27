@@ -710,6 +710,36 @@
       </colors>
     </overlay>
   </LivingLandscapes.Environment.EnvironmentLayerDef>
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_FeatureRegionWeight</defName>
+    <label>feature region strength</label>
+    <description>Dev view data: 0 to 1, how strongly the region drawn by the "feature regions" view acts on each cell, as a share of that region's peak. Only known on a freshly generated map. Computed when shown; not saved.</description>
+    <workerClass>LivingLandscapes.Layers.FeatureRegionWeightWorker</workerClass>
+    <onDemand>true</onDemand>
+    <precision>UShort</precision>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
+  <LivingLandscapes.Environment.EnvironmentLayerDef>
+    <defName>LL_FeatureRegion</defName>
+    <label>feature regions</label>
+    <description>Dev view: the areas the generator marked before shaping the ground, coloured by kind. Stronger colour where a region acts more strongly; the line is where it acts at half strength. Where regions overlap, the strongest shows (debug action "Feature regions: show one region" shows one alone). Only known on a freshly generated map. Computed when shown; not saved.</description>
+    <workerClass>LivingLandscapes.Layers.FeatureRegionWorker</workerClass>
+    <onDemand>true</onDemand>
+    <precision>UShort</precision>
+    <dependsOn>
+      <li>LL_FeatureRegionWeight</li>
+    </dependsOn>
+    <overlay>
+      <!-- One colour stop per feature type is built in code after the defs load (the types' debugColor). -->
+      <featureTypeColors>true</featureTypeColors>
+      <discrete>true</discrete>
+      <opacityLayer>LL_FeatureRegionWeight</opacityLayer>
+      <contourLayer>LL_FeatureRegionWeight</contourLayer>
+      <contourLevel>0.5</contourLevel>
+      <fillOpacity>0.75</fillOpacity>
+    </overlay>
+  </LivingLandscapes.Environment.EnvironmentLayerDef>
+
   <!-- Disturbance mosaic (P22, tools/Docs/DISTURBANCE-MOSAIC.md): years since the last stand-replacing fire or windthrow. -->
   <LivingLandscapes.Environment.EnvironmentLayerDef>
     <defName>LL_StandAge</defName>

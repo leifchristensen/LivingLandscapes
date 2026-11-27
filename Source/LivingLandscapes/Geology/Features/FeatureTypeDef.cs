@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
+using UnityEngine;
 using Verse;
 
 namespace LivingLandscapes.Geology;
@@ -220,6 +221,9 @@ public class FeatureTypeDef : Def
 
     /// <summary>Skip the anchoring mutator's own elevation rewrite when geological terrain is on (the geology models the landform).</summary>
     public bool replacesVanillaElevation = true;
+
+    /// <summary>Colour in the dev "Feature regions" overlay and its export; unset (transparent) draws grey, with a warning.</summary>
+    public Color debugColor = Color.clear;
 
     public FeatureScale ScaleFor(Hilliness h) => byHilliness.Find(s => s.hilliness == h);
 

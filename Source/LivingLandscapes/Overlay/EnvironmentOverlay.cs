@@ -37,7 +37,7 @@ public class EnvironmentOverlay
 
     /// <summary>Layers of this map that have overlay settings, in compute order (on-demand dev layers once the map has their inputs).</summary>
     public IEnumerable<EnvironmentLayerDef> Available =>
-        EnvironmentLayerOrder.Sorted.Where(l => l.overlay != null && (environment.HasLayer(l) || (l.onDemand && l.dependsOn.All(environment.HasLayer))));
+        EnvironmentLayerOrder.Sorted.Where(l => l.overlay != null && (environment.HasLayer(l) || (l.onDemand && environment.CanComputeOnDemand(l))));
 
     public bool IsActive(EnvironmentLayerDef layer) => active.Any(r => r.layer == layer);
 
@@ -97,10 +97,18 @@ public class EnvironmentOverlay
             },
             map.Size.x, map.Size.z, FillRenderQueue, style.fillOpacity);
 
+        float altitude = AltitudeLayer.MetaOverlays.AltitudeFor();
+        if (style.contourLayer != null && environment.TryGetGrid(style.contourLayer, out EnvironmentGrid contourGrid))
+        {
+            var edge = new LineMeshBuilder(altitude);
+            foreach (ContourSegment s in ContourTracer.TraceAt(contourGrid.ToArray(), map.Size.x, map.Size.z, style.contourLevel))
+                edge.Add(s.A, s.B, IndexWidth);
+            render.lines.Add((LineMaterial(style), edge.Finish()));
+        }
+
         if (style.contourInterval <= 0f)
             return render;
         List<ContourSegment> segments = ContourTracer.Trace(values, map.Size.x, map.Size.z, style.contourInterval, style.contourMax);
-        float altitude = AltitudeLayer.MetaOverlays.AltitudeFor();
         var minor = new LineMeshBuilder(altitude);
         var index = new LineMeshBuilder(altitude);
         var segmentsOnLevel = new Dictionary<int, int>();
@@ -117,14 +125,17 @@ public class EnvironmentOverlay
                 render.labels.Add(((s.A + s.B) * 0.5f, (s.Level * style.contourInterval).ToString(style.labelFormat)));
             segmentsOnLevel[s.Level] = n + 1;
         }
-        Material lineMaterial = SolidColorMaterials.NewSolidColorMaterial(style.contourColor, ShaderDatabase.SolidColor);
-        lineMaterial.renderQueue = LineRenderQueue;
-        render.lines = new List<(Material, List<Mesh>)>
-        {
-            (lineMaterial, minor.Finish()),
-            (lineMaterial, index.Finish()),
-        };
+        Material lineMaterial = LineMaterial(style);
+        render.lines.Add((lineMaterial, minor.Finish()));
+        render.lines.Add((lineMaterial, index.Finish()));
         return render;
+    }
+
+    private static Material LineMaterial(OverlayProperties style)
+    {
+        Material material = SolidColorMaterials.NewSolidColorMaterial(style.contourColor, ShaderDatabase.SolidColor);
+        material.renderQueue = LineRenderQueue;
+        return material;
     }
 
     public void Update()

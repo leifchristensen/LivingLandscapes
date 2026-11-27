@@ -49,6 +49,41 @@ public static class EnvironmentDebugActions
         Find.WindowStack.Add(new Dialog_DebugOptionListLister(options));
     }
 
+    [DebugAction("Living Landscapes", "Feature regions: show one region", allowedGameStates = AllowedGameStates.IsCurrentlyOnMap)]
+    private static void ChooseFeatureRegion()
+    {
+        Geology.PlannedRegions regions = Find.CurrentMap?.GetComponent<MapComponent_Environment>()?.PlannedRegions;
+        if (regions == null)
+        {
+            Messages.Message("[LivingLandscapes] Feature regions: regions are only known on a freshly generated map.",
+                MessageTypeDefOf.RejectInput, historical: false);
+            return;
+        }
+        var options = new System.Collections.Generic.List<DebugMenuOption>
+        {
+            new DebugMenuOption("All regions", DebugMenuOptionMode.Action, () => ShowRegion(null)),
+        };
+        foreach (Geology.PlannedRegion row in regions.Table)
+        {
+            Geology.PlannedRegion chosen = row;
+            string label = $"{row.number}: {row.region.type.label} ({row.region.kind}, toward ({row.region.direction.x:F1}, {row.region.direction.y:F1}))";
+            options.Add(new DebugMenuOption(label, DebugMenuOptionMode.Action, () => ShowRegion(chosen)));
+        }
+        Find.WindowStack.Add(new Dialog_DebugOptionListLister(options));
+    }
+
+    private static void ShowRegion(Geology.PlannedRegion row)
+    {
+        var environment = Find.CurrentMap?.GetComponent<MapComponent_Environment>();
+        if (environment?.PlannedRegions == null)
+            return;
+        environment.PlannedRegions.Shown = row;
+        // Switched off and on again, so the picture is computed for the choice.
+        if (environment.Overlay.IsActive(EnvironmentLayerDefOf.LL_FeatureRegion))
+            environment.Overlay.Toggle(EnvironmentLayerDefOf.LL_FeatureRegion);
+        environment.Overlay.Toggle(EnvironmentLayerDefOf.LL_FeatureRegion);
+    }
+
     private static void ShowFitnessOf(ThingDef plant)
     {
         Layers.FitnessWorker.Selected = plant;

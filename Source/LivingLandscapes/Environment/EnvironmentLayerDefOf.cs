@@ -27,6 +27,8 @@ public static class EnvironmentLayerDefOf
     public static EnvironmentLayerDef LL_Interest;
     public static EnvironmentLayerDef LL_Alluvium;
     public static EnvironmentLayerDef LL_StandAge;
+    public static EnvironmentLayerDef LL_FeatureRegion;
+    public static EnvironmentLayerDef LL_FeatureRegionWeight;
 
     static EnvironmentLayerDefOf()
     {

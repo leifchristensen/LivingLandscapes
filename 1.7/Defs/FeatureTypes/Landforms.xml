@@ -13,6 +13,7 @@
     contributions: per condition. Uplift: inside and outside are rates added to the background (1 = the strongest background
       uplift). RockArrangement: inside is an erodibility factor (below 1 resists erosion, a caprock; above 1 erodes easily).
     Parts a type leaves out mean "no requirement, whole run".
+    debugColor: the type's colour in the dev "Feature regions" overlay and its export.
     With geological terrain on, a mutator a type is anchored on skips its own elevation rewrite. Mutators no type names run
     as in vanilla. Other mods can describe their own mutators the same way.
   -->
@@ -21,6 +22,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef>
     <defName>LL_Mountain</defName>
     <label>mountain</label>
+    <debugColor>(0.55, 0.35, 0.15)</debugColor>
     <anchor><kind>TileMutator</kind><mutators><li>Mountain</li></mutators></anchor>
     <shape>
       <kind>Band</kind>
@@ -40,6 +42,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
     <defName>LL_Valley</defName>
     <label>valley</label>
+    <debugColor>(0.2, 0.7, 0.2)</debugColor>
     <anchor><kind>TileMutator</kind><mutators><li>Valley</li></mutators></anchor>
     <shape>
       <kind>Band</kind>
@@ -58,6 +61,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
     <defName>LL_Cliffs</defName>
     <label>cliffs</label>
+    <debugColor>(0.85, 0.1, 0.1)</debugColor>
     <anchor><kind>TileMutator</kind><mutators><li>Cliffs</li></mutators></anchor>
     <shape>
       <kind>Band</kind>
@@ -77,6 +81,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
     <defName>LL_Plateau</defName>
     <label>plateau</label>
+    <debugColor>(0.95, 0.55, 0.1)</debugColor>
     <anchor><kind>TileMutator</kind><mutators><li>Plateau</li></mutators></anchor>
     <shape>
       <kind>Area</kind>
@@ -100,6 +105,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef MayRequire="Ludeon.RimWorld.Odyssey">
     <defName>LL_BayCove</defName>
     <label>bay or cove</label>
+    <debugColor>(0.95, 0.65, 0.7)</debugColor>
     <anchor><kind>TileMutator</kind><mutators><li>Bay</li><li>Cove</li></mutators></anchor>
   </LivingLandscapes.Geology.FeatureTypeDef>
 
@@ -111,6 +117,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef>
     <defName>LL_WorldRiverValley</defName>
     <label>world river valley</label>
+    <debugColor>(0.15, 0.35, 0.9)</debugColor>
     <anchor><kind>WorldRiver</kind></anchor>
     <shape>
       <kind>Path</kind>
@@ -131,6 +138,7 @@
   <LivingLandscapes.Geology.FeatureTypeDef>
     <defName>LL_RiverCentreFeature</defName>
     <label>river centre feature</label>
+    <debugColor>(0.1, 0.85, 0.85)</debugColor>
     <anchor><kind>WaterRegimeCentre</kind></anchor>
     <shape>
       <kind>Area</kind>

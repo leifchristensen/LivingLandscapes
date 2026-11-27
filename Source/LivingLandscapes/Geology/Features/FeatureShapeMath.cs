@@ -35,12 +35,62 @@ public enum BandSide
     Inside,
 }
 
+/// <summary>One region's shape, resolved to a direction and origin on one map: what its weight is computed from.</summary>
+public class RegionShape
+{
+    public ShapeKind kind;
+    public BandSide side;
+
+    /// <summary>Orientation (unit vector or zero) and origin, in map-width fractions from the map centre.</summary>
+    public Vector2 direction;
+    public Vector2 origin;
+
+    public float offset;
+    public float size;
+    public float edge;
+    public float warp;
+    public float radius;
+
+    /// <summary>A scatter's points, relative to the origin; null for other kinds.</summary>
+    public List<Vector2> points;
+
+    public float WeightAt(Vector2 q) => FeatureShapeMath.Weight(kind, side, direction, q, offset, size, edge, radius, points);
+}
+
 /// <summary>
 /// Game-free maths of a region's weight: 0 outside, 1 in its core, smooth across its edge. Positions are fractions of the
 /// map width from the region's origin, after the domain warp that keeps outlines irregular.
 /// </summary>
 public static class FeatureShapeMath
 {
+    /// <summary>
+    /// A map position in map-width fractions from the map centre, the units regions are laid in. Both axes divide by the
+    /// width, so shapes keep their proportions on a map that is not square.
+    /// </summary>
+    public static Vector2 MapFraction(float mx, float mz, int sizeX, int sizeZ) =>
+        new Vector2((mx - sizeX * 0.5f) / sizeX, (mz - sizeZ * 0.5f) / sizeX);
+
+    /// <summary>
+    /// A region's weight at the map fraction <paramref name="p"/>, with the domain warp there passed in: each region moves
+    /// the position by its own share of that warp before it reads its shape.
+    /// </summary>
+    public static float WarpedWeight(RegionShape region, Vector2 p, Vector2 warp) =>
+        region.WeightAt(p + warp * region.warp - region.origin);
+
+    /// <summary>
+    /// The most weight a shape can reach anywhere. A shape with a falloff on both sides of its core peaks at the falloff's
+    /// value at distance 0, which is below 1 when the edge is wider than the size; the other kinds reach 1.
+    /// </summary>
+    public static float PeakWeight(ShapeKind kind, BandSide side, float size, float edge)
+    {
+        bool falloff = kind == ShapeKind.Path || kind == ShapeKind.Area || kind == ShapeKind.Ring ||
+            (kind == ShapeKind.Band && side == BandSide.Both);
+        return falloff ? Falloff(0f, size, Mathf.Max(edge, 1e-4f)) : 1f;
+    }
+
+    /// <summary>A weight as a share of its shape's peak, 0..1: how strongly the region acts here compared with its strongest.</summary>
+    public static float RelativeWeight(float weight, float peak) => peak > 0f ? Mathf.Clamp01(weight / peak) : 0f;
+
     /// <summary>1 within <paramref name="size"/> - <paramref name="edge"/> of the core, 0 beyond size + edge, smooth between.</summary>
     public static float Falloff(float distance, float size, float edge) =>
         1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(size - edge, size + edge, distance));

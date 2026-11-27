@@ -105,6 +105,21 @@ public class OverlayProperties
 
     public FloatRange opacityRange = new FloatRange(0f, 1f);
 
+    /// <summary>
+    /// The values are classes, not measurements: each takes the colour of the nearest stop, never a blend of two, cells are
+    /// not interpolated in the PNG export, and the legend lists only the classes present on the map.
+    /// </summary>
+    public bool discrete;
+
+    /// <summary>Another layer whose <see cref="contourLevel"/> line is drawn over this one, such as where its strength is half.</summary>
+    public EnvironmentLayerDef contourLayer;
+
+    /// <summary>The value of <see cref="contourLayer"/> the line is drawn at.</summary>
+    public float contourLevel = 0.5f;
+
+    /// <summary>The colour stops are built in code after the defs load, one per feature type (<see cref="FeatureTypeColours"/>).</summary>
+    public bool featureTypeColors;
+
     /// <summary>Opacity (0..1) for a value of <see cref="opacityLayer"/>.</summary>
     public float OpacityAt(float value) => Mathf.InverseLerp(opacityRange.min, opacityRange.max, value);
 
@@ -116,9 +131,22 @@ public class OverlayProperties
     /// </summary>
     public OverlayProperties ResolveFor(float[] values, float min, float max)
     {
-        if (!relativeColors && contourIntervals.Count == 0 && bandInterval <= 0f)
+        if (!relativeColors && contourIntervals.Count == 0 && bandInterval <= 0f && !discrete)
             return this;
         var resolved = (OverlayProperties)MemberwiseClone();
+        if (discrete)
+        {
+            var present = new HashSet<ColorStop>();
+            foreach (float v in values)
+            {
+                ColorStop nearest = Nearest(v);
+                // A value more than half a class from every stop (no class there) lists nothing.
+                if (nearest != null && Mathf.Abs(nearest.value - v) < 0.5f)
+                    present.Add(nearest);
+            }
+            resolved.colors = colors.FindAll(present.Contains);
+            return resolved;
+        }
         if (bandInterval > 0f)
             resolved.ResolveBands(min, max);
         if (relativeColors)
@@ -186,7 +214,8 @@ public class OverlayProperties
 
     public IEnumerable<string> ConfigErrors()
     {
-        if (colors.Count == 0)
+        // Config errors are checked before the stops built in code exist.
+        if (colors.Count == 0 && !featureTypeColors)
             yield return "overlay has no colors.";
         if (contourInterval < 0f)
             yield return "overlay contourInterval is negative.";
@@ -215,8 +244,22 @@ public class OverlayProperties
         return Evaluate(value);
     }
 
+    /// <summary>The stop whose value is closest, or null without stops.</summary>
+    private ColorStop Nearest(float value)
+    {
+        ColorStop nearest = null;
+        foreach (ColorStop stop in colors)
+        {
+            if (nearest == null || Mathf.Abs(stop.value - value) < Mathf.Abs(nearest.value - value))
+                nearest = stop;
+        }
+        return nearest;
+    }
+
     public Color Evaluate(float value)
     {
+        if (discrete)
+            return Nearest(value)?.color ?? Color.clear;
         if (value <= colors[0].value)
             return colors[0].color;
         for (int i = 1; i < colors.Count; i++)
