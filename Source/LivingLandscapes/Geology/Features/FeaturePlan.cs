@@ -8,28 +8,14 @@ using Verse.Noise;
 namespace LivingLandscapes.Geology;
 
 /// <summary>One region of a feature type, placed on one map: its shape resolved to a direction and origin, and what it contributes.</summary>
-public class FeatureRegion
+public class FeatureRegion : RegionShape
 {
     public FeatureTypeDef type;
-    public ShapeKind kind;
-    public BandSide side;
 
-    /// <summary>Orientation (unit vector or zero) and origin, in map-width fractions from the map centre.</summary>
-    public Vector2 direction;
-    public Vector2 origin;
-
-    public float offset;
-    public float size;
-    public float edge;
-    public float warp;
-    public float radius;
-
-    /// <summary>A scatter's points, relative to the origin; null for other kinds.</summary>
-    public List<Vector2> points;
+    /// <summary>Metres its type's draw added to the map's relief (the draw is shared by all the regions it laid).</summary>
+    public float extraRelief;
 
     public List<FeatureContribution> contributions = new List<FeatureContribution>();
-
-    public float WeightAt(Vector2 q) => FeatureShapeMath.Weight(kind, side, direction, q, offset, size, edge, radius, points);
 }
 
 /// <summary>
@@ -132,6 +118,7 @@ public class FeaturePlan
         FeatureScale scale = type.ScaleFor(world.Hilliness);
         FloatRange reliefRange = scale?.extraRelief ?? type.extraRelief;
         float extra = FeatureShape.IsSet(reliefRange) ? reliefRange.RandomInRange : 0f;
+        int first = regions.Count;
         FeatureShape s = type.shape;
         switch (s.placement)
         {
@@ -160,6 +147,8 @@ public class FeaturePlan
                 break;
             }
         }
+        for (int r = first; r < regions.Count; r++)
+            regions[r].extraRelief = extra;
         return extra;
     }
 
@@ -235,6 +224,16 @@ public class FeaturePlan
         }
     }
 
+    /// <summary>The domain warp at a map fraction, which each region scales by its own share. Draws no random number.</summary>
+    public Vector2 WarpAt(Vector2 p) => new Vector2((float)warpX.GetValue(p.x, 0.0, p.y), (float)warpZ.GetValue(p.x, 0.0, p.y));
+
+    /// <summary>A region's weight at a map position in cells (not rounded), the same weight <see cref="Fields"/> lays there.</summary>
+    public float WeightAtMapCell(RegionShape region, float mx, float mz, int sizeX, int sizeZ)
+    {
+        Vector2 p = FeatureShapeMath.MapFraction(mx, mz, sizeX, sizeZ);
+        return FeatureShapeMath.WarpedWeight(region, p, WarpAt(p));
+    }
+
     /// <summary>
     /// The regions' contributions laid on a grid (the erosion model's), each a weight per cell from its shape at the warped
     /// position <paramref name="mapFraction"/> gives (map-width fractions from the map centre).
@@ -243,7 +242,10 @@ public class FeaturePlan
     {
         var fields = new ConditionFields(gx * gz);
         if (regions.Count == 0)
+        {
+            fields.regionWeights = new float[0][];
             return fields;
+        }
         var weights = new float[regions.Count][];
         // A region that contributes nothing (a bay: the type only says the geology models it) needs no weights.
         for (int r = 0; r < regions.Count; r++)
@@ -253,15 +255,15 @@ public class FeaturePlan
             for (int x = 0; x < gx; x++)
             {
                 Vector2 p = mapFraction(x, z);
-                var warp = new Vector2((float)warpX.GetValue(p.x, 0.0, p.y), (float)warpZ.GetValue(p.x, 0.0, p.y));
+                Vector2 warp = WarpAt(p);
                 for (int r = 0; r < regions.Count; r++)
                 {
-                    FeatureRegion region = regions[r];
                     if (weights[r] != null)
-                        weights[r][z * gx + x] = region.WeightAt(p + region.warp * warp - region.origin);
+                        weights[r][z * gx + x] = FeatureShapeMath.WarpedWeight(regions[r], p, warp);
                 }
             }
         }
+        fields.regionWeights = weights;
         for (int r = 0; r < regions.Count; r++)
         {
             float[] w = weights[r];
@@ -291,6 +293,9 @@ public class ConditionFields
     private readonly int cells;
     public readonly List<UpliftContribution> uplift = new List<UpliftContribution>();
     public readonly List<RockContribution> rock = new List<RockContribution>();
+
+    /// <summary>Each region's weight per cell, in the plan's order (null for a region that contributes nothing).</summary>
+    public float[][] regionWeights;
 
     /// <summary>The map's own uplift before any region (fractal noise at landform scale, stronger upslope).</summary>
     public float[] background;

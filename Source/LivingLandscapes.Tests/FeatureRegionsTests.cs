@@ -347,4 +347,74 @@ public class FeatureRegionsTests
         Assert.True(ConditionCombine.ChangesDuringRun(contributions, new List<RockContribution>()));
         Assert.False(ConditionCombine.ChangesDuringRun(new List<UpliftContribution> { new UpliftContribution(new[] { 1f }, null) }, new List<RockContribution>()));
     }
+
+    // ---- The overlay's weights (map position, warp, peak): the same pure functions the generator lays regions with ----
+
+    [Fact]
+    public void MapFractionDividesBothAxesByTheWidth()
+    {
+        Assert.Equal(new Vector2(0f, 0f), FeatureShapeMath.MapFraction(125f, 100f, 250, 200));
+        Vector2 corner = FeatureShapeMath.MapFraction(250f, 200f, 250, 200);
+        Assert.Equal(0.5f, corner.x, 6);
+        Assert.Equal(0.4f, corner.y, 6);
+        // Positions between cells are not rounded.
+        Assert.Equal(0.001f, FeatureShapeMath.MapFraction(125.25f, 100f, 250, 200).x, 6);
+    }
+
+    [Fact]
+    public void WarpedWeightMovesThePositionByTheRegionsShareOfTheWarp()
+    {
+        var area = new RegionShape { kind = ShapeKind.Area, origin = new Vector2(0.1f, 0f), size = 0.2f, edge = 0.05f, warp = 0.1f };
+        // This warp brings the map centre onto the region's origin: its core.
+        Assert.Equal(1f, FeatureShapeMath.WarpedWeight(area, Vector2.zero, new Vector2(1f, 0f)));
+        // This one moves it far outside.
+        Assert.Equal(0f, FeatureShapeMath.WarpedWeight(area, Vector2.zero, new Vector2(-3f, 0f)));
+        var p = new Vector2(0.2f, 0.15f);
+        var warp = new Vector2(0.5f, -0.25f);
+        Assert.Equal(area.WeightAt(new Vector2(0.15f, 0.125f)), FeatureShapeMath.WarpedWeight(area, p, warp), 5);
+        area.warp = 0f;
+        Assert.Equal(area.WeightAt(p - area.origin), FeatureShapeMath.WarpedWeight(area, p, warp));
+    }
+
+    [Fact]
+    public void TheWorldRiverValleyPeaksBelowOne()
+    {
+        // Its edge (0.1) is wider than its half-width (0.05), so even its middle is inside the falloff.
+        Assert.Equal(0.84375f, FeatureShapeMath.PeakWeight(ShapeKind.Path, BandSide.Both, 0.05f, 0.1f), 5);
+    }
+
+    [Theory]
+    [InlineData(ShapeKind.Path, BandSide.Both)]
+    [InlineData(ShapeKind.Area, BandSide.Both)]
+    [InlineData(ShapeKind.Band, BandSide.Both)]
+    [InlineData(ShapeKind.Band, BandSide.Inside)]
+    [InlineData(ShapeKind.Ring, BandSide.Both)]
+    [InlineData(ShapeKind.Point, BandSide.Both)]
+    [InlineData(ShapeKind.Scatter, BandSide.Both)]
+    public void PeakWeightIsTheMostTheShapeReaches(ShapeKind kind, BandSide side)
+    {
+        foreach ((float size, float edge) in new[] { (0.05f, 0.1f), (0.2f, 0.05f), (0.1f, 0f) })
+        {
+            var shape = new RegionShape
+            {
+                kind = kind, side = side, direction = new Vector2(1f, 0f), size = size, edge = edge, radius = 0.3f,
+                points = new List<Vector2> { new Vector2(0.2f, 0f) },
+            };
+            float most = 0f;
+            for (int x = -100; x <= 100; x++)
+            {
+                for (int y = -100; y <= 100; y++)
+                    most = Math.Max(most, shape.WeightAt(new Vector2(x * 0.01f, y * 0.01f)));
+            }
+            Assert.Equal(FeatureShapeMath.PeakWeight(kind, side, size, edge), most, 5);
+        }
+    }
+
+    [Fact]
+    public void RelativeWeightIsAShareOfThePeak()
+    {
+        Assert.Equal(0.5f, FeatureShapeMath.RelativeWeight(0.421875f, 0.84375f), 6);
+        Assert.Equal(1f, FeatureShapeMath.RelativeWeight(0.9f, 0.84375f));
+        Assert.Equal(0f, FeatureShapeMath.RelativeWeight(0.5f, 0f));
+    }
 }
