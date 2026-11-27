@@ -36,6 +36,14 @@ public static class ContourTracer
         return segments;
     }
 
+    /// <summary>Traces the one line where the field crosses <paramref name="threshold"/>.</summary>
+    public static List<ContourSegment> TraceAt(float[] values, int sizeX, int sizeZ, float threshold)
+    {
+        var segments = new List<ContourSegment>();
+        TraceLevel(values, sizeX, sizeZ, 1, threshold, segments);
+        return segments;
+    }
+
     private static void TraceLevel(float[] e, int sizeX, int sizeZ, int level, float threshold, List<ContourSegment> output)
     {
         for (int z = 0; z < sizeZ - 1; z++)

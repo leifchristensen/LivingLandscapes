@@ -244,6 +244,9 @@ public static class LandscapeGenerator
     public static float Relief;
     public static FeatureTypeDef PlainsFeature;
 
+    /// <summary>Where the feature regions of the map generated last lie.</summary>
+    public static PlannedRegions Regions { get; private set; }
+
     /// <summary>The erosion model's sediment ledger of the map generated last (the Delta report prints its closure).</summary>
     public static ErosionLedger LastLedger;
 
@@ -272,9 +275,14 @@ public static class LandscapeGenerator
 
         // The feature regions, planned before terrain (FEATURE-REGIONS.md): they only change conditions the erosion model reads.
         var plan = new FeaturePlan(map, world, water);
-        ConditionFields conditions = UpliftField(world, p, gx, gz, metresPerModelCell,
-            plan, (x, z) => new Vector2(((x - originX) * mapCellsPerModelCell - sizeX * 0.5f) / sizeX,
-                                        ((z - originZ) * mapCellsPerModelCell - sizeZ * 0.5f) / sizeX));
+        Vector2 MapPosition(int x, int z) => new Vector2((x - originX) * mapCellsPerModelCell, (z - originZ) * mapCellsPerModelCell);
+        ConditionFields conditions = UpliftField(world, p, gx, gz, metresPerModelCell, plan, (x, z) =>
+        {
+            Vector2 m = MapPosition(x, z);
+            return FeatureShapeMath.MapFraction(m.x, m.y, sizeX, sizeZ);
+        });
+        // Where each region lies, kept for the dev overlay and the test exports; the generator does not read it.
+        Regions = new PlannedRegions(plan, conditions, sizeX, sizeZ, gx, gz, MapPosition);
         // Rock beds, in map cells around the map's centre; heights in cells above the lowest ground.
         // A plains feature (butte, escarpment, bluffs) stands above or cuts below the tile's own relief.
         float relief = p.ReliefFor(world.Hilliness) + plan.ExtraRelief;

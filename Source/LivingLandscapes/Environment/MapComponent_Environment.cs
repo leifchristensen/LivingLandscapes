@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LivingLandscapes.Overlay;
 using Verse;
 
@@ -81,6 +82,11 @@ public class MapComponent_Environment : MapComponent
     public int[] PlannedRockStage { get; set; }
     public ThingDef[] PlannedRock { get; set; }
 
+    /// <summary>
+    /// Where the feature regions lie, for the dev "Feature regions" overlay and the test exports. Kept after generation
+    /// (not cleared by any step); not saved, so a reloaded map has none.
+    /// </summary>
+    public Geology.PlannedRegions PlannedRegions { get; set; }
 
     /// <summary>
     /// Ground the geology places itself (water, marsh, mud) per cell, from the ground rules; applied when vanilla picks
@@ -157,12 +163,24 @@ public class MapComponent_Environment : MapComponent
         Overlay.Notify_LayersChanged();
     }
 
+    /// <summary>Whether an on-demand layer can be computed on this map: its worker says so and every input is there or can be.</summary>
+    public bool CanComputeOnDemand(EnvironmentLayerDef layer) =>
+        layer.Worker.CanCompute(map) && layer.dependsOn.All(d => HasLayer(d) || (d.onDemand && CanComputeOnDemand(d)));
+
     /// <summary>
     /// Computes an on-demand dev layer (<see cref="EnvironmentLayerDef.onDemand"/>) now, from the layers the map holds and
-    /// its current state. Returns false if it could not be computed (its inputs are missing).
+    /// its current state, after the on-demand layers it depends on. Returns false if it could not be computed (its inputs
+    /// are missing).
     /// </summary>
     public bool ComputeOnDemand(EnvironmentLayerDef layer)
     {
+        if (!layer.Worker.CanCompute(map))
+            return false;
+        foreach (EnvironmentLayerDef dependency in layer.dependsOn)
+        {
+            if (dependency.onDemand && !ComputeOnDemand(dependency))
+                return false;
+        }
         return Compute(layer, new EnvironmentContext(map, this));
     }
 
